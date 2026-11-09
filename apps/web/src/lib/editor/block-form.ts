@@ -15,6 +15,7 @@
 // block-types.ts) and per-type Svelte forms (a new type would need a form before it is editable).
 
 import { RichTextDoc, isBlankDoc, type BlockField } from '@mycel/core';
+import { imageAltProps } from '../admin/hero-alt/hero-alt.js';
 import { fromTiptap } from './article-document.js';
 import { fromMarkdown, toMarkdown, type MarkdownError } from './markdown.js';
 
@@ -516,4 +517,15 @@ export function arrangeRows(
   out[rowsKey] = String(count);
   if (move === 'add') out[join(join(name, rows), FROM)] = '';
   return out;
+}
+
+/**
+ * The standalone image form makes an empty description decorative, like the document header.
+ * Apply only after its normal localised merge, and only when that control was shown. Rejected:
+ * normalising every image-use group, which would weaken the gallery and legacy hero contracts.
+ */
+export function imageAltFromForm(props: Props, form: Posted): Props {
+  if (form.get('imageAltShown') !== '1') return props;
+  const alt = form.get('imageAltClear') === 'on' ? null : props.alt;
+  return { ...props, ...imageAltProps(alt) };
 }

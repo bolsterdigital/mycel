@@ -111,6 +111,28 @@ describe('the one edit form', () => {
     expect(blocksFrom(blocks, postedValues(formOf(blocks)))).toEqual({ blocks, errors: [] });
   });
 
+  it('uses the description choice for image forms without normalising gallery or legacy hero', () => {
+    const image = blocks.find((b) => b.type === 'image')!;
+    const gallery = blocks.find((b) => b.type === 'gallery')!;
+    const hero = blocks.find((b) => b.type === 'hero')!;
+    const form = formOf([image, gallery, hero]);
+    const prefix = blockPrefix(image.id);
+    form[`${prefix}imageAltShown`] = '1';
+    form[`${prefix}p.alt.nl`] = '';
+    form[`${prefix}p.alt.en`] = '';
+    const read = blocksFrom([image, gallery, hero], postedValues(form));
+    expect(read.blocks[0]?.props).toMatchObject({ decorative: true, alt: null });
+    expect(read.blocks[1]).toEqual(gallery);
+    expect(read.blocks[2]).toEqual(hero);
+    const p = pendingBlock('image', 'end', null, [])!;
+    const empty = { ...pendingView(p, ['nl']).values, 'new.imageAltShown': '1' };
+    expect(pendingUntouched(p, postedValues(empty), ['nl'])).toBe(true);
+    expect(pendingProps(p, postedValues(empty)).props).toMatchObject({
+      decorative: true,
+      alt: null,
+    });
+  });
+
   it('changes one block and leaves the others and the skipped one as stored', () => {
     const heading = blocks.find((b) => b.type === 'heading')!;
     const form = formOf(blocks);

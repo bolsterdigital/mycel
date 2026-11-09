@@ -28,6 +28,7 @@ import {
 import { isDeepStrictEqual } from 'node:util';
 import {
   formValues,
+  imageAltFromForm,
   postedValues,
   propsFromForm,
   type FieldError,
@@ -215,7 +216,11 @@ export function blocksFrom(
       block.props as Record<string, unknown>
     );
     errors.push(...read.errors.map((e) => ({ ...e, name: `${prefix}${e.name}` })));
-    return { ...block, props: read.props } as Block;
+    return {
+      ...block,
+      props:
+        block.type === 'image' ? imageAltFromForm(read.props, within(posted, prefix)) : read.props,
+    } as Block;
   });
   return { blocks: out, errors };
 }
@@ -224,7 +229,8 @@ export function blocksFrom(
 export function pendingProps(p: PendingBlock, posted: Posted) {
   const read = propsFromForm(BLOCK_DEFINITIONS[p.type].fields, within(posted, NEW_BLOCK));
   return {
-    props: read.props,
+    props:
+      p.type === 'image' ? imageAltFromForm(read.props, within(posted, NEW_BLOCK)) : read.props,
     errors: read.errors.map((e) => ({ ...e, name: `${NEW_BLOCK}${e.name}` })),
   };
 }
@@ -259,7 +265,9 @@ export function pendingUntouched(
     asShown &&
     isDeepStrictEqual(
       pendingProps(p, posted).props,
-      propsFromForm(fields, postedValues(empty)).props
+      p.type === 'image'
+        ? imageAltFromForm(propsFromForm(fields, postedValues(empty)).props, typed)
+        : propsFromForm(fields, postedValues(empty)).props
     )
   );
 }

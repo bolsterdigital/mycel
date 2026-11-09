@@ -59,6 +59,7 @@
   {/each}
   <BlockFields
     fields={BLOCK_DEFINITIONS[type].fields}
+    imageDescription={type === 'image' ? { image: '', alt: null, locales } : undefined}
     values={{ ...pending.values, ...values }}
     {locales}
     idPrefix="b-new"

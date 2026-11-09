@@ -16,10 +16,11 @@
      submits to `arrange`, which shows the form again with nothing saved, so the row changes the
      same way with and without JavaScript. -->
 <script lang="ts">
+  import HeroAltRow from '../hero-alt/HeroAltRow.svelte';
   import WritingSurface from '#lib/editor/WritingSurface.svelte';
   import { toTiptap } from '#lib/editor/article-document.js';
   import { fromMarkdown } from '#lib/editor/markdown.js';
-  import type { BlockField } from '@mycel/core';
+  import { BLOCK_DEFINITIONS, type BlockField, type BlockType } from '@mycel/core';
   import RowCard from './RowCard.svelte';
   import TargetPicker from './TargetPicker.svelte';
   import { Button, Checkbox, Field, Fieldset, Icon, MediaPicker } from '../ui/index.js';
@@ -31,7 +32,17 @@
     label: string;
   }
   interface Props {
-    fields: readonly BlockField[];
+    fields?: readonly BlockField[];
+    block?: {
+      type: BlockType;
+      image: {
+        description?: {
+          image: string;
+          alt: Record<string, string> | null;
+          locales: readonly string[];
+        };
+      } | null;
+    };
     values: Record<string, string>;
     locales: readonly string[];
     /** Unique per block on the page; element ids are `<idPrefix>-<name without prefix>`. */
@@ -57,9 +68,15 @@
       | undefined;
     /** One list shown as a row, and its style key (BLOCK_PRESENTATION). */
     row?: { list: string; style: string } | undefined;
+    imageDescription?: {
+      image: string;
+      alt: Record<string, string> | null;
+      locales: readonly string[];
+    };
   }
   let {
-    fields,
+    fields: suppliedFields,
+    block,
     values,
     locales,
     idPrefix,
@@ -72,7 +89,10 @@
     locale,
     groups,
     row,
+    imageDescription: suppliedDescription,
   }: Props = $props();
+  const fields = $derived(suppliedFields ?? (block ? BLOCK_DEFINITIONS[block.type].fields : []));
+  const imageDescription = $derived(suppliedDescription ?? block?.image?.description);
   const t = $derived(ui(locale));
   /** The edit screen's `arrange` action, in the locale the form shows, as every action carries. */
   const arrange = $derived(`?/arrange&locale=${encodeURIComponent(locales[0] ?? '')}`);
@@ -165,7 +185,30 @@
 
 {#snippet field(f: BlockField, name: string)}
   {#if f.kind === 'text'}
-    {#if f.localized && f.key === 'alt'}
+    {#if imageDescription && name === `${prefix}p.alt`}
+      {@const work = locales[0] ?? locale}
+      {@const saved = imageDescription}
+      <HeroAltRow
+        {locale}
+        {work}
+        locales={saved.locales}
+        image={v(`${prefix}p.mediaId`)}
+        savedImage={saved.image}
+        text={v(`${name}.${work}`)}
+        savedText={saved.alt?.[work] ?? ''}
+        others={Object.fromEntries(
+          saved.locales.filter((l) => l !== work).map((l) => [l, saved.alt?.[l]])
+        )}
+        clearing={v(`${prefix}imageAltClear`) === 'on'}
+        flagged={bad(`${name}.${work}`) || bad(name)}
+        fieldId={id(`${name}.${work}`)}
+        fieldName={`${name}.${work}`}
+        clearName={`${prefix}imageAltClear`}
+        markerName={`${prefix}imageAltShown`}
+        imageName={`${prefix}p.mediaId`}
+        block
+      />
+    {:else if f.localized && f.key === 'alt'}
       <div class="ui-block-alt" data-alt-of={name.replace(/alt$/, 'decorative')}>
         {#each locales as l (l)}
           {@render input(`${name}.${l}`, `${label(f.key)}${per(l)}`, f.multiline)}
@@ -250,7 +293,7 @@
     )}
   {:else if f.kind === 'date'}
     {@render dateInput(name, label(f.key))}
-  {:else if f.kind === 'boolean'}
+  {:else if f.kind === 'boolean' && !(imageDescription && name === `${prefix}p.decorative`)}
     <Checkbox id={id(name)} {name} label={label(f.key)} checked={v(name) === 'on'} />
   {:else if f.kind === 'actions'}
     {#each Array.from({ length: f.max }, (_, i) => i) as i (i)}

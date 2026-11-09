@@ -1273,7 +1273,7 @@ test('an image dropped in an article lands between its paragraphs, alt text in f
   await dropOn(page, '.writing-surface .ProseMirror p:nth-of-type(2)', [pngFile(filename)]);
   const card = page.locator('.writing-surface .editor-card fieldset.pending');
   await expect(card.getByRole('heading', { name: 'Nieuw beeld' })).toBeVisible();
-  await expect(card.getByLabel('Alternatieve tekst')).toBeFocused();
+  await expect(card.locator('[data-block-alt] textarea')).toBeFocused();
   await expect(card.locator('[data-picker-name]')).toHaveText(filename);
   const order = await writing.evaluate((el) =>
     [...el.children].map((c) => (c.matches('.editor-card') ? 'card' : c.textContent?.trim()))
@@ -1287,7 +1287,7 @@ test('an image dropped in an article lands between its paragraphs, alt text in f
   await card.screenshot({ path: '.scratch/80b-writer-card-320-200.png' });
   await setTextSize(page, '100%');
   await page.setViewportSize({ width: 1280, height: 900 });
-  await card.getByLabel('Alternatieve tekst').fill('Een beeld in de tekst');
+  await card.locator('[data-block-alt] textarea').fill('Een beeld in de tekst');
   await card.getByRole('button', { name: 'Kaart toevoegen' }).click();
   await expect(writing.locator('.editor-placed figcaption')).toHaveText('Een beeld in de tekst');
 
@@ -1303,7 +1303,7 @@ test('an image dropped in an article lands between its paragraphs, alt text in f
     );
   }, pngFile(pasted));
   const second = page.locator('.writing-surface fieldset.pending');
-  await expect(second.getByLabel('Alternatieve tekst')).toBeFocused();
+  await expect(second.locator('[data-block-alt] textarea')).toBeFocused();
   await second.getByRole('button', { name: 'Verwijderen' }).click();
   await expect(page.locator('fieldset.pending')).toHaveCount(0);
 

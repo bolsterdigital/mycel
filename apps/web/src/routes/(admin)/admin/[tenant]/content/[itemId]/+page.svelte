@@ -587,7 +587,7 @@
       {/if}
     {/snippet}
     <BlockFields
-      fields={BLOCK_DEFINITIONS[b.type].fields}
+      block={b}
       values={blockValues(b)}
       locales={shown}
       idPrefix="b-{b.id}"
