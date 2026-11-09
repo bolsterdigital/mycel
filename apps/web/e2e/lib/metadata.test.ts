@@ -47,6 +47,29 @@ it('finds locale metadata copied from another locale', () => {
     ])
   ).toEqual(['en: image 2 has no alt']);
   const fine = { ...en, description: 'About', ogDescription: 'About', alts: ['Protesters', ''] };
+  const named = { ...fine, title: nl.title, documentTitle: nl.title, ogTitle: nl.ogTitle };
+  expect(localeMetadataProblems([nl, named])).toEqual(['nl/en: same og:title']);
+  expect(
+    localeMetadataProblems([
+      { ...nl, sharedTitle: true },
+      { ...named, sharedTitle: true },
+    ])
+  ).toEqual([]);
+  expect(localeMetadataProblems([nl, { ...fine, alts: ['Protesters'] }])).toEqual([
+    'nl/en: 2 and 1 images',
+  ]);
+  expect(
+    localeMetadataProblems([
+      { ...nl, independentImages: true },
+      { ...fine, alts: ['Protesters'] },
+    ])
+  ).toEqual([]);
+  expect(
+    localeMetadataProblems([
+      { ...nl, independentImages: true },
+      { ...fine, alts: [null] },
+    ])
+  ).toEqual(['en: image 1 has no alt']);
   const shared = { ogImage: 'https://example.test/m.webp', describedShare: true };
   expect(localeMetadataProblems([{ ...nl, documentTitle: 'Ander' }, fine])).toEqual([
     'nl: <title> is not the title',

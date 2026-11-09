@@ -21,5 +21,5 @@ export const onlyA11y = (reason = 'runs with JavaScript, in the a11y project'): 
 
 export const PUBLIC_SCRIPTS = ['/_form/proof.js', '/_image/lightbox.js'] as const;
 
-/** Every script element on a page that is not one of `PUBLIC_SCRIPTS`. */
-export const OTHER_SCRIPTS = `script:not(${PUBLIC_SCRIPTS.map((s) => `[src="${s}"]`).join(', ')})`;
+/** Unexpected executable scripts; application/ld+json is an inert data block. */
+export const OTHER_SCRIPTS = `script:not([type="application/ld+json"]):not(${PUBLIC_SCRIPTS.map((s) => `[src="${s}"]`).join(', ')})`;

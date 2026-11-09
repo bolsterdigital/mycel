@@ -2,6 +2,10 @@
 // mail) live in @mycel/core's catalogs; content (labels, consent text) lives on the documents.
 
 export const en = {
+  'public.people.articles': 'Articles',
+  'public.people.previous': 'Previous articles',
+  'public.people.next': 'More articles',
+
   'admin.people.added': 'Person added and selected. Save the article to keep this selection.',
   'admin.people.title': 'People',
   'admin.people.new': 'Add person',

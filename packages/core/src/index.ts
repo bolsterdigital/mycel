@@ -123,3 +123,5 @@ export * from './forms/mail-planning.js';
 export * from './forms/mail-delivery.js';
 export * from './content/people/model.js';
 export * from './content/people/service.js';
+
+export * from './content/people/public.js';

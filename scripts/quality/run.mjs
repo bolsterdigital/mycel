@@ -234,7 +234,7 @@ try {
       locale,
       title: entry.locales[locale].title,
       indexable: true,
-      canonicalSuffix: `${locale === 'en' ? '/en' : ''}/${entry.routeClass === 'article' ? 'articles/' : ''}${entry.slug}`,
+      canonicalSuffix: `${locale === 'en' ? '/en' : ''}/${entry.routeClass === 'article' ? 'articles/' : entry.routeClass === 'person' ? 'people/' : ''}${entry.slug}`,
       ...entry.expected,
       article: entry.routeClass === 'article',
     }));

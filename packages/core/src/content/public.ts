@@ -27,6 +27,7 @@ import { Block, blockLocalized, projectBlock } from './blocks.js';
 import { ContentType, Slug, type ContentDocument } from './model.js';
 import { EffectiveView, effectiveOf } from './header/effective.js';
 import { statusOf } from './lifecycle.js';
+import { personPageEnabled } from './people/public.js';
 import './ports.js';
 import '../theme/ports.js';
 
@@ -64,7 +65,11 @@ export const PublishedItem = z.object({
   /** Images and short texts after inheritance (#86), so no reader derives them on its own. */
   effective: EffectiveView,
   corrections: z.array(z.object({ date: z.string().date(), text: z.string() })).optional(),
-  authors: z.array(z.object({ id: z.string().guid(), slug: Slug, name: z.string() })).optional(),
+  authors: z
+    .array(
+      z.object({ id: z.string().guid(), slug: Slug, name: z.string(), pageEnabled: z.boolean() })
+    )
+    .optional(),
   section: z.object({ slug: Slug, name: z.string() }).nullable().optional(),
   /** An article's chosen header (ADR 025 rule 3); a renderer without a hero image shows `standard`. */
   presentation: z.object({ header: z.enum(ARTICLE_HEADERS) }).optional(),
@@ -157,7 +162,13 @@ export const getPublished = defineUseCase({
     const authors = [];
     for (const id of doc.authorIds) {
       const author = await ctx.authors.get(id);
-      if (author) authors.push({ id: author.id, slug: author.slug, name: author.name });
+      if (author)
+        authors.push({
+          id: author.id,
+          slug: author.slug,
+          name: author.name,
+          pageEnabled: await personPageEnabled(ctx, author),
+        });
     }
     const section = doc.sectionId ? await ctx.sections.get(doc.sectionId) : null;
     return {

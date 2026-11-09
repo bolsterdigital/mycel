@@ -77,6 +77,8 @@ export interface UseCase<
  */
 export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   'content.published.get',
+  'content.public_person.get',
+  'content.public_person.list',
   'form.get',
   'form.submit',
   'mailing.opt_in.confirm',

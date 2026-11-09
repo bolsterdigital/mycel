@@ -26,8 +26,12 @@
   {#if intro.meta}
     <p class="page-meta">
       {#if intro.meta.date}<time datetime={intro.meta.date.iso}>{intro.meta.date.label}</time
-        >{/if}{#if intro.meta.byline}{#if intro.meta.date}{' · '}{/if}{intro.meta
-          .byline}{/if}{#if intro.meta.section}{#if intro.meta.date || intro.meta.byline}{' · '}{/if}{intro
+        >{/if}{#if intro.meta.byline}{#if intro.meta.date}{' · '}{/if}{intro.meta.byline &&
+        !intro.meta.bylineParts
+          ? intro.meta.byline
+          : ''}{#if intro.meta.bylineParts}{#each intro.meta.bylineParts as part, i (i)}{#if part.href}<a
+                href={part.href}>{part.text}</a
+              >{:else}{part.text}{/if}{/each}{/if}{/if}{#if intro.meta.section}{#if intro.meta.date || intro.meta.byline}{' · '}{/if}{intro
           .meta.section}{/if}
     </p>
   {/if}

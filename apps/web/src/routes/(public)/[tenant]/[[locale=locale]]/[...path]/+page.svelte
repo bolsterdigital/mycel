@@ -6,6 +6,7 @@
      the Open Graph tags with the share image (#66). -->
 <script lang="ts">
   import Blocks from '#lib/blocks/Blocks.svelte';
+  import StructuredData from '#lib/components/public/StructuredData.svelte';
   import Intro from '#lib/blocks/Intro.svelte';
   import type { PageProps } from './$types';
 
@@ -47,6 +48,8 @@
     {/if}
   {/if}
 </svelte:head>
+
+{#if data.view === 'item' && data.structured}<StructuredData value={data.structured} />{/if}
 
 {#if data.view === 'thanks'}
   <main class="page">

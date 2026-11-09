@@ -1,0 +1,57 @@
+/* The existing public type scale and colour pairs also style profile cards; rejected: a second
+   theme or inline tenant styles for this route. Flex wrapping keeps contact links readable. */
+.person-page .person-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space, 1.5rem);
+}
+.person-page .person-header > div {
+  min-width: 0;
+  flex: 1 1 16rem;
+}
+.person-page .person-portrait {
+  flex: 0 1 15rem;
+}
+.person-portrait img {
+  width: 100%;
+  height: auto;
+}
+.person-bio {
+  white-space: pre-line;
+}
+.person-contact,
+.person-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.person-contact a,
+.person-pagination a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  overflow-wrap: anywhere;
+}
+.person-articles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 2rem;
+}
+.person-articles article {
+  min-width: 0;
+}
+.person-articles img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+}
+.person-articles h3 {
+  overflow-wrap: anywhere;
+}
+.person-articles h3 a {
+  display: inline-block;
+  min-height: 44px;
+}
