@@ -9,6 +9,7 @@ import { test } from './lib/evidence/page';
 import { expectNoAxeViolations } from './lib/axe';
 import { bfcacheBack, bfcacheBrowser } from './lib/bfcache';
 import { blockPage, card, editorReady, more, newPage, reloadsEditor } from './lib/editor';
+import { exerciseBlockMove } from './lib/block-move';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { ADMIN, login } from './lib/login';
@@ -2134,3 +2135,15 @@ test.describe('an editor with unsaved rich text survives a look at the list', ()
     await page.context().close();
   });
 });
+
+for (const locale of ['nl-NL', 'en-GB']) {
+  test.describe(`block movement ${locale}`, () => {
+    test.use({ locale });
+    for (const type of ['page', 'article'] as const) {
+      test(`block movement saves typed input on a ${type}`, async ({ page, request }) => {
+        onlyA11y();
+        await exerciseBlockMove(page, request, type);
+      });
+    }
+  });
+}

@@ -68,6 +68,8 @@
     StatusCard,
     Tabs,
   } from '#lib/admin/ui/index.js';
+  import BlockMoveStatus from '#lib/admin/block-move/BlockMoveStatus.svelte';
+  import { blockCardLabels, blockGroupLabels } from '#lib/admin/block-move/labels.js';
   import { BLOCK_ICONS, BLOCK_PRESENTATION, blockName } from '#lib/admin/block-presentation.js';
   import { blockNotice, restWords } from '#lib/admin/block-rest-words.js';
   import { pickAny, BLOCK_DEFINITIONS, pick, type BlockType, type MediaCredit } from '@mycel/core';
@@ -81,7 +83,9 @@
     // These modules change disclosure state; start them after hydration has claimed the form.
     for (const src of [
       '/_admin/tabs.js',
-      ...(data.canWrite ? ['/_admin/edit-screen.js', '/_admin/session-restore.js'] : []),
+      ...(data.canWrite
+        ? ['/_admin/edit-screen.js', '/_admin/session-restore.js', '/_admin/block-move.js']
+        : []),
       ...(data.canWrite && data.upload ? ['/_admin/block-drop.js'] : []),
       ...(!data.translating && data.item.type === 'page' && data.canWrite
         ? ['/_admin/live-preview-parent.js']
@@ -293,18 +297,8 @@
   const empty = (name: string) => !v(name).trim() && !data.values[name];
   const thumbOf = (id: string | null) =>
     id && data.media.some((m) => m.id === id && m.thumb) ? thumbPath(base, id) : null;
-  const cardLabels = $derived({
-    edit: t('admin.block.card.edit'),
-    done: t('admin.block.card.done'),
-    more: t('admin.block.card.more'),
-    block: t('admin.block.card.block'),
-    collapse: t('admin.block.card.collapse'),
-    expand: t('admin.block.card.expand'),
-  });
-  const groupLabels = $derived({
-    display: t('admin.block.group.display'),
-    source: t('admin.block.group.source'),
-  });
+  const cardLabels = $derived(blockCardLabels(t));
+  const groupLabels = $derived(blockGroupLabels(t));
   /** A credit as the page words it (`lib/blocks/Credit.svelte`), in the content locale. */
   const creditLine = (c: MediaCredit): string => creditText(c, creditWords(ui(work)));
   const blockTypeOptions = $derived(
@@ -537,6 +531,9 @@
       data.openBlocks.includes(b.id) ||
       (Array.isArray(early.$openBlocks) && early.$openBlocks.includes(b.id))}
     labels={cardLabels}
+    moveLabel={data.canWrite && !pending && data.blocks.length > 1
+      ? t('admin.block.move.grip')
+      : undefined}
   >
     {#snippet rest()}{@render blockRest(b)}{/snippet}
     {#snippet actions()}
@@ -663,6 +660,7 @@
 
 {#snippet contentTab()}
   <input type="hidden" name="baseRevisionId" value={baseRevision} />
+  <BlockMoveStatus {t} />
   <!-- Filled by the screen's script on submit: the card in view, so a save stays there. -->
   <input type="hidden" name="nearBlock" value="" />
   <input type="hidden" name="editLocale" value={data.translating ? '' : work} />

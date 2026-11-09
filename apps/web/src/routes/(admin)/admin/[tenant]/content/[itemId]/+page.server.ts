@@ -20,6 +20,7 @@
 // carries it as `editLocale`; a save reads only that locale and keeps every other one as the base
 // revision has it (`formDocument`). Switching locale saves first and remembers the choice; a
 // locale the document lacks shows "start the translation", empty or as a copy of another locale.
+import { blockMovePlace } from '#lib/admin/block-move/place.js';
 import { toArticleEditor } from '#lib/editor/article-document.js';
 import { isDeepStrictEqual } from 'node:util';
 import { error, fail, redirect } from '@sveltejs/kit';
@@ -959,16 +960,15 @@ export const actions: Actions = {
   move: async (event) => {
     const saved = await commit(event);
     if ('failure' in saved) return saved.failure;
-    const [blockId = '', direction] = text(saved.data, 'move').split(':');
+    const [blockId = '', direction, anchor] = text(saved.data, 'move').split(':');
     return blockStep(saved, event.params.itemId, blockId, 'blockMoved', async (blocks, index) => {
-      const up = direction === 'up';
-      const neighbour = blocks[up ? index - 1 : index + 1];
-      if (!neighbour) return;
+      const place = blockMovePlace(direction, anchor, blocks, index);
+      if (!place) return;
       return runtime().invoker.run(useCases.moveBlock, saved.principal, {
         itemId: event.params.itemId,
         baseRevisionId: saved.revisionId,
         blockId,
-        place: up ? { before: neighbour.id } : { after: neighbour.id },
+        place,
       });
     });
   },
