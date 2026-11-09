@@ -30,7 +30,6 @@ export const en = {
   'forms.mail.template.missing': 'The selected mail template no longer exists.',
   'forms.mail.field.missing': 'The template refers to a field that no longer exists.',
   'forms.mail.copy.invalid': 'The resulting message is empty or too long.',
-  'forms.mail.author.forbidden': 'You cannot author form mail.',
   'forms.mail.publish.forbidden': 'Publishing permission is required to activate form mail.',
   'forms.mail.condition.invalid': 'The mail condition refers to an invalid field or value.',
   'forms.mail.version.conflict': 'Mail settings have changed. Reload before saving.',

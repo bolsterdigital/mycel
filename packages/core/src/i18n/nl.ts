@@ -30,7 +30,6 @@ export const nl: Partial<Messages> = {
   'forms.mail.template.missing': 'Het gekozen mailsjabloon bestaat niet meer.',
   'forms.mail.field.missing': 'Het sjabloon verwijst naar een veld dat niet meer bestaat.',
   'forms.mail.copy.invalid': 'Het uiteindelijke bericht is leeg of te lang.',
-  'forms.mail.author.forbidden': 'Je mag geen formuliermail instellen.',
   'forms.mail.publish.forbidden': 'Publicatierechten zijn nodig om formuliermail te activeren.',
   'forms.mail.condition.invalid':
     'De mailvoorwaarde verwijst naar een ongeldig veld of ongeldige waarde.',

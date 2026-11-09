@@ -41,8 +41,6 @@ export const updateFormMailSettings = defineUseCase({
   output: FormMailState,
   examples: [{ input: { baseVersion: 0, value: { templates: [], forms: [] } } }],
   async handler(ctx, { baseVersion, value }) {
-    if (!can(ctx.principal, 'forms:write'))
-      throw new UseCaseError('forbidden', 'forms.mail.author.forbidden');
     if (value.forms.some((f) => f.enabled) && !can(ctx.principal, 'content:publish'))
       throw new UseCaseError('forbidden', 'forms.mail.publish.forbidden');
     for (const config of value.forms) {
