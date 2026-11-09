@@ -289,7 +289,8 @@ export function createRuntime(
           region: config.TEM_REGION,
         })
       : new ConsoleMailer(
-          (text) => log.info('console mailer', { mail: text }),
+          // Form templates may contain free text: retain only delivery metadata in logs.
+          () => log.info('console mailer accepted'),
           config.MAIL_SPOOL_DIR
         );
   const confirmation = {
