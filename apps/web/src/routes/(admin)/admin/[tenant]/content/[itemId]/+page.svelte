@@ -81,7 +81,9 @@
     // These modules change disclosure state; start them after hydration has claimed the form.
     for (const src of [
       '/_admin/tabs.js',
-      ...(data.canWrite ? ['/_admin/edit-screen.js', '/_admin/session-restore.js'] : []),
+      ...(data.canWrite
+        ? ['/_admin/edit-screen.js', '/_admin/session-restore.js', '/_admin/block-move.js']
+        : []),
       ...(data.canWrite && data.upload ? ['/_admin/block-drop.js'] : []),
       ...(!data.translating && data.item.type === 'page' && data.canWrite
         ? ['/_admin/live-preview-parent.js']
@@ -537,6 +539,9 @@
       data.openBlocks.includes(b.id) ||
       (Array.isArray(early.$openBlocks) && early.$openBlocks.includes(b.id))}
     labels={cardLabels}
+    moveLabel={data.canWrite && !pending && data.blocks.length > 1
+      ? t('admin.block.move.grip')
+      : undefined}
   >
     {#snippet rest()}{@render blockRest(b)}{/snippet}
     {#snippet actions()}
@@ -663,6 +668,15 @@
 
 {#snippet contentTab()}
   <input type="hidden" name="baseRevisionId" value={baseRevision} />
+  <span
+    class="ui-visually-hidden"
+    aria-live="polite"
+    data-block-move-status
+    data-before={t('admin.block.move.before')}
+    data-after={t('admin.block.move.after')}
+    data-picked={t('admin.block.move.picked')}
+    data-cancelled={t('admin.block.move.cancelled')}
+  ></span>
   <!-- Filled by the screen's script on submit: the card in view, so a save stays there. -->
   <input type="hidden" name="nearBlock" value="" />
   <input type="hidden" name="editLocale" value={data.translating ? '' : work} />

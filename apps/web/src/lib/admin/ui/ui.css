@@ -3283,3 +3283,35 @@
     display: block;
   }
 }
+
+/* The move grip is the only touch region that prevents scrolling. Whole labels wrap with the
+   card's existing head layout; the placement marker never changes the document's DOM order. */
+@layer components {
+  .ui-block-move {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-0);
+    min-block-size: 44px;
+    min-inline-size: 44px;
+    padding: var(--space-0);
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    white-space: nowrap;
+    cursor: grab;
+    touch-action: none;
+  }
+  .ui-block-move[hidden] {
+    display: none;
+  }
+  .ui-block-move:active {
+    cursor: grabbing;
+  }
+  [data-move-place='before'] {
+    border-block-start: 4px solid var(--color-selected-fg);
+  }
+  [data-move-place='after'] {
+    border-block-end: 4px solid var(--color-selected-fg);
+  }
+}

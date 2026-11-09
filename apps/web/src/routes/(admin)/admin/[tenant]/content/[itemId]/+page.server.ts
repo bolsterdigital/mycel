@@ -959,8 +959,16 @@ export const actions: Actions = {
   move: async (event) => {
     const saved = await commit(event);
     if ('failure' in saved) return saved.failure;
-    const [blockId = '', direction] = text(saved.data, 'move').split(':');
+    const [blockId = '', direction, anchor] = text(saved.data, 'move').split(':');
     return blockStep(saved, event.params.itemId, blockId, 'blockMoved', async (blocks, index) => {
+      if ((direction === 'before' || direction === 'after') && anchor) {
+        return runtime().invoker.run(useCases.moveBlock, saved.principal, {
+          itemId: event.params.itemId,
+          baseRevisionId: saved.revisionId,
+          blockId,
+          place: direction === 'before' ? { before: anchor } : { after: anchor },
+        });
+      }
       const up = direction === 'up';
       const neighbour = blocks[up ? index - 1 : index + 1];
       if (!neighbour) return;

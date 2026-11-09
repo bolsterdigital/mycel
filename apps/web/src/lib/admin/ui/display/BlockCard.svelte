@@ -35,6 +35,7 @@
     editable = true,
     labels,
     class: extra = '',
+    moveLabel,
     actions,
     rest,
     children,
@@ -69,6 +70,7 @@
     /** A hook for the screen's tests and scripts, never for styling. */
     class?: string;
     /** The block's secondary actions, whole buttons listed under "More actions". */
+    moveLabel?: string;
     actions?: Snippet;
     /** The block at rest: what the page will show, without fields. */
     rest: Snippet;
@@ -83,6 +85,24 @@
   data-block-card={id}
 >
   <div class="ui-block-card-head">
+    {#if moveLabel}
+      <button
+        type="button"
+        class="ui-block-move"
+        data-block-move
+        hidden
+        aria-describedby="{id}-title"
+      >
+        <svg aria-hidden="true" width="16" height="24" viewBox="0 0 16 24">
+          {#each [5, 12, 19] as y}{#each [5, 11] as x}<circle
+                cx={x}
+                cy={y}
+                r="1.5"
+                fill="currentColor"
+              />{/each}{/each}
+        </svg><span>{moveLabel}</span>
+      </button>
+    {/if}
     <!-- h3, not h4: the prose of an article sits between cards with its own h2s, and from there
          an h4 skips a level. It sits beside "Blocks" rather than under it; a prose level cannot
          be chosen for the author. -->

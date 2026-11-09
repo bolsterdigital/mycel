@@ -1239,6 +1239,12 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.block.card.more': 'Meer acties',
   'admin.block.card.block': 'Blok',
   'admin.block.card.collapse': 'Inklappen',
+  'admin.block.move.grip': 'Verplaatsen',
+  'admin.block.move.before': 'Voor',
+  'admin.block.move.after': 'Na',
+  'admin.block.move.picked':
+    'Opgepakt. Kies een plek met de pijltjes, Enter verplaatst, Escape annuleert.',
+  'admin.block.move.cancelled': 'Verplaatsen geannuleerd.',
   'admin.block.card.expand': 'Uitklappen',
   'admin.block.card.collapseAll': 'Alles inklappen',
   'admin.block.card.expandAll': 'Alles uitklappen',

@@ -1228,6 +1228,12 @@ export const en = {
   'admin.block.card.more': 'More actions',
   'admin.block.card.block': 'Block',
   'admin.block.card.collapse': 'Collapse',
+  'admin.block.move.grip': 'Move',
+  'admin.block.move.before': 'Before',
+  'admin.block.move.after': 'After',
+  'admin.block.move.picked':
+    'Picked up. Use arrow keys to choose a place, Enter to move, Escape to cancel.',
+  'admin.block.move.cancelled': 'Move cancelled.',
   'admin.block.card.expand': 'Expand',
   'admin.block.card.collapseAll': 'Collapse all',
   'admin.block.card.expandAll': 'Expand all',
