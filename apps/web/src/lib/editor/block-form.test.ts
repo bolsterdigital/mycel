@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { BLOCK_DEFINITIONS, BLOCK_TYPES, Block } from '@mycel/core';
 import {
   arrangeRows,
+  editorFieldIssues,
   formValues,
   imageAltFromForm,
   postedValues,
@@ -32,6 +33,18 @@ describe('block forms', () => {
       errors: [],
     });
     expect(propsFromForm(e.fields, postedValues(values))).toEqual({ props: e.props, errors: [] });
+  });
+
+  it('marks an image alt refusal from publication as the same native field as a save', () => {
+    const blocks = [{ id: 'image' }];
+    const save = { name: 'b.image.p.alt.nl', copy: 'missing' };
+    const publication = { path: 'blocks.0.props.alt.nl', copy: 'missing' };
+    expect(editorFieldIssues({ issues: [publication] }, blocks)).toEqual([save]);
+    expect(editorFieldIssues({ fieldIssues: [save] }, blocks)).toEqual([save]);
+    expect(editorFieldIssues(null, blocks)).toEqual([]);
+    expect(editorFieldIssues({ issues: [{ path: 'title.nl', copy: 'missing' }] }, blocks)).toEqual(
+      []
+    );
   });
 
   it('maps only the shown standalone description after preserving other locales', () => {

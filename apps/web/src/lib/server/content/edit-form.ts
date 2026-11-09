@@ -27,6 +27,7 @@ import {
 } from '@mycel/core';
 import { isDeepStrictEqual } from 'node:util';
 import {
+  blockIssueName,
   formValues,
   imageAltFromForm,
   postedValues,
@@ -270,20 +271,6 @@ export function pendingUntouched(
         : propsFromForm(fields, postedValues(empty)).props
     )
   );
-}
-
-/**
- * The form field a core issue is about: `document.blocks.<i>.props.<path>` of a save is the field
- * of the block at `i`, `block.props.<path>` of an insert the new block's; '' for any other path.
- */
-export function blockIssueName(path: string, blocks: readonly { id: string }[]): string {
-  const stored = /^(?:document\.)?blocks\.(\d+)\.props(\..+)?$/.exec(path);
-  if (stored) {
-    const block = blocks[Number(stored[1])];
-    return block ? `${blockPrefix(block.id)}p${stored[2] ?? ''}` : '';
-  }
-  const added = /^block\.props(\..+)?$/.exec(path);
-  return added ? `${NEW_BLOCK}p${added[1] ?? ''}` : '';
 }
 
 /** The issues of a refusal that name a block field, as `{ name, message }`. */

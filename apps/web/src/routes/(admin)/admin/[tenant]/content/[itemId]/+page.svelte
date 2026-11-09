@@ -27,7 +27,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { earlyInput } from '#lib/editor/early-input.js';
-  import { typedOver } from '#lib/editor/block-form.js';
+  import { editorFieldIssues, typedOver } from '#lib/editor/block-form.js';
   import PublicationDrawer from '#lib/admin/ui/feedback/PublicationDrawer.svelte';
   import WritingSurface from '#lib/editor/WritingSurface.svelte';
   import ItemTitleField from '#lib/editor/ItemTitleField.svelte';
@@ -118,7 +118,7 @@
   const sections = $derived((form && 'sections' in form ? form.sections : null) ?? data.sections);
   const pending = $derived(form && 'pending' in form ? form.pending : data.pending);
   const issues = $derived<{ name: string; list?: string; copy: string }[]>(
-    form && 'fieldIssues' in form ? (form.fieldIssues ?? []) : []
+    editorFieldIssues(form, data.blocks)
   );
   const docLocales = $derived(list('locales'));
   /** The one locale the screen shows (#66 PR 4); its fields only, while the item has it. */

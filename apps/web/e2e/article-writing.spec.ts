@@ -1108,9 +1108,10 @@ test.describe('article-writing', () => {
       await description.locator('summary').click();
     await expect(description.locator('textarea')).toHaveValue('Een boom');
     await description.locator('textarea').fill('');
-    await expect(description.locator('summary')).toContainText('Decoratief', {
-      useInnerText: true,
-    });
+    await expect(description.locator('summary')).toContainText(
+      'Zonder beschrijving wordt dit beeld decoratief.',
+      { useInnerText: true }
+    );
     await layoutGate(page, 'pasted image description', '.writing .pending');
     await expectNoAxeViolations(page);
     const screenshot = test.info().outputPath('pasted-image-description-320-200.png');
