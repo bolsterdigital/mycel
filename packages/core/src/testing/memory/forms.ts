@@ -6,13 +6,15 @@ import {
   type RateLimiter,
   type SubmissionRepository,
 } from '../../forms/ports.js';
+import { parseFormDefinition } from '../../forms/model.js';
 import type { Clock } from '../../ports.js';
 import type { TenantStore } from './store.js';
 
 export function memoryForms(s: TenantStore): FormRepository {
   return {
-    findById: async (id) => s.forms.get(id) ?? null,
-    insert: async (form) => void s.forms.set(form.id, structuredClone(form)),
+    findById: async (id) =>
+      structuredClone(s.forms.has(id) ? parseFormDefinition(s.forms.get(id)) : null),
+    insert: async (form) => void s.forms.set(form.id, parseFormDefinition(form)),
   };
 }
 

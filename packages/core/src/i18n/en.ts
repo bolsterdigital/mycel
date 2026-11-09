@@ -12,6 +12,11 @@ export const en = {
   'assist.error.unavailable': 'No assistance provider is available.',
   'assist.error.locale': 'This locale is not part of the item.',
   'assist.error.image': 'Choose a non-decorative image block.',
+  'forms.error.inactive': 'This field is not active for your answers.',
+  'forms.error.value': 'Enter a valid value for this field.',
+  'forms.error.version': 'This form has changed. Reload the page and try again.',
+  'forms.conditional.help':
+    'Some fields depend on your answers. You can leave fields that do not apply empty; we check them when you submit.',
   'forms.error.required': 'This field is required.',
   'forms.error.email.invalid':
     'Enter an e-mail address in the right format, like name@example.org.',

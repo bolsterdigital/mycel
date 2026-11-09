@@ -7,6 +7,8 @@ import { expectNoAxeViolations } from './lib/axe';
 import { isA11y, onlyA11y } from './lib/project';
 import { postUseCase } from './lib/api';
 import { pastMinimumFillTime } from './lib/form';
+import { forwarded } from './lib/login';
+import { NARROW, layoutGate, setTextSize } from './lib/layout';
 
 /**
  * A form page ships exactly one script, the proof-of-work module from its own origin (brief
@@ -554,4 +556,37 @@ test('a replayed proof with a fresh token gets the thank-you page and no mail', 
   await waitForMail(person);
   expect(mailsTo(replay)).toBe(0);
   expect(await supporter(request, replay)).toBeNull();
+});
+
+test('conditional fields validate natively and forged inactive consent creates no signup', async ({
+  page,
+  request,
+}, testInfo) => {
+  await page.context().setExtraHTTPHeaders(forwarded());
+  await page.goto('/probe/signup');
+  await page.setViewportSize(NARROW);
+  await setTextSize(page, '200%');
+  await layoutGate(page, 'conditional form at 320px / 200%', 'main');
+  await testInfo.attach('conditional-form-320-200', {
+    body: await page.screenshot({ fullPage: true }),
+    contentType: 'image/png',
+  });
+  const email = `conditional-${testInfo.project.name}-${Date.now()}@example.org`;
+  await page.getByLabel('E-mailadres', { exact: true }).fill(email);
+  await page.getByLabel('Alleen een bericht sturen, geen nieuwsbrief').check();
+  await page.getByLabel('Onderwerp', { exact: true }).selectOption('question');
+  // The native browser must not block an inactive required field. The server decides instead.
+  await expect(page.getByLabel('Je vraag', { exact: true })).not.toHaveAttribute('required');
+  await pastMinimumFillTime(page);
+  await page.getByRole('button', { name: 'Aanmelden', exact: true }).click();
+  await expect(page.locator('.error-summary')).toContainText('Dit veld is verplicht.');
+  await expectNoAxeViolations(page);
+  await page.getByLabel('Je vraag', { exact: true }).fill('Kan ik langskomen?');
+  await page.getByLabel('Interesses', { exact: true }).selectOption(['local', 'events']);
+  // A forged checkbox is present in the POST but inactive according to validated contact_only.
+  await page.getByLabel('Ja, ik wil de nieuwsbrief ontvangen.', { exact: false }).check();
+  await pastMinimumFillTime(page);
+  await page.getByRole('button', { name: 'Aanmelden', exact: true }).click();
+  await expect(page).toHaveURL(/signup\/thanks$/);
+  expect(await supporter(request, email)).toBeNull();
 });

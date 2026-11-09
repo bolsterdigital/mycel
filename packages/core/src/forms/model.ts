@@ -1,36 +1,19 @@
-// Form definitions are data referenced from a block (ADR 010 rule 1). The probe ships one kind
-// (`signup`) and two field types (`email`, `consent`); the vocabulary grows by registry entry.
+// Form definitions are data referenced from a block (ADR 010). Submissions retain the
+// definition they validated, rather than interpreting old input through a later edit.
 
 import { z } from 'zod';
 import { Locale, localized } from '../i18n/locale.js';
 
-const FieldName = z.string().regex(/^[a-z][a-z0-9_]{0,40}$/);
-
-export const EmailField = z.object({
-  type: z.literal('email'),
-  name: FieldName,
-  label: localized(z.string().min(1)),
-  required: z.boolean(),
-});
-
-/** A checkbox whose label is the consent text; `consentTextVersion` on the form is the evidence. */
-export const ConsentField = z.object({
-  type: z.literal('consent'),
-  name: FieldName,
-  label: localized(z.string().min(1)),
-  required: z.literal(true),
-});
-
-export const FormField = z.discriminatedUnion('type', [EmailField, ConsentField]);
-export type FormField = z.infer<typeof FormField>;
+import { FormField, FieldValue, validFieldReferences } from './fields.js';
+export { FormField } from './fields.js';
 
 export const FormDefinition = z
   .object({
     id: z.string().guid(),
-    kind: z.literal('signup'),
+    kind: z.enum(['signup', 'contact', 'petition', 'rsvp']),
     /** The consent scope a signup adds to (ADR 010 rule 6: a list is a consent scope). */
     list: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
-    fields: z.array(FormField).min(1),
+    fields: z.array(FormField).min(1).max(64),
     submitLabel: localized(z.string().min(1)),
     thankYou: localized(z.string().min(1)),
     /** Which consent text the visitor saw; travels with the event as consent evidence (ADR 003). */
@@ -41,16 +24,30 @@ export const FormDefinition = z
   .refine((f) => f.fields.filter((x) => x.type === 'email').length === 1, {
     message: 'forms.signup.needs-one-email-field',
   })
-  .refine((f) => f.fields.some((x) => x.type === 'consent'), {
+  .refine((f) => f.kind !== 'signup' || f.fields.some((x) => x.type === 'consent'), {
     message: 'forms.signup.needs-consent-field',
+  })
+  .refine((f) => f.fields.filter((x) => x.type === 'consent').length <= 1, {
+    message: 'forms.needs-one-consent-owner',
+  })
+  .refine((f) => validFieldReferences(f.fields), { message: 'forms.fields.invalid-references' })
+  .refine((f) => f.fields.some((x) => x.type === 'email' && x.required && !x.activeWhen), {
+    message: 'forms.needs-active-required-email',
   });
 export type FormDefinition = z.infer<typeof FormDefinition>;
 
+/** Preserve a legacy name as the initial id before any authoring change can rename it. */
+export function parseFormDefinition(input: unknown): FormDefinition {
+  const form = FormDefinition.parse(input);
+  return { ...form, fields: form.fields.map((f) => ({ ...f, id: f.id ?? f.name })) };
+}
+
 /** Raw values as a front received them: strings from HTML forms, booleans from JSON clients. */
-export const RawValues = z.record(z.string(), z.union([z.string(), z.boolean()]));
+export const RawValues = z.record(z.string(), FieldValue);
 
 export const SubmitInput = z.object({
   formId: z.string().guid(),
+  formVersion: z.string().min(1).max(128).optional(),
   values: RawValues,
   locale: Locale,
   /** The page the form was on, for provenance and the supporter event's `source_site`. */
@@ -94,7 +91,7 @@ export type SubmitResult = z.infer<typeof SubmitResult>;
 export interface Submission {
   id: string;
   formId: string;
-  values: Record<string, string | boolean>;
+  values: Record<string, z.infer<typeof FieldValue>>;
   locale: string;
   pageUrl: string | null;
   ipHash: string | null;
@@ -109,4 +106,12 @@ export interface Submission {
   consentTextVersion: string;
   /** When the double opt-in was confirmed with the button on the page; null until then. */
   confirmedAt: Date | null;
+  /** Null only on historical submissions made before versioned evaluation was introduced. */
+  evaluation: {
+    version: string;
+    definition: FormDefinition;
+    activeFieldIds: string[];
+    requiredFieldIds: string[];
+    discardedFieldIds: string[];
+  } | null;
 }

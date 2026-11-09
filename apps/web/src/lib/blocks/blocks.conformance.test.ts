@@ -36,9 +36,11 @@ import {
   type MediaView,
   type ResolvedTheme,
 } from '@mycel/core';
-import { demoArticle, demoPage, probeForm } from '@mycel/core/testing';
+import { demoArticle, demoPage, probeForm, conditionalProbeForm } from '@mycel/core/testing';
 import { formValues } from '../editor/block-form.js';
 import Blocks from './Blocks.svelte';
+import BlockText from '../admin/ui/display/BlockText.svelte';
+import { textRestOf } from '../server/content/content-blocks.js';
 import { headingTag } from './headings.js';
 import { renderMarkdown } from './markdown.js';
 import type { RenderModel } from './model.js';
@@ -851,4 +853,57 @@ describe('theme tokens', () => {
       expect(problems(theme)).toEqual([]);
     }
   });
+});
+
+describe('ordinary form field corpus', () => {
+  for (const locale of ['nl', 'en']) {
+    it(`renders every typed field natively in ${locale}, with conditional server validation`, async () => {
+      const form = conditionalProbeForm(EXAMPLE_IDS.form);
+      const source: ResolveSource = {
+        ...fixtures,
+        form: async () => ({
+          form,
+          version: 'fixed-version',
+          startedToken: 'started-token',
+          proof: PROOF,
+        }),
+      };
+      const model = await resolveDocument(
+        source,
+        {
+          locale,
+          title: 'Form',
+          blocks: [
+            {
+              type: 'form',
+              version: 1,
+              id: 'ordinary-form',
+              props: { formId: EXAMPLE_IDS.form, variant: 'default', width: 'content' },
+            },
+          ],
+        },
+        { base: '', fallbackLocale: 'nl' }
+      );
+      const html = render(Blocks, { props: { model } }).body;
+      for (const field of form.fields) expect(html, field.type).toContain(`name="${field.name}"`);
+      expect(html).toContain('name="_formVersion" value="fixed-version"');
+      expect(html).toMatch(/<textarea[^>]*name="message"/);
+      expect(html.match(/<textarea[^>]+>/)?.[0]).not.toContain('required');
+      expect(html).toMatch(/<select[^>]*name="interests"[^>]*multiple/);
+      expect(html).toContain('value="public-corpus"');
+      expect(html).toContain(locale === 'nl' ? 'Sommige velden hangen' : 'Some fields depend');
+      const rest = textRestOf(
+        Block.parse({ id: 'form-rest', type: 'form', version: 1, props: { formId: form.id } }),
+        locale,
+        'b.b.',
+        new Map([[form.id, form]])
+      );
+      if (!rest) throw new Error('form rest fixture must resolve');
+      const resting = render(BlockText, {
+        props: { view: rest, kindLabel: 'Form', noteLabel: '' },
+      }).body;
+      expect(resting.match(/class="ui-block-text-check"/g)).toHaveLength(2);
+      expect(resting).not.toContain(locale === 'nl' ? 'Bron' : 'Source');
+    });
+  }
 });

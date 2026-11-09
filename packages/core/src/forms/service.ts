@@ -16,7 +16,8 @@ import {
   issueStartedToken,
 } from './spam.js';
 import './ports.js';
-import { EmailAddress } from '../util/email.js';
+import { evaluateFields } from './fields.js';
+import { hashInput } from '../audit/model.js';
 import { exampleId } from '../util/ids.js';
 
 export const getForm = defineUseCase({
@@ -26,7 +27,12 @@ export const getForm = defineUseCase({
     'Get a form definition by id, plus a fresh signed timing token and proof-of-work challenge for rendering it publicly.',
   requires: 'forms:read',
   input: z.object({ id: z.string().guid() }),
-  output: z.object({ form: FormDefinition, startedToken: z.string(), proof: ProofChallenge }),
+  output: z.object({
+    form: FormDefinition,
+    startedToken: z.string(),
+    proof: ProofChallenge,
+    version: z.string(),
+  }),
   resource: { uriTemplate: 'mycel://forms/{id}' },
   examples: [{ input: { id: exampleId(0xf000) } }],
   async handler(ctx, { id }) {
@@ -35,42 +41,23 @@ export const getForm = defineUseCase({
     const now = ctx.clock.now();
     return {
       form,
+      version: await hashInput(ctx.inputHasher, {
+        domain: 'form-definition-v1',
+        tenantId: ctx.principal.tenantId,
+        form,
+      }),
       startedToken: await issueStartedToken(ctx.signer, id, now),
       proof: await issueProofChallenge(ctx.signer, id, now),
     };
   },
 });
 
-const isChecked = (v: string | boolean | undefined): boolean =>
-  v === true || (typeof v === 'string' && v !== '' && v !== 'false');
-
-type FieldErrors = { field: string; message: string }[];
-
-/** Validate raw values against the form's own fields (the definition is data, not a schema). */
+/** Legacy validation entry point; the submission path also retains evaluation decisions. */
 export function validateValues(
   fields: readonly FormField[],
-  raw: Record<string, string | boolean>
-): { values: Record<string, string | boolean>; email: string; errors: FieldErrors } {
-  const errors: FieldErrors = [];
-  const values: Record<string, string | boolean> = {};
-  let email = '';
-  for (const field of fields) {
-    const value = raw[field.name];
-    if (field.type === 'email') {
-      const text = typeof value === 'string' ? value.trim() : '';
-      if (!text) {
-        if (field.required) errors.push({ field: field.name, message: 'forms.error.required' });
-        continue;
-      }
-      const parsed = EmailAddress.safeParse(text);
-      if (!parsed.success) errors.push({ field: field.name, message: 'forms.error.email.invalid' });
-      else values[field.name] = email = parsed.data;
-    } else {
-      const checked = isChecked(value);
-      if (!checked) errors.push({ field: field.name, message: 'forms.error.consent.required' });
-      values[field.name] = checked;
-    }
-  }
+  raw: Parameters<typeof evaluateFields>[1]
+) {
+  const { values, email, errors } = evaluateFields(fields, raw);
   return { values, email, errors };
 }
 
@@ -168,9 +155,41 @@ export const submitForm = defineUseCase({
         return reject('ip-limited');
     }
 
-    const { values, email, errors } = validateValues(form.fields, input.values);
+    const version = await hashInput(ctx.inputHasher, {
+      domain: 'form-definition-v1',
+      tenantId: principal.tenantId,
+      form,
+    });
+    if (input.formVersion && input.formVersion !== version)
+      return {
+        status: 'invalid',
+        errors: [{ field: form.fields[0]!.name, message: 'forms.error.version' }],
+      };
+    const evaluated = evaluateFields(form.fields, input.values);
+    const { values, email, errors, consent, activeFieldIds, requiredFieldIds, discardedFieldIds } =
+      evaluated;
     if (errors.length) return { status: 'invalid', errors };
 
+    const submissionId = ctx.ids.next();
+    const submission = {
+      id: submissionId,
+      formId: form.id,
+      values,
+      locale: input.locale,
+      pageUrl: input.pageUrl ?? null,
+      ipHash: ipHash ?? null,
+      createdAt: now,
+      list: form.list,
+      consentTextVersion: form.consentTextVersion,
+      confirmedAt: null,
+      evaluation: {
+        version,
+        definition: form,
+        activeFieldIds,
+        requiredFieldIds,
+        discardedFieldIds,
+      },
+    };
     // ADR 015 rule 3: only a new address grows the supporter count. The projection exists only
     // after the outbox ingest, so the seat is reserved here and released by ingest
     // (`ctx.admissions`, TODO #16). The lock comes first and ingest takes the same lock before
@@ -191,24 +210,19 @@ export const submitForm = defineUseCase({
     )
       return reject('recipient-limited');
 
+    // A receipt is not marketing permission. Inactive or unchecked consent creates no signup,
+    // no admission seat and no confirmation mail, even if a browser forged its checkbox value.
+    if (!consent || !['signup', 'petition'].includes(form.kind)) {
+      await ctx.submissions.insert(submission);
+      return { status: 'accepted', submissionId };
+    }
+
     if (!(await ctx.supporters.getProjection(email)) && !(await ctx.admissions.pending(email))) {
       withinLimit(ctx, 'supporters.max', await ctx.admissions.count());
       await ctx.admissions.reserve(email);
     }
 
-    const submissionId = ctx.ids.next();
-    await ctx.submissions.insert({
-      id: submissionId,
-      formId: form.id,
-      values,
-      locale: input.locale,
-      pageUrl: input.pageUrl ?? null,
-      ipHash: ipHash ?? null,
-      createdAt: now,
-      list: form.list,
-      consentTextVersion: form.consentTextVersion,
-      confirmedAt: null,
-    });
+    await ctx.submissions.insert(submission);
 
     const props: NewsletterSubscribedProps = {
       email,

@@ -339,3 +339,265 @@ describe('form use cases', () => {
     expect(await uow.run(admin, (ctx) => ctx.rateLimits.cooldown('k', 24 * 3600))).toBe(true);
   });
 });
+
+describe('versioned field evaluation', () => {
+  const conditional = () => ({
+    ...probeForm(FORM),
+    fields: [
+      probeForm(FORM).fields[0]!,
+      {
+        id: 'topic',
+        name: 'topic',
+        type: 'choice' as const,
+        required: false,
+        label: { en: 'Topic' },
+        options: [
+          { value: 'news', label: { en: 'News' } },
+          { value: 'question', label: { en: 'Question' } },
+        ],
+      },
+      {
+        id: 'message-id',
+        name: 'message',
+        type: 'textarea' as const,
+        required: true,
+        label: { en: 'Question' },
+        activeWhen: { op: 'equals' as const, fieldId: 'topic', value: 'question' },
+      },
+      {
+        ...probeForm(FORM).fields[1]!,
+        id: 'permission',
+        activeWhen: { op: 'equals' as const, fieldId: 'topic', value: 'news' },
+      },
+    ],
+  });
+
+  it('rejects broken, forward, duplicate and ill-typed predicate references', async () => {
+    const { FormDefinition } = await import('./model.js');
+    expect(FormDefinition.safeParse(conditional()).success).toBe(true);
+    for (const fieldId of ['missing', 'permission', 'message-id']) {
+      const form = conditional();
+      form.fields[2] = {
+        ...form.fields[2]!,
+        activeWhen: { op: 'equals', fieldId, value: 'question' },
+      } as (typeof form.fields)[2];
+      expect(FormDefinition.safeParse(form).success).toBe(false);
+    }
+    const raw = JSON.parse(JSON.stringify(conditional()));
+    raw.fields[2].activeWhen.value = true;
+    expect(FormDefinition.safeParse(raw).success).toBe(false);
+    raw.fields[2].activeWhen = {
+      op: 'and',
+      conditions: Array.from({ length: 9 }, () => ({ op: 'present', fieldId: 'topic' })),
+    };
+    expect(FormDefinition.safeParse(raw).success).toBe(false);
+    raw.fields[2].activeWhen = undefined;
+    raw.fields[2].id = 'topic';
+    expect(FormDefinition.safeParse(raw).success).toBe(false);
+  });
+
+  it('stores decisions and ignores forged inactive consent without emitting a signup', async () => {
+    const uow = new MemoryUnitOfWork();
+    const invoker = new Invoker(buildRegistry(), uow);
+    const admin = systemPrincipal(TENANT, 'test');
+    await uow.run(admin, (ctx) => ctx.forms.insert(conditional()));
+    const result = await invoker.run(useCases.submitForm, admin, {
+      formId: FORM,
+      locale: 'en',
+      values: { email: 'ada@example.org', topic: 'question', message: 'Hello', consent: true },
+    });
+    expect(result.status).toBe('accepted');
+    if (result.status !== 'accepted') throw new Error(result.status);
+    const stored = await uow.run(admin, (ctx) => ctx.submissions.findById(result.submissionId));
+    expect(stored).toMatchObject({
+      values: { email: 'ada@example.org', topic: 'question', message: 'Hello' },
+      evaluation: {
+        activeFieldIds: ['email', 'topic', 'message-id'],
+        requiredFieldIds: ['email', 'message-id'],
+        discardedFieldIds: ['permission'],
+      },
+    });
+    expect(stored?.values).not.toHaveProperty('consent');
+    expect(uow.store.outbox).toHaveLength(0);
+    const changed = conditional();
+    changed.fields[2]!.name = 'renamed';
+    await uow.run(admin, (ctx) => ctx.forms.insert(changed));
+    expect(
+      (await uow.run(admin, (ctx) => ctx.submissions.findById(result.submissionId)))?.evaluation
+    ).toEqual(stored?.evaluation);
+    await expect(
+      invoker.run(useCases.getForm, systemPrincipal(MISSING, 'test'), { id: FORM })
+    ).rejects.toMatchObject({ code: 'not_found' });
+    expect(
+      await uow.run(systemPrincipal(MISSING, 'test'), (ctx) =>
+        ctx.submissions.findById(result.submissionId)
+      )
+    ).toBeNull();
+  });
+
+  it.each(['inactive', 'invalid', 'active'] as const)(
+    'uses only an own validated constructor field value when the source is %s',
+    async (source) => {
+      const { FormDefinition } = await import('./model.js');
+      const { evaluateFields } = await import('./fields.js');
+      const field = { label: { en: 'Value' }, required: false };
+      const form = FormDefinition.parse({
+        ...probeForm(FORM),
+        fields: [
+          probeForm(FORM).fields[0],
+          { ...field, name: 'gate', type: 'checkbox' },
+          {
+            ...field,
+            id: 'constructor',
+            name: 'selection',
+            type: 'checkbox',
+            activeWhen: { op: 'equals', fieldId: 'gate', value: true },
+          },
+          {
+            ...field,
+            name: 'consent',
+            type: 'consent',
+            activeWhen: { op: 'not-equals', fieldId: 'constructor', value: false },
+          },
+        ],
+      });
+      const values = {
+        email: 'ada@example.org',
+        gate: source !== 'inactive',
+        ...(source === 'invalid'
+          ? { selection: 'invalid' }
+          : source === 'active'
+            ? { selection: true }
+            : {}),
+        consent: true,
+      };
+      const evaluation = evaluateFields(form.fields, values);
+      expect(evaluation.consent).toBe(source === 'active');
+      expect(evaluation.activeFieldIds.includes('consent')).toBe(source === 'active');
+      expect(evaluation.errors).toEqual(
+        source === 'invalid' ? [{ field: 'selection', message: 'forms.error.value' }] : []
+      );
+      const uow = new MemoryUnitOfWork();
+      const invoker = new Invoker(buildRegistry(), uow);
+      const admin = systemPrincipal(TENANT, 'test');
+      await uow.run(admin, (ctx) => ctx.forms.insert(form));
+      const result = await invoker.run(useCases.submitForm, admin, {
+        formId: FORM,
+        locale: 'en',
+        values,
+      });
+      expect(result.status).toBe(source === 'invalid' ? 'invalid' : 'accepted');
+      expect(uow.store.outbox).toHaveLength(source === 'active' ? 1 : 0);
+      if (result.status === 'accepted' && source === 'inactive') {
+        const stored = await uow.run(admin, (ctx) => ctx.submissions.findById(result.submissionId));
+        expect(stored?.values).toEqual({ email: 'ada@example.org', gate: false });
+        expect(stored?.evaluation?.activeFieldIds).toEqual(['email', 'gate']);
+      }
+    }
+  );
+
+  it('requires active input, refuses stale versions and has an explicit inactive reject policy', async () => {
+    const uow = new MemoryUnitOfWork();
+    const invoker = new Invoker(buildRegistry(), uow);
+    const admin = systemPrincipal(TENANT, 'test');
+    const form = conditional();
+    await uow.run(admin, (ctx) => ctx.forms.insert(form));
+    const original = await invoker.run(useCases.getForm, admin, { id: FORM });
+    const submit = (values: Record<string, string | boolean>, formVersion?: string) =>
+      invoker.run(useCases.submitForm, admin, { formId: FORM, locale: 'en', values, formVersion });
+    expect(await submit({ email: 'ada@example.org', topic: 'question' })).toMatchObject({
+      status: 'invalid',
+      errors: [{ field: 'message', message: 'forms.error.required' }],
+    });
+    await uow.run(admin, (ctx) => ctx.forms.insert({ ...form, submitLabel: { en: 'Changed' } }));
+    expect(
+      await submit({ email: 'ada@example.org', topic: 'news', consent: true }, original.version)
+    ).toMatchObject({ status: 'invalid', errors: [{ message: 'forms.error.version' }] });
+    await uow.run(admin, (ctx) =>
+      ctx.forms.insert({
+        ...form,
+        fields: form.fields.map((f) =>
+          f.type === 'consent' ? { ...f, inactivePolicy: 'reject' as const } : f
+        ),
+      })
+    );
+    expect(
+      await submit({ email: 'ada@example.org', topic: 'question', message: 'Hi', consent: true })
+    ).toMatchObject({
+      status: 'invalid',
+      errors: [{ field: 'consent', message: 'forms.error.inactive' }],
+    });
+    expect(uow.store.outbox).toHaveLength(0);
+    expect(uow.store.for(TENANT).submissions.size).toBe(0);
+  });
+
+  it('uses typed validated values, bounded groups and server-owned hidden data', async () => {
+    const { evaluateFields } = await import('./fields.js');
+    const { FormDefinition } = await import('./model.js');
+    const field = { label: { en: 'Value' }, required: false };
+    const form = FormDefinition.parse({
+      ...probeForm(FORM),
+      fields: [
+        ...probeForm(FORM).fields,
+        { ...field, type: 'number', id: 'age', name: 'age', min: 0, max: 120 },
+        { ...field, type: 'amount', name: 'amount' },
+        { ...field, type: 'date', name: 'date' },
+        { ...field, type: 'phone', name: 'phone' },
+        { ...field, type: 'checkbox', name: 'extra' },
+        { ...field, type: 'hidden', name: 'source', value: 'server' },
+        {
+          ...field,
+          type: 'multiple-choice',
+          name: 'interests',
+          options: [
+            { value: 'a', label: { en: 'A' } },
+            { value: 'b', label: { en: 'B' } },
+          ],
+        },
+        {
+          ...field,
+          type: 'text',
+          name: 'details',
+          requiredWhen: {
+            op: 'and',
+            conditions: [
+              { op: 'equals', fieldId: 'age', value: 18 },
+              { op: 'equals', fieldId: 'extra', value: true },
+            ],
+          },
+        },
+      ],
+    });
+    const raw = {
+      email: 'ada@example.org',
+      consent: true,
+      age: '18',
+      amount: '12.50',
+      date: '2024-02-29',
+      phone: '+31 1234567',
+      extra: 'on',
+      source: 'forged',
+      interests: ['a', 'b'],
+      details: 'Hello',
+    };
+    expect(evaluateFields(form.fields, raw)).toMatchObject({
+      errors: [],
+      values: { age: 18, amount: 12.5, source: 'server', interests: ['a', 'b'] },
+    });
+    expect(evaluateFields(form.fields, { ...raw, details: '' }).errors).toEqual([
+      { field: 'details', message: 'forms.error.required' },
+    ]);
+    const invalid = evaluateFields(form.fields, {
+      ...raw,
+      age: 'bad',
+      amount: '1.111',
+      date: '2025-02-29',
+      interests: ['forged'],
+    });
+    expect(invalid.errors.map((e) => e.field)).toEqual(['age', 'amount', 'date', 'interests']);
+    expect(invalid.requiredFieldIds).not.toContain('details');
+    const malformed = evaluateFields(form.fields, { ...raw, extra: 'forged', interests: false });
+    expect(malformed.errors.map((e) => e.field)).toEqual(['extra', 'interests']);
+    expect(malformed.requiredFieldIds).not.toContain('details');
+  });
+});

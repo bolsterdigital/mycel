@@ -248,3 +248,76 @@ export async function solveProof(
   };
   return btoa(JSON.stringify(solution));
 }
+
+/** The public signup corpus exercises every ordinary field without changing the consent owner. */
+export function conditionalProbeForm(id: string): FormDefinition {
+  const form = probeForm(id);
+  const label = (nl: string, en: string) => ({ nl, en });
+  const optional = { required: false };
+  return {
+    ...form,
+    fields: [
+      form.fields[0]!,
+      {
+        ...optional,
+        type: 'checkbox',
+        name: 'contact_only',
+        label: label(
+          'Alleen een bericht sturen, geen nieuwsbrief',
+          'Send a message only, no newsletter'
+        ),
+      },
+      {
+        ...optional,
+        type: 'choice',
+        name: 'topic',
+        label: label('Onderwerp', 'Topic'),
+        options: [
+          { value: 'question', label: label('Een vraag stellen', 'Ask a question') },
+          { value: 'other', label: label('Iets anders', 'Something else') },
+        ],
+      },
+      {
+        type: 'textarea',
+        name: 'message',
+        required: true,
+        label: label('Je vraag', 'Your question'),
+        activeWhen: { op: 'equals', fieldId: 'topic', value: 'question' },
+        help: label(
+          'Vul dit in als je een vraag wilt stellen.',
+          'Complete this when asking a question.'
+        ),
+      },
+      { ...optional, type: 'text', name: 'name', label: label('Naam', 'Name'), maxLength: 100 },
+      { ...optional, type: 'phone', name: 'phone', label: label('Telefoonnummer', 'Phone number') },
+      {
+        ...optional,
+        type: 'number',
+        name: 'count',
+        label: label('Aantal personen', 'Number of people'),
+        min: 0,
+        max: 100,
+      },
+      { ...optional, type: 'amount', name: 'amount', label: label('Bedrag', 'Amount'), min: 0 },
+      { ...optional, type: 'date', name: 'date', label: label('Datum', 'Date') },
+      {
+        ...optional,
+        type: 'multiple-choice',
+        name: 'interests',
+        label: label('Interesses', 'Interests'),
+        options: [
+          { value: 'local', label: label('Lokaal nieuws', 'Local news') },
+          { value: 'events', label: label('Bijeenkomsten', 'Events') },
+        ],
+      },
+      {
+        ...optional,
+        type: 'hidden',
+        name: 'source',
+        label: label('Bron', 'Source'),
+        value: 'public-corpus',
+      },
+      { ...form.fields[1]!, activeWhen: { op: 'equals', fieldId: 'contact_only', value: false } },
+    ],
+  };
+}
