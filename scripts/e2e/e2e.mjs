@@ -665,6 +665,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
           ...(pages[slug].lead && { lead: pages[slug].lead }),
           ...(pages[slug].seo && { seo: pages[slug].seo }),
           ...(pages[slug].heroAlt && { heroImageId: landscape.id, heroAlt: pages[slug].heroAlt }),
+          ...(slug === qualityCorpus.public.article.slug && { featuredImageId: landscape.id }),
           ...(pages[slug].type === 'article' && {
             authorIds: [qualityAuthor.id],
             sectionId: qualitySection.id,

@@ -157,7 +157,7 @@
       },
       "expected": {
         "status": 200,
-        "minImages": 1,
+        "minImages": 2,
         "font": "Inter",
         "headings": [1, 2]
       }

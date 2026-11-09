@@ -14,6 +14,7 @@ export async function exercisePublicPeople(page: Page) {
     expect(response?.status()).toBe(200);
     await expect(page.locator('html')).toHaveAttribute('lang', locale);
     await expect(page.locator('h1')).toHaveText('Sam de Vries');
+    await expect(page.locator('main img')).toHaveCount(2);
     const body = await response!.text();
     expect(body).not.toMatch(/(?<!public-)sam@probe\.test/);
     expect(body).toContain('public-sam@probe.test');
@@ -41,6 +42,14 @@ export async function exercisePublicPeople(page: Page) {
         fullPage: true,
       });
       for (const img of await page.locator('main img').all()) {
+        await img.scrollIntoViewIfNeeded();
+        const currentSrc = await img.evaluate((node: HTMLImageElement) => node.currentSrc);
+        const asset = await page.request.get(currentSrc);
+        expect(asset.headers()['content-type']).toMatch(/image\/(avif|webp)/);
+        expect((await asset.body()).byteLength).toBeLessThanOrEqual(60_000);
+        await expect
+          .poll(() => img.evaluate((node: HTMLImageElement) => node.naturalWidth))
+          .toBeGreaterThan(0);
         expect(await img.getAttribute('src')).toMatch(/\/w\d+\.webp$/);
         await expect(img).toHaveAttribute('width', /\d+/);
         await expect(img).toHaveAttribute('height', /\d+/);
