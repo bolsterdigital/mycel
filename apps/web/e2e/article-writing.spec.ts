@@ -806,12 +806,6 @@ test.describe('article-writing', () => {
     await expect(page).toHaveURL(/saved/);
     await page.goto(edit);
     await expect(page.locator('details.block')).toHaveCount(2);
-    const { revision: saved } = await callApi(request, 'content.item.get', {
-      itemId: edit.split('/').at(-1),
-    });
-    expect(
-      saved.document.blocks.find((b: { type: string }) => b.type === 'image').props
-    ).toMatchObject({ decorative: true, alt: null });
     await expect(page.locator('.writing-surface .ui-block-card-title')).toContainText(
       /Quote|Citaat/
     );

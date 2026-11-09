@@ -528,9 +528,9 @@ for (const locale of ['nl-NL', 'en-GB']) {
       await acceptWithKeyboard(page);
       await expect(page).toHaveURL(`${fixture.edit}?saved=1`);
       const block = page.locator(`#block-${fixture.blockId}`);
-      await expect(
-        block.getByLabel(/^(Beschrijving \(alt-tekst\)|Description \(alt text\))$/)
-      ).toHaveValue('Een geteste afbeelding');
+      await expect(block.locator('[data-block-alt] textarea')).toHaveValue(
+        'Een geteste afbeelding'
+      );
     });
   });
 }

@@ -21,7 +21,15 @@ function describing(picker, work) {
   if (name === 'heroImageId') return { text: `heroAlt.${work}`, decorative: 'heroDecorative' };
   if (!name.endsWith('.mediaId')) return null;
   const prefix = name.slice(0, -'mediaId'.length);
-  return { text: `${prefix}alt.${work}`, decorative: `${prefix}decorative` };
+  // A standalone image shares the header's explicit all-language clear action. Its old
+  // decorative checkbox is gone; snapshot this action too, so Undo restores the actual choice.
+  const description = picker
+    .closest('form')
+    ?.querySelector(`[data-block-alt][data-image-name="${CSS.escape(name)}"]`);
+  return {
+    text: `${prefix}alt.${work}`,
+    decorative: description?.dataset.clearName ?? `${prefix}decorative`,
+  };
 }
 
 /**

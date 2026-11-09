@@ -668,6 +668,7 @@ if (form instanceof HTMLFormElement) {
       // back on the stored image it applies again. What someone typed stays in both directions.
       const image = chosenImage();
       if ('blockAlt' in heroAlt.dataset) {
+        if (image && image !== savedImage && box instanceof HTMLInputElement) box.checked = false;
         sync();
         return;
       }

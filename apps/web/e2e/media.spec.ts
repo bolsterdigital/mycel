@@ -1178,7 +1178,7 @@ test('an image dropped between two blocks of a page becomes an image block there
   await expect(page).toHaveURL(/insert=image&place=before/);
   const fresh = page.locator('#block-new');
   await expect(fresh.getByRole('heading', { name: 'Nieuw blok: Afbeelding' })).toBeVisible();
-  await expect(fresh.getByLabel('Beschrijving (alt-tekst)')).toBeFocused();
+  await expect(fresh.locator('[data-block-alt] textarea')).toBeFocused();
   await expect(fresh.locator('[data-picker-name]')).toHaveText(filename);
   // Between the two quotes, and the typed words were saved on the way.
   const order = await page.$$eval('.item-blocks [data-block-card], #block-new', (els) =>
@@ -1189,7 +1189,7 @@ test('an image dropped between two blocks of a page becomes an image block there
   await expect(page.locator(`[name="b.${blocks[0]}.p.text.nl"]`)).toHaveValue('Een, herzien');
   await expect(page.locator('[data-save-state]')).toHaveAttribute('data-current', 'unsaved');
   await expectNoAxeViolations(page);
-  await fresh.getByLabel('Beschrijving (alt-tekst)').fill('Een neergezet beeld');
+  await fresh.locator('[data-block-alt] textarea').fill('Een neergezet beeld');
   await fresh.getByRole('button', { name: 'Toevoegen en opslaan' }).click();
   await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
   const stored = await storedBlocks(id);
@@ -1415,6 +1415,9 @@ test('an image dropped on an image block or the header image replaces it, with U
   await page.keyboard.press('Escape');
   await dragLeft(page, card);
 
+  const clearing = page.locator(`[name="b.${image}.imageAltClear"]`);
+  await block(page, 2);
+  await clearing.check();
   const fresh = `nieuw-${stamp}.png`;
   leftovers.names.push(fresh);
   await dropOn(page, card, [pngFile(fresh)]);
@@ -1424,6 +1427,7 @@ test('an image dropped on an image block or the header image replaces it, with U
   await expect(page.locator(`${card} [data-block-name]`)).toHaveText(fresh);
   await expect(alt).toBeFocused();
   await expect(alt).toHaveValue('');
+  await expect(clearing).not.toBeChecked();
   await expect(page.locator(`${card} img[data-block-image]`)).not.toHaveAttribute(
     'src',
     new RegExp((await storedImage(id)).mediaId)
@@ -1445,6 +1449,7 @@ test('an image dropped on an image block or the header image replaces it, with U
   await expect(chosen).toHaveText(old);
   await expect(page.locator(`${card} [data-block-name]`)).toHaveText(old);
   await expect(alt).toHaveValue('Oud beeld');
+  await expect(clearing).toBeChecked();
   await expect(page.locator(`${card} img[data-block-image]`)).toHaveAttribute(
     'src',
     new RegExp((await storedImage(id)).mediaId)
@@ -1468,6 +1473,7 @@ test('an image dropped on an image block or the header image replaces it, with U
   // Again, described and saved: the English text described the old picture and goes with it.
   await dropOn(page, card, [pngFile(fresh)]);
   await expect(alt).toBeFocused();
+  await expect(clearing).not.toBeChecked();
   await alt.fill('Een nieuw beeld');
   await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
   await expect(page).toHaveURL(/saved/);
