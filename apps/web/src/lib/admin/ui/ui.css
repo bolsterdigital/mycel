@@ -575,6 +575,13 @@
     min-width: var(--tap);
     color: var(--color-link);
   }
+  /* Record names are content, not action labels: constrain the link to its cell and allow an
+     unbroken name to wrap. Button padding and an anonymous flex item's min-content width can
+     otherwise clip a long name in a stacked card at 200% text. */
+  .ui-table tbody th > a {
+    max-inline-size: 100%;
+    overflow-wrap: anywhere;
+  }
   .ui-sort {
     color: var(--color-muted-fg);
   }
