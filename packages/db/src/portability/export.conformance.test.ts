@@ -11,6 +11,8 @@
 // round trip is skipped and the rest runs. Skips without DATABASE_URL and APP_DATABASE_URL; in
 // CI that is a failure.
 
+import { checkLegacyPeopleImport, seedGroupedPerson } from './legacy-people.fixture.js';
+
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
@@ -195,7 +197,7 @@ describe.skipIf(skip)('tenant export and import', () => {
     });
     await invoker.run(useCases.resumeBulk, admin, { planId: bulk.id, version: 1 });
     await invoker.run(useCases.withdrawBulk, admin, { planId: bulk.id, version: 1 });
-    await invoker.run(useCases.createAuthor, admin, { slug: 'redactie', name: `Redactie ${n}` });
+    await seedGroupedPerson(invoker, admin, `Redactie ${n}`);
     await invoker.run(useCases.createSection, admin, { slug: 'nieuws', title: { nl: 'Nieuws' } });
     await invoker.run(useCases.createPattern, admin, {
       name: { nl: 'Patroon' },
@@ -523,6 +525,21 @@ describe.skipIf(skip)('tenant export and import', () => {
   describe('round trip into an empty database', () => {
     const otherPlatform = { ...memoryPlatform, domain: 'other.example' };
     const targetBlobs = new MemoryBlobStore();
+
+    it('imports an older authors archive with ids and internal addresses intact', async (ctx) => {
+      if (!canCreateDb) ctx.skip();
+      await checkLegacyPeopleImport({
+        operatorDb,
+        targetDb: target.db!,
+        invoker,
+        blobs,
+        targetBlobs,
+        root: scratch.dir,
+        run,
+        by,
+        platform: otherPlatform,
+      });
+    });
 
     it.skipIf(!operatorUrl)('refuses a slug that is taken there', async (ctx) => {
       if (!canCreateDb) ctx.skip();

@@ -1833,7 +1833,7 @@ test.describe('content-list-rows', () => {
   }) => {
     requireApi();
     const word = `meer${randomUUID().slice(0, 8)}`;
-    const author = await callApi<{ id: string }>(request, 'content.author.create', {
+    const author = await callApi<{ id: string }>(request, 'content.person.create', {
       slug: `auteur-${word}`,
       name: `Sam ${word}`,
     });

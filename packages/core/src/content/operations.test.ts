@@ -819,7 +819,7 @@ describe('content.item.find and live references', () => {
 
   it('finds by block type and by every kind of reference, with the matching block ids', async () => {
     const target = await page('target', []);
-    const author = await invoker.run(useCases.createAuthor, admin, { slug: 'sam', name: 'Sam' });
+    const author = await invoker.run(useCases.createPerson, admin, { slug: 'sam', name: 'Sam' });
     const section = await invoker.run(useCases.createSection, admin, {
       slug: 's',
       title: { nl: 'S' },

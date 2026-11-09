@@ -541,11 +541,16 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
 }
 
 export function authorRepository(trx: Trx, tenantId: string): SluggedRepository<Author> {
-  const toAuthor = (r: Selectable<Database['authors']>): Author =>
+  const toAuthor = (r: Selectable<Database['people']>): Author =>
     Author.parse({
       id: r.id,
       slug: r.slug,
       name: r.name,
+      ...(r.role ? { role: r.role } : {}),
+      ...(r.organisation ? { organisation: r.organisation } : {}),
+      ...(r.public_email ? { publicEmail: r.public_email } : {}),
+      ...(r.phone ? { phone: r.phone } : {}),
+      pagePolicy: r.page_policy,
       ...(r.bio ? { bio: r.bio } : {}),
       ...(r.image_id ? { imageId: r.image_id } : {}),
       links: r.links,
@@ -555,13 +560,18 @@ export function authorRepository(trx: Trx, tenantId: string): SluggedRepository<
     });
   const fields = (a: Author) => ({
     name: a.name,
+    role: a.role ? JSON.stringify(a.role) : null,
+    organisation: a.organisation ?? null,
+    public_email: a.publicEmail ?? null,
+    phone: a.phone ?? null,
+    page_policy: a.pagePolicy,
     bio: a.bio ? JSON.stringify(a.bio) : null,
     image_id: a.imageId ?? null,
     links: JSON.stringify(a.links),
     email: a.email ?? null,
     updated_at: a.updatedAt,
   });
-  const rows = () => trx.selectFrom('authors').selectAll();
+  const rows = () => trx.selectFrom('people').selectAll();
   return {
     async get(id) {
       const r = await rows().where('id', '=', id).executeTakeFirst();
@@ -587,7 +597,7 @@ export function authorRepository(trx: Trx, tenantId: string): SluggedRepository<
     async insert(a) {
       return insertedUnlessTaken('authors_tenant_id_slug_key', async () => {
         await trx
-          .insertInto('authors')
+          .insertInto('people')
           .values({
             id: a.id,
             tenant_id: tenantId,
@@ -602,7 +612,7 @@ export function authorRepository(trx: Trx, tenantId: string): SluggedRepository<
       // A concurrent update holds the row lock; this one then re-reads the row and finds a newer
       // `updated_at`, so exactly one of them writes.
       const r = await trx
-        .updateTable('authors')
+        .updateTable('people')
         .set(fields(a))
         .where('id', '=', a.id)
         .where('updated_at', '=', new Date(baseUpdatedAt))

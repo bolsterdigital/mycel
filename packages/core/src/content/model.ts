@@ -494,25 +494,54 @@ export const RevisionSummary = Revision.omit({ document: true });
 export type RevisionSummary = z.infer<typeof RevisionSummary>;
 
 /** Tenant entities next to content (ADR 012 rules 2 and 3). `email` is internal, never public. */
-export const AuthorInput = z
+export const PersonInput = z
   .object({
     name: z.string().min(1).max(200),
     bio: localized(z.string().min(1).max(5000)).optional(),
+    role: localized(z.string().min(1).max(200)).optional(),
+    organisation: z.string().min(1).max(200).optional(),
+    publicEmail: z.string().email().max(320).optional(),
+    phone: z.string().min(1).max(100).optional(),
+    pagePolicy: z.enum(['auto', 'always', 'never']).default('auto'),
     imageId: z.string().guid().optional(),
     links: z
-      .array(z.object({ label: z.string().min(1).max(100), url: CanonicalUrl }).strict())
+      .array(
+        z
+          .object({
+            label: z.string().min(1).max(100),
+            url: CanonicalUrl,
+            kind: z
+              .enum([
+                'website',
+                'linkedin',
+                'bluesky',
+                'mastodon',
+                'instagram',
+                'x',
+                'facebook',
+                'tiktok',
+                'youtube',
+                'other',
+              ])
+              .default('other'),
+          })
+          .strict()
+      )
       .max(10)
       .default([]),
     email: z.string().email().max(320).optional(),
   })
   .strict();
-export const Author = AuthorInput.extend({
+export const Person = PersonInput.extend({
   id: z.string().guid(),
   slug: Slug,
   createdAt: Timestamp,
   updatedAt: Timestamp,
 });
-export type Author = z.infer<typeof Author>;
+export type Person = z.infer<typeof Person>;
+/** Author is a role of a person; stored document references keep their historical name. */
+export const Author = Person;
+export type Author = Person;
 
 export const SectionInput = z
   .object({

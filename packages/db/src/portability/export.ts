@@ -65,7 +65,9 @@ export const TABLES = {
   supporters: 'export',
   supporter_admissions: 'export',
   events: 'export',
-  authors: 'export',
+  people: 'export',
+  person_groups: 'export',
+  person_group_members: 'export',
   sections: 'export',
   patterns: 'export',
   media: 'export',
@@ -121,7 +123,9 @@ export const EXPORT_ORDER: readonly ExportTable[] = [
   'supporters',
   'supporter_admissions',
   'events',
-  'authors',
+  'people',
+  'person_groups',
+  'person_group_members',
   'sections',
   'patterns',
   'media',
@@ -164,7 +168,9 @@ export async function columnsOf(db: Kysely<Database>, table: string): Promise<st
  * The rows of one table as export lines; memberships name the operator by address and leave out
  * `attention_seen_at`, a member's reading habit rather than site data (0034).
  */
-function rowQuery(table: ExportTable) {
+function rowQuery(table: ExportTable, columns?: readonly string[]) {
+  if (columns)
+    return sql`select jsonb_build_object(${sql.join(columns.flatMap((c) => [sql`${c}::text`, sql.ref(c)]))})::text as line from ${sql.table(table)} order by 1`;
   if (table === 'tenant_memberships')
     return sql`
       select ((to_jsonb(m) - 'operator_id' - 'attention_seen_at')
@@ -181,7 +187,8 @@ function rowQuery(table: ExportTable) {
 export async function readTenant(
   operatorDb: Kysely<Database>,
   tenantId: string,
-  each: (table: ExportTable, line: string) => Promise<void> | void
+  each: (table: ExportTable, line: string) => Promise<void> | void,
+  columns?: Partial<Record<ExportTable, readonly string[]>>
 ): Promise<Date> {
   return operatorDb
     .transaction()
@@ -192,7 +199,9 @@ export async function readTenant(
       await enterTenant(trx, tenantId);
       const { rows } = await sql<{ t0: Date }>`select now() as t0`.execute(trx);
       for (const table of EXPORT_ORDER) {
-        await sql`declare export_rows no scroll cursor for ${rowQuery(table)}`.execute(trx);
+        await sql`declare export_rows no scroll cursor for ${rowQuery(table, columns?.[table])}`.execute(
+          trx
+        );
         for (;;) {
           const { rows } = await sql<{ line: string }>`fetch 1000 from export_rows`.execute(trx);
           for (const r of rows) await each(table, r.line);

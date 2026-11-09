@@ -27,7 +27,7 @@ import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { forwarded, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { openPublication } from './lib/publication';
-import { block, editorReady } from './lib/editor';
+import { block, editorReady, reloadsEditor } from './lib/editor';
 
 const SITE = 'http://probe.localhost:4173';
 
@@ -1190,7 +1190,9 @@ test('an image dropped between two blocks of a page becomes an image block there
   await expect(page.locator('[data-save-state]')).toHaveAttribute('data-current', 'unsaved');
   await expectNoAxeViolations(page);
   await fresh.locator('[data-block-alt] textarea').fill('Een neergezet beeld');
-  await fresh.getByRole('button', { name: 'Toevoegen en opslaan' }).click();
+  await reloadsEditor(page, () =>
+    fresh.getByRole('button', { name: 'Toevoegen en opslaan' }).click()
+  );
   await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
   const stored = await storedBlocks(id);
   expect(stored.map((b) => b.type)).toEqual(['quote', 'image', 'quote']);

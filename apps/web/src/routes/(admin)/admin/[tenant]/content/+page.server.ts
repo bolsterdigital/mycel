@@ -67,8 +67,8 @@ async function articleEntities(
   ids: { authors: string[]; sections: string[] }
 ) {
   const { invoker } = runtime();
-  const [{ authors }, { sections }] = await Promise.all([
-    invoker.run(useCases.listAuthors, principal, { limit: MAX_PAGE_SIZE }),
+  const [{ people: authors }, { sections }] = await Promise.all([
+    invoker.run(useCases.listPeople, principal, { limit: MAX_PAGE_SIZE }),
     invoker.run(useCases.listSections, principal, { limit: MAX_PAGE_SIZE }),
   ]);
   const author = (a: { id: string; name: string }) => ({ id: a.id, name: a.name });
@@ -81,7 +81,7 @@ async function articleEntities(
       ids.authors,
       authors.map(author),
       async (authorId) => {
-        const a = await orNull(invoker.run(useCases.getAuthor, principal, { authorId }));
+        const a = await orNull(invoker.run(useCases.getPerson, principal, { personId: authorId }));
         return a && author(a);
       },
       (id) => ({ id, name: id })

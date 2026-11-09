@@ -143,13 +143,13 @@ async function relationshipChoices(
   });
   const [authors, sections] = article
     ? await Promise.all([
-        invoker.run(useCases.listAuthors, principal, { limit: MAX_PAGE_SIZE }).then(({ authors }) =>
+        invoker.run(useCases.listPeople, principal, { limit: MAX_PAGE_SIZE }).then(({ people }) =>
           withAssigned(
             authorIds,
-            authors.map(author),
+            people.map(author),
             async (authorId) => {
               const a = isUuid(authorId)
-                ? await orNull(invoker.run(useCases.getAuthor, principal, { authorId }))
+                ? await orNull(invoker.run(useCases.getPerson, principal, { personId: authorId }))
                 : null;
               return a && author(a);
             },

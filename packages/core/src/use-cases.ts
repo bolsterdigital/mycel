@@ -2,6 +2,13 @@
 // registers itself as an import side effect, so what is exposed is exactly what is listed here.
 
 import {
+  createPersonGroup,
+  updatePersonGroup,
+  getPersonGroup,
+  listPersonGroups,
+} from './content/people/service.js';
+
+import {
   getConnectionIntent,
   listConnectionIntents,
   replayConnectionIntent,
@@ -33,16 +40,16 @@ import {
   updateAssistSettings,
 } from './assist/service.js';
 import {
-  createAuthor,
+  createPerson,
   createPattern,
   createSection,
-  getAuthor,
+  getPerson,
   getPattern,
   getSection,
-  listAuthors,
+  listPeople,
   listPatterns,
   listSections,
-  updateAuthor,
+  updatePerson,
   updatePattern,
   updateSection,
 } from './content/entities.js';
@@ -173,10 +180,14 @@ export const useCases = {
   convertHero,
   getHeroConversion,
   findItems,
-  createAuthor,
-  updateAuthor,
-  getAuthor,
-  listAuthors,
+  createPersonGroup,
+  updatePersonGroup,
+  getPersonGroup,
+  listPersonGroups,
+  createPerson,
+  updatePerson,
+  getPerson,
+  listPeople,
   createSection,
   updateSection,
   getSection,

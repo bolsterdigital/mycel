@@ -64,7 +64,9 @@ const IMPORT_RULE = {
   supporters: 'as-exported',
   supporter_admissions: 'as-exported',
   events: 'as-exported',
-  authors: 'as-exported',
+  people: 'as-exported',
+  person_groups: 'as-exported',
+  person_group_members: 'as-exported',
   sections: 'as-exported',
   patterns: 'as-exported',
   media: 'as-exported',
@@ -112,7 +114,7 @@ const verifiedManifest = (dir: string): Promise<ExportManifest> =>
       table: (file) => fileSha256(join(dir, file)),
       media: async (file) => sha256(await readFile(join(dir, file))),
     },
-    [...EXPORT_ORDER, ...RETIRED_TABLES]
+    [...EXPORT_ORDER, 'authors', ...RETIRED_TABLES]
   );
 
 /** The `occurred_at` range of the exported events, for their partitions. */
@@ -212,7 +214,8 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
       await enterTenant(trx, tenantId);
 
       for (const table of EXPORT_ORDER) {
-        const entry = manifest.tables[table];
+        const entry =
+          manifest.tables[table] ?? (table === 'people' ? manifest.tables['authors'] : undefined);
         if (!entry) {
           lines.push(`${table}: not in the export (older schema), 0 rows`);
           continue;
@@ -226,7 +229,8 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
         lines.push(`${table}: ${imported} imported${skipped ? `, ${skipped} skipped` : ''}`);
       }
       for (const table of RETIRED_TABLES) {
-        const entry = manifest.tables[table];
+        const entry =
+          manifest.tables[table] ?? (table === 'people' ? manifest.tables['authors'] : undefined);
         if (entry)
           lines.push(`${table}: ${entry.rows} not imported, create new keys on this installation`);
       }
@@ -360,24 +364,32 @@ async function compare(
 ): Promise<string[]> {
   const hashes = new Map<ExportTable, { hash: ReturnType<typeof createHash>; rows: number }>();
   const custom: string[] = [];
-  await readTenant(operatorDb, manifest.tenant.id, (table, line) => {
-    if (table === 'tenant_hostnames') {
-      const h = JSON.parse(line) as { kind: string; hostname: string };
-      if (h.kind === 'custom') custom.push(h.hostname);
-      return;
-    }
-    if (table === 'audit_log') {
-      const a = JSON.parse(line) as { operation: string; occurred_at: string };
-      if (a.operation === 'platform.tenant.import' && new Date(a.occurred_at) >= started) return;
-    }
-    const entry = hashes.get(table) ?? { hash: createHash('sha256'), rows: 0 };
-    entry.hash.update(line + '\n');
-    entry.rows++;
-    hashes.set(table, entry);
-  });
+  await readTenant(
+    operatorDb,
+    manifest.tenant.id,
+    (table, line) => {
+      if (table === 'tenant_hostnames') {
+        const h = JSON.parse(line) as { kind: string; hostname: string };
+        if (h.kind === 'custom') custom.push(h.hostname);
+        return;
+      }
+      if (table === 'audit_log') {
+        const a = JSON.parse(line) as { operation: string; occurred_at: string };
+        if (a.operation === 'platform.tenant.import' && new Date(a.occurred_at) >= started) return;
+      }
+      const entry = hashes.get(table) ?? { hash: createHash('sha256'), rows: 0 };
+      entry.hash.update(line + '\n');
+      entry.rows++;
+      hashes.set(table, entry);
+    },
+    manifest.tables['authors'] && !manifest.tables['people']
+      ? { people: manifest.tables['authors'].columns }
+      : undefined
+  );
   const differences: string[] = [];
   for (const table of EXPORT_ORDER) {
-    const expected = manifest.tables[table];
+    const expected =
+      manifest.tables[table] ?? (table === 'people' ? manifest.tables['authors'] : undefined);
     if (!expected) continue;
     if (table === 'tenant_hostnames') {
       const exported: string[] = [];
