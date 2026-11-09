@@ -137,7 +137,7 @@
       "category": "seo",
       "level": "recommended",
       "status": "open",
-      "gap": "no sitemap yet"
+      "gap": "Profile-only sitemap exists; general published content enumeration remains open."
     },
     "sitemap-index": {
       "category": "seo",
@@ -200,7 +200,7 @@
       "category": "seo",
       "level": "recommended",
       "status": "open",
-      "gap": "no JSON-LD yet"
+      "gap": "Person profiles and Article authors use safe JSON-LD; general website/organisation metadata remains open."
     },
     "breadcrumbs": {
       "category": "seo",
@@ -698,7 +698,7 @@
       "category": "agent-readiness",
       "level": "recommended",
       "status": "open",
-      "gap": "no JSON-LD yet"
+      "gap": "Person profiles and Article authors use safe JSON-LD; general website/organisation metadata remains open."
     },
     "machine-readable-formats": {
       "category": "agent-readiness",

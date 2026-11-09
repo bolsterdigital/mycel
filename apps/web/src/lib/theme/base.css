@@ -12,6 +12,7 @@
 @layer tokens, base, components;
 @import './media-blocks.css' layer(base);
 @import './forms.css' layer(base);
+@import './people.css' layer(base);
 @import './action-row.css' layer(components);
 
 /* A content column measured in the page's own `ch`, inherited as a length, so a heading with a

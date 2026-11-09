@@ -33,6 +33,9 @@ import type { RenderIntro, RenderModel } from '../../blocks/model.js';
 import { renderMeta, resolveDocument, resolveIntro, runtimeSource } from '../../blocks/resolve.js';
 import type { ContentRoute } from './content-route.js';
 import { runtime } from '../runtime.js';
+import { articleData } from '../../public/structured-data.js';
+import { personPath } from '../../public/person-path.js';
+import { ui } from '../../../i18n/index.js';
 import { ogLocales } from './share-locale.js';
 import { sitePath, siteTenant, siteUrls, type Site } from '../site.js';
 import { siteBrand, siteChrome, siteTheme } from './theme.js';
@@ -65,6 +68,7 @@ export interface PublicItem {
   /** Whether the first letter of the body is a drop cap: an article on a site that wants one. */
   dropCap: boolean;
   head: PublicHead;
+  structured: ReturnType<typeof articleData>;
   /** Strong, or null for an item with a form; see the comment at the top. */
   etag: string | null;
 }
@@ -113,6 +117,27 @@ export async function loadPublicItem(
     },
     locale
   );
+  if (intro.meta && item.authors?.length) {
+    const parts = new Intl.ListFormat(locale, { type: 'conjunction' }).formatToParts(
+      item.authors.map((a) => a.name)
+    );
+    let authorIndex = 0;
+    const template = ui(locale)('block.meta.by').split('{names}');
+    intro.meta.bylineParts = [
+      { text: template[0] ?? '' },
+      ...parts.map((part) => {
+        if (part.type !== 'element') return { text: part.value };
+        const author = item.authors![authorIndex++]!;
+        return {
+          text: part.value,
+          ...(author.pageEnabled
+            ? { href: sitePath(site, personPath(author.slug, locale, tenant.defaultLocale)) }
+            : {}),
+        };
+      }),
+      { text: template[1] ?? '' },
+    ];
+  }
   const theme = await siteTheme(site);
   const dropCap = item.type === 'article' && theme.dropCap === 'articles';
 
@@ -145,12 +170,24 @@ export async function loadPublicItem(
     ),
   };
 
-  const page = { tenant, item, locale, model, intro, dropCap, head };
+  const structured = articleData(item, head.canonical, locale, tenant.defaultLocale, url);
+  const page = { tenant, item, locale, model, intro, dropCap, head, structured };
   if (hasForm(model)) return { ...page, etag: null };
   const chrome = await siteChrome(site);
   const brand = await siteBrand(site);
   const digest = createHash('sha256')
-    .update(JSON.stringify({ model, intro, dropCap, head, access: site.access, chrome, brand }))
+    .update(
+      JSON.stringify({
+        model,
+        intro,
+        dropCap,
+        head,
+        structured,
+        access: site.access,
+        chrome,
+        brand,
+      })
+    )
     .digest('base64url')
     .slice(0, 16);
   const etag = `"${item.revisionId}:${locale}:${theme.hash}:${digest}"`;

@@ -1,6 +1,9 @@
 import type { UiKey } from './en.js';
 
 export const nl: Partial<Record<UiKey, string>> = {
+  'public.people.articles': 'Artikelen',
+  'public.people.previous': 'Vorige artikelen',
+  'public.people.next': 'Meer artikelen',
   'admin.people.added':
     'Persoon toegevoegd en geselecteerd. Sla het artikel op om deze keuze te bewaren.',
   'admin.people.title': 'Personen',

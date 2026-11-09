@@ -348,8 +348,8 @@ test('consumer counts the versioned full matrix and retains all red observation 
   bad.batches[1].state = 'pass';
   bad.batches[1].reasons = [];
   const result = consumeRun(run, load);
-  assert.equal(result.expected, 72);
-  assert.equal(result.samples, 365);
+  assert.equal(result.expected, 84);
+  assert.equal(result.samples, 425);
   assert.equal(result.state, 'fail');
   assert.equal(result.conclusion, 'success');
   assert.equal(result.cells[0].batches.length, 2);
@@ -568,8 +568,8 @@ test('container shards bind immutable userspace and tools while retaining indepe
   }
   const result = gate(input);
   assert.equal(result.blocks, false);
-  assert.equal(result.report.present, 6);
-  assert.equal(result.report.samples, 30);
+  assert.equal(result.report.present, 8);
+  assert.equal(result.report.samples, 40);
   assert.deepEqual(
     result.report.profiles.map((p) => p.environment.hostImage),
     ['20261026.354.1', '20261023.334.3']
@@ -891,7 +891,7 @@ test('gate CLI retains full reports and fails for absent downloads instead of pa
     command(root, join(dir, 'good'));
     const result = JSON.parse(readFileSync(join(dir, 'good', 'summary.json')));
     assert.equal(result.measured, 'pass');
-    assert.equal(result.report.samples, 30);
+    assert.equal(result.report.samples, 40);
     assert.equal(result.report.cells[0].batches[0].sampleIds.length, 5);
     assert.throws(() => command(join(dir, 'absent'), join(dir, 'bad')));
     assert.equal(JSON.parse(readFileSync(join(dir, 'bad', 'summary.json'))).blocks, true);
@@ -901,7 +901,7 @@ test('gate CLI retains full reports and fails for absent downloads instead of pa
 });
 
 test('information expands both profiles/locales while historical v3 keeps its own coverage', () => {
-  assert.equal(contract.fixtureVersion, '43a-v6');
+  assert.equal(contract.fixtureVersion, '43a-v7');
   for (const locale of ['nl', 'en'])
     for (const profile of ['mobile', 'desktop']) {
       const shard = expectedShards(contract, 'local', {
@@ -918,6 +918,7 @@ test('information expands both profiles/locales while historical v3 keeps its ow
     ['populated-list', 'native-editor', 'enhanced-writer'].includes(entry.name)
   );
   delete old.public.information;
+  delete old.public.person;
   delete old.public['demo-page'];
   delete old.public['demo-article'];
   const historical = sourceContract({
@@ -928,7 +929,7 @@ test('information expands both profiles/locales while historical v3 keeps its ow
     lock: source('package-lock.json'),
   });
   assert.equal(expectedShards(historical, 'workflow_dispatch').flatMap((s) => s.ids).length, 36);
-  assert.equal(expectedShards(contract, 'workflow_dispatch').flatMap((s) => s.ids).length, 72);
+  assert.equal(expectedShards(contract, 'workflow_dispatch').flatMap((s) => s.ids).length, 84);
   assert.notEqual(historical.fixtureHash, contract.fixtureHash);
   const run = retained('pull_request');
   for (const a of run.artifacts)

@@ -71,7 +71,7 @@ for (const entry of entries)
       await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
         'href',
         new RegExp(
-          `${locale === 'en' ? '/en' : ''}/${entry.routeClass === 'article' ? 'articles/' : ''}${entry.slug}$`
+          `${locale === 'en' ? '/en' : ''}/${entry.routeClass === 'article' ? 'articles/' : entry.routeClass === 'person' ? 'people/' : ''}${entry.slug}$`
         )
       );
       await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
@@ -152,6 +152,7 @@ for (const entry of entries)
 const metadataPages: {
   slug: string;
   describedShare?: boolean;
+  sharedTitle?: boolean;
   locales: Record<string, { path: string; title: string; seoTitle?: string }>;
 }[] = [...entries, corpus.share];
 for (const entry of metadataPages)
@@ -164,7 +165,8 @@ for (const entry of metadataPages)
           page,
           locale,
           identity.seoTitle ?? identity.title,
-          entry.describedShare
+          entry.describedShare,
+          entry.sharedTitle
         )
       );
     }

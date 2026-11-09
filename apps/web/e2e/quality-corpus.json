@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "fixtureVersion": "43a-v6",
+  "fixtureVersion": "43a-v7",
   "tenant": "probe",
   "themeProfiles": {
     "default": {
@@ -136,6 +136,29 @@
         "headings": [1, 2],
         "lists": ["ul", "ol"],
         "quote": true
+      }
+    },
+    "person": {
+      "slug": "e2e-auteur",
+      "routeClass": "person",
+      "sharedTitle": true,
+      "indexable": true,
+      "state": "enabled",
+      "locales": {
+        "nl": {
+          "path": "/probe/people/e2e-auteur",
+          "title": "Sam de Vries"
+        },
+        "en": {
+          "path": "/probe/en/people/e2e-auteur",
+          "title": "Sam de Vries"
+        }
+      },
+      "expected": {
+        "status": 200,
+        "minImages": 1,
+        "font": "Inter",
+        "headings": [1, 2]
       }
     }
   },
