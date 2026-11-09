@@ -238,7 +238,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
       type: b.type,
       naming: blockNaming(b, work, doc.defaultLocale, options.media),
       summary: summaryOf(b, read),
-      preview: previewOf(b, read),
+      preview: previewOf(b, read, options),
       image: imageRestOf(b, read, options.media, doc.locales),
       text: textRestOf(b, read, blockPrefix(b.id), forms),
       duplicable: !SINGLE.has(b.type),

@@ -198,6 +198,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   const {
     BLOCK_DEFINITIONS,
     EXAMPLE_IDS,
+    PEOPLE_GRID_IDS,
     Invoker,
     appDelivery,
     buildRegistry,
@@ -623,9 +624,19 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
       version: 1,
       props: { content: { nl: longRead('nl'), en: longRead('en') } },
     };
+    const qualityAuthor = await uow.run(admin, (ctx) => ctx.authors.findBySlug('e2e-auteur'));
+    const groups = await invoker.run(useCases.listPersonGroups, admin, {});
+    const gridGroup =
+      groups.groups.find((g) => g.name.en === 'Grid team') ??
+      (await invoker.run(useCases.createPersonGroup, admin, {
+        name: { en: 'Grid team', nl: 'Rasterteam' },
+        personIds: [qualityAuthor.id],
+      }));
     const swap = (block) =>
       JSON.parse(
         JSON.stringify(block)
+          .replaceAll(PEOPLE_GRID_IDS.person, qualityAuthor.id)
+          .replaceAll(PEOPLE_GRID_IDS.group, gridGroup.id)
           .replaceAll(EXAMPLE_IDS.image, landscape.id)
           .replaceAll(EXAMPLE_IDS.portrait, portrait.id)
           .replaceAll(EXAMPLE_IDS.document, report.id)
@@ -634,7 +645,6 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
           .replaceAll(EXAMPLE_IDS.form, formId)
       );
     const qualityImages = [landscape.id, portrait.id, square.id, panorama.id];
-    const qualityAuthor = await uow.run(admin, (ctx) => ctx.authors.findBySlug('e2e-auteur'));
     await invoker.run(useCases.updatePerson, admin, {
       personId: qualityAuthor.id,
       baseUpdatedAt: qualityAuthor.updatedAt,

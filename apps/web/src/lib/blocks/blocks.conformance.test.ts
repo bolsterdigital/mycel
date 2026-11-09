@@ -100,6 +100,23 @@ function asset(id: string, width: number, height: number, focal = { x: 0.5, y: 0
 
 /** Resolver fixtures for the example ids, plus one restricted image and one unpublished item. */
 const fixtures: ResolveSource = {
+  async peopleGrid(props, locale) {
+    return [
+      {
+        id: '01900000-0000-7000-8000-00000000a001',
+        slug: 'sam',
+        name: 'Sam',
+        bio: locale === 'nl' ? 'Schrijft over de stad.' : 'Writes about the city.',
+        role: locale === 'nl' ? 'Redacteur' : 'Editor',
+        organisation: null,
+        publicEmail: 'sam@example.org',
+        phone: null,
+        imageId: props.source === 'group' ? null : EXAMPLE_IDS.portrait,
+        links: [{ label: 'Website', url: 'https://example.org', kind: 'website' }],
+        pageEnabled: props.source !== 'group',
+      },
+    ];
+  },
   async form(id) {
     return id === EXAMPLE_IDS.form
       ? { form: probeForm(id), startedToken: 'started-token', proof: PROOF }

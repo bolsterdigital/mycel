@@ -11,6 +11,7 @@
 
 import type {
   ArticleHeader,
+  PublicPersonCard,
   CreditKind,
   FormField,
   MediaCredit,
@@ -119,6 +120,14 @@ type Align = 'start' | 'center' | 'end';
 
 export type RenderBlock = { id: string } & (
   | { type: 'heading'; text: string }
+  | {
+      type: 'people-grid';
+      columns: '2' | '3' | '4';
+      showRole: boolean;
+      showBio: boolean;
+      showContact: boolean;
+      people: (PublicPersonCard & { image: RenderImage | null; href: string | null })[];
+    }
   | {
       type: 'rich-text';
       doc: RichTextDoc;

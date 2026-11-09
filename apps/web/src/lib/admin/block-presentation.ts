@@ -11,6 +11,7 @@ import type { IconName } from './ui/icons.js';
 
 /** Decorative cues for the same registered types; visible names always carry their meaning. */
 export const BLOCK_ICONS: Readonly<Record<BlockType, IconName>> = {
+  'people-grid': 'users',
   heading: 'heading',
   'rich-text': 'text',
   image: 'image',
@@ -63,6 +64,12 @@ export const addButtonLists = (type: BlockType): readonly string[] => {
 };
 
 export const BLOCK_PRESENTATION: { readonly [T in BlockType]: BlockPresentation } = {
+  'people-grid': {
+    rest: 'text',
+    display: ['columns', 'showRole', 'showBio', 'showContact'],
+    source: [],
+    stage: 'C2',
+  },
   image: { rest: 'image', display: ['layout'], source: ['credit'], stage: 'A' },
   heading: { rest: 'text', display: [], source: [], stage: 'C1' },
   'rich-text': { rest: 'text', display: [], source: [], stage: 'C1' },

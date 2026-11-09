@@ -437,7 +437,7 @@
     media={data.media}
     {base}
     upload={data.upload}
-    items={data.items}
+    references={data}
     invalid={issues.map((x) => x.name)}
     locale={data.locale}
     {action}
@@ -586,7 +586,7 @@
       media={data.media}
       {base}
       upload={data.upload}
-      items={data.items}
+      references={data}
       invalid={issues.map((x) => x.name)}
       locale={data.locale}
       groups={{ display: shape.display, source: shape.source, labels: groupLabels }}

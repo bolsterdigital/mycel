@@ -114,6 +114,25 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
 
   function blockMarkdown(b: RenderBlock): string | null {
     switch (b.type) {
+      case 'people-grid':
+        return b.people
+          .map((p) =>
+            [
+              p.href ? link(p.name, p.href) : md(p.name),
+              b.showRole && p.role ? md(p.role) : '',
+              b.showBio && p.bio ? md(p.bio) : '',
+              ...(b.showContact
+                ? [
+                    p.publicEmail ? link(p.publicEmail, `mailto:${p.publicEmail}`) : '',
+                    p.phone ? link(p.phone, `tel:${p.phone}`) : '',
+                    ...p.links.map((l) => link(l.label, l.url)),
+                  ]
+                : []),
+            ]
+              .filter(Boolean)
+              .join('\n\n')
+          )
+          .join('\n\n');
       case 'heading':
         return heading(BLOCK_DEPTH, b.text);
       case 'rich-text':

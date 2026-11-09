@@ -18,9 +18,13 @@
 // renderer that cannot run without a database), and passing the whole `MediaView` through
 // (restricted paths would sit in the model even if no component printed them).
 
+import { personPath } from '../public/person-path.js';
 import { formatBytes } from '../admin/format.js';
 import {
   type FormDefinition,
+  type PublicPersonCard,
+  resolvePeopleGrid,
+  type BlockProps,
   type ArticleHeader,
   type ProofChallenge,
   type Invoker,
@@ -54,6 +58,7 @@ import { videoUrl, type RenderMeta } from './model.js';
 
 /** Where the resolver reads tenant data; `runtimeSource` is the real one, tests may stub it. */
 export interface ResolveSource {
+  peopleGrid?(props: BlockProps<'people-grid'>, locale: string): Promise<PublicPersonCard[]>;
   form(id: string): Promise<{
     form: FormDefinition;
     startedToken: string;
@@ -87,6 +92,9 @@ export function runtimeSource(deps: {
 }): ResolveSource {
   const { invoker, uow, reader, defaultLocale } = deps;
   return {
+    async peopleGrid(props, locale) {
+      return uow.run(reader, (ctx) => resolvePeopleGrid(ctx, props, locale));
+    },
     async form(id) {
       try {
         return await invoker.run(useCases.getForm, reader, { id });
@@ -292,6 +300,13 @@ export async function resolveDocument(
   for (const b of blocks)
     for (const ref of referencesOf(b))
       (ref.type === 'media' ? mediaIds : ref.type === 'form' ? formIds : itemIds).add(ref.refId);
+  const grids = new Map<string, PublicPersonCard[]>();
+  for (const b of blocks) {
+    if (b.type !== 'people-grid') continue;
+    const people = (await source.peopleGrid?.(b.props, locale)) ?? [];
+    grids.set(b.id, people);
+    for (const person of people) if (person.imageId) mediaIds.add(person.imageId);
+  }
   const media = new Map<string, MediaView | null>();
   for (const id of mediaIds) media.set(id, await source.media(id));
   const forms = new Map<string, RenderForm | null>();
@@ -316,6 +331,26 @@ export async function resolveDocument(
   const out: RenderBlock[] = blocks.map((b): RenderBlock => {
     const id = b.id;
     switch (b.type) {
+      case 'people-grid':
+        return {
+          id,
+          type: 'people-grid',
+          columns: b.props.columns,
+          showRole: b.props.showRole,
+          showBio: b.props.showBio,
+          showContact: b.props.showContact,
+          people: (grids.get(id) ?? []).map((person) => ({
+            ...person,
+            image: renderImage(
+              media.get(person.imageId ?? '') ?? null,
+              { decorative: true, alt: null },
+              locale
+            ),
+            href: person.pageEnabled
+              ? personPath(person.slug, locale, options.fallbackLocale)
+              : null,
+          })),
+        };
       case 'heading':
         return { id, type: 'heading', text: text(b.props.text) ?? '' };
       case 'rich-text':

@@ -6,6 +6,7 @@
   import type { FormState, RenderBlock, RenderModel } from './model.js';
   import Callout from './Callout.svelte';
   import Cards from './Cards.svelte';
+  import PeopleGrid from './PeopleGrid.svelte';
   import Cta from './Cta.svelte';
   import Faq from './Faq.svelte';
   import FileDownload from './FileDownload.svelte';
@@ -38,7 +39,11 @@
   // The first image of the page loads eagerly: it is likely above the fold.
   const firstImage = $derived(
     eagerFirstImage
-      ? model.blocks.find((b) => (b.type === 'image' || b.type === 'hero') && b.image)?.id
+      ? model.blocks.find(
+          (b) =>
+            ((b.type === 'image' || b.type === 'hero') && b.image) ||
+            (b.type === 'people-grid' && b.people.some((p) => p.image))
+        )?.id
       : undefined
   );
 </script>
@@ -62,6 +67,8 @@
     <Hero {block} {model} />
   {:else if block.type === 'cta'}
     <Cta {block} {model} />
+  {:else if block.type === 'people-grid'}
+    <PeopleGrid {block} {model} eager={block.id === firstImage} />
   {:else if block.type === 'cards'}
     <Cards {block} {model} />
   {:else if block.type === 'file-download'}

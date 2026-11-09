@@ -6,6 +6,23 @@ Every block type a page or article can hold (ADR 004, ADR 013 rule 2, ADR 020), 
 
 The **label** is the English admin copy; **presence** says whether a published block needs the field. A localised field holds one value per locale of the document; publishing a locale needs a value in it for every required field and every optional one that is filled in another locale.
 
+## `people-grid` (People grid)
+
+Version 1.
+
+| Prop                | Label                | Kind                        | Presence                   |
+| ------------------- | -------------------- | --------------------------- | -------------------------- |
+| `source`            | Source               | one of `selection`, `group` | required                   |
+| `groupId`           | Group                | person_group reference (id) | optional (null when empty) |
+| `people`            | Selected people      | list of 0–100               | required                   |
+| `people[].personId` | Person               | person reference (id)       | required                   |
+| `columns`           | Columns              | one of `2`, `3`, `4`        | required                   |
+| `showRole`          | Show role            | yes or no                   | required                   |
+| `showBio`           | Show biography       | yes or no                   | required                   |
+| `showContact`       | Show contact details | yes or no                   | required                   |
+
+Examples: `people-grid-selection`, `people-grid-group`, `people-grid-compact`.
+
 ## `heading` (Heading)
 
 Version 1.

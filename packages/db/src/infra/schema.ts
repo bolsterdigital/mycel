@@ -248,7 +248,7 @@ export interface Database {
     item_id: string;
     revision_id: string;
     block_id: string | null;
-    type: 'form' | 'item' | 'author' | 'section' | 'media';
+    type: 'form' | 'item' | 'author' | 'section' | 'media' | 'person' | 'person_group';
     ref_id: string;
   };
   content_item_locales: {

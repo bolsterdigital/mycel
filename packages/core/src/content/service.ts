@@ -189,6 +189,12 @@ export async function blockReferenceIssues(
   for (const id of refs.forms)
     if (!(await ctx.forms.findById(id)))
       issues.push({ path, message: 'content.reference.form-unknown', params: { id } });
+  for (const id of refs.people)
+    if (!(await ctx.authors.get(id)))
+      issues.push({ path, message: 'content.reference.author-unknown', params: { id } });
+  for (const id of refs.personGroups)
+    if (!(await ctx.personGroups.get(id)))
+      issues.push({ path, message: 'content.reference.person-group-unknown', params: { id } });
   for (const id of refs.items)
     if (!(await ctx.content.get(id)))
       issues.push({ path, message: 'content.reference.item-unknown', params: { id } });

@@ -54,7 +54,14 @@
     base: string;
     /** The operator may upload (`media:write`): the picker offers it. */
     upload: boolean;
-    items: readonly Option[];
+    items?: readonly Option[];
+    references?: {
+      items: readonly Option[];
+      people: readonly Option[];
+      personGroups: readonly Option[];
+    };
+    people?: readonly Option[];
+    personGroups?: readonly Option[];
     /** Names with a refusal, marked `aria-invalid`. */
     invalid: readonly string[];
     locale: string;
@@ -84,7 +91,10 @@
     media,
     base,
     upload,
-    items,
+    references,
+    items = [],
+    people = [],
+    personGroups = [],
     invalid,
     locale,
     groups,
@@ -282,7 +292,16 @@
       invalid={bad(name)}
     />
   {:else if f.kind === 'reference' && f.to === 'item'}
-    {@render select(name, label(f.key), items, t('admin.block.none'))}
+    {@render select(name, label(f.key), references?.items ?? items, t('admin.block.none'))}
+  {:else if f.kind === 'reference' && (f.to === 'person' || f.to === 'person_group')}
+    {@render select(
+      name,
+      label(f.key),
+      f.to === 'person'
+        ? (references?.people ?? people)
+        : (references?.personGroups ?? personGroups),
+      t('admin.block.none')
+    )}
   {:else if f.kind === 'reference'}
     {@render input(name, label(f.key))}
   {:else if f.kind === 'choice'}
@@ -311,7 +330,7 @@
           {@render select(
             target,
             t('admin.block.field.target'),
-            [{ id: 'url', label: t('admin.block.target.url') }, ...items],
+            [{ id: 'url', label: t('admin.block.target.url') }, ...(references?.items ?? items)],
             t('admin.block.none')
           )}
           {@render input(`${name}.${i}.url`, t('admin.block.field.url'))}
