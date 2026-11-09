@@ -172,6 +172,63 @@ describe('webhook destination and transport', () => {
     expect(transport.reconcile === undefined).toBe(!PROVIDER_RECONCILES.webhook);
   });
 
+  it('sends only the closed confirmed form-feed envelope and rejects arbitrary payloads', async () => {
+    const sent: WebhookRequest[] = [];
+    const transport = webhookTransport({
+      dns: answering(() => ['8.8.8.8']),
+      send: async (request) => {
+        sent.push(request);
+        return 204;
+      },
+    });
+    const input = {
+      tenantId: 'tenant',
+      connection,
+      credential: 'synthetic-secret',
+      intent: {
+        ...intent,
+        source: 'form.feed',
+        scope: 'newsletter',
+        supporterId: '01900000-0000-7000-8000-000000000001',
+      },
+      payload: {
+        category: 'form.feed',
+        data: {
+          submissionId: '01900000-0000-7000-8000-000000000002',
+          formId: '01900000-0000-7000-8000-000000000003',
+          feedId: 'news',
+          formVersion: 'v1',
+          mappingVersion: 'v1',
+          fields: { email: 'test@example.org' },
+          consent: {
+            scope: 'newsletter',
+            owner: 'mycel',
+            confirmedAt: '2026-11-09T12:00:00.000Z',
+            textVersion: 'v1',
+          },
+        },
+      },
+    };
+    expect(await transport.dispatch(input)).toBe('succeeded');
+    expect(JSON.parse(sent[0]!.body)).toMatchObject({
+      category: 'form.feed',
+      data: input.payload.data,
+    });
+    expect(
+      await transport.dispatch({ ...input, payload: { ...input.payload, extra: 'not-approved' } })
+    ).toBe('pre_send');
+    expect(
+      await transport.dispatch({
+        ...input,
+        payload: {
+          category: 'form.feed',
+          data: { ...input.payload.data, consent: { confirmed: false } },
+        },
+      })
+    ).toBe('pre_send');
+    expect(sent).toHaveLength(1);
+  });
+
   it('checks DNS again for delivery, signs a stable envelope, and pins the checked address', async () => {
     let addresses = ['8.8.8.8'];
     const sent: WebhookRequest[] = [];

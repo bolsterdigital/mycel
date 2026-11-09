@@ -11,6 +11,7 @@ export interface FormRepository {
 export interface SubmissionRepository {
   insert(submission: Submission): Promise<void>;
   findById(id: string): Promise<Submission | null>;
+  findByFeedBusinessId(id: string): Promise<Submission | null>;
   /**
    * Record the double opt-in confirmation once: true when this call set `confirmedAt`, false
    * when it was already set (the second click) or the submission does not exist. The single
@@ -61,5 +62,19 @@ export interface FormMailRepository {
 declare module '../ports.js' {
   interface TransactionContext {
     formMail: FormMailRepository;
+  }
+}
+
+export interface FormFeedRepository {
+  get(): Promise<import('./feed/model.js').FormFeedState>;
+  save(
+    baseVersion: number,
+    value: import('./feed/model.js').FormFeedSettings,
+    actor: NonNullable<import('./feed/model.js').FormFeedState['actor']>
+  ): Promise<import('./feed/model.js').FormFeedState | null>;
+}
+declare module '../ports.js' {
+  interface TransactionContext {
+    formFeeds: FormFeedRepository;
   }
 }

@@ -124,4 +124,6 @@ export * from './forms/mail-delivery.js';
 export * from './content/people/model.js';
 export * from './content/people/service.js';
 
+export * from './forms/feed/model.js';
+export * from './forms/feed/delivery.js';
 export * from './content/people/public.js';

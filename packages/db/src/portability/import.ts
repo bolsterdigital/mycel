@@ -59,6 +59,7 @@ const IMPORT_RULE = {
   site_settings: 'as-exported',
   connections: 'as-exported',
   tenant_hostnames: 'custom-only',
+  form_feed_settings: 'as-exported',
   form_mail_settings: 'as-exported',
   forms: 'as-exported',
   form_submissions: 'as-exported',

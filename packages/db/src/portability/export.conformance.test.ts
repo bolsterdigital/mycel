@@ -11,6 +11,7 @@
 // round trip is skipped and the rest runs. Skips without DATABASE_URL and APP_DATABASE_URL; in
 // CI that is a failure.
 
+import { seedFormActions } from './form-actions.fixture.js';
 import { checkLegacyPeopleImport, seedGroupedPerson } from './legacy-people.fixture.js';
 
 import { createHash } from 'node:crypto';
@@ -38,8 +39,8 @@ import {
   MemoryBlobStore,
   memoryImageProcessor,
   memoryPlatform,
-  probeFormMail,
   conditionalProbeForm,
+  probeFormMail,
   probeForm,
   publishProbePage,
   requireInCi,
@@ -172,10 +173,7 @@ describe.skipIf(skip)('tenant export and import', () => {
     });
     const formId = uuidv7();
     await uow.run(admin, (ctx) => ctx.forms.insert(conditionalProbeForm(formId)));
-    await invoker.run(useCases.updateFormMailSettings, admin, {
-      baseVersion: 0,
-      value: probeFormMail(formId),
-    });
+    await seedFormActions(invoker, admin, formId, probeFormMail(formId));
     const published = await publishProbePage(invoker, admin, formId);
     const named = await invoker.run(useCases.getItem, admin, { itemId: published.id });
     await invoker.run(useCases.updateItem, admin, {

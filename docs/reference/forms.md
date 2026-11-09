@@ -15,17 +15,19 @@ How a visitor's signup becomes a stored submission, a confirmation mail and a su
 | `consentTextVersion` | which consent text the visitor saw; copied onto the submission and the events                                           |
 | `minFillSeconds`     | minimum seconds between rendering and submitting, 0 to 60, default 3                                                    |
 
-Conditions use equals, not-equals and present atoms, optionally grouped by bounded AND/OR. Field conditions refer to earlier fields and cannot derive consent from hidden, inactive or invalid input. Native rendering keeps conditional fields reachable without JavaScript; conditional requiredness is enforced on the server. Connector actions and the complete form/action administration interface remain planned (ADRs 023, 024).
+Conditions use equals, not-equals and present atoms, optionally grouped by bounded AND/OR. Field conditions refer to earlier fields and cannot derive consent from hidden, inactive or invalid input. Native rendering keeps conditional fields reachable without JavaScript; conditional requiredness is enforced on the server. Connector feeds use the versioned registry contract below; the complete form/action administration interface remains planned (ADRs 023, 024).
 
 ## Ports
 
-`forms/ports.ts` adds three repositories to the transaction context:
+`forms/ports.ts` adds form, submission, rate-limit and private action repositories to the transaction context:
 
 | Port                   | Methods                                                                                                                                                                     |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `FormRepository`       | `findById`, `insert`                                                                                                                                                        |
-| `SubmissionRepository` | `insert`, `findById`, `confirm(id, at)`: one conditional update, true only for the call that set `confirmedAt`                                                              |
+| `SubmissionRepository` | `insert`, `findById`, `findByFeedBusinessId`, `confirm(id, at)`: one conditional update, true only for the call that set `confirmedAt`                                      |
 | `RateLimiter`          | `hit(key, { max, windowSeconds })`: fixed-window counter; `cooldown(key, seconds)`: sliding window of one that records only a success, refused above `MAX_COOLDOWN_SECONDS` |
+
+`FormFeedRepository` and `FormMailRepository` read and compare-and-swap private versioned configuration; mail settings also reserve the tenant mail budget.
 
 The rate limiter runs in the use case's transaction, so a refusal must commit: `form.submit` returns a `rejected` result instead of throwing.
 
@@ -112,3 +114,15 @@ The `forms.mail` subscriber and matching `MailSource` run through the existing [
 `form.delivery.get` (`mailing:read`) returns pinned action versions, attempts, scrubbed errors and pending, in-flight, unknown, sent or abandoned state. `form.mail.replay` (`mailing:send`) schedules reconciliation of an existing pinned event. It cannot change its version, copy or recipient, reset an unknown attempt, resend a sent intent or revive an abandoned one. A disabled action sends nothing; resuming its configuration does not scan historical submissions. A deliberate replay after resuming still passes the source checks. The later admin interface consumes these registry functions; this API does not yet supply a complete form editor.
 
 Form-action events carry the submission address so the existing erasure chain finds their mail intents and reconcile jobs before removing complete personalised mail bodies. Free text, names and phone numbers disappear with those bodies; recognising only the address would leave personal copies behind. The submission evaluation disappears with the submission. A missing submission blocks even an old in-memory event from dispatch. Tenant A cannot load tenant B's settings, submission, action or intent. Exports preserve pinned history but do not replay installation-local outbox work on import.
+
+## Versioned connector feeds
+
+Private `form.feed.get`, `form.feed.update` and `form.feed.test` use the same registry through HTTP and MCP. Reading requires `connections:read`; authoring and rehearsal require `connections:configure`, and enabling any feed also requires `content:publish`. The private settings document has compare-and-swap versions. A feed names a stable id, form, connection and connection version, typed field-id mapping, optional predicate and consent scope. A missing connection can be saved only as disabled; reads include its current closed failure class. Public `form.get` never exposes this configuration.
+
+The currently supported confirmation owner is Mycel. The scope must equal the signup or petition's list and be authorized by the connection, which must also authorize that form. External confirmation ownership and provider-specific suppression need a provider adapter; they are not silently simulated. `form.feed.test` evaluates supplied synthetic values with the same field, predicate, destination and author-authorization gates, returns the mapped active values, and always reports that confirmation is required. It writes no submission, consent or delivery. `connection.test` remains the separately authorized synthetic transport test.
+
+An accepted submission pins each eligible feed, its mapping fingerprint, original author and opaque business id inside its evaluation snapshot. Only active, validated values can be mapped; forged inactive values cannot satisfy a condition or become exported fields. A template or mapping edit never enumerates old submissions or replans an effect. A confirmed submission's `consent.given` outbox event plans the existing connection intent, deduplicated by connection and pinned business id. Ingesting that event is idempotent, so subscriber execution order cannot lose the confirmed projection.
+
+Immediately before delivery the source checks the submission still exists, its pinned mapping, current feed activation, original author's configure and publish rights, approved connection version, current confirmed scope and erasure register. An intervening withdrawal blocks an old submission even if a later, separate signup restored list membership. The source rebuilds only the approved mapped fields and consent evidence; jobs and connection intents contain no submitted values. Connection pause, rotation, destination changes, uncertainty, reconciliation and replay retain the existing [connection contract](connections.md). A blocked intent does not silently repin itself after configuration changes.
+
+Migration 0043 stores private settings under forced tenant RLS. Settings and submission snapshots are portable; connection credentials, intents and attempts remain operational. A tenant import needs reconnection before feeds can run. Existing submission erasure removes the pinned feed together with its values; the connection inventory reports external-copy state without claiming to erase the receiver's copy. The complete form editor and provider-specific setup are separate work; these operations currently provide the registry contract.

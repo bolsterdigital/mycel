@@ -23,6 +23,12 @@ export function memorySubmissions(s: TenantStore): SubmissionRepository {
     insert: async (sub) => void s.submissions.set(sub.id, structuredClone(sub)),
     // A copy, like a row from Postgres: a caller mutating it changes nothing stored.
     findById: async (id) => structuredClone(s.submissions.get(id) ?? null),
+    findByFeedBusinessId: async (id) =>
+      structuredClone(
+        [...s.submissions.values()].find((sub) =>
+          sub.evaluation?.feedActions?.some((p) => p.businessId === id)
+        ) ?? null
+      ),
     async confirm(id, at) {
       const sub = s.submissions.get(id);
       if (!sub || sub.confirmedAt) return false;
@@ -65,6 +71,17 @@ export function memoryFormMail(s: TenantStore): import('../../forms/ports.js').F
       if (used + count > max) return false;
       s.formMailBudget = { month, used: used + count };
       return true;
+    },
+  };
+}
+
+export function memoryFormFeeds(s: TenantStore): import('../../forms/ports.js').FormFeedRepository {
+  return {
+    get: async () => structuredClone(s.formFeeds),
+    async save(baseVersion, value, actor) {
+      if (s.formFeeds.version !== baseVersion) return null;
+      s.formFeeds = structuredClone({ version: baseVersion + 1, value, actor });
+      return structuredClone(s.formFeeds);
     },
   };
 }

@@ -2,6 +2,7 @@
 // MemoryStore. Rejected: building the ports inline in `run` (it grew to one 700-line function
 // that every module edited, TODO #53).
 
+import { memoryFormFeeds } from './forms.js';
 import type { InputHasher } from '../../audit/ports.js';
 import { appDelivery } from '../../media/signed-paths.js';
 import type { BlobStore, ImageProcessor, MediaDelivery } from '../../media/ports.js';
@@ -133,6 +134,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         sections: sluggedRepository(s.sections),
         patterns: entityRepository(s.patterns),
         formMail: memoryFormMail(s),
+        formFeeds: memoryFormFeeds(s),
         forms: memoryForms(s),
         submissions: memorySubmissions(s),
         rateLimits: memoryRateLimits(s, clock),
