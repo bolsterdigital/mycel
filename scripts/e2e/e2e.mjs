@@ -276,7 +276,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
     ]);
     const authorId = (
       author ??
-      (await invoker.run(useCases.createAuthor, admin, {
+      (await invoker.run(useCases.createPerson, admin, {
         slug: 'e2e-auteur',
         name: 'Sam de Vries',
         email: 'sam@probe.test',
@@ -701,13 +701,13 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   // once: every later author or section is newer still. Here and not in the spec, so a run does
   // not flood the audit log that the status part of admin.spec.ts reads.
   if (!(await uow.run(admin, (ctx) => ctx.authors.findBySlug('e2e-ver-auteur')))) {
-    await invoker.run(useCases.createAuthor, admin, { slug: 'e2e-ver-auteur', name: 'Ver Weg' });
+    await invoker.run(useCases.createPerson, admin, { slug: 'e2e-ver-auteur', name: 'Ver Weg' });
     await invoker.run(useCases.createSection, admin, {
       slug: 'e2e-ver-rubriek',
       title: { nl: 'Verre rubriek', en: 'Distant section' },
     });
     for (let i = 0; i < 101; i++) {
-      await invoker.run(useCases.createAuthor, admin, { slug: `e2e-vul-${i}`, name: `Vul ${i}` });
+      await invoker.run(useCases.createPerson, admin, { slug: `e2e-vul-${i}`, name: `Vul ${i}` });
       await invoker.run(useCases.createSection, admin, {
         slug: `e2e-vul-${i}`,
         title: { nl: `Vul ${i}` },

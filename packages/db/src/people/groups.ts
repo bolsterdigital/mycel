@@ -1,6 +1,7 @@
 // A group and its membership list are one aggregate. Compare-and-set the parent before replacing
 // members in the same tenant transaction; rejected: unguarded delete/insert membership writes.
 import { type Kysely, type Selectable } from 'kysely';
+import { jsonArrayFrom } from 'kysely/helpers/postgres';
 import { PersonGroup, type PersonGroupRepository } from '@mycel/core';
 import type { Database } from '../infra/schema.js';
 import { toIso } from '../infra/dates.js';
@@ -9,18 +10,29 @@ export function personGroupRepository(
   trx: Kysely<Database>,
   tenantId: string
 ): PersonGroupRepository {
-  async function read(row: Selectable<Database['person_groups']>): Promise<PersonGroup> {
-    const members = await trx
-      .selectFrom('person_group_members')
-      .select('person_id')
-      .where('group_id', '=', row.id)
-      .orderBy('sort_order')
-      .execute();
+  // One statement reads the stamp and members from the same MVCC snapshot. Two queries could
+  // return an old stamp with a newly committed membership list.
+  const rows = () =>
+    trx
+      .selectFrom('person_groups')
+      .selectAll('person_groups')
+      .select((eb) =>
+        jsonArrayFrom(
+          eb
+            .selectFrom('person_group_members')
+            .select('person_id')
+            .whereRef('group_id', '=', 'person_groups.id')
+            .orderBy('sort_order')
+        ).as('members')
+      );
+  function read(
+    row: Selectable<Database['person_groups']> & { members: { person_id: string }[] }
+  ): PersonGroup {
     return PersonGroup.parse({
       id: row.id,
       name: row.name,
       order: row.sort_order,
-      personIds: members.map((m) => m.person_id),
+      personIds: row.members.map((m) => m.person_id),
       createdAt: toIso(row.created_at),
       updatedAt: toIso(row.updated_at),
     });
@@ -47,23 +59,17 @@ export function personGroupRepository(
   });
   return {
     async get(id) {
-      const row = await trx
-        .selectFrom('person_groups')
-        .selectAll()
-        .where('id', '=', id)
-        .executeTakeFirst();
+      const row = await rows().where('id', '=', id).executeTakeFirst();
       return row ? read(row) : null;
     },
     async list(offset, limit) {
-      const rows = await trx
-        .selectFrom('person_groups')
-        .selectAll()
+      const found = await rows()
         .orderBy('sort_order')
         .orderBy('id')
         .offset(offset)
         .limit(limit)
         .execute();
-      return Promise.all(rows.map(read));
+      return found.map(read);
     },
     async insert(group) {
       await trx
