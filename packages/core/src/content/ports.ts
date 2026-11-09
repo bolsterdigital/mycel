@@ -1,3 +1,4 @@
+import type { PersonGroup } from './people/model.js';
 // Repositories of the content module. `lock` is the item lock every write and the scheduled
 // publish take first (SELECT ... FOR UPDATE in Postgres): saves, publication changes and the job
 // serialise per item, so "two saves on one base, exactly one wins" and "an old job cannot
@@ -191,8 +192,15 @@ export interface PresenceRepository {
   active(itemId: string, since: Date): Promise<PresenceEntry[]>;
 }
 
+export interface PersonGroupRepository {
+  get(id: string): Promise<PersonGroup | null>;
+  list(offset: number, limit: number): Promise<PersonGroup[]>;
+  insert(group: PersonGroup): Promise<void>;
+  update(group: PersonGroup, baseUpdatedAt: string): Promise<boolean>;
+}
 declare module '../ports.js' {
   interface TransactionContext {
+    personGroups: PersonGroupRepository;
     content: ContentRepository;
     bulkPlans: BulkPlanRepository;
     presence: PresenceRepository;

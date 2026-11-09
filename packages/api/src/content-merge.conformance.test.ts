@@ -227,7 +227,7 @@ describe('block operations and entity updates on an older base over HTTP (ADR 02
       },
     });
     const refused = await as(reader)('content.person.update', {
-      authorId: author.id,
+      personId: author.id,
       baseUpdatedAt: theirs.body.updatedAt,
       name: 'Lezer',
     });
