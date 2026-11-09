@@ -1,3 +1,4 @@
+import { selectBlockName } from '../../../static/_admin/block-name.js';
 // The presentation contract covers the whole registry (MY-110 A acceptance: a new type may not
 // silently fall back to every property unfolded) and names only fields the registry has.
 import { describe, expect, it } from 'vitest';
@@ -64,5 +65,27 @@ describe('block presentation', () => {
     expect(groupOf('image', 'credit')).toBe('source');
     expect(groupOf('image', 'caption')).toBe('content');
     expect(groupOf('image', 'alt')).toBe('content');
+  });
+});
+
+describe('shared block name selection', () => {
+  it.each([
+    [
+      {},
+      [
+        { en: '', nl: 'Nederlandse tekst' },
+        { en: 'Author', nl: 'Auteur' },
+      ],
+      '',
+      'Nederlandse tekst',
+    ],
+    [{}, [{ en: '', nl: '' }, { en: 'Author' }], '', 'Author'],
+    [{}, [{ nl: 'Bijschrift' }], 'photo.jpg', 'Bijschrift'],
+    [{}, [{}], 'photo.jpg', 'photo.jpg'],
+    [{ nl: 'Eigen naam' }, [{ en: 'Content' }], '', 'Eigen naam'],
+    [{ en: ' ', nl: ' ' }, [{ en: 'Content' }], '', 'Content'],
+    [{ de: 'Dritte Sprache' }, [{ de: 'Nur Deutsch' }], '', ''],
+  ] as const)('uses active/default locale only: %j', (names, candidates, file, expected) => {
+    expect(selectBlockName(names, candidates, 'en', 'nl', file).name).toBe(expected);
   });
 });

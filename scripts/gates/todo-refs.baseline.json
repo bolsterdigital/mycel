@@ -27,7 +27,6 @@
   "apps/web/src/lib/admin/Profile.svelte": 1,
   "apps/web/src/lib/admin/UsageList.svelte": 1,
   "apps/web/src/lib/admin/block-fields/BlockFields.svelte": 4,
-  "apps/web/src/lib/admin/block-presentation.ts": 2,
   "apps/web/src/lib/admin/domain-pairs.ts": 2,
   "apps/web/src/lib/admin/format.test.ts": 1,
   "apps/web/src/lib/admin/format.ts": 3,

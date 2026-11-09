@@ -20,6 +20,7 @@
 // carries it as `editLocale`; a save reads only that locale and keeps every other one as the base
 // revision has it (`formDocument`). Switching locale saves first and remembers the choice; a
 // locale the document lacks shows "start the translation", empty or as a copy of another locale.
+import { blockNaming } from '#lib/server/content/block-names.js';
 import { blockMovePlace } from '#lib/admin/block-move/place.js';
 import { toArticleEditor } from '#lib/editor/article-document.js';
 import { isDeepStrictEqual } from 'node:util';
@@ -284,6 +285,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     blocks: doc.blocks.map((b) => ({
       id: b.id,
       type: b.type,
+      naming: blockNaming(b, work, doc.defaultLocale, options.media),
       summary: summaryOf(b, read),
       preview: previewOf(b, read),
       image: imageRestOf(b, read, options.media, doc.locales),
@@ -1056,6 +1058,7 @@ export const actions: Actions = {
             type: b.type,
             version: b.version,
             props: structuredClone(b.props),
+            name: b.name && { ...b.name },
           } as BlockInput,
           place: before ? { after: before.id } : after ? { before: after.id } : { at: 'end' },
         })
@@ -1085,16 +1088,12 @@ export const actions: Actions = {
       blockId,
       'blockDuplicated',
       async (blocks, index) => {
-        const b = blocks[index]!;
+        const { id, ...copy } = blocks[index]!;
         return runtime().invoker.run(useCases.insertBlock, saved.principal, {
           itemId: event.params.itemId,
           baseRevisionId: saved.revisionId,
-          block: {
-            type: b.type,
-            version: b.version,
-            props: structuredClone(b.props),
-          } as BlockInput,
-          place: { after: b.id },
+          block: structuredClone(copy) as BlockInput,
+          place: { after: id },
         });
       }
     );

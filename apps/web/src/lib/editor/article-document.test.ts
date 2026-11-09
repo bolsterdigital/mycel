@@ -58,7 +58,7 @@ describe('article editor document', () => {
   it.each(blocks.map((block) => [block.id, block] as const))(
     '%s survives a round trip in both locales',
     (_name, block) => {
-      const document = base(block);
+      const document = base({ ...block, name: { nl: 'Interne naam', en: 'Internal name' } });
       for (const locale of ['nl', 'en']) {
         const editor = throughEditorSchema(document, locale);
         expect(fromArticleEditor(document, locale, editor)).toEqual(document);

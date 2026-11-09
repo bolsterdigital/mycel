@@ -67,6 +67,16 @@ function merge(base: unknown, mine: unknown, theirs: unknown, path: string, out:
   if (same(mine, theirs)) return mine;
   if (same(mine, base)) return theirs;
   if (same(theirs, base)) return mine;
+  // An optional block-name map still merges per locale when it was absent on the base.
+  if (/^blocks\[id=[^\]]+\]\.name$/.test(path)) {
+    const result: Obj = {};
+    const [b, m, t] = [base, mine, theirs].map((v) => (isObject(v) ? v : {}));
+    for (const k of new Set([...Object.keys(b!), ...Object.keys(m!), ...Object.keys(t!)])) {
+      const v = merge(b![k], m![k], t![k], key(path, k), out);
+      if (v !== undefined) result[k] = v;
+    }
+    return Object.keys(result).length ? result : undefined;
+  }
   if (isObject(base) && isObject(mine) && isObject(theirs) && !atomic(base) && !atomic(mine)) {
     const result: Obj = {};
     for (const k of new Set([...Object.keys(base), ...Object.keys(mine), ...Object.keys(theirs)])) {

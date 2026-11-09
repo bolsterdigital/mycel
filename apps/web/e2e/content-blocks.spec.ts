@@ -1240,11 +1240,11 @@ test.describe('content-blocks', () => {
     await expect(alert).toContainText('Het blok kon niet worden opgeslagen');
     // The field holds what was typed: nothing, not the words it loaded.
     if (isA11y()) await expect(card(page, 1).locator('.ProseMirror')).toHaveText('');
-    else await expect(card(page, 1).getByRole('textbox').first()).toHaveValue('');
+    else await expect(fold.getByRole('textbox').first()).toHaveValue('');
     const link = alert.getByRole('link').first();
     await link.focus();
     await page.keyboard.press('Enter');
-    await expect(card(page, 1).getByRole('textbox').first()).toBeFocused();
+    await expect(fold.getByRole('textbox').first()).toBeFocused();
     await expectNoAxeViolations(page);
   });
 

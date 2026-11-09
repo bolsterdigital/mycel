@@ -28,6 +28,8 @@
 // Rejected: autosave (brief § 5: every pause would be a revision), a custom leave dialog
 // (browsers only allow their own), and comparing every field with its initial value (a value
 // typed and typed back still counts as a change, which errs on the side of asking).
+import { selectBlockName } from './block-name.js';
+
 const form = document.getElementById('item-edit');
 
 if (form instanceof HTMLFormElement) {
@@ -271,15 +273,55 @@ if (form instanceof HTMLFormElement) {
   const renameCard = (rest) => {
     const name = rest.closest('[data-block-card]')?.querySelector('[data-block-name]');
     if (!name) return;
-    // As `blockName` on the server: the first words there are. An FAQ without a title goes by its
-    // first question. An image goes by its caption alone: its next text is the alt text.
-    const caption = rest.querySelector('[data-rest-caption]');
-    const sources = caption
-      ? [caption]
-      : rest.querySelectorAll('[data-rest-prose], [data-rest-from]');
-    const words = [...sources].map((source) => source.textContent?.trim()).find(Boolean);
-    name.textContent = words || name.dataset.blockName || '';
+    const card = rest.closest('[data-block-card]');
+    const field = card?.querySelector('[data-block-naming]');
+    if (!field) return;
+    const data = JSON.parse(field.dataset.blockNaming);
+    const input = field.querySelector('[data-editorial-name]');
+    const names = { ...data.names, [data.locale]: input.value };
+    const candidates = data.candidates.map((candidate) => {
+      const values = { ...candidate.values };
+      const from =
+        candidate.localized === false ? candidate.field : `${candidate.field}.${data.locale}`;
+      const native = controlOf(from);
+      const prose = controlOf(`${from}.editor`);
+      if (candidate.rich) {
+        // The enhanced editor posts validated ProseMirror JSON; use its text, never its HTML.
+        if (prose?.value) {
+          const words = (n) => n.text ?? (n.content ?? []).map(words).join(' ');
+          try {
+            values[data.locale] = words(JSON.parse(prose.value));
+          } catch {
+            /* Keep the last valid candidate. */
+          }
+        } else if (native && typedInto(from)) values[data.locale] = native.value;
+      } else if (native) {
+        const mode = controlOf(`${from}.mode`)?.value;
+        values[data.locale] =
+          mode === 'inherit'
+            ? (candidate.inherited?.[data.locale] ?? '')
+            : mode === 'hide'
+              ? ''
+              : native.value;
+        if (candidate.localized === false) values[data.fallback] = native.value;
+      }
+      return values;
+    });
+    const selected = selectBlockName(
+      names,
+      candidates,
+      data.locale,
+      data.fallback,
+      name.dataset.blockName || data.file
+    );
+    name.textContent = selected.name;
+    input.placeholder = selected.automatic;
   };
+  form.addEventListener('input', (event) => {
+    const card = event.target.closest?.('[data-block-card]');
+    const rest = card?.querySelector('[data-block-rest]');
+    if (rest) renameCard(rest);
+  });
   /** What the plain fields of a fold held when it opened. */
   const restFolds = new WeakMap();
   // Also called from the click that opens a fold: `toggle` comes a task later, after a fast typist.

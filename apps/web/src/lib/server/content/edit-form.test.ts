@@ -107,6 +107,33 @@ function inputsOf(
 }
 
 describe('the one edit form', () => {
+  it('does not count an empty name field as a change to an unnamed block', () => {
+    const blocks = [
+      { id: 'a', type: 'heading' as const, version: 1 as const, props: { text: { nl: 'Kop' } } },
+    ];
+    expect(
+      blocksFrom(blocks, postedValues({ ...formOf(blocks), 'b.a.name.nl': ' ' })).blocks
+    ).toEqual(blocks);
+  });
+
+  it('patches a block name without dropping other locales or unopened block metadata', () => {
+    const blocks = [
+      {
+        id: 'a',
+        type: 'heading' as const,
+        version: 1 as const,
+        props: { text: { nl: 'Kop' } },
+        name: { nl: 'Oud', en: 'Old' },
+      },
+    ];
+    const form = { ...formOf(blocks), 'b.a.name.nl': 'Nieuw' };
+    expect(blocksFrom(blocks, postedValues(form)).blocks[0]!.name).toEqual({
+      nl: 'Nieuw',
+      en: 'Old',
+    });
+    expect(blocksFrom(blocks, postedValues({})).blocks).toEqual(blocks);
+  });
+
   it('reads every block back as stored when nothing was typed', () => {
     expect(blocksFrom(blocks, postedValues(formOf(blocks)))).toEqual({ blocks, errors: [] });
   });

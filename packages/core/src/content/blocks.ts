@@ -12,6 +12,7 @@
 // misses a reference).
 
 import { z } from 'zod';
+import { Locale } from '../i18n/locale.js';
 import { BLOCK_DEFINITIONS, type BlockDefinition, type LocalField } from './block-types.js';
 import type { RichTextDoc } from './rich-text.js';
 
@@ -42,6 +43,7 @@ export type BlockPropsInput<K extends BlockType> = z.input<Definitions[K]['props
 export type StoredBlock = {
   [K in BlockType]: {
     id: string;
+    name?: Record<string, string> | undefined;
     type: K;
     version: Definitions[K]['version'];
     props: BlockProps<K>;
@@ -50,6 +52,7 @@ export type StoredBlock = {
 export type StoredBlockIn = {
   [K in BlockType]: {
     id: string;
+    name?: Record<string, string> | undefined;
     type: K;
     version: Definitions[K]['version'];
     props: BlockPropsInput<K>;
@@ -58,6 +61,7 @@ export type StoredBlockIn = {
 export type NewBlock = {
   [K in BlockType]: {
     id?: string | undefined;
+    name?: Record<string, string> | undefined;
     type: K;
     version: Definitions[K]['version'];
     props: BlockProps<K>;
@@ -66,11 +70,21 @@ export type NewBlock = {
 export type NewBlockIn = {
   [K in BlockType]: {
     id?: string | undefined;
+    name?: Record<string, string> | undefined;
     type: K;
     version: Definitions[K]['version'];
     props: BlockPropsInput<K>;
   };
 }[BlockType];
+
+/** A locale patch keeps empty strings so the operation can remove just that locale. */
+export const BlockNamePatch = z.record(Locale, z.string().trim().max(120));
+
+/** Empty name maps are absent; overwrite keeps the input/output schema representable. */
+export function cleanBlockName(name: Record<string, string> | undefined) {
+  const entries = Object.entries(name ?? {}).filter(([, value]) => value !== '');
+  return entries.length ? Object.fromEntries(entries) : undefined;
+}
 
 /** The definition of a type, untyped, for the generic helpers below. */
 function definition(type: BlockType): BlockDefinition<z.ZodTypeAny> {
@@ -82,6 +96,7 @@ function blockSchema(id: z.ZodTypeAny): z.ZodTypeAny {
     z
       .object({
         id,
+        name: BlockNamePatch.optional().overwrite(cleanBlockName),
         type: z.literal(type),
         version: z.literal(definition(type).version),
         props: definition(type).props,
@@ -172,7 +187,8 @@ export function blockLocalized(block: BlockInput): LocalField[] {
  * locale's value. Driven by `blockLocalized`, so projection and readiness see the same fields.
  */
 export function projectBlock(block: Block, locale: string): Block {
-  let out: unknown = block;
+  const { name: _editorialName, ...publicBlock } = block;
+  let out: unknown = publicBlock;
   for (const f of blockLocalized(block)) out = setIn(out, f.path, only(f.value, locale));
   return out as Block;
 }
@@ -270,6 +286,12 @@ export function normalizeBlocks(blocks: readonly Block[]): Normalized {
       out.push(block);
       continue;
     }
+    const name = { ...previous.name, ...block.name };
+    for (const locale of Object.keys(previous.name ?? {}))
+      if (block.name?.[locale] && block.name[locale] !== previous.name?.[locale])
+        throw new BlockOperationError('blockId', 'content.blocks.merge-ambiguous', {
+          id: previous.id,
+        });
     const a = previous.props.content;
     const b = block.props.content;
     const locales = Object.keys(a).sort();
@@ -280,7 +302,7 @@ export function normalizeBlocks(blocks: readonly Block[]): Normalized {
     const content: Record<string, RichTextDoc> = {};
     for (const l of locales)
       content[l] = { type: 'doc', content: [...a[l]!.content, ...b[l]!.content] };
-    out[out.length - 1] = { ...previous, props: { content } };
+    out[out.length - 1] = { ...previous, name: cleanBlockName(name), props: { content } };
     merged.push({ from: block.id, into: previous.id });
   }
   return { blocks: out, merged };

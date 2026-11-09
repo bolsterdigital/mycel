@@ -303,6 +303,13 @@ function documentIssues(doc: DocumentShape): { path: (string | number)[]; messag
         issues.push({ path: [...field.path, key], message: 'i18n.locale-not-in-document' });
   if (doc.heroAlt && !doc.heroImageId)
     issues.push({ path: ['heroAlt'], message: 'content.hero.alt-without-image' });
+  for (const [i, block] of doc.blocks.entries())
+    for (const locale of Object.keys(block.name ?? {}))
+      if (!doc.locales.includes(locale))
+        issues.push({
+          path: ['blocks', i, 'name', locale],
+          message: 'i18n.locale-not-in-document',
+        });
   for (const issue of blockTreeIssues(doc.blocks))
     issues.push({ path: ['blocks', ...issue.path], message: issue.message });
   issues.push(...accessIssues(doc));

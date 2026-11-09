@@ -295,6 +295,12 @@ export function withoutLocales(doc: ContentDocument, keep: readonly string[]): C
   // `localizedFields` hands out the maps of `copy` itself, so deleting from them edits the copy.
   for (const field of localizedFields(copy))
     for (const l of Object.keys(field.value)) if (!keep.includes(l)) delete field.value[l];
+  for (const block of copy.blocks) {
+    if (!block.name) continue;
+    for (const locale of Object.keys(block.name))
+      if (!keep.includes(locale)) delete block.name[locale];
+    if (!Object.keys(block.name).length) delete block.name;
+  }
   return copy;
 }
 

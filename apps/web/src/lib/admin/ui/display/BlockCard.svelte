@@ -30,6 +30,7 @@
     name = '',
     nameIfEmpty = '',
     nameLang,
+    nameField,
     notice = '',
     open = false,
     editable = true,
@@ -53,6 +54,7 @@
     nameIfEmpty?: string;
     /** The language of those words: the content's, not necessarily the operator's. */
     nameLang?: string;
+    nameField?: Snippet;
     /** At most one thing that asks attention, which stays in view when collapsed. */
     notice?: string;
     open?: boolean;
@@ -115,6 +117,7 @@
       <span class="ui-block-card-type"><Icon name={icon} /><span>{type}</span></span>
     </h3>
     <span class="ui-block-card-name" lang={nameLang} data-block-name={nameIfEmpty}>{name}</span>
+    {#if nameField}{@render nameField()}{/if}
     {#if notice}
       <span class="ui-block-card-notice"><Icon name="triangle-alert" /><span>{notice}</span></span>
     {/if}

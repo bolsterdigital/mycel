@@ -881,6 +881,8 @@ export const en = {
   'admin.content.headerLayout.noImage':
     'Without a hero image this article shows the standard layout.',
   'admin.content.field.heroAlt': 'Description of the main image (alt text)',
+  'admin.block.name': 'Block name',
+  'admin.block.nameHelp': 'Only used in the editor. Leave empty for the automatic name.',
   'admin.block.alt.hint':
     'Describe what the image adds, for people who cannot see it. If it adds nothing to the surrounding content, leave it empty: it is then decorative.',
   'admin.block.alt.empty':
