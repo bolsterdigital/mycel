@@ -250,13 +250,15 @@ export interface TabStop {
 /** Walk the tab order from the top of the page and measure each stop inside `within`. The walk
  *  ends when focus returns to the body or to an element it focused before; a cap keeps a page
  *  with a focus trap from looping. Stops outside `within` move the walk on but are not returned.
- *  Repeats are recognised by element identity, kept in the page between Tabs. Rejected: a key
+ *  Native date parts share one active element; consecutive Tabs within it continue the walk.
+ *  Other repeats are recognised by element identity, kept in the page between Tabs. Rejected: a key
  *  built from the markup, which two identical controls share (a page with the same call to
  *  action twice ended the walk at the second one and left the rest of the page unmeasured). */
 export async function tabStops(page: Page, within = 'body'): Promise<TabStop[]> {
   await page.evaluate(() => {
     (document.activeElement as HTMLElement | null)?.blur();
     (window as unknown as { tabStopsSeen: WeakSet<Element> }).tabStopsSeen = new WeakSet();
+    (window as unknown as { tabStopsPrevious: Element | null }).tabStopsPrevious = null;
   });
   const stops: TabStop[] = [];
   for (let i = 0; i < 80; i++) {
@@ -265,6 +267,10 @@ export async function tabStops(page: Page, within = 'body'): Promise<TabStop[]> 
       const el = document.activeElement;
       if (!el || el === document.body) return null;
       const seen = (window as unknown as { tabStopsSeen: WeakSet<Element> }).tabStopsSeen;
+      const state = window as unknown as { tabStopsPrevious: Element | null };
+      if (state.tabStopsPrevious === el && el instanceof HTMLInputElement && el.type === 'date')
+        return { outside: true as const };
+      state.tabStopsPrevious = el;
       if (seen.has(el)) return null;
       seen.add(el);
       if (!el.closest(scope)) return { outside: true as const };

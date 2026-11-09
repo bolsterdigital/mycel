@@ -326,7 +326,9 @@ test.describe('quality corpus reflow and text spacing', () => {
   // Both gates above trust the Tab walk to reach the end of the page. Two identical controls
   // (the same call to action twice) once ended it at the second; a control after them must
   // still be measured.
-  test('the tab walk reaches the last control past identical ones', async ({ page }) => {
+  test('the tab walk reaches the last control past identical ones and native date parts', async ({
+    page,
+  }) => {
     onlyA11y('requires DOM measurements');
     const [entry] = entries;
     await page.goto(Object.values(entry!.locales)[0]!.path);
@@ -340,6 +342,10 @@ test.describe('quality corpus reflow and text spacing', () => {
         return p;
       };
       document.body.prepend(paragraph('a', 'Twin'), paragraph('a', 'Twin'));
+      const date = document.createElement('input');
+      date.type = 'date';
+      date.name = 'Native date parts';
+      document.body.append(date);
       document.body.append(paragraph('button', 'Last control'));
     });
     const names = (await tabStops(page)).map((stop) => stop.name);

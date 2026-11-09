@@ -7,6 +7,8 @@ import { expectNoAxeViolations } from './lib/axe';
 import { isA11y, onlyA11y } from './lib/project';
 import { postUseCase } from './lib/api';
 import { pastMinimumFillTime } from './lib/form';
+import { forwarded } from './lib/login';
+import { NARROW, layoutGate, setTextSize } from './lib/layout';
 
 /**
  * A form page ships exactly one script, the proof-of-work module from its own origin (brief
@@ -560,7 +562,15 @@ test('conditional fields validate natively and forged inactive consent creates n
   page,
   request,
 }, testInfo) => {
+  await page.context().setExtraHTTPHeaders(forwarded());
   await page.goto('/probe/signup');
+  await page.setViewportSize(NARROW);
+  await setTextSize(page, '200%');
+  await layoutGate(page, 'conditional form at 320px / 200%', 'main');
+  await testInfo.attach('conditional-form-320-200', {
+    body: await page.screenshot({ fullPage: true }),
+    contentType: 'image/png',
+  });
   const email = `conditional-${testInfo.project.name}-${Date.now()}@example.org`;
   await page.getByLabel('E-mailadres', { exact: true }).fill(email);
   await page.getByLabel('Alleen een bericht sturen, geen nieuwsbrief').check();

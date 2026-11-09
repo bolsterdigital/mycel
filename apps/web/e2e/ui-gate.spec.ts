@@ -915,7 +915,19 @@ test.describe('admin-shell', () => {
   // Trial 4b-8/9 (#113): Team's table is as wide as its content with every cell of a row on one
   // baseline, and the long Theme form keeps its save in view at the bottom of the window.
   test('Team reads as a compact table, and Theme keeps its save in view', async ({ page }) => {
-    await login(page, '/admin/probe/leden', email);
+    // Other flows add UUID-length operators to probe. Measure the promised short-list state
+    // on its own tenant, rather than letting concurrent fixtures choose the table's width.
+    const slug = `compact-team-${test.info().project.name}-${Date.now().toString(36)}`;
+    const tenant = await asOwner((owner) =>
+      testTenant(owner, slug, { platformDomain: process.env['PLATFORM_DOMAIN']! })
+    );
+    await withInvoker((invoker) =>
+      invoker.run(useCases.inviteMember, systemPrincipal(tenant.id, 'e2e'), {
+        email,
+        capabilities: capabilitiesFor('admin'),
+      })
+    );
+    await login(page, `/admin/${slug}/leden`, email);
     await page.setViewportSize({ width: 1280, height: 800 });
     const team = await page.locator('#members').evaluate((table) => {
       const row = table.querySelector('tbody tr')!;
@@ -938,7 +950,7 @@ test.describe('admin-shell', () => {
     expect(team.width).toBeLessThan(team.column * 0.8);
     expect(team.spread).toBeLessThanOrEqual(4);
 
-    await page.goto('/admin/probe/site?section=theme');
+    await page.goto(`/admin/${slug}/site?section=theme`);
     const save = page.getByRole('button', { name: 'Save theme' });
     await expect(save).toBeInViewport();
   });
