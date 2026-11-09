@@ -9,7 +9,7 @@ import { test } from './lib/evidence/page';
 import { expectNoAxeViolations } from './lib/axe';
 import { bfcacheBack, bfcacheBrowser } from './lib/bfcache';
 import { blockPage, card, editorReady, more, newPage, reloadsEditor } from './lib/editor';
-import { exerciseBlockNames } from './lib/block-names';
+import { exerciseBlockNames } from './lib/blocks/names';
 import { exerciseBlockMove } from './lib/block-move';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';

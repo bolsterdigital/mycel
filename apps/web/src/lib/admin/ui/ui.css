@@ -1600,18 +1600,6 @@
     background: var(--status-warning-bg);
   }
   /* One line with an ellipsis: this is an aid to recognition, the words themselves are below. */
-  .ui-block-name-field {
-    flex: 1 1 16rem;
-    min-inline-size: 0;
-    max-inline-size: 40ch;
-    display: grid;
-    gap: var(--space-1);
-  }
-  .ui-block-name-field input {
-    inline-size: 100%;
-    min-block-size: 44px;
-    min-inline-size: 0;
-  }
   .ui-block-card-name {
     flex: 1 1 8rem;
     min-width: 0;

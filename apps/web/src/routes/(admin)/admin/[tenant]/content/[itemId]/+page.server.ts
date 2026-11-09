@@ -1088,17 +1088,12 @@ export const actions: Actions = {
       blockId,
       'blockDuplicated',
       async (blocks, index) => {
-        const b = blocks[index]!;
+        const { id, ...copy } = blocks[index]!;
         return runtime().invoker.run(useCases.insertBlock, saved.principal, {
           itemId: event.params.itemId,
           baseRevisionId: saved.revisionId,
-          block: {
-            type: b.type,
-            version: b.version,
-            props: structuredClone(b.props),
-            name: b.name && { ...b.name },
-          } as BlockInput,
-          place: { after: b.id },
+          block: structuredClone(copy) as BlockInput,
+          place: { after: id },
         });
       }
     );

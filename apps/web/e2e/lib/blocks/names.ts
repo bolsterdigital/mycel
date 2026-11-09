@@ -1,12 +1,12 @@
 // The same editorial metadata round trip in native forms and the enhanced page/article editor.
 import { randomUUID } from 'node:crypto';
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
-import { callApi } from './api';
-import { login } from './login';
-import { editorReady, reloadsEditor } from './editor';
-import { layoutGate, NARROW, setTextSize } from './layout';
-import { expectNoAxeViolations } from './axe';
-import { isA11y } from './project';
+import { callApi } from '../api';
+import { login } from '../login';
+import { editorReady, reloadsEditor } from '../editor';
+import { layoutGate, NARROW, setTextSize } from '../layout';
+import { expectNoAxeViolations } from '../axe';
+import { isA11y } from '../project';
 
 export async function exerciseBlockNames(
   page: Page,

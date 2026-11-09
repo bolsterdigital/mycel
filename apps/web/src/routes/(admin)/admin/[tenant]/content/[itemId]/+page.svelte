@@ -70,6 +70,8 @@
   } from '#lib/admin/ui/index.js';
   import BlockMoveStatus from '#lib/admin/block-move/BlockMoveStatus.svelte';
   import { blockCardLabels, blockGroupLabels } from '#lib/admin/block-move/labels.js';
+  import BlockNameField from '#lib/admin/block-fields/BlockNameField.svelte';
+  import { DOC_FIELDS } from '#lib/admin/issue-label.js';
   import { BLOCK_ICONS, BLOCK_PRESENTATION } from '#lib/admin/block-presentation.js';
   import { blockNotice, restWords } from '#lib/admin/block-rest-words.js';
   import { pickAny, BLOCK_DEFINITIONS, pick, type BlockType, type MediaCredit } from '@mycel/core';
@@ -221,18 +223,6 @@
             p.status === 'unpublished' ? 'admin.content.state.offline' : 'admin.content.state.draft'
           );
 
-  /** The document fields a refused save can name (`documentFieldIssues`), with their label. */
-  const DOC_FIELDS: Record<string, UiKey> = {
-    canonical: 'admin.content.field.canonical',
-    tags: 'admin.content.field.tags',
-    level: 'admin.content.field.level',
-    teaser: 'admin.content.field.teaser',
-    teaserBlocks: 'admin.content.field.teaserBlocks',
-    locales: 'admin.content.new.locales',
-    correctionDate: 'admin.content.edit.correctionDate',
-    slug: 'admin.content.slug',
-    heroAlt: 'admin.content.field.heroAlt',
-  };
   /** A stored value: a refused post carries only the locale on screen. */
   const saved = (k: string): string => {
     const x = data.values[k];
@@ -536,23 +526,7 @@
       : undefined}
   >
     {#snippet nameField()}
-      {#if data.canWrite}
-        <div class="ui-block-name-field" data-block-naming={JSON.stringify(b.naming)}>
-          <label for="name-{b.id}">{t('admin.block.name')}</label>
-          <input
-            id="name-{b.id}"
-            name="{prefix}name.{work}"
-            type="text"
-            maxlength="120"
-            lang={work}
-            aria-describedby="name-{b.id}-help"
-            value={blockValues(b)[`${prefix}name.${work}`] ?? b.naming.names[work] ?? ''}
-            placeholder={b.naming.automatic}
-            data-editorial-name
-          />
-          <small class="ui-hint" id="name-{b.id}-help">{t('admin.block.nameHelp')}</small>
-        </div>
-      {/if}
+      <BlockNameField block={b} values={blockValues(b)} {work} {t} editable={data.canWrite} />
     {/snippet}
     {#snippet rest()}{@render blockRest(b)}{/snippet}
     {#snippet actions()}
