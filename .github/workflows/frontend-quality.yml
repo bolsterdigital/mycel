@@ -87,6 +87,7 @@ jobs:
           if-no-files-found: error
 
   measure:
+    name: measure (${{ matrix.scope }}, ${{ matrix.locale }}, ${{ matrix.profile }}, ${{ matrix.cache }}${{ matrix.part && format(', part {0}', matrix.part) || '' }})
     needs: prepare
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -150,7 +151,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/quality/baseline.mjs quality-baseline-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
+        run: node scripts/quality/baseline.mjs quality-baseline-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}${{ matrix.part && format('-part-{0}', matrix.part) || '' }}
       - name: Five samples per cell (calibration, actual state stays in reports)
         if: env.REUSED != 'true'
         id: measurement
@@ -173,7 +174,7 @@ jobs:
             --env GITHUB_ACTIONS --env GITHUB_RUN_ID --env GITHUB_RUN_ATTEMPT \
             --env QUALITY_RUNNER_IMAGE --env "QUALITY_HOST_IMAGE=$ImageVersion" \
             "$QUALITY_RUNNER_IMAGE" \
-            npm run quality -- --scope=${{ matrix.scope }} --locale=${{ matrix.locale }} --profile=${{ matrix.profile }} --cache=${{ matrix.cache }} --out=.scratch/quality-report --baseline=.scratch/quality-baseline/summary.json
+            npm run quality -- --route=${{ matrix.routes }} --scope=${{ matrix.scope }} --locale=${{ matrix.locale }} --profile=${{ matrix.profile }} --cache=${{ matrix.cache }} --out=.scratch/quality-report --baseline=.scratch/quality-baseline/summary.json
       # A timed-out docker client leaves its container writing into the mounted reports.
       # Keep the container until this synchronous removal, then archive only quiescent files.
       # Preserve private originals encrypted to the operator's public certificate. Run again
@@ -190,7 +191,7 @@ jobs:
         if: always() && env.REUSED != 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: quality-private-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
+          name: quality-private-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}${{ matrix.part && format('-part-{0}', matrix.part) || '' }}
           path: .scratch/quality-report/private.tar.gz.cms
           retention-days: 30
           if-no-files-found: warn
@@ -198,7 +199,7 @@ jobs:
         if: always() && env.REUSED != 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: quality-raw-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
+          name: quality-raw-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}${{ matrix.part && format('-part-{0}', matrix.part) || '' }}
           path: .scratch/quality-report/public
           retention-days: 30
           if-no-files-found: warn
@@ -206,7 +207,7 @@ jobs:
         if: always() && env.REUSED != 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: quality-summary-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
+          name: quality-summary-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}${{ matrix.part && format('-part-{0}', matrix.part) || '' }}
           path: .scratch/quality-report/summary.json
           retention-days: 90
           if-no-files-found: error
@@ -215,7 +216,7 @@ jobs:
         if: steps.measurement.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: quality-baseline-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
+          name: quality-baseline-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}${{ matrix.part && format('-part-{0}', matrix.part) || '' }}
           path: .scratch/quality-report/summary.json
           retention-days: 90
           if-no-files-found: error
