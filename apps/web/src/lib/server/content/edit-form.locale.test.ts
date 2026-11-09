@@ -81,11 +81,13 @@ function screenForm(doc: ContentDocument, a: string): Record<string, string | st
   out['correctionText.' + a] = '';
   out['editLocale'] = a;
   out['baseRevisionId'] = '01900000-0000-7000-8000-000000000001';
-  for (const b of doc.blocks)
+  for (const b of doc.blocks) {
+    if (b.type === 'image') out[`${blockPrefix(b.id)}imageAltShown`] = '1';
     for (const [k, v] of Object.entries(
       formValues(BLOCK_DEFINITIONS[b.type].fields, b.props as Record<string, unknown>, [a])
     ))
       out[`${blockPrefix(b.id)}${k}`] = v;
+  }
   return out;
 }
 

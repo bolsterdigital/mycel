@@ -889,6 +889,10 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.headerLayout.noImage':
     'Zonder hero-afbeelding toont dit artikel de standaardlayout.',
   'admin.content.field.heroAlt': 'Beschrijving van het hoofdbeeld (alt-tekst)',
+  'admin.block.alt.hint':
+    'Beschrijf wat het beeld toevoegt voor mensen die het niet kunnen zien. Voegt het niets toe aan de omringende inhoud, laat het dan leeg: het is dan decoratief.',
+  'admin.block.alt.empty':
+    'Laat leeg als het beeld niets toevoegt aan de omringende inhoud; het is dan decoratief.',
   'admin.content.heroAlt.described': 'Beschrijving',
   'admin.content.heroAlt.alsoMissing': 'Ontbreekt nog in het {locales}',
   'admin.content.heroAlt.missing': 'Beschrijving ontbreekt in het {locale}',

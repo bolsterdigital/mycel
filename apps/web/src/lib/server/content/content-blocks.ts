@@ -505,6 +505,8 @@ export function textRestOf(
  * when the file cannot be shown, so the card says so instead of showing nothing.
  */
 export interface ImageRest {
+  /** All description locales for the standalone image's editor; never a legacy hero override. */
+  description?: { image: string; alt: Record<string, string> | null; locales: readonly string[] };
   mediaId: string;
   /** The file's name, or its id when the operator cannot read it. */
   label: string;
@@ -521,7 +523,8 @@ export interface ImageRest {
 export function imageRestOf(
   block: Block,
   locale: string,
-  media: readonly MediaChoice[]
+  media: readonly MediaChoice[],
+  locales: readonly string[] = []
 ): ImageRest | null {
   // A legacy hero shows its picture, not its caption or credit: the page does not set them there.
   const onPage = block.type === 'image';
@@ -544,11 +547,16 @@ export function imageRestOf(
       credit: null,
     };
   }
+  const description =
+    block.type === 'image'
+      ? { image: block.props.mediaId, alt: block.props.alt, locales }
+      : undefined;
   const own = p.caption?.[locale];
   const inherited = asset?.card?.caption[locale] ?? '';
   const caption = own !== undefined ? own : inherited;
   const credit = p.credit ?? asset?.card?.credit ?? null;
   return {
+    description,
     mediaId: p.mediaId,
     label: asset?.label ?? p.mediaId,
     card: asset?.card

@@ -8,7 +8,7 @@ import { principal } from '@mycel/core/testing';
 import { type APIRequestContext, type Page, expect } from '@playwright/test';
 import { test } from './lib/evidence/page';
 import { expectNoAxeViolations, headingOrderProblems } from './lib/axe';
-import { finishJobs, stuckJob, tenantId, withInvoker } from './lib/invoker';
+import { asOwner, finishJobs, stuckJob, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
 import { closePublication, openPublication } from './lib/publication';
@@ -910,7 +910,147 @@ test.describe('article-writing', () => {
     }
   });
 
-  test('pasted image waits for media and alternative text before saving', async ({
+  for (const type of ['page', 'article'] as const)
+    test(`a ${type} image description preserves other languages and explicitly saves decorative`, async ({
+      page,
+      request,
+    }) => {
+      requireApi();
+      const { items } = await callApi<{ items: { id: string }[] }>(request, 'content.item.list', {
+        type: 'article',
+        slug: 'quality-article-v3',
+      });
+      const { revision: source } = await callApi(request, 'content.item.get', {
+        itemId: items[0]!.id,
+      });
+      const mediaId = source.document.blocks.find((b: { type: string }) => b.type === 'image').props
+        .mediaId;
+      const blockId = randomUUID();
+      const { item } = await callApi(request, 'content.item.create', {
+        slug: `image-description-${randomUUID()}`,
+        document: {
+          type,
+          defaultLocale: 'nl',
+          locales: ['nl', 'en'],
+          title: { nl: 'Beeldbeschrijving', en: 'Image description' },
+          blocks: [
+            {
+              id: blockId,
+              type: 'image',
+              version: 1,
+              props: { mediaId, decorative: false, alt: { nl: 'Een boom.', en: 'A tree.' } },
+            },
+          ],
+        },
+      });
+      const edit = `/admin/probe/content/${item.id}`;
+      const stored = async () => {
+        const { revision } = await callApi(request, 'content.item.get', { itemId: item.id });
+        return revision.document.blocks[0].props;
+      };
+      const email = `image-alt-${randomUUID()}@probe.test`;
+      const member = await withInvoker(async (invoker) =>
+        invoker.run(useCases.inviteMember, systemPrincipal(await tenantId(), 'e2e'), {
+          email,
+          capabilities: ['tenant:admin'],
+        })
+      );
+      const languageOf = (uiLocale: 'nl' | 'en') =>
+        asOwner((owner) =>
+          owner
+            .updateTable('operators')
+            .set({ ui_locale: uiLocale })
+            .where('id', '=', member.operatorId)
+            .execute()
+        );
+      await languageOf('nl');
+      await login(page, `${edit}?locale=nl`, email);
+      await editorReady(page);
+      // Articles keep the native block form beside the enhanced writer.
+      const description = page.locator('form#item-edit [data-block-alt]').first();
+      const summary = description.locator('summary');
+      const field = description.locator('textarea, input[type="text"]').first();
+      const open = async () => {
+        const block = description.locator('xpath=ancestor::details[contains(@class,"block")][1]');
+        if ((await block.count()) && (await block.getAttribute('open')) === null)
+          await block.locator(':scope > summary').click();
+        if ((await description.getAttribute('open')) === null) await summary.click();
+      };
+      const save = async () => {
+        await reloadsEditor(page, () =>
+          page.getByRole('button', { name: 'Opslaan', exact: true }).click()
+        );
+        await expect(page).toHaveURL(/saved/);
+      };
+      await open();
+      await expect(field).toHaveValue('Een boom.');
+      await save();
+      expect(await stored()).toMatchObject({
+        decorative: false,
+        alt: { nl: 'Een boom.', en: 'A tree.' },
+      });
+      await open();
+      await field.fill('');
+      await save();
+      expect(await stored()).toMatchObject({ decorative: false, alt: { en: 'A tree.' } });
+      await open();
+      await expect(summary).toContainText('Beschrijving ontbreekt in het Nederlands', {
+        useInnerText: true,
+      });
+      await openPublication(page);
+      await page
+        .locator('#publication-nl')
+        .getByRole('button', { name: 'Publiceren', exact: true })
+        .click();
+      await expect(description).toHaveAttribute('open');
+      await expect(field).toHaveAttribute('aria-invalid', 'true');
+      await closePublication(page);
+      await description.locator('input[type="checkbox"]').check();
+      await save();
+      expect(await stored()).toMatchObject({ decorative: true, alt: null });
+      await open();
+      await expect(description.locator('input[type="checkbox"]')).toHaveCount(0);
+      await field.fill('Nieuwe beschrijving.');
+      await save();
+      expect(await stored()).toMatchObject({
+        decorative: false,
+        alt: { nl: 'Nieuwe beschrijving.' },
+      });
+      await open();
+      await field.fill('');
+      await save();
+      expect(await stored()).toMatchObject({ decorative: true, alt: null });
+      for (const language of ['nl', 'en'] as const) {
+        await languageOf(language);
+        await page.context().setExtraHTTPHeaders({
+          'x-forwarded-proto': 'http',
+          'x-forwarded-for': `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
+          'accept-language': language,
+        });
+        await page.goto(`${edit}?locale=${language}`);
+        await editorReady(page);
+        await open();
+        await expect(summary).toContainText(language === 'nl' ? 'Decoratief' : 'Decorative', {
+          useInnerText: true,
+        });
+        await page.setViewportSize(NARROW);
+        await setTextSize(page, '200%');
+        await layoutGate(page, `${type} image description ${language}`, 'form#item-edit');
+        if (isA11y()) await expectNoAxeViolations(page);
+        const screenshot = test
+          .info()
+          .outputPath(`image-description-${type}-${language}-320-200.png`);
+        await description.screenshot({ path: screenshot });
+        await test.info().attach(`${type} image description ${language}, 320px 200%`, {
+          path: screenshot,
+          contentType: 'image/png',
+        });
+        await setTextSize(page, '100%');
+        await page.setViewportSize({ width: 1280, height: 900 });
+      }
+    });
+
+  test('pasted image requires media and can explicitly save without a description', async ({
     page,
     request,
   }) => {
@@ -957,12 +1097,34 @@ test.describe('article-writing', () => {
     await expect(page.locator('.writing .pending [data-picker-name]').first()).toHaveText(filename);
     await picker.getByRole('button', { name: 'Klaar' }).click();
     await expect(page.getByRole('button', { name: 'Vervangen' })).toBeVisible();
-    await expect(page.getByLabel('Alternatieve tekst')).toHaveValue('Een boom');
+    const description = page.locator('.writing .pending [data-block-alt]');
+    if ((await description.getAttribute('open')) === null)
+      await description.locator('summary').click();
+    await expect(description.locator('textarea')).toHaveValue('Een boom');
+    await description.locator('textarea').fill('');
+    await expect(description.locator('summary')).toContainText(
+      'Zonder beschrijving wordt dit beeld decoratief.',
+      { useInnerText: true }
+    );
+    await layoutGate(page, 'pasted image description', '.writing .pending');
+    await expectNoAxeViolations(page);
+    const screenshot = test.info().outputPath('pasted-image-description-320-200.png');
+    await page.locator('.writing .pending').screenshot({ path: screenshot });
+    await test.info().attach('pasted image description, 320px 200%', {
+      path: screenshot,
+      contentType: 'image/png',
+    });
     await page.getByRole('button', { name: 'Kaart toevoegen' }).click();
     await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
     await expect(page).toHaveURL(/saved/);
     await page.goto(edit);
     await expect(page.locator('details.block')).toHaveCount(2);
+    const { revision: saved } = await callApi(request, 'content.item.get', {
+      itemId: edit.split('/').at(-1),
+    });
+    expect(
+      saved.document.blocks.find((b: { type: string }) => b.type === 'image').props
+    ).toMatchObject({ decorative: true, alt: null });
     await expect(page.locator('.writing-surface .ui-block-card-title')).toContainText(
       /Image|Afbeelding/
     );

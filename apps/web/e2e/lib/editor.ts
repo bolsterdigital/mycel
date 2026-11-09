@@ -66,7 +66,9 @@ export async function block(page: Page, n: number): Promise<Locator> {
   const details = card(page, n).locator('details.block');
   if ((await details.getAttribute('open')) === null)
     await details.locator(':scope > summary').click();
-  const closed = details.locator('details.ui-block-group:not([open])');
+  const closed = details.locator(
+    'details.ui-block-group:not([open]), details[data-block-alt]:not([open])'
+  );
   while ((await closed.count()) > 0) await closed.first().locator(':scope > summary').click();
   return details;
 }

@@ -659,7 +659,7 @@ test.describe('content-routes', () => {
       await login(page, `/admin/probe/content/${target.item.id}`);
       // The edit screen shows the hero as described, with the alt of the locale on screen.
       // Its state stands without a click (#158); the line opens for the field.
-      const heroAltLine = page.locator('[data-hero-alt]');
+      const heroAltLine = page.locator('[data-hero-alt]:not([data-block-alt])');
       await expect(heroAltLine.locator('summary')).toContainText('Een straat met bomen.');
       await expect(page.locator('#heroDecorative')).not.toBeChecked();
       await expect(page.locator('#heroAlt')).toHaveValue('Een straat met bomen.');
@@ -719,7 +719,7 @@ test.describe('content-routes', () => {
       },
     });
     const edit = `/admin/probe/content/${item.id}`;
-    const line = page.locator('[data-hero-alt]');
+    const line = page.locator('[data-hero-alt]:not([data-block-alt])');
     const summary = line.locator('summary');
     const field = page.locator('#heroAlt');
     const stored = async () =>
@@ -924,7 +924,7 @@ test.describe('content-routes', () => {
       });
       const narrow = await context.newPage();
       await login(narrow, `${edit}?locale=en`);
-      await narrow.locator('[data-hero-alt] summary').click();
+      await narrow.locator('[data-hero-alt]:not([data-block-alt]) summary').click();
       for (const size of TEXT_SIZES) {
         await setTextSize(narrow, size);
         await layoutGate(narrow, `hero description, ${locale}, ${size}`, '#heroImageId');

@@ -1178,7 +1178,7 @@ test('an image dropped between two blocks of a page becomes an image block there
   await expect(page).toHaveURL(/insert=image&place=before/);
   const fresh = page.locator('#block-new');
   await expect(fresh.getByRole('heading', { name: 'Nieuw blok: Afbeelding' })).toBeVisible();
-  await expect(fresh.getByLabel('Beschrijving (alt-tekst)')).toBeFocused();
+  await expect(fresh.locator('[data-block-alt] textarea')).toBeFocused();
   await expect(fresh.locator('[data-picker-name]')).toHaveText(filename);
   // Between the two quotes, and the typed words were saved on the way.
   const order = await page.$$eval('.item-blocks [data-block-card], #block-new', (els) =>
@@ -1189,7 +1189,7 @@ test('an image dropped between two blocks of a page becomes an image block there
   await expect(page.locator(`[name="b.${blocks[0]}.p.text.nl"]`)).toHaveValue('Een, herzien');
   await expect(page.locator('[data-save-state]')).toHaveAttribute('data-current', 'unsaved');
   await expectNoAxeViolations(page);
-  await fresh.getByLabel('Beschrijving (alt-tekst)').fill('Een neergezet beeld');
+  await fresh.locator('[data-block-alt] textarea').fill('Een neergezet beeld');
   await fresh.getByRole('button', { name: 'Toevoegen en opslaan' }).click();
   await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
   const stored = await storedBlocks(id);
@@ -1273,7 +1273,7 @@ test('an image dropped in an article lands between its paragraphs, alt text in f
   await dropOn(page, '.writing-surface .ProseMirror p:nth-of-type(2)', [pngFile(filename)]);
   const card = page.locator('.writing-surface .editor-card fieldset.pending');
   await expect(card.getByRole('heading', { name: 'Nieuw beeld' })).toBeVisible();
-  await expect(card.getByLabel('Alternatieve tekst')).toBeFocused();
+  await expect(card.locator('[data-block-alt] textarea')).toBeFocused();
   await expect(card.locator('[data-picker-name]')).toHaveText(filename);
   const order = await writing.evaluate((el) =>
     [...el.children].map((c) => (c.matches('.editor-card') ? 'card' : c.textContent?.trim()))
@@ -1287,7 +1287,7 @@ test('an image dropped in an article lands between its paragraphs, alt text in f
   await card.screenshot({ path: '.scratch/80b-writer-card-320-200.png' });
   await setTextSize(page, '100%');
   await page.setViewportSize({ width: 1280, height: 900 });
-  await card.getByLabel('Alternatieve tekst').fill('Een beeld in de tekst');
+  await card.locator('[data-block-alt] textarea').fill('Een beeld in de tekst');
   await card.getByRole('button', { name: 'Kaart toevoegen' }).click();
   await expect(writing.locator('.editor-placed figcaption')).toHaveText('Een beeld in de tekst');
 
@@ -1303,7 +1303,7 @@ test('an image dropped in an article lands between its paragraphs, alt text in f
     );
   }, pngFile(pasted));
   const second = page.locator('.writing-surface fieldset.pending');
-  await expect(second.getByLabel('Alternatieve tekst')).toBeFocused();
+  await expect(second.locator('[data-block-alt] textarea')).toBeFocused();
   await second.getByRole('button', { name: 'Verwijderen' }).click();
   await expect(page.locator('fieldset.pending')).toHaveCount(0);
 
@@ -1415,6 +1415,9 @@ test('an image dropped on an image block or the header image replaces it, with U
   await page.keyboard.press('Escape');
   await dragLeft(page, card);
 
+  const clearing = page.locator(`[name="b.${image}.imageAltClear"]`);
+  await block(page, 2);
+  await clearing.check();
   const fresh = `nieuw-${stamp}.png`;
   leftovers.names.push(fresh);
   await dropOn(page, card, [pngFile(fresh)]);
@@ -1424,6 +1427,7 @@ test('an image dropped on an image block or the header image replaces it, with U
   await expect(page.locator(`${card} [data-block-name]`)).toHaveText(fresh);
   await expect(alt).toBeFocused();
   await expect(alt).toHaveValue('');
+  await expect(clearing).not.toBeChecked();
   await expect(page.locator(`${card} img[data-block-image]`)).not.toHaveAttribute(
     'src',
     new RegExp((await storedImage(id)).mediaId)
@@ -1445,6 +1449,7 @@ test('an image dropped on an image block or the header image replaces it, with U
   await expect(chosen).toHaveText(old);
   await expect(page.locator(`${card} [data-block-name]`)).toHaveText(old);
   await expect(alt).toHaveValue('Oud beeld');
+  await expect(clearing).toBeChecked();
   await expect(page.locator(`${card} img[data-block-image]`)).toHaveAttribute(
     'src',
     new RegExp((await storedImage(id)).mediaId)
@@ -1468,6 +1473,7 @@ test('an image dropped on an image block or the header image replaces it, with U
   // Again, described and saved: the English text described the old picture and goes with it.
   await dropOn(page, card, [pngFile(fresh)]);
   await expect(alt).toBeFocused();
+  await expect(clearing).not.toBeChecked();
   await alt.fill('Een nieuw beeld');
   await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
   await expect(page).toHaveURL(/saved/);

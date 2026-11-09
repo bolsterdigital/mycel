@@ -21,6 +21,14 @@
     others,
     clearing = false,
     flagged = false,
+    fieldId = 'heroAlt',
+    fieldName,
+    clearName = 'heroDecorative',
+    markerName = 'heroAltShown',
+    imageName = 'heroImageId',
+    block = false,
+    clientManaged = false,
+    ontext,
   }: {
     /** The language of the admin. */
     locale: string;
@@ -38,6 +46,14 @@
     others: Readonly<Record<string, string | undefined>>;
     clearing?: boolean;
     flagged?: boolean;
+    fieldId?: string;
+    fieldName?: string;
+    clearName?: string;
+    markerName?: string;
+    imageName?: string;
+    block?: boolean;
+    clientManaged?: boolean;
+    ontext?: (text: string) => void;
   } = $props();
 
   const t = $derived(ui(locale));
@@ -57,10 +73,13 @@
   const refusedFor = $derived(view.state === 'described' ? view.lacking : [work]);
 </script>
 
-<input type="hidden" name="heroAltShown" value="1" />
+<input type="hidden" name={markerName} value="1" />
 <details
   class="hero-alt"
-  data-hero-alt
+  data-hero-alt={clientManaged ? undefined : ''}
+  data-block-alt={block ? '' : undefined}
+  data-image-name={imageName}
+  data-clear-name={clearName}
   data-tone={view.tone}
   data-saved-image={savedImage}
   data-saved-text={savedText}
@@ -138,24 +157,30 @@
   </summary>
   <div class="panel">
     <Field
-      id="heroAlt"
+      id={fieldId}
       label={multi
         ? fill(t('admin.content.heroAlt.fieldIn'), { locale: nameOf(work) })
         : t('admin.content.heroAlt.field')}
-      hint={t('admin.content.heroAlt.hint')}
+      hint={t(block ? 'admin.block.alt.hint' : 'admin.content.heroAlt.hint')}
       {locale}
       error={flagged
         ? fill(t('admin.content.heroAlt.refused'), { locales: listOf(refusedFor) })
         : undefined}
     >
       {#snippet control(attributes)}
-        <textarea name="heroAlt.{work}" maxlength="1000" rows="2" lang={work} {...attributes}
+        <textarea
+          name={fieldName ?? `heroAlt.${work}`}
+          maxlength="1000"
+          rows="2"
+          lang={work}
+          {...attributes}
+          oninput={ontext ? (event) => ontext(event.currentTarget.value) : undefined}
           >{text}</textarea
         >
       {/snippet}
     </Field>
     <p class="ui-hint" data-hero-alt-empty="decorative" hidden={view.described.length > 0}>
-      {t('admin.content.heroAlt.empty')}
+      {t(block ? 'admin.block.alt.empty' : 'admin.content.heroAlt.empty')}
     </p>
     {#if storedOthers.length}
       <p class="ui-hint" data-hero-alt-empty="open" hidden={view.described.length === 0}>
@@ -169,8 +194,8 @@
           </p>
         {/each}
         <Checkbox
-          id="heroDecorative"
-          name="heroDecorative"
+          id={block ? `${fieldId}-clear` : 'heroDecorative'}
+          name={clearName}
           label={t('admin.content.heroAlt.clear')}
           checked={clearing}
         />
@@ -196,6 +221,11 @@
     padding: var(--space-1) var(--space-2);
     cursor: pointer;
     list-style: none;
+  }
+  /* Block forms already pad their content. A second horizontal inset left only 170px for
+     a 197px action word at 320px/200% in the writer's card. Keep that full available width. */
+  [data-block-alt] > summary {
+    padding-inline: 0;
   }
   summary::-webkit-details-marker {
     display: none;
@@ -282,6 +312,8 @@
   }
   .act {
     display: inline-flex;
+    flex-wrap: wrap;
+    flex-shrink: 0;
     align-items: center;
     gap: var(--space-0);
     min-height: var(--tap);
@@ -296,6 +328,10 @@
   }
   summary:hover .act {
     text-decoration: underline;
+  }
+  /* Keep a whole action word; at large text the chevron can take the next line. */
+  .act > span {
+    white-space: nowrap;
   }
   .act :global(svg) {
     flex: none;
@@ -314,6 +350,11 @@
     gap: var(--space-1);
     padding: var(--space-1) var(--space-2) var(--space-2);
     border-block-start: var(--border-width) solid var(--color-border);
+  }
+  /* A nested field keeps the hint's full target above the textarea. Negative margins used
+     beside ordinary labels otherwise overlap that control in a pending writer card. */
+  .panel :global(.ui-hint-toggle) {
+    margin-block: 0;
   }
   .others {
     display: grid;

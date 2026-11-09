@@ -4,7 +4,14 @@
 
 import { describe, expect, it } from 'vitest';
 import { BLOCK_DEFINITIONS, BLOCK_TYPES, Block } from '@mycel/core';
-import { arrangeRows, formValues, postedValues, propsFromForm } from './block-form.js';
+import {
+  arrangeRows,
+  editorFieldIssues,
+  formValues,
+  imageAltFromForm,
+  postedValues,
+  propsFromForm,
+} from './block-form.js';
 
 const LOCALES = ['nl', 'en'];
 
@@ -26,6 +33,71 @@ describe('block forms', () => {
       errors: [],
     });
     expect(propsFromForm(e.fields, postedValues(values))).toEqual({ props: e.props, errors: [] });
+  });
+
+  it('marks an image alt refusal from publication as the same native field as a save', () => {
+    const blocks = [{ id: 'image' }];
+    const save = { name: 'b.image.p.alt.nl', copy: 'missing' };
+    const publication = { path: 'blocks.0.props.alt.nl', copy: 'missing' };
+    expect(editorFieldIssues({ issues: [publication] }, blocks)).toEqual([save]);
+    expect(editorFieldIssues({ fieldIssues: [save] }, blocks)).toEqual([save]);
+    expect(editorFieldIssues(null, blocks)).toEqual([]);
+    expect(editorFieldIssues({ issues: [{ path: 'title.nl', copy: 'missing' }] }, blocks)).toEqual(
+      []
+    );
+  });
+
+  it('maps only the shown standalone description after preserving other locales', () => {
+    const image = examples.find((e) => e.name === 'image-wide-caption-credit')!;
+    const stored = { ...image.props, alt: { nl: 'Het plein', en: 'The square' } };
+    const values: Record<string, string> = {
+      ...formValues(image.fields, stored, ['nl']),
+      imageAltShown: '1',
+    };
+    const read = () =>
+      imageAltFromForm(
+        propsFromForm(image.fields, postedValues(values), stored).props,
+        postedValues(values)
+      );
+    expect(read()).toEqual(stored);
+    values['p.alt.nl'] = '';
+    expect(read()).toMatchObject({ decorative: false, alt: { en: 'The square' } });
+    const cleared = { ...values, imageAltClear: 'on' };
+    expect(
+      imageAltFromForm(
+        propsFromForm(image.fields, postedValues(cleared), stored).props,
+        postedValues(cleared)
+      )
+    ).toMatchObject({ decorative: true, alt: null });
+    values['p.mediaId'] = 'new-image';
+    expect(read()).toMatchObject({ decorative: true, alt: null });
+    values['p.alt.nl'] = 'Nieuw plein';
+    expect(read()).toMatchObject({ decorative: false, alt: { nl: 'Nieuw plein' } });
+    // A generic image-use parser still rejects missing semantics; the shown-control marker is
+    // not emitted for gallery or legacy hero fields, and API/MCP never pass through this helper.
+    const missing = { ...image.props, decorative: false, alt: null };
+    expect(imageAltFromForm(missing, postedValues({}))).toBe(missing);
+    expect(
+      Block.safeParse({ id: 'image', type: 'image', version: 1, props: missing }).success
+    ).toBe(false);
+  });
+
+  it('makes an emptied sole description decorative, and writing in it described again', () => {
+    const image = examples.find((e) => e.name === 'image-full-decorative')!;
+    const values: Record<string, string> = {
+      ...formValues(image.fields, image.props, ['nl']),
+      imageAltShown: '1',
+    };
+    const read = () =>
+      imageAltFromForm(
+        propsFromForm(image.fields, postedValues(values), image.props).props,
+        postedValues(values)
+      );
+    expect(read()).toEqual(image.props);
+    values['p.alt.nl'] = 'Het team';
+    expect(read()).toMatchObject({ decorative: false, alt: { nl: 'Het team' } });
+    values['p.alt.nl'] = '  ';
+    expect(read()).toMatchObject({ decorative: true, alt: null });
   });
 
   it('stores the kind of an image credit once chosen, and leaves a stored credit without one', () => {

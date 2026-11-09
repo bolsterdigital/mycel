@@ -334,7 +334,13 @@ if (form instanceof HTMLFormElement) {
       }
       for (const line of rest.querySelectorAll('[data-rest-alt]')) {
         const text = controlOf(line.dataset.restAlt)?.value ?? '';
-        const decorative = !!controlOf(line.dataset.restDecorative)?.checked;
+        const description = fold.querySelector('[data-block-alt]');
+        const decorative = description
+          ? !!description.querySelector('input[type="checkbox"]')?.checked ||
+            (!text.trim() &&
+              (Number(description.dataset.storedOthers) === 0 ||
+                description.dataset.savedImage !== controlOf(description.dataset.imageName)?.value))
+          : !!controlOf(line.dataset.restDecorative)?.checked;
         const words = line.querySelector('[data-rest-alt-text]');
         const intentional = line.querySelector('[data-rest-alt-decorative]');
         const missing = line.querySelector('[data-rest-alt-missing]');
@@ -534,7 +540,9 @@ if (form instanceof HTMLFormElement) {
     if (id === 'block-new') {
       // Dropped images have their picture: what they still need is their alt text.
       const alt =
-        dropped && [...target.querySelectorAll('[data-alt-of] :is(input, textarea)')].find(shown);
+        dropped &&
+        target.querySelector('[data-block-alt] textarea, [data-alt-of] :is(input, textarea)');
+      if (alt) reveal(alt);
       (alt || target.querySelector('input:not([type="hidden"]), select, textarea'))?.focus();
       return;
     }
@@ -583,16 +591,19 @@ if (form instanceof HTMLFormElement) {
 
   // The hero's description line, live (#158). The same order as `lib/admin/hero-alt/hero-alt.ts`,
   // which the server renders with; every state's words are in the markup, so this only chooses.
-  const heroAlt = form.querySelector('details[data-hero-alt]');
-  const heroText = heroAlt?.querySelector('textarea');
-  if (heroAlt instanceof HTMLDetailsElement && heroText instanceof HTMLTextAreaElement) {
+  for (const heroAlt of form.querySelectorAll('details[data-hero-alt]')) {
+    const heroText = heroAlt.querySelector('textarea');
+    if (!(heroAlt instanceof HTMLDetailsElement) || !(heroText instanceof HTMLTextAreaElement))
+      continue;
     const { savedImage, savedText } = heroAlt.dataset;
     const others = Number(heroAlt.dataset.others);
     const storedOthers = Number(heroAlt.dataset.storedOthers);
-    const box = heroAlt.querySelector('input[name="heroDecorative"]');
+    const { imageName, clearName } = heroAlt.dataset;
+    const box = heroAlt.querySelector(`input[name="${CSS.escape(clearName)}"]`);
     const chosenImage = () =>
-      [...form.querySelectorAll('input[type="radio"][name="heroImageId"]')].find((i) => i.checked)
-        ?.value ?? '';
+      [...form.querySelectorAll(`input[type="radio"][name="${CSS.escape(imageName)}"]`)].find(
+        (i) => i.checked
+      )?.value ?? '';
     const part = (selector) => heroAlt.querySelector(selector);
     const sync = () => {
       const image = chosenImage();
@@ -639,7 +650,7 @@ if (form instanceof HTMLFormElement) {
       heroText.closest('.ui-field')?.querySelector('.ui-error')?.remove();
       heroText.setAttribute(
         'aria-describedby',
-        heroText.getAttribute('aria-describedby')?.replace('heroAlt-error', '').trim() ?? ''
+        heroText.getAttribute('aria-describedby')?.replace(`${heroText.id}-error`, '').trim() ?? ''
       );
     };
     heroText.addEventListener('input', () => {
@@ -652,10 +663,15 @@ if (form instanceof HTMLFormElement) {
     });
     form.addEventListener('change', (event) => {
       const radio = event.target;
-      if (!(radio instanceof HTMLInputElement) || radio.name !== 'heroImageId') return;
+      if (!(radio instanceof HTMLInputElement) || radio.name !== imageName) return;
       // A stored description described the old picture (the server keeps only text typed over it);
       // back on the stored image it applies again. What someone typed stays in both directions.
       const image = chosenImage();
+      if ('blockAlt' in heroAlt.dataset) {
+        if (image && image !== savedImage && box instanceof HTMLInputElement) box.checked = false;
+        sync();
+        return;
+      }
       if (image && image !== savedImage) {
         if (heroText.value === savedText) heroText.value = '';
         if (box instanceof HTMLInputElement) box.checked = false;

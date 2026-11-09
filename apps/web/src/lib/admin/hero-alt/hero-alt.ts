@@ -40,3 +40,8 @@ export function heroAltView(input: HeroAltInput): HeroAltView {
   if (input.replaced) return view('fresh', 'info');
   return described.length ? view('missing', 'warn') : view('decorative', 'neutral');
 }
+
+/** An editor's merged description map as the explicit existing image-use pair. */
+export function imageAltProps(alt: unknown): { decorative: boolean; alt: unknown } {
+  return { decorative: alt === null, alt };
+}

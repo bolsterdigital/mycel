@@ -7,6 +7,8 @@
   import MarkdownIt from 'markdown-it';
   import { DOMParser as PMDOMParser } from '@tiptap/pm/model';
   import { parseInert, withoutLineBreakNodes } from './inert-html.js';
+  import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
+  import { imageAltProps } from '#lib/admin/hero-alt/hero-alt.js';
   import { Actions, Button, MediaPicker, WritingSheet } from '#lib/admin/ui/index.js';
   import type { MediaChoice } from '#lib/admin/media-choice.js';
   import { dropIndex, type DropIndex } from './drop-index.js';
@@ -62,7 +64,6 @@
     name: string;
     mediaId: string;
     alt: string;
-    decorative: boolean;
     /** Dropped or pasted as a file: its upload's progress, null once it is done. */
     progress?: number | null;
     error?: string;
@@ -133,7 +134,6 @@
             name: '',
             mediaId: '',
             alt: child.getAttribute('alt') ?? '',
-            decorative: false,
           });
           additions.push({ type: 'mycelCard', attrs: { blockId: id, blockType: type } });
           return;
@@ -203,7 +203,7 @@
       !editor ||
       card.progress != null ||
       (card.type === 'quote' && (!card.text.trim() || !card.name.trim())) ||
-      (card.type === 'image' && (!card.mediaId.trim() || (!card.decorative && !card.alt.trim())))
+      (card.type === 'image' && !card.mediaId.trim())
     )
       return;
     const newBlock =
@@ -220,8 +220,7 @@
             version: 1,
             props: {
               mediaId: card.mediaId,
-              decorative: card.decorative,
-              alt: card.decorative ? null : { [data.contentLocale]: card.alt },
+              ...imageAltProps(card.alt.trim() ? { [data.contentLocale]: card.alt } : null),
             },
           };
     pending = pending.filter((item) => item.id !== card.id);
@@ -263,7 +262,6 @@
       name: '',
       mediaId: '',
       alt: '',
-      decorative: false,
       progress: 0,
     }));
     pending = [...pending, ...cards];
@@ -309,7 +307,10 @@
       if (focused) continue;
       focused = true;
       await tick();
-      document.getElementById(`alt-${card.id}`)?.focus();
+      const alt = document.getElementById(`alt-${card.id}`);
+      const description = alt?.closest('details');
+      if (description) description.open = true;
+      alt?.focus();
     }
   }
 
@@ -542,18 +543,23 @@
           upload={data.upload}
           onchange={(id: string) => (card.mediaId = id)}
         />
-        <div class="check">
-          <input type="checkbox" id="decorative-{card.id}" bind:checked={card.decorative} /><label
-            for="decorative-{card.id}">{t('admin.editor.decorative')}</label
-          >
-        </div>
-        {#if !card.decorative}<div class="field">
-            <label for="alt-{card.id}">{t('admin.editor.alt')}</label><input
-              id="alt-{card.id}"
-              bind:value={card.alt}
-              required
-            />
-          </div>{/if}
+        <HeroAltRow
+          locale={data.locale}
+          work={data.contentLocale}
+          locales={[data.contentLocale]}
+          image={card.mediaId}
+          savedImage=""
+          text={card.alt}
+          savedText=""
+          others={{}}
+          fieldId={`alt-${card.id}`}
+          fieldName={`alt-${card.id}`}
+          clearName={`clear-${card.id}`}
+          markerName={`shown-${card.id}`}
+          block
+          clientManaged
+          ontext={(text) => (card.alt = text)}
+        />
       {/if}
       <Actions>
         <Button type="button" onclick={() => completeCard(card)}

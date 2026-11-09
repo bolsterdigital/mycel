@@ -15,6 +15,7 @@
 // block-types.ts) and per-type Svelte forms (a new type would need a form before it is editable).
 
 import { RichTextDoc, isBlankDoc, type BlockField } from '@mycel/core';
+import { imageAltProps } from '../admin/hero-alt/hero-alt.js';
 import { fromTiptap } from './article-document.js';
 import { fromMarkdown, toMarkdown, type MarkdownError } from './markdown.js';
 
@@ -516,4 +517,53 @@ export function arrangeRows(
   out[rowsKey] = String(count);
   if (move === 'add') out[join(join(name, rows), FROM)] = '';
   return out;
+}
+
+/**
+ * The standalone image form makes an empty description decorative, like the document header.
+ * Apply only after its normal localised merge, and only when that control was shown. Rejected:
+ * normalising every image-use group, which would weaken the gallery and legacy hero contracts.
+ */
+export function imageAltFromForm(props: Props, form: Posted): Props {
+  if (form.get('imageAltShown') !== '1') return props;
+  const alt = form.get('imageAltClear') === 'on' ? null : props.alt;
+  return { ...props, ...imageAltProps(alt) };
+}
+
+/**
+ * The form field a core issue is about: `document.blocks.<i>.props.<path>` of a save is the field
+ * of the block at `i`, `block.props.<path>` of an insert the new block's; '' for any other path.
+ */
+export function blockIssueName(path: string, blocks: readonly { id: string }[]): string {
+  const stored = /^(?:document\.)?blocks\.(\d+)\.props(\..+)?$/.exec(path);
+  if (stored) {
+    const block = blocks[Number(stored[1])];
+    return block ? `b.${block.id}.p${stored[2] ?? ''}` : '';
+  }
+  const added = /^block\.props(\..+)?$/.exec(path);
+  return added ? `new.p${added[1] ?? ''}` : '';
+}
+
+/**
+ * Save and publication refusals mark the same controls. Publication returns readiness paths
+ * instead of native form names; keeping it only in the publication panel left a missing image
+ * description closed and unmarked after a refused publish. Rejected: inferring a refusal from
+ * readiness alone, which would mark unfinished drafts as errors before anyone publishes.
+ */
+export function editorFieldIssues(
+  form: unknown,
+  blocks: readonly { id: string }[]
+): { name: string; list?: string; copy: string }[] {
+  type Issue = { name: string; list?: string; copy: string };
+  const refusal = form as {
+    fieldIssues?: Issue[];
+    issues?: { path: string; copy: string }[];
+  } | null;
+  return [
+    ...(refusal?.fieldIssues ?? []),
+    ...(refusal?.issues ?? []).flatMap((issue) => {
+      const name = blockIssueName(issue.path, blocks);
+      return name ? [{ name, copy: issue.copy }] : [];
+    }),
+  ];
 }

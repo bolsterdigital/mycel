@@ -68,7 +68,7 @@ test.describe('content-blocks', () => {
     const edits: [number, string, string][] = [
       [1, 'Tekst', `Kop ${stamp}`],
       [3, 'Tekst', `Nieuwe **tekst** met [een link](/over) ${stamp}`],
-      [5, 'Beschrijving (alt-tekst)', `Een plein vol mensen ${stamp}`],
+      [5, 'Beschrijving in het Nederlands', `Een plein vol mensen ${stamp}`],
       [6, 'Titel', `Schone lucht ${stamp}`],
       [7, 'Titel', `Doe mee ${stamp}`],
       [8, 'Titel', `Let op ${stamp}`],
@@ -1588,6 +1588,7 @@ test.describe('content-blocks', () => {
       // Long metadata stays complete, while the ordinary thumbnail remains compact.
       await fields.locator(':scope > summary').click();
       const description = 'Een plein vol mensen met spandoeken. '.repeat(12).trim();
+      await fields.locator('[data-block-alt] > summary').click();
       await fields.locator('[name$=".p.alt.nl"]').fill(description);
       await fields.locator(':scope > summary').click();
       await expect(rest.locator('[data-rest-alt-text]')).toHaveText(description);
