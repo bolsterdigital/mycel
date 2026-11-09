@@ -58,7 +58,7 @@ import {
   operatorRepository,
 } from './operators.js';
 import { outboxEventBus } from './operations/outbox.js';
-import { formRepository, submissionRepository } from './forms.js';
+import { formMailRepository, formRepository, submissionRepository } from './forms.js';
 import { mailSendsRepository } from './mailing.js';
 import { rateLimiter } from './operations/rate-limit.js';
 import { supporterRepository } from './supporters.js';
@@ -243,6 +243,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           authors: authorRepository(trx, tenantId),
           sections: sectionRepository(trx, tenantId),
           patterns: patternRepository(trx, tenantId),
+          formMail: formMailRepository(trx, tenantId),
           forms: formRepository(trx, tenantId),
           submissions: submissionRepository(trx, tenantId),
           rateLimits: rateLimiter(trx, tenantId, deps.clock),

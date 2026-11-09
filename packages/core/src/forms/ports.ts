@@ -1,3 +1,4 @@
+import type { FormMailState, FormMailSettings } from './mail-model.js';
 import type { FormDefinition, Submission } from './model.js';
 
 export interface FormRepository {
@@ -47,5 +48,16 @@ declare module '../ports.js' {
     forms: FormRepository;
     submissions: SubmissionRepository;
     rateLimits: RateLimiter;
+  }
+}
+
+export interface FormMailRepository {
+  get(): Promise<FormMailState>;
+  reserveBudget(month: string, count: number, max: number): Promise<boolean>;
+  save(baseVersion: number, value: FormMailSettings): Promise<FormMailState | null>;
+}
+declare module '../ports.js' {
+  interface TransactionContext {
+    formMail: FormMailRepository;
   }
 }

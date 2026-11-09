@@ -104,23 +104,32 @@ export function validFieldReferences(fields: FormField[]): boolean {
       return false;
     for (const predicate of [field.activeWhen, field.requiredWhen]) {
       if (!predicate) continue;
-      for (const atom of 'conditions' in predicate ? predicate.conditions : [predicate]) {
-        const target = prior.get(atom.fieldId);
-        if (!target || target.type === 'hidden' || target.type === 'consent') return false;
-        if (atom.op === 'present') continue;
-        const kind =
-          target.type === 'checkbox'
-            ? 'boolean'
-            : ['number', 'amount'].includes(target.type)
-              ? 'number'
-              : 'string';
-        if (typeof atom.value !== kind) return false;
-        if ('options' in target && !target.options.some((o) => o.value === atom.value))
-          return false;
-      }
+      if (!validPredicateReferences(predicate, [...prior.values()])) return false;
     }
     prior.set(fieldId(field), field);
     names.add(field.name);
+  }
+  return true;
+}
+
+/** Shared typed references; action predicates may read validated active consent as a boolean. */
+export function validPredicateReferences(
+  predicate: FieldPredicate,
+  fields: readonly FormField[],
+  allowConsent = false
+): boolean {
+  for (const atom of 'conditions' in predicate ? predicate.conditions : [predicate]) {
+    const target = fields.find((f) => fieldId(f) === atom.fieldId);
+    if (!target || target.type === 'hidden' || (!allowConsent && target.type === 'consent'))
+      return false;
+    if (atom.op === 'present') continue;
+    const kind = ['checkbox', 'consent'].includes(target.type)
+      ? 'boolean'
+      : ['number', 'amount'].includes(target.type)
+        ? 'number'
+        : 'string';
+    if (typeof atom.value !== kind) return false;
+    if ('options' in target && !target.options.some((o) => o.value === atom.value)) return false;
   }
   return true;
 }

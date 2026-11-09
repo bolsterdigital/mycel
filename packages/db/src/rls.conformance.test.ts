@@ -250,6 +250,10 @@ describe.skipIf(skip)('row level security conformance', () => {
     });
     const formId = uuidv7();
     await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
+    await uow.run(admin, async (ctx) => {
+      await ctx.formMail.save(0, { templates: [], forms: [] });
+      await ctx.formMail.reserveBudget('2026-11', 1, 10);
+    });
     // Content (0011): an item with its revision and locale rows, plus an author, a section and
     // a pattern through their use cases.
     const page = await publishProbePage(invoker, admin, formId);

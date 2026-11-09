@@ -30,7 +30,7 @@ import {
   SequentialIds,
   memoryPlatform,
 } from './fakes.js';
-import { memoryForms, memoryRateLimits, memorySubmissions } from './forms.js';
+import { memoryFormMail, memoryForms, memoryRateLimits, memorySubmissions } from './forms.js';
 import { MemoryJobRecovery, MemoryScheduler } from './jobs.js';
 import { memoryMailSends } from './mailing.js';
 import { MemoryBlobStore, memoryImageProcessor, memoryMedia } from './media.js';
@@ -117,6 +117,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         authors: sluggedRepository(s.authors),
         sections: sluggedRepository(s.sections),
         patterns: entityRepository(s.patterns),
+        formMail: memoryFormMail(s),
         forms: memoryForms(s),
         submissions: memorySubmissions(s),
         rateLimits: memoryRateLimits(s, clock),

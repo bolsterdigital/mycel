@@ -11,6 +11,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
 import {
+  formMailSource,
+  formMailSubscriber,
+  DEFAULT_ACCESS,
   Invoker,
   anonymousPrincipal,
   buildRegistry,
@@ -27,12 +30,21 @@ import {
   FakeInputHasher,
   FakeSigner,
   probeForm,
+  conditionalProbeForm,
+  probeFormMail,
   FakeDns,
   memoryPlatform,
   runSuffix,
   adminOf,
 } from '@mycel/core/testing';
-import { createDb, createUnitOfWork, sweepRateLimits, uuidv7, uuidv7Ids } from './index.js';
+import {
+  readOutboxEvent,
+  createDb,
+  createUnitOfWork,
+  sweepRateLimits,
+  uuidv7,
+  uuidv7Ids,
+} from './index.js';
 import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -382,5 +394,78 @@ describe.skipIf(skip)('mailing conformance', () => {
     await expect(
       uow.run(adminOf(tenantId), (ctx) => ctx.rateLimits.cooldown(key, day + 1))
     ).rejects.toThrow(/outside/);
+  });
+  it('pins conditional notification events across edits and isolates private configuration under RLS', async () => {
+    const id = uuidv7();
+    const admin = adminOf(tenantId);
+    await uow.run(admin, (ctx) => ctx.forms.insert(conditionalProbeForm(id)));
+    const settings = probeFormMail(id);
+    await invoker.run(useCases.updateFormMailSettings, admin, { baseVersion: 0, value: settings });
+    const accepted = await invoker.run(useCases.submitForm, admin, {
+      formId: id,
+      locale: 'en',
+      values: {
+        email: 'form-mail@example.org',
+        contact_only: true,
+        topic: 'question',
+        message: 'Pinned message',
+      },
+    });
+    if (accepted.status !== 'accepted') throw new Error(accepted.status);
+    const submission = await uow.run(admin, (ctx) =>
+      ctx.submissions.findById(accepted.submissionId)
+    );
+    const pin = submission!.evaluation!.mailActions![0]!;
+    const event = (await readOutboxEvent(operatorDb, pin.eventId))!;
+    expect(event.props).toMatchObject({
+      actionId: 'question',
+      copy: { text: 'Message: Pinned message' },
+    });
+    settings.templates[0]!.text.en = 'Later edit';
+    await invoker.run(useCases.updateFormMailSettings, admin, { baseVersion: 1, value: settings });
+    const mailer = new FlakyMailer();
+    const delivery = { ...deps(mailer), from: message.from, access: async () => DEFAULT_ACCESS };
+    const source = formMailSource(delivery);
+    expect((await source(event))?.text).toBe('Message: Pinned message');
+    // Two workers race on the same durable event/version. Provider call happens once.
+    await Promise.all([
+      formMailSubscriber(delivery).handle(event),
+      formMailSubscriber({ ...delivery, uow: uow2 }).handle(event),
+    ]);
+    expect(mailer.delivered).toHaveLength(1);
+    const other = (await testTenant(operatorDb, `form-mail-other-${run}`)).id;
+    expect(await invoker.run(useCases.getFormMailSettings, adminOf(other), {})).toMatchObject({
+      version: 0,
+    });
+    await expect(
+      invoker.run(useCases.getFormMailStatus, adminOf(other), {
+        submissionId: accepted.submissionId,
+      })
+    ).rejects.toMatchObject({ code: 'not_found' });
+    expect(await formMailSource(delivery)({ ...event, tenantId: other })).toBeNull();
+    await closeTenantWork(operatorDb, [other]);
+  });
+
+  it('atomically reserves a tenant monthly mail budget and rejects simultaneous stale configuration writes', async () => {
+    const id = (await testTenant(operatorDb, `form-budget-${run}`)).id;
+    const principal = adminOf(id);
+    const settings = { templates: [], forms: [] };
+    const writes = await Promise.all([
+      uow.run(principal, (ctx) => ctx.formMail.save(0, settings)),
+      uow2.run(principal, (ctx) => ctx.formMail.save(0, settings)),
+    ]);
+    expect(writes.filter(Boolean)).toHaveLength(1);
+    const reserve = (u: typeof uow) =>
+      u.run(principal, (ctx) => ctx.formMail.reserveBudget('2026-11', 1, 1));
+    expect((await Promise.all([reserve(uow), reserve(uow2)])).sort()).toEqual([false, true]);
+    // A new runtime sees the reservation; a different month resets it without erasure refunds.
+    expect(await reserve(uow2)).toBe(false);
+    expect(await uow.run(principal, (ctx) => ctx.formMail.reserveBudget('2026-12', 1, 1))).toBe(
+      true
+    );
+    expect(
+      await uow.run(adminOf(tenantId), (ctx) => ctx.formMail.reserveBudget('2026-12', 0, 0))
+    ).toBe(true);
+    await closeTenantWork(operatorDb, [id]);
   });
 });

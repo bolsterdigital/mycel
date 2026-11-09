@@ -4,18 +4,18 @@ How a visitor's signup becomes a stored submission, a confirmation mail and a su
 
 ## The definition
 
-`FormDefinition` (`forms/model.ts`) has one kind, `signup`, and two field types, `email` and `consent`. A signup has exactly one e-mail field and at least one consent field; a consent field is always required. Labels, the submit label and the thank-you text are localised maps (`localized()`, see [i18n.md](i18n.md)).
+`FormDefinition` (`forms/model.ts`) supports signup, contact, petition and RSVP forms. Fields have stable ids, typed values and bounded conditions for activity and requiredness. Every form has one always-active required e-mail field; a signup also has a consent field. The server evaluates conditions over validated active values, discards or rejects inactive input according to the definition, and retains the exact definition and decisions in the submission. Labels, the submit label and the thank-you text are localised maps (`localized()`, see [i18n.md](i18n.md)).
 
-| Field                | Content                                                                            |
-| -------------------- | ---------------------------------------------------------------------------------- |
-| `id`                 | UUID                                                                               |
-| `kind`               | `signup`                                                                           |
-| `list`               | the consent scope a signup joins (ADR 010 rule 6), `^[a-z0-9][a-z0-9-]{0,62}$`     |
-| `fields`             | `email` and `consent` fields, each with a `name` matching `^[a-z][a-z0-9_]{0,40}$` |
-| `consentTextVersion` | which consent text the visitor saw; copied onto the submission and the events      |
-| `minFillSeconds`     | minimum seconds between rendering and submitting, 0 to 60, default 3               |
+| Field                | Content                                                                                                                 |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `id`                 | UUID                                                                                                                    |
+| `kind`               | `signup`, `contact`, `petition`, `rsvp`                                                                                 |
+| `list`               | the consent scope a signup joins (ADR 010 rule 6), `^[a-z0-9][a-z0-9-]{0,62}$`                                          |
+| `fields`             | Email, text, textarea, phone, number, amount, date, choice, multiple-choice, checkbox, consent and hidden system fields |
+| `consentTextVersion` | which consent text the visitor saw; copied onto the submission and the events                                           |
+| `minFillSeconds`     | minimum seconds between rendering and submitting, 0 to 60, default 3                                                    |
 
-Planned, ADR 023: a wider typed field vocabulary (text, phone, number, date, choices, amount, hidden), conditional visibility and requiredness, versioned definitions, multiple per-form notifications and connector actions. None of these exists in the code yet.
+Conditions use equals, not-equals and present atoms, optionally grouped by bounded AND/OR. Field conditions refer to earlier fields and cannot derive consent from hidden, inactive or invalid input. Native rendering keeps conditional fields reachable without JavaScript; conditional requiredness is enforced on the server. Connector actions and the complete form/action administration interface remain planned (ADRs 023, 024).
 
 ## Ports
 
@@ -92,3 +92,23 @@ The server evaluates in definition order over validated active values. An inacti
 `form.get` returns a tenant-bound version fingerprint. Public forms post it as `_formVersion`; integrations can pass `formVersion` to `form.submit`. A stale fingerprint refuses the submission before effects. The fingerprint uses the canonical definition and the configured keyed hasher; rotating that key also invalidates open forms. Omitting the version preserves the existing integration contract and validates against the current definition. The snapshot, rather than the current fingerprint, is the durable evidence.
 
 Native forms display all conditional controls and explanatory copy. Conditional controls omit native `required`, leaving authoritative validation to the server so an inactive required field never blocks submission. On a validation error the visitor's values, including multiple choices, are retained. No JavaScript is required; conditional hiding/enhancement and the authoring UI belong to the subsequent management surface. Honeypot, timing, proof of work, persistent IP and recipient caps still guard intake. Snapshot data is exported/imported with the submission and erased when that submission is erased; no extra copy or tenant table is introduced.
+
+## Private mail templates and actions
+
+`form.mail.get` (`mailing:read`) reads a tenant-private versioned document in `form_mail_settings`. It never appears in public `form.get`. `form.mail.update` requires `mailing:send` plus `forms:write`; a document with enabled forms also requires `content:publish`. It performs an optimistic version check and validates template references, field references and typed predicates against the tenant's forms. The table and its version travel with tenant export/import; the installation-local `form_mail_budget` does not.
+
+Templates contain localised plain-text subject and body maps. Effective values resolve per locale and per property: a local override, then the selected tenant template, then platform catalog copy. `form.mail.test` (`mailing:read`) previews the same validated values and predicates without sending. Each value names its source (`local`, `tenant`, `platform`). `{{field:stable-id}}` substitutes an active validated field; missing/inactive values contribute nothing. Substituted subject values cannot introduce newlines; output length stays bounded. HTML is generated by escaping the resulting plain text. A confirmation keeps its mandatory platform link, fallback URL and ignore instructions. It cannot replace the consent owner or subscribe anyone itself.
+
+A configuration supports up to eight independently conditional actions, each with a stable id, enable switch and template reference. A notification has one to eight distinct fixed approved recipients; each receives a separate message. A receipt has no configured recipient: its only destination is the form's validated active e-mail field. A signup that requires double opt-in uses the confirmation as its visitor response and does not add a receipt beside it. There is at most one receipt action per form. There is no free To, CC, BCC or Reply-To mapping from visitor input; the sender is the existing installation-configured sender.
+
+After spam checks and the existing 24-hour per-form/address cooldown, acceptance pins each matching action's version, event id and recipient into the submission evaluation. Effective copy and routing are immutable `form.mail.planned` outbox events. The version covers the form version, action definition and referenced template, rather than interpolated visitor data. There is one stored event per accepted submission/action-version/recipient, and dispatch accepts only the event id pinned on that submission. A copied event with another id cannot obtain a new intent. Template edits plan no historical events and cannot change an accepted event's message. Configured confirmation copy and its version are pinned separately in the evaluation and the existing `newsletter.subscribed` event.
+
+Acceptance reserves the action count against `mail.monthly_max` in a persistent atomic UTC calendar-month counter and enforces `mailing.enabled`. Retries consume no extra reservation; erasure does not refund one. A separate persistent per-recipient bucket caps form-action mail at twenty per hour in one tenant. The original IP limits, ALTCHA, timing token, honeypot, recipient cooldown and supporter admission limit remain in place. Quota failure rolls back the submission and its planned effects and is a visible real failure, rather than a false thank-you.
+
+## Delivery status and controlled replay
+
+The `forms.mail` subscriber and matching `MailSource` run through the existing [mail intent and reconciliation protocol](mail.md). They recheck tenant suspension, `mailing.enabled`, the saved submission/event binding, current form/action activation and current fixed recipient approval. A receipt still has only its validated designated address. Marketing consent is separate: the double opt-in source for new versioned submissions also checks erasure, prior confirmation and withdrawals in its consent scope before dispatch/reconciliation. A transactional receipt or internal notification does not grant or require marketing subscription consent.
+
+`form.delivery.get` (`mailing:read`) returns pinned action versions, attempts, scrubbed errors and pending, in-flight, unknown, sent or abandoned state. `form.mail.replay` (`mailing:send`) schedules reconciliation of an existing pinned event. It cannot change its version, copy or recipient, reset an unknown attempt, resend a sent intent or revive an abandoned one. A disabled action sends nothing; resuming its configuration does not scan historical submissions. A deliberate replay after resuming still passes the source checks. The later admin interface consumes these registry functions; this API does not yet supply a complete form editor.
+
+Form-action events carry the submission address so the existing erasure chain finds their mail intents and reconcile jobs before scrubbing outbox copy. The submission evaluation disappears with the submission. A missing submission blocks even an old in-memory event from dispatch. Tenant A cannot load tenant B's settings, submission, action or intent. Exports preserve pinned history but do not replay installation-local outbox work on import.

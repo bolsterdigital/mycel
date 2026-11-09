@@ -9,6 +9,9 @@ import {
   Invoker,
   appDelivery,
   buildRegistry,
+  FORM_MAIL_SUBSCRIBER,
+  formMailSource,
+  formMailSubscriber,
   CONFIRMATION_SUBSCRIBER,
   confirmationMailSource,
   confirmationMailSubscriber,
@@ -297,11 +300,20 @@ export function createRuntime(
     uow,
     from: parseAddress(config.MAIL_FROM),
     platform,
+    access: (id: string) => identity.tenantAccess(id),
     reconcileLagMs: config.MAIL_RECONCILE_LAG_MINUTES * 60 * 1000,
   };
-  const subscribers = [supporterIngestSubscriber(uow), confirmationMailSubscriber(confirmation)];
+  const formMail = { ...confirmation, access: (id: string) => identity.tenantAccess(id) };
+  const subscribers = [
+    supporterIngestSubscriber(uow),
+    confirmationMailSubscriber(confirmation),
+    formMailSubscriber(formMail),
+  ];
   // What `mail.reconcile` rebuilds a message with, per mail subscriber above.
-  const mailSources = { [CONFIRMATION_SUBSCRIBER]: confirmationMailSource(confirmation) };
+  const mailSources = {
+    [CONFIRMATION_SUBSCRIBER]: confirmationMailSource(confirmation),
+    [FORM_MAIL_SUBSCRIBER]: formMailSource(formMail),
+  };
   const stops: (() => Promise<void>)[] = [];
   // On the authentication login: each platform function enters mycel_platform itself (0010).
   // Each mutation writes its audit row with the token's fingerprint, never the token (#17b).
