@@ -25,7 +25,7 @@ const worst = (values) =>
 export function sourceContract({ corpus, seed, matrixSource, workflow, lock }) {
   const manifest = JSON.parse(corpus);
   if (
-    !['43a-v3', '43a-v4', '43a-v5'].includes(manifest.fixtureVersion) ||
+    !['43a-v3', '43a-v4', '43a-v5', '43a-v6'].includes(manifest.fixtureVersion) ||
     manifest.schemaVersion !== 1
   )
     throw new Error('unsupported-corpus');
@@ -52,7 +52,7 @@ export function sourceContract({ corpus, seed, matrixSource, workflow, lock }) {
 export function expectedShards(contract, event, selection) {
   if (
     contract.schemaVersion !== 1 ||
-    !['43a-v3', '43a-v4', '43a-v5'].includes(contract.fixtureVersion) ||
+    !['43a-v3', '43a-v4', '43a-v5', '43a-v6'].includes(contract.fixtureVersion) ||
     !hash(contract.fixtureHash)
   )
     throw new Error('invalid-contract');

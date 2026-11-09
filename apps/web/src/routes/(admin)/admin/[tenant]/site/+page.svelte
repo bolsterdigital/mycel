@@ -179,6 +179,17 @@
         value={value('timeZone', data.general.value.timeZone)}
         options={data.zones}
       />
+      <Select
+        id="site-person-pages"
+        name="personPages"
+        label={t('admin.people.site')}
+        locale={data.locale}
+        value={value('personPages', data.general.value.personPages ?? 'auto')}
+        options={[
+          { value: 'auto', label: t('admin.people.site.auto') },
+          { value: 'off', label: t('admin.people.site.off') },
+        ]}
+      />
     </SettingsSection>
   {:else if data.section === 'assist' && data.assist}
     {@const assist = data.assist}

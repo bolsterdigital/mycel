@@ -20,6 +20,8 @@
 // carries it as `editLocale`; a save reads only that locale and keeps every other one as the base
 // revision has it (`formDocument`). Switching locale saves first and remembers the choice; a
 // locale the document lacks shows "start the translation", empty or as a copy of another locale.
+import { relationshipChoices } from '#lib/server/people/relationships.js';
+import { addAuthor } from '#lib/server/people/add-author.js';
 import { blockNaming } from '#lib/server/content/block-names.js';
 import { blockMovePlace } from '#lib/admin/block-move/place.js';
 import { toArticleEditor } from '#lib/editor/article-document.js';
@@ -43,11 +45,9 @@ import {
   type Revision,
   type FormDefinition,
   type Principal,
-  type Section,
   type TenantInfo,
   MAX_PAGE_SIZE,
   isUuid,
-  pickAny,
   translationState,
 } from '@mycel/core';
 import { posted, type Posted } from '#lib/editor/block-form.js';
@@ -125,55 +125,6 @@ import { refuse, refusalOf } from '#lib/server/http/refuse.js';
 async function latest(principal: Principal, itemId: string) {
   if (!isUuid(itemId)) refuse(404);
   return loaded(runtime().invoker.run(useCases.getItem, principal, { itemId }));
-}
-
-/** Resolve picker choices under the operator's tenant, including a failed post's selections. */
-async function relationshipChoices(
-  principal: Principal,
-  defaultLocale: string,
-  article: boolean,
-  authorIds: string[],
-  sectionId: string
-) {
-  const { invoker } = runtime();
-  const author = (a: { id: string; name: string }) => ({ id: a.id, name: a.name });
-  const section = (s: Section) => ({
-    id: s.id,
-    title: pickAny(s.title, defaultLocale) ?? s.slug,
-  });
-  const [authors, sections] = article
-    ? await Promise.all([
-        invoker.run(useCases.listPeople, principal, { limit: MAX_PAGE_SIZE }).then(({ people }) =>
-          withAssigned(
-            authorIds,
-            people.map(author),
-            async (authorId) => {
-              const a = isUuid(authorId)
-                ? await orNull(invoker.run(useCases.getPerson, principal, { personId: authorId }))
-                : null;
-              return a && author(a);
-            },
-            (id) => ({ id, name: id })
-          )
-        ),
-        invoker
-          .run(useCases.listSections, principal, { limit: MAX_PAGE_SIZE })
-          .then(({ sections }) =>
-            withAssigned(
-              sectionId ? [sectionId] : [],
-              sections.map(section),
-              async (sectionId) => {
-                const s = isUuid(sectionId)
-                  ? await orNull(invoker.run(useCases.getSection, principal, { sectionId }))
-                  : null;
-                return s && section(s);
-              },
-              (id) => ({ id, title: id })
-            )
-          ),
-      ])
-    : [[], []];
-  return { authors, sections };
 }
 
 /** A post without block fields: the document as stored, to tell a change from none. */
@@ -866,6 +817,7 @@ async function blockStep(
 }
 
 export const actions: Actions = {
+  addAuthor: (event) => addAuthor(event, { latest, show: refused }),
   pattern: async (event) => {
     const saved = await commit(event, { pattern: true, always: true });
     if ('failure' in saved) return saved.failure;

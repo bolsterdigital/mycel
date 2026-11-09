@@ -768,7 +768,7 @@ test.describe('admin-shell', () => {
     ).toHaveAttribute('href', '/admin/probe/meldingen');
     const nav = page.getByRole('navigation', { name: 'Site navigation' });
     for (const [group, links] of [
-      ['Content', ['Pages', 'Articles']],
+      ['Content', ['Pages', 'Articles', 'People']],
       ['Library', ['Media']],
     ] as const)
       await expect(nav.getByRole('list', { name: group }).getByRole('link')).toHaveText([...links]);

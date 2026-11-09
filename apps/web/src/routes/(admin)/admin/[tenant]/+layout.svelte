@@ -85,6 +85,13 @@
           current: within('content') && contentType === type,
         }))
       : [];
+    if (has('content:read'))
+      content.push({
+        href: `${base}/people`,
+        label: t('admin.people.title'),
+        icon: 'users',
+        current: within('people'),
+      });
     const library: Item[] = has('media:read')
       ? [
           {

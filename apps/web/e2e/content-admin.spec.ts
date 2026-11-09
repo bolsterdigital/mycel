@@ -9,6 +9,7 @@ import { test } from './lib/evidence/page';
 import { expectNoAxeViolations } from './lib/axe';
 import { bfcacheBack, bfcacheBrowser } from './lib/bfcache';
 import { blockPage, card, editorReady, more, newPage, reloadsEditor } from './lib/editor';
+import { exercisePeople } from './lib/people/manage';
 import { exerciseBlockNames } from './lib/blocks/names';
 import { exerciseBlockMove } from './lib/block-move';
 import { tenantId, withInvoker } from './lib/invoker';
@@ -2153,3 +2154,7 @@ for (const type of ['page', 'article'] as const)
   test(`editorial block names survive a ${type} save`, async ({ page, request }) => {
     await exerciseBlockNames(page, request, type);
   });
+
+test('people management preserves edits and adds an author inline', async ({ page, request }) => {
+  await exercisePeople(page, request);
+});

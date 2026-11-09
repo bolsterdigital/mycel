@@ -348,8 +348,8 @@ test('consumer counts the versioned full matrix and retains all red observation 
   bad.batches[1].state = 'pass';
   bad.batches[1].reasons = [];
   const result = consumeRun(run, load);
-  assert.equal(result.expected, 56);
-  assert.equal(result.samples, 285);
+  assert.equal(result.expected, 72);
+  assert.equal(result.samples, 365);
   assert.equal(result.state, 'fail');
   assert.equal(result.conclusion, 'success');
   assert.equal(result.cells[0].batches.length, 2);
@@ -901,7 +901,7 @@ test('gate CLI retains full reports and fails for absent downloads instead of pa
 });
 
 test('information expands both profiles/locales while historical v3 keeps its own coverage', () => {
-  assert.equal(contract.fixtureVersion, '43a-v5');
+  assert.equal(contract.fixtureVersion, '43a-v6');
   for (const locale of ['nl', 'en'])
     for (const profile of ['mobile', 'desktop']) {
       const shard = expectedShards(contract, 'local', {
@@ -914,6 +914,9 @@ test('information expands both profiles/locales while historical v3 keeps its ow
     }
   const old = JSON.parse(source('apps/web/e2e/quality-corpus.json'));
   old.fixtureVersion = '43a-v3';
+  old.admin.routes = old.admin.routes.filter((entry) =>
+    ['populated-list', 'native-editor', 'enhanced-writer'].includes(entry.name)
+  );
   delete old.public.information;
   delete old.public['demo-page'];
   delete old.public['demo-article'];
@@ -925,7 +928,7 @@ test('information expands both profiles/locales while historical v3 keeps its ow
     lock: source('package-lock.json'),
   });
   assert.equal(expectedShards(historical, 'workflow_dispatch').flatMap((s) => s.ids).length, 36);
-  assert.equal(expectedShards(contract, 'workflow_dispatch').flatMap((s) => s.ids).length, 56);
+  assert.equal(expectedShards(contract, 'workflow_dispatch').flatMap((s) => s.ids).length, 72);
   assert.notEqual(historical.fixtureHash, contract.fixtureHash);
   const run = retained('pull_request');
   for (const a of run.artifacts)

@@ -25,6 +25,7 @@
      locale the item lacks shows "start the translation" in place of the content.
      After an expired session, the `recover` action brings back what a save carried. -->
 <script lang="ts">
+  import AuthorPicker from '#lib/admin/people/AuthorPicker.svelte';
   import { onMount } from 'svelte';
   import { earlyInput } from '#lib/editor/early-input.js';
   import { editorFieldIssues, typedOver } from '#lib/editor/block-form.js';
@@ -1400,19 +1401,15 @@
         </details>
       {/if}
       {#if article}
-        <div id="authors">
-          <Choices
-            id="author"
-            name="authorIds"
-            type="checkbox"
-            searchable
-            legend={t('admin.content.field.authors')}
-            locale={data.locale}
-            hint={authors.length === 0 ? t('admin.content.edit.noAuthors') : undefined}
-            selected={list('authorIds')}
-            options={authors.map((a) => ({ value: a.id, label: a.name }))}
-          />
-        </div>
+        <AuthorPicker
+          locale={data.locale}
+          {authors}
+          selected={list('authorIds')}
+          write={data.canWrite}
+          name={v('newAuthorName')}
+          slug={v('newAuthorSlug')}
+          action={action('addAuthor')}
+        />
         <Select
           id="sectionId"
           name="sectionId"
