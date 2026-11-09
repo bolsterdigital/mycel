@@ -88,6 +88,82 @@ describe('block operations', () => {
   const revisionCount = async (itemId: string) =>
     (await invoker.run(useCases.listRevisions, admin, { itemId })).revisions.length;
 
+  it('patches only named locales and keeps names through movement and splitting', async () => {
+    const { item, revision } = await create([
+      {
+        ...richText('a', { nl: doc(para('One'), para('Two')) }),
+        name: { nl: 'Intro', en: 'Opening' },
+      },
+      headingBlock('card'),
+    ]);
+    const updated = await invoker.run(useCases.setBlockProps, admin, {
+      itemId: item.id,
+      baseRevisionId: revision.id,
+      blockId: 'a',
+      props: revision.document.blocks[0]!.props,
+      name: { nl: '  Start  ' },
+    });
+    expect(updated.revision.document.blocks[0]!.name).toEqual({ nl: 'Start', en: 'Opening' });
+    const split = await invoker.run(useCases.splitInsertBlock, admin, {
+      itemId: item.id,
+      baseRevisionId: updated.revision.id,
+      blockId: 'a',
+      at: { nl: 1 },
+      block: { ...headingBlock('insert'), name: { nl: 'Divider' } },
+    });
+    expect(split.revision.document.blocks.map((b) => b.name)).toEqual([
+      { nl: 'Start', en: 'Opening' },
+      { nl: 'Divider' },
+      undefined,
+      undefined,
+    ]);
+    const moved = await invoker.run(useCases.moveBlock, admin, {
+      itemId: item.id,
+      baseRevisionId: split.revision.id,
+      blockId: 'insert',
+      place: { at: 'end' },
+    });
+    expect(moved.revision.document.blocks[0]!.name).toEqual({ nl: 'Start', en: 'Opening' });
+    expect(moved.revision.document.blocks.at(-1)!.name).toEqual({ nl: 'Divider' });
+    const cleared = await invoker.run(useCases.setBlockProps, admin, {
+      itemId: item.id,
+      baseRevisionId: moved.revision.id,
+      blockId: 'a',
+      props: moved.revision.document.blocks[0]!.props,
+      name: { nl: '' },
+    });
+    expect(cleared.revision.document.blocks[0]!.name).toEqual({ en: 'Opening' });
+  });
+
+  it('unites names when normalizing, refusing conflicting names without a write', async () => {
+    const blocks = sample().map((b, i) => ({
+      ...b,
+      ...(i === 0 ? { name: { nl: 'First' } } : i === 2 ? { name: { en: 'Second' } } : {}),
+    }));
+    const { item, revision } = await create(blocks);
+    const merged = await invoker.run(useCases.removeBlock, admin, {
+      itemId: item.id,
+      baseRevisionId: revision.id,
+      blockId: 'card',
+    });
+    expect(merged.revision.document.blocks[0]!.name).toEqual({ nl: 'First', en: 'Second' });
+    const conflict = await create(
+      blocks.map((b) => (b.id === 'b' ? { ...b, name: { nl: 'Other' } } : b)),
+      'conflict'
+    );
+    await expect(
+      invoker.run(useCases.removeBlock, admin, {
+        itemId: conflict.item.id,
+        baseRevisionId: conflict.revision.id,
+        blockId: 'card',
+      })
+    ).rejects.toMatchObject({
+      code: 'invalid_input',
+      issues: [{ message: 'content.blocks.merge-ambiguous' }],
+    });
+    expect(await revisionCount(conflict.item.id)).toBe(1);
+  });
+
   it('inserts a new block next to an id, keeping every other id', async () => {
     const { item, revision } = await create();
     const out = await invoker.run(useCases.insertBlock, admin, {

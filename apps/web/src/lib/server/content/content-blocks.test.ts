@@ -1,3 +1,4 @@
+import { blockNaming } from './block-names.js';
 // The block summaries and the mapping of core's refusals onto block form fields (TODO #11 B).
 import { describe, expect, it } from 'vitest';
 import { BLOCK_DEFINITIONS, Block, FormDefinition, UseCaseError } from '@mycel/core';
@@ -291,5 +292,17 @@ describe('fieldIssues', () => {
       { name: '', copy: 'admin.block.issue.heroImage' },
       { name: '', copy: 'admin.block.issue.adjacentText' },
     ]);
+  });
+});
+
+describe('editorial name candidates', () => {
+  it('falls back to Dutch quote text before its shared author and never a third language', () => {
+    const block = example('quote');
+    if (block.type !== 'quote') throw new Error('quote fixture');
+    block.props.text = { nl: 'Nederlandse tekst', en: '' };
+    block.props.attribution.name = 'Author';
+    expect(blockNaming(block, 'en', 'nl', []).name).toBe('Nederlandse tekst');
+    block.props.text = { de: 'Deutsch' };
+    expect(blockNaming(block, 'en', 'nl', []).name).toBe('Author');
   });
 });

@@ -9,6 +9,7 @@ import { test } from './lib/evidence/page';
 import { expectNoAxeViolations } from './lib/axe';
 import { bfcacheBack, bfcacheBrowser } from './lib/bfcache';
 import { blockPage, card, editorReady, more, newPage, reloadsEditor } from './lib/editor';
+import { exerciseBlockNames } from './lib/blocks/names';
 import { exerciseBlockMove } from './lib/block-move';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
@@ -2147,3 +2148,8 @@ for (const locale of ['nl-NL', 'en-GB']) {
     }
   });
 }
+
+for (const type of ['page', 'article'] as const)
+  test(`editorial block names survive a ${type} save`, async ({ page, request }) => {
+    await exerciseBlockNames(page, request, type);
+  });

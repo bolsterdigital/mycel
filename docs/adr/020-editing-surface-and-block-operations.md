@@ -11,6 +11,8 @@
 - **Rule 6 refined**: 2026-11-06 by [ADR 026](026-three-way-merge-on-save.md). Whole-document saves merge on an older base; the block operations keep requiring the latest revision until they are rebased under ADR 026 rule 7.
 - **Rule 6 refined**: 2026-11-07 by [ADR 027](027-block-operations-rebase-and-entity-base.md). A block operation on an older base is applied to the newest revision when its target and the place it uses did not change; otherwise the conflict names what did.
 
+- **Rules 1 and 4 refined**: 2026-11-09. Blocks may carry an optional localized `name` in their envelope. It is revisioned editorial metadata, never block identity or public content. Empty locale values remove that locale's name. Editors preserve other locales and use a shared deterministic fallback for unnamed blocks. Moves, duplication, splitting, normalization and editor conversions preserve names according to the revisioned operation contract; normalization refuses conflicting names rather than silently dropping them. Authorized editorial reads and tenant portability retain names; public representations omit them.
+
 ## Context
 
 An article needs a continuous writing surface, while a campaign page needs structured block forms. Neither interface should become the storage format. ADR 012 rule 6 excluded headings from rich text and included blockquotes; the editorial decision is now to keep section headings in the prose and give quotations their own structured cards. Before revisioned content is built, block identity and mutation semantics must also be fixed so that editors and agents never depend on shifting array positions.

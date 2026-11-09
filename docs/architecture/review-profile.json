@@ -158,6 +158,7 @@
         "apps/web/src/lib/server/admin/media-bulk*",
         "apps/web/src/lib/server/admin/list-memory*",
         "apps/web/src/lib/server/content/content-blocks*",
+        "apps/web/src/lib/server/content/block-names*",
         "apps/web/src/lib/server/content/edit-form*",
         "apps/web/src/lib/server/content/presence*",
         "apps/web/src/lib/server/content/edit-copy*",

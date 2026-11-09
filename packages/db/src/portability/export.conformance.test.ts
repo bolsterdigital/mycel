@@ -170,12 +170,25 @@ describe.skipIf(skip)('tenant export and import', () => {
     const formId = uuidv7();
     await uow.run(admin, (ctx) => ctx.forms.insert(conditionalProbeForm(formId)));
     const published = await publishProbePage(invoker, admin, formId);
+    const named = await invoker.run(useCases.getItem, admin, { itemId: published.id });
+    await invoker.run(useCases.updateItem, admin, {
+      itemId: published.id,
+      baseRevisionId: named.revision.id,
+      document: {
+        ...named.revision.document,
+        blocks: named.revision.document.blocks.map((b) => ({
+          ...b,
+          name: { nl: 'INTERNAL-EXPORT-NAME', en: 'Internal export name' },
+        })),
+      },
+    });
     const bulk = await invoker.run(useCases.createBulk, admin, {
       locale: 'nl',
       items: [
         {
           itemId: published.id,
-          baseRevisionId: published.latestRevisionId,
+          baseRevisionId: (await invoker.run(useCases.getItem, admin, { itemId: published.id }))
+            .revision.id,
           operation: { kind: 'unpublish' },
         },
       ],
@@ -685,6 +698,12 @@ describe.skipIf(skip)('tenant export and import', () => {
           mycelVersion: 'test',
         });
         expect(again.tenant).toEqual(manifestA.tenant);
+        const revisions = await readFile(
+          join(scratch.dir, 'a-again', 'tables', 'content_revisions.ndjson'),
+          'utf8'
+        );
+        expect(revisions).toContain('INTERNAL-EXPORT-NAME');
+        expect(revisions).toContain('Internal export name');
         for (const table of EXPORT_ORDER)
           if (table !== 'tenant_hostnames' && table !== 'audit_log')
             expect(again.tables[table]!.sha256, table).toBe(manifestA.tables[table]!.sha256);

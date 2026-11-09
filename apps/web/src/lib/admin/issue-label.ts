@@ -3,6 +3,8 @@
 // field it links to. Pure and client-safe, unlike lib/server; rejected: mapping in the server
 // action, which would put copy keys for the same field in two places.
 
+import type { UiKey } from '../../i18n/index.js';
+
 /** Item fields by the head of a core path; `seo` and `featured` read one segment further. */
 const FIELD_LABELS: Record<string, string> = {
   title: 'admin.content.field.title',
@@ -43,3 +45,16 @@ export function issueLabel(
   const key = FIELD_LABELS[nested ? parts.slice(0, 2).join('.') : (parts[0] ?? '')];
   return key ? { key, locale, block: null } : null;
 }
+
+/** The document fields a refused save can name (`documentFieldIssues`), with their label. */
+export const DOC_FIELDS: Record<string, UiKey> = {
+  canonical: 'admin.content.field.canonical',
+  tags: 'admin.content.field.tags',
+  level: 'admin.content.field.level',
+  teaser: 'admin.content.field.teaser',
+  teaserBlocks: 'admin.content.field.teaserBlocks',
+  locales: 'admin.content.new.locales',
+  correctionDate: 'admin.content.edit.correctionDate',
+  slug: 'admin.content.slug',
+  heroAlt: 'admin.content.field.heroAlt',
+};

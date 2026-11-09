@@ -112,6 +112,7 @@ describe('translation boundary', () => {
             id: 'body',
             type: 'rich-text',
             version: 1,
+            name: { nl: 'Interne naam', en: 'Keep this name' },
             props: { content: { nl: text('bron'), en: text('old') } },
           },
         ],
@@ -130,6 +131,10 @@ describe('translation boundary', () => {
       baseRevisionId: prepared.revision.id,
     });
     const accepted = await invoker.run(useCases.getItem, operator, { itemId: created.item.id });
+    expect(accepted.revision.document.blocks[0]!.name).toEqual({
+      nl: 'Interne naam',
+      en: 'Keep this name',
+    });
     expect(accepted.revision.provenance).toMatchObject({
       suggestionId: suggestion.suggestionId,
       task: 'translate',

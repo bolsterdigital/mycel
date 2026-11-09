@@ -651,9 +651,15 @@ describe('the demo documents render whole', () => {
         expect(markupProblems(html)).toEqual([]);
         expect(outlineProblems(headingLevels(html))).toEqual([]);
         expect(markdown).not.toMatch(/<[a-z][a-z0-9-]*[\s>/]/i);
-        const marked = blocks.map((b) => Block.parse(sentinel(b)));
+        const marked = blocks.map((b) =>
+          Block.parse({
+            ...(sentinel(b) as object),
+            name: { nl: 'EDITORIAL-NAME-SENTINEL', en: 'INTERNAL' },
+          })
+        );
         const leak = await representations(marked, 'nl');
         expect(leak.html + leak.markdown).not.toContain(SENTINEL);
+        expect(JSON.stringify(leak)).not.toContain('EDITORIAL-NAME-SENTINEL');
       });
 
   // The public layout's head, as Svelte renders it, around a document body.

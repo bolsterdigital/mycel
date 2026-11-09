@@ -25,6 +25,8 @@ import { MAX_PAGE_SIZE } from '../util/page-size.js';
 import {
   BLOCK_TYPES,
   BlockId,
+  BlockNamePatch,
+  cleanBlockName,
   BlockInput,
   BlockOperationError,
   REFERENCE_TYPES,
@@ -324,29 +326,40 @@ export const setBlockProps = defineUseCase({
   name: 'content.block.update',
   kind: 'command',
   description:
-    'Replace the props of one block as a new revision; its id and type stay. Send the complete props: a locale left out of a localised field is removed from it.' +
+    'Replace the props of one block as a new revision; its id and type stay. Send the complete props: a locale left out of a localised field is removed from it. Optional name patches only the named locales; empty strings remove those names, and omission preserves all names.' +
     REBASE,
   requires: 'content:write',
   // The block's own schema checks the props when the document is validated.
-  input: z.object({ ...Target, blockId: BlockId, props: z.record(z.string(), z.unknown()) }),
+  input: z.object({
+    ...Target,
+    blockId: BlockId,
+    props: z.record(z.string(), z.unknown()),
+    name: BlockNamePatch.optional(),
+  }),
   output: OperationResult,
   examples: [
     {
       input: {
         ...exampleTarget,
         blockId: 'kop',
+        name: { nl: 'Opening', en: '' },
         props: { text: { nl: 'Nieuwe kop', en: 'New heading' } },
       },
     },
   ],
-  handler: (ctx, { blockId, props, ...target }) =>
+  handler: (ctx, { blockId, props, name, ...target }) =>
     mutate(
       ctx,
       target,
       (blocks) => {
         const i = indexOf(blocks, blockId, 'blockId');
         const out = [...blocks];
-        out[i] = { ...blocks[i]!, props } as Block;
+        out[i] = {
+          ...blocks[i]!,
+          props,
+          name:
+            name === undefined ? blocks[i]!.name : cleanBlockName({ ...blocks[i]!.name, ...name }),
+        } as Block;
         return { blocks: out, created: [], retired: [], merged: [] };
       },
       () => ({ blocks: [blockId], places: [] })
@@ -397,7 +410,8 @@ export const splitInsertBlock = defineUseCase({
           second[locale] = { type: 'doc', content: doc.content.slice(cut) };
         }
         const added = newBlock(ctx, blocks, block);
-        const rest: Block = { ...text, id: ctx.ids.next(), props: { content: second } };
+        const { name: _firstPartName, ...unnamed } = text;
+        const rest: Block = { ...unnamed, id: ctx.ids.next(), props: { content: second } };
         const out = [...blocks];
         out.splice(i, 1, { ...text, props: { content: first } }, added, rest);
         return {
