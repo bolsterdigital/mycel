@@ -14,7 +14,7 @@
   "apps/web/e2e/public-site.spec.ts": 17,
   "apps/web/e2e/signup.spec.ts": 4,
   "apps/web/e2e/tsconfig.json": 1,
-  "apps/web/e2e/ui-gate.spec.ts": 21,
+  "apps/web/e2e/ui-gate.spec.ts": 20,
   "apps/web/playwright.config.ts": 4,
   "apps/web/src/app.d.ts": 1,
   "apps/web/src/hooks.server.ts": 6,
