@@ -1,30 +1,8 @@
-<!-- The edit screen of one item (TODO #66 PR 2, brief edit-screen § 4): one form for the whole
-     document, under an ItemBar with the state in words, Preview and Save. The main column has four
-     sections a script may show as tabs (#66 PR 6): Content (the title large and first, the lead,
-     the hero image and the blocks in reading order, as the page shows them), Featured (how the item
-     appears elsewhere: image, title, description; #86), Search and sharing, and Settings (access
-     only on an item that has it, corrections, languages), the last two folded. Under every empty
-     field that inherits, `Inherited` names what applies instead and where it comes from, from
-     core's chain (`effective`), never derived here. Each block is a BlockCard in the same form (#66
-     PR 3, MY-110 A): at rest it shows what the page will (an image as its picture with caption and
-     credit, `lib/admin/block-presentation.ts` says per type), "Edit" opens its fields with the
-     rarer ones folded under "Display" and "Source and credits", and "More actions" holds move,
-     duplicate and remove (a confirmation in place); a "+" above each card inserts an empty block
-     there (stored with the next save); every such button saves what was typed first. The screen's
-     script (`/_admin/edit-screen.js`, #66 PR 6) adds the save state in the bar, Ctrl/Cmd+S, the
-     leave warning, Escape and the focus after a block action; Enter in a text field saves through a
-     hidden default button. The side column has the status card of each locale (the state in words,
-     the main action by state, scheduling folded, view on the site) and "This item" (address,
-     authors, section and tags as WordPress and Ghost have them, revisions). A failed save comes
-     back with what was typed and every fold open; a conflict names who saved in between and asks
-     only about what both changed (ADR 026). The restricted note comes before every publication button and
-     cannot be closed (ADR 018 rule 6).
-     One locale at a time (#66 PR 4): every field shows the content locale only, without a locale
-     in its label; the bar's LocaleSwitch saves and shows another locale with where each stands;
-     the side column has that locale's status card and the other locales as one line each. A
-     locale the item lacks shows "start the translation" in place of the content.
-     After an expired session, the `recover` action brings back what a save carried. -->
+<!-- One lossless form serves native block editing and the enhanced article writing sheet.
+     Fragments preserve values; publication and locale/conflict checks remain server-owned.
+     Rejected: a second SPA form with independent save rules. -->
 <script lang="ts">
+  import ArticleBlocks from '#lib/editor/article/ArticleBlocks.svelte';
   import AuthorPicker from '#lib/admin/people/AuthorPicker.svelte';
   import { onMount } from 'svelte';
   import { earlyInput } from '#lib/editor/early-input.js';
@@ -99,9 +77,11 @@
     }
   });
   const early = earlyInput('item-edit');
-  const earlyProse = Object.keys(early).some((name) =>
-    data.blocks.some((b) => b.type === 'rich-text' && name.startsWith(`b.${b.id}.`))
-  );
+  const earlyProse =
+    early.$nativeArticle === 'open' ||
+    Object.keys(early).some((name) =>
+      data.blocks.some((b) => b.type === 'rich-text' && name.startsWith(`b.${b.id}.`))
+    );
   const posted = $derived(form && 'values' in form ? form.values : null);
   /** Input kept through a login (`recover`, session-restore.js), or a row rearranged (`arrange`). */
   const recovered = $derived(!!(form && 'recovered' in form && form.recovered));
@@ -444,6 +424,20 @@
   />
 {/snippet}
 
+{#snippet articlePreview(native = false)}
+  <ArticleBlocks
+    blocks={data.blocks}
+    document={data.articleEditor}
+    card={blockCard}
+    {inserter}
+    label={(type) => t(`admin.block.type.${type}`)}
+    inserting={!pending}
+    {native}
+  />
+{/snippet}
+
+{#snippet nativeProse()}{@render articlePreview(true)}{/snippet}
+
 {#snippet blockRest(b: (typeof data.blocks)[number])}
   {#snippet picture(img: NonNullable<typeof b.image>, field: string)}
     {@const prefix = `b.${b.id}.p.${b.type === 'hero' ? 'image.' : ''}`}
@@ -502,7 +496,7 @@
   {@const refused = issues.some((x) => x.name.startsWith(prefix))}
   {@const shape = BLOCK_PRESENTATION[b.type]}
   <BlockCard
-    id="block-{b.id}"
+    id={article && b.type === 'rich-text' ? `native-block-${b.id}` : `block-${b.id}`}
     class="block"
     number={i + 1}
     type={t(`admin.block.type.${b.type}` as const)}
@@ -728,7 +722,10 @@
         article
         fallback={earlyProse}
         value={v('articleEditor')}
+        preview={articlePreview}
+        native={nativeProse}
       />
+      {#if pending && pending.place !== 'end'}{@render pendingCard(pending)}{/if}
     {/if}
     {#if data.blocks.length === 0 && !pending}
       <EmptyState title={t('admin.block.empty')} level={3} />
@@ -752,32 +749,35 @@
         entries={outline}
       />
     {/if}
-    <!-- Above the blocks, outside the writer's document; the script reveals it, as without
-         JavaScript nothing collapses. Only with a card to act on: an article's prose has none. -->
+    <!-- Optional card commands keep their initial geometry; scripts enable them. -->
     {#if data.blocks.some((b) => !(article && data.canWrite && b.type === 'rich-text'))}
-      <div class="ui-block-card-bar" data-block-bar hidden>
-        <button type="button" data-block-all="collapse"
+      <div class="ui-block-card-bar" data-block-bar>
+        <button type="button" data-block-all="collapse" disabled
           ><Icon name="chevron-up" />{t('admin.block.card.collapseAll')}</button
         >
-        <button type="button" data-block-all="expand"
+        <button type="button" data-block-all="expand" disabled
           ><Icon name="chevron-down" />{t('admin.block.card.expandAll')}</button
         >
       </div>
     {/if}
-    {#each data.blocks as b, i (b.id)}
-      {#if data.canWrite && !pending}{@render inserter(b, i)}{/if}
-      {#if pending?.place === 'before' && pending.anchor === b.id}{@render pendingCard(
-          pending
-        )}{/if}
-      <fieldset
-        data-native-prose={article && b.type === 'rich-text' ? '' : undefined}
-        class="native-block"
-      >
-        <legend class="ui-visually-hidden">{t(`admin.block.type.${b.type}` as const)}</legend>
-        {@render blockCard(b, i)}
-      </fieldset>
-      {#if pending?.place === 'after' && pending.anchor === b.id}{@render pendingCard(pending)}{/if}
-    {/each}
+    {#if !(article && data.canWrite)}
+      {#each data.blocks as b, i (b.id)}
+        {#if data.canWrite && !pending}{@render inserter(b, i)}{/if}
+        {#if pending?.place === 'before' && pending.anchor === b.id}{@render pendingCard(
+            pending
+          )}{/if}
+        <fieldset
+          data-native-prose={article && b.type === 'rich-text' ? '' : undefined}
+          class="native-block"
+        >
+          <legend class="ui-visually-hidden">{t(`admin.block.type.${b.type}` as const)}</legend>
+          {@render blockCard(b, i)}
+        </fieldset>
+        {#if pending?.place === 'after' && pending.anchor === b.id}{@render pendingCard(
+            pending
+          )}{/if}
+      {/each}
+    {/if}
     {#if pending?.place === 'end'}{@render pendingCard(pending)}{/if}
     {#if data.canWrite && data.upload}
       <BlockDrop {base} locale={data.locale} {work} {article} />
@@ -1429,7 +1429,7 @@
     </section>
     {#if data.canWrite}
       <!-- Every key here is the screen's script; without it the panel stays hidden. -->
-      <details class="ui-fold item-shortcuts" data-shortcuts hidden>
+      <details class="ui-fold item-shortcuts" data-shortcuts>
         <summary>{t('admin.content.keys.title')}</summary>
         <dl>
           <dt><kbd>Ctrl</kbd>+<kbd>S</kbd> / <kbd>⌘</kbd>+<kbd>S</kbd></dt>

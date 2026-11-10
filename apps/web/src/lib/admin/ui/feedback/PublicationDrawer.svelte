@@ -24,8 +24,15 @@
   let opener: HTMLElement | null = null;
   onMount(() => {
     dialog.close();
-    disclosure.open = true;
+
     enhanced = true;
+    const show = (event: MouseEvent) => {
+      event.preventDefault();
+      opener = event.currentTarget as HTMLElement;
+      dialog.showModal();
+    };
+    const summary = disclosure.querySelector('summary')!;
+    summary.addEventListener('click', show);
     const open = (event: MouseEvent) => {
       const trigger =
         event.target instanceof Element ? event.target.closest(`a[href="#${id}"]`) : null;
@@ -51,13 +58,19 @@
     if (refused) dialog.showModal();
     return () => {
       document.removeEventListener('click', open);
+      summary.removeEventListener('click', show);
       dialog.removeEventListener('close', restoreFocus);
       dialog.removeEventListener('click', followIssue);
     };
   });
 </script>
 
-<details bind:this={disclosure} open class="ui-publication-disclosure" class:enhanced>
+<details
+  bind:this={disclosure}
+  open={refused || enhanced}
+  class="ui-publication-disclosure"
+  class:enhanced
+>
   <summary>{title}</summary>
   <dialog
     bind:this={dialog}

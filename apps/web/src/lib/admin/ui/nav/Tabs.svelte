@@ -1,10 +1,7 @@
-<!-- Sections of one screen that a script may show as tabs (brief edit-screen § 6). The server
-     renders every section below the other, each with its heading, so without JavaScript nothing
-     is out of reach. The tablist is in the markup but `hidden`: static/_admin/tabs.js (#66 PR 3),
-     loaded by the screen that wants tabs, unhides it, gives the sections role="tabpanel" and
-     shows one at a time, with the arrow keys of the ARIA tabs pattern and the tab in the hash. Rejected: links to `?tab=` (a page load per tab, and a
-     form split over URLs loses what was typed) and radio buttons with :checked CSS (a form
-     control for navigation, announced as a choice). -->
+<!-- Fragment links select panels without leaving the form or losing input. CSS supplies the
+     initial geometry; tabs.js adds ARIA tabs and keyboard navigation. Rejected: query links
+     (reloads lose input), radio controls for navigation, and showing every panel until JavaScript
+     arrives (the document shrinks under someone already working). -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
@@ -22,18 +19,13 @@
 </script>
 
 <div class="ui-tabs" {id}>
-  <div class="ui-tabs-list" role="tablist" aria-label={label} hidden>
-    {#each tabs as tab, i (tab.id)}
-      <button
-        type="button"
-        role="tab"
-        id="{id}-tab-{tab.id}"
-        aria-controls="{id}-{tab.id}"
-        aria-selected={i === 0 ? 'true' : 'false'}
-        tabindex={i === 0 ? 0 : -1}>{tab.label}</button
+  <nav class="ui-tabs-list" aria-label={label}>
+    {#each tabs as tab (tab.id)}
+      <a href="#{id}-{tab.id}" id="{id}-tab-{tab.id}" data-tab-link aria-controls="{id}-{tab.id}"
+        >{tab.label}</a
       >
     {/each}
-  </div>
+  </nav>
   {#each tabs as tab (tab.id)}
     <section class="ui-tabs-panel" id="{id}-{tab.id}" aria-labelledby="{id}-{tab.id}-title">
       <svelte:element this={`h${level}`} class="ui-tabs-title" id="{id}-{tab.id}-title"

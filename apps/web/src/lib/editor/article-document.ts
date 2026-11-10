@@ -3,6 +3,7 @@
 // locale's prose is editable here. The server resolves every id against the base revision and
 // never trusts props sent by the browser. Rejected: storing the TipTap document as a revision,
 // which would make public rendering and MCP depend on an admin editor.
+import { richTextHtml } from '../blocks/rich-text.js';
 import { Block, ContentDocument, RichTextDoc, isBlankDoc } from '@mycel/core';
 
 export type EditorNode = {
@@ -217,4 +218,18 @@ export function fromArticleEditor(
   if ([...byId.keys()].some((id) => !seen.has(id)))
     throw new EditorInputError('A block is missing');
   return ContentDocument.parse({ ...base, blocks });
+}
+
+/** The same constrained renderer supplies the initial sheet; no independent HTML serializer. */
+export function articleProseHtml(node: EditorNode): string {
+  return richTextHtml(RichTextDoc.parse(fromTiptap({ type: 'doc', content: node.content })), {
+    depth: 0,
+    links: {},
+    base: '',
+    idPrefix: node.attrs.blockId,
+    footnotes: '',
+    footnoteBack: '',
+    inert: true,
+    editing: true,
+  });
 }

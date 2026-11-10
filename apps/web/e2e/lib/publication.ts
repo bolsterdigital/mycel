@@ -4,7 +4,13 @@ import { expect, test, type Page } from '@playwright/test';
 import { isA11y } from './project';
 
 export async function openPublication(page: Page) {
-  if (!isA11y()) return;
+  if (!isA11y()) {
+    const native = page.locator('.ui-publication-disclosure');
+    if ((await native.getAttribute('open')) === null)
+      await native.locator(':scope > summary').click();
+    await expect(page.locator('#publication-panel')).toBeVisible();
+    return;
+  }
   await expect(page.locator('.ui-publication-disclosure')).toHaveClass(/enhanced/);
   if (!(await page.locator('#publication-panel:modal').count()))
     await page.locator('a[href="#publication-panel"]').click();

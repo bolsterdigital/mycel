@@ -30,9 +30,9 @@
 </script>
 
 <div class="ui-block-picker" data-block-picker>
-  <div class="ui-field" data-type-search data-none={t('admin.block.insert.none')} hidden>
+  <div class="ui-field" data-type-search data-none={t('admin.block.insert.none')}>
     <label for="insert-search-{id}">{t('admin.block.insert.search')}</label>
-    <input id="insert-search-{id}" type="search" autocomplete="off" />
+    <input id="insert-search-{id}" type="search" autocomplete="off" disabled />
     <p class="ui-hint" role="status" data-type-count hidden></p>
   </div>
   <p class="ui-block-picker-place" id="insert-place-{id}">{label}</p>

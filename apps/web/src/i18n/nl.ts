@@ -1216,6 +1216,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.block.new.add': 'Toevoegen en opslaan',
   'admin.block.new.discard': 'Annuleren',
   'admin.editor.title': 'Artikel schrijven',
+  'admin.editor.editFields': 'Velden bewerken',
   'admin.editor.native': 'Velden en kaarten zonder JavaScript bewerken',
   'admin.editor.locale': 'Schrijftaal',
   'admin.editor.body': 'Artikeltekst',

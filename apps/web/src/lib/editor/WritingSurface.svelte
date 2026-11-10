@@ -1,7 +1,7 @@
 <!-- A progressive view of the one document form. The native fields remain the no-JavaScript
      path; this surface only adds a JSON field, never an autosave endpoint or a second revision. -->
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, type Snippet } from 'svelte';
   import { articleExtensions, proseExtensions } from './article-extensions.js';
   import { Editor, type JSONContent } from '@tiptap/core';
   import MarkdownIt from 'markdown-it';
@@ -9,7 +9,7 @@
   import { parseInert, withoutLineBreakNodes } from './inert-html.js';
   import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
   import { imageAltProps } from '#lib/admin/hero-alt/hero-alt.js';
-  import { Actions, Button, MediaPicker, WritingSheet } from '#lib/admin/ui/index.js';
+  import { Actions, Button, Icon, MediaPicker, WritingSheet } from '#lib/admin/ui/index.js';
   import type { MediaChoice } from '#lib/admin/media-choice.js';
   import { dropIndex, type DropIndex } from './drop-index.js';
   import FormatBar from './FormatBar.svelte';
@@ -30,6 +30,8 @@
     base = '',
     upload = false,
     splitProse = false,
+    preview,
+    native,
   }: {
     content: unknown;
     name: string;
@@ -40,6 +42,8 @@
     upload?: boolean;
     /** A dropped image may split a text block: only while the item has one locale. */
     splitProse?: boolean;
+    preview?: Snippet;
+    native?: Snippet;
     article?: boolean;
     fallback?: boolean;
     nativeId?: string;
@@ -336,7 +340,10 @@
         host
           .closest('form')
           ?.querySelectorAll<HTMLElement>('details.block, .ui-block-card[id^="block-"]') ?? []
-      ).map((card) => [card.id.replace('block-', ''), card.closest('.ui-block-card') ?? card])
+      ).map((card) => [
+        card.id.replace(/^(?:native-)?block-/, ''),
+        card.closest('.ui-block-card') ?? card,
+      ])
     );
     // A card's "+" stands above it, in the fieldset's place: both move into the writer together,
     // or every "+" stays stacked under the text with nothing to say where it inserts.
@@ -346,6 +353,9 @@
       const insert = field?.previousElementSibling;
       if (insert?.matches('details.ui-block-insert')) inserts.set(card, insert);
     }
+    // The SSR preview has already laid out these words and cards. Preserve card references above,
+    // then let TipTap own the same host instead of appending a second copy of the document.
+    if (preview) host.replaceChildren();
     const instance = new Editor({
       element: host,
       injectCSS: false,
@@ -371,7 +381,11 @@
           void placeFiles(files, dropIndex(view, event, splitProse));
           return true;
         },
-        attributes: { 'aria-label': t('admin.editor.surface'), lang: contentLocale },
+        attributes: {
+          'aria-label': t('admin.editor.surface'),
+          lang: contentLocale,
+          class: 'writing-document',
+        },
       },
       onUpdate: ({ editor: current }) => {
         const json = current.getJSON();
@@ -463,21 +477,46 @@
   });
 </script>
 
+{#snippet nativeStyle()}
+  {#if native}
+    <details
+      class="writing-native"
+      data-native-article
+      hidden={active}
+      aria-hidden={active ? 'true' : undefined}
+      open={fallback}
+    >
+      <summary><Icon name="chevron-down" /><span>{t('admin.editor.editFields')}</span></summary>
+      {@render native()}
+    </details>
+  {/if}
+{/snippet}
+
 <input type="hidden" {name} value={payload} />
 <div class="writing" class:active bind:this={frame}>
-  <WritingSheet hidden={!active}>
+  <WritingSheet hidden={!active && !preview}>
     {#snippet toolbar()}
-      <div class="writing-actions" hidden={!active}>
-        <FormatBar {formatting} {locale} />
+      <div class="writing-actions" hidden={!active && !preview}>
+        <FormatBar
+          {formatting}
+          {locale}
+          disabled={!active}
+          styleAlternative={native ? nativeStyle : undefined}
+        />
       </div>
     {/snippet}
     <div
       bind:this={host}
       class="writing-surface"
-      hidden={!active}
+      hidden={!active && !preview}
       data-article-writer={article ? '' : undefined}
-    ></div>
+    >
+      {#if preview}<div class="writing-preview writing-document" lang={contentLocale}>
+          {@render preview()}
+        </div>{/if}
+    </div>
   </WritingSheet>
+
   {#if active}<SelectionTools {formatting} {locale} {frame} id={nativeId ?? name} />{/if}
   {#if reason}<p role="alert">{reason}</p>{/if}
   {#each pending as card (card.id)}
@@ -590,6 +629,44 @@
   .writing {
     position: relative;
   }
+  /* The native disclosure fills the style control's intrinsic grid slot. It remains measured
+     but inert after enhancement; the live select then fills exactly that same space. */
+  .writing-native > summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-0);
+    min-block-size: var(--tap);
+    padding-inline: 0.35em;
+    border: var(--border-width) solid transparent;
+    border-radius: var(--radius);
+    color: var(--color-link);
+    font: inherit;
+    font-weight: 600;
+    white-space: normal;
+    hyphens: manual;
+    list-style: none;
+    cursor: pointer;
+  }
+  .writing-native > summary :global(svg) {
+    flex-shrink: 0;
+  }
+  .writing-native > summary span {
+    min-inline-size: 0;
+    overflow-wrap: normal;
+  }
+  .writing-native > summary::-webkit-details-marker {
+    display: none;
+  }
+  .writing-native[hidden] {
+    display: block;
+    visibility: hidden;
+  }
+  .writing:has(:global(.writing-native[open]:not([hidden]))) :global(.ui-writing-sheet-content) {
+    display: none;
+  }
+  .writing:has(:global(.writing-native[open]:not([hidden]))) :global(.ui-writing-sheet-toolbar) {
+    position: static;
+  }
   .writing-surface :global(.editor-pending-range) {
     color: var(--color-selected-fg);
     background: var(--color-selected-bg);
@@ -599,13 +676,16 @@
     max-inline-size: 70ch;
     min-width: 0;
   }
-  .writing-surface :global(.ProseMirror) {
+  .writing-surface :global(.writing-document) {
     min-height: 10rem;
+    /* Chromium gives contenteditable after-white-space line breaking. Match ordinary SSR text,
+       or identical paragraphs wrap differently when the editor claims them. */
+    line-break: auto;
     white-space: break-spaces;
     overflow-wrap: anywhere;
     outline-offset: 0.25rem;
   }
-  .writing-surface :global(.editor-prose[data-through])::before {
+  .writing-surface :global(:is(.editor-prose, .writing-prose-preview)[data-through])::before {
     content: attr(data-through-locale) ': ' attr(data-through);
     display: block;
     color: var(--color-muted);
@@ -613,7 +693,13 @@
     pointer-events: none;
     user-select: none;
   }
-  .writing-surface :global(.editor-prose) {
+  .writing:not(.active) .writing-surface :global(.writing-document) {
+    white-space: normal;
+  }
+  .writing:not(.active) .writing-surface :global(:is(.editor-prose, .writing-prose-preview) p) {
+    white-space: break-spaces;
+  }
+  .writing-surface :global(:is(.editor-prose, .writing-prose-preview)) {
     margin-block: 1rem;
   }
   .writing-surface :global(.editor-card) {

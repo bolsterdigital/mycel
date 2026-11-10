@@ -9,11 +9,22 @@
      Rejected: word buttons (six of them filled 172 px of a 320 px screen and hid the state) and
      a selection bar alone (nothing to start a list or a heading from an empty line). -->
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import { Icon, type IconName } from '#lib/admin/ui/index.js';
   import { ui } from '../../i18n/index.js';
   import { isMac, shortcut, type Formatting, type TextStyle } from './formatting.svelte.js';
 
-  let { formatting, locale }: { formatting: Formatting; locale: string } = $props();
+  let {
+    formatting,
+    locale,
+    disabled = false,
+    styleAlternative,
+  }: {
+    formatting: Formatting;
+    locale: string;
+    disabled?: boolean;
+    styleAlternative?: Snippet;
+  } = $props();
   const t = $derived(ui(locale));
   const now = $derived(formatting.state);
   let mac = $state(false);
@@ -123,8 +134,9 @@
 
   function roving(event: KeyboardEvent) {
     if (event.key === 'Escape') return hideTip();
-    if (!(event.target instanceof HTMLButtonElement)) return;
-    const tools = [...bar.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+    if (!(event.target instanceof HTMLButtonElement) || !event.target.matches('[data-tool]'))
+      return;
+    const tools = [...bar.querySelectorAll<HTMLButtonElement>('button[data-tool]:not(:disabled)')];
     const at = tools.indexOf(event.target);
     const to =
       event.key === 'ArrowRight'
@@ -175,17 +187,23 @@
   onfocusin={showTip}
   onfocusout={hideTip}
 >
-  <select
-    class="format-style"
-    aria-label={t('admin.editor.style')}
-    value={String(now.style)}
-    onchange={(event) => formatting.setStyle(Number(event.currentTarget.value) as TextStyle)}
-  >
-    {#each styles as style (style.value)}
-      <option value={String(style.value)} disabled={style.value > now.deepest}>{style.label}</option
-      >
-    {/each}
-  </select>
+  <div class="format-style-slot">
+    <select
+      class="format-style"
+      class:replaced={disabled && !!styleAlternative}
+      {disabled}
+      aria-label={t('admin.editor.style')}
+      value={String(now.style)}
+      onchange={(event) => formatting.setStyle(Number(event.currentTarget.value) as TextStyle)}
+    >
+      {#each styles as style (style.value)}
+        <option value={String(style.value)} disabled={style.value > now.deepest}
+          >{style.label}</option
+        >
+      {/each}
+    </select>
+    {#if styleAlternative}{@render styleAlternative()}{/if}
+  </div>
   {#each groups as group, index (index)}
     <div class="format-group">
       {#each group as tool (tool.id)}
@@ -198,7 +216,7 @@
           aria-label={tool.label}
           aria-pressed={tool.pressed}
           aria-keyshortcuts={keys.aria}
-          disabled={tool.disabled}
+          disabled={disabled || tool.disabled}
           tabindex={stop === tool.id ? 0 : -1}
           onmousedown={(event) => event.preventDefault()}
           onclick={(event) => {
@@ -233,6 +251,28 @@
   .format-group + .format-group {
     padding-inline-start: var(--space-1);
     border-inline-start: var(--border-width) solid var(--color-border);
+  }
+  /* Both real controls size this shared slot; visibility switches without changing the flex
+     candidate. Native disclosure never overlays a neighbouring formatting action. */
+  .format-style-slot {
+    display: grid;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+  .format-style-slot > .format-style,
+  .format-style-slot > :global(details) {
+    grid-area: 1 / 1;
+    align-self: start;
+    min-inline-size: 0;
+  }
+  .format-style.replaced {
+    visibility: hidden;
+  }
+  .format-bar:has(:global(.writing-native[open]:not([hidden]))) .format-style-slot {
+    flex-basis: 100%;
+  }
+  .format-bar:has(:global(.writing-native[open]:not([hidden]))) .format-group {
+    display: none;
   }
   .format-style {
     min-block-size: var(--tap);

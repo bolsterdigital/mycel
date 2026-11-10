@@ -9,6 +9,7 @@
 // No content uses media yet (#8b1 writes the usages), so the "in use" fixture goes in through the
 // repository as a block tree's save will, as mycel_app under the tenant's RLS.
 
+import { showEditorTab } from './lib/editor';
 import { expect, test, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { crc32, deflateSync } from 'node:zlib';
@@ -868,8 +869,7 @@ test('a page gets its featured image from the picker, and shares it when publish
   });
   await page.goto(`/admin/probe/content/${itemId}`);
   // With JavaScript the picker is on the Featured tab (#86 PR 2).
-  const featuredTab = page.locator('#item-tabs-tab-featured');
-  if (isA11y()) await featuredTab.click();
+  await showEditorTab(page, 'Uitgelicht');
   const picker = page.getByRole('group', { name: 'Uitgelicht beeld' });
   await expect(picker.locator('[data-picker-name]')).toHaveText('Nog geen beeld gekozen');
   await picker.getByRole('button', { name: 'Beeld kiezen' }).click();

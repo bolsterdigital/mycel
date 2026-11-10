@@ -260,7 +260,7 @@ describe('BlockCard', () => {
     expect(out).toMatch(/class="ui-block-card-name"[^>]*>Elke zak</);
     expect(out).toContain('<span>Check this block</span>');
     // Without the screen's script nothing collapses: the button stays hidden, the content open.
-    expect(out).toMatch(/<button[^>]*data-block-toggle[^>]*hidden/);
+    expect(out).toMatch(/<button[^>]*data-block-toggle[^>]*disabled/);
     expect(out).toMatch(/aria-controls="block-1-content"/);
     expect(out).toMatch(/id="block-1-content" data-block-content/);
     expect(out).not.toMatch(/id="block-1-content"[^>]*hidden/);
@@ -1281,22 +1281,18 @@ describe('Tabs', () => {
     { id: 'content', label: 'Content', content: text('Title and blocks') },
     { id: 'seo', label: 'Findability', content: text('Slug') },
   ];
-  it('renders every section with its heading, and a hidden tablist for the script', () => {
+  it('renders native fragment navigation and every panel in the same form', () => {
     const out = html(Tabs, { id: 't', label: 'Item', tabs });
-    expect(out).toMatch(/<div class="ui-tabs-list" role="tablist" aria-label="Item" hidden/);
+    expect(out).toMatch(/<nav class="ui-tabs-list" aria-label="Item"/);
     expect(out).toMatch(
       /<section class="ui-tabs-panel" id="t-seo" aria-labelledby="t-seo-title"><h2 class="ui-tabs-title" id="t-seo-title">Findability<\/h2>\s*<span>Slug<\/span><\/section>/
     );
     expect(out).toContain('<span>Title and blocks</span>');
   });
-  it('selects the first tab and leaves the others out of the tab order', () => {
+  it('links to each panel before adding ARIA tabs through enhancement', () => {
     const out = html(Tabs, { id: 't', label: 'Item', tabs, level: 3 });
-    expect(out).toContain(
-      'id="t-tab-content" aria-controls="t-content" aria-selected="true" tabindex="0"'
-    );
-    expect(out).toContain(
-      'id="t-tab-seo" aria-controls="t-seo" aria-selected="false" tabindex="-1"'
-    );
+    expect(out).toContain('id="t-tab-content" data-tab-link="" aria-controls="t-content"');
+    expect(out).toContain('id="t-tab-seo" data-tab-link="" aria-controls="t-seo"');
     expect(out).toContain('<h3 class="ui-tabs-title"');
   });
 });
@@ -1571,7 +1567,7 @@ describe('BlockInserter', () => {
     expect(out).toContain('Before block 2');
     expect(out).toContain('<span>Image</span>');
     expect(out).not.toMatch(/role="grid"|<select|tabindex=/);
-    expect(out).toMatch(/data-type-search[^>]*hidden/);
+    expect(out).toMatch(/type="search" autocomplete="off" disabled/);
   });
 });
 

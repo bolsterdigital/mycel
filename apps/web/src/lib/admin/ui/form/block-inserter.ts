@@ -12,7 +12,7 @@ export function enhanceBlockPickers(): void {
     const choices = [...picker.querySelectorAll<HTMLButtonElement>('button[data-block-type]')];
     if (!(form instanceof HTMLFormElement) || !search || !input) continue;
     picker.setAttribute('data-picker-ready', '');
-    search.hidden = false;
+    input.disabled = false;
     const visible = () => choices.filter((button) => !button.hidden);
     input.addEventListener('input', () => {
       const q = input.value.trim().toLocaleLowerCase();

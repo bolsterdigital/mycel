@@ -4,6 +4,7 @@
 // tenant shell that every admin route shares.
 // A flow spec gates only the state it makes itself.
 
+import { writeFile } from 'node:fs/promises';
 import {
   BLOCK_DEFINITIONS,
   BLOCK_TYPES,
@@ -21,7 +22,7 @@ import { forwarded, login } from './lib/login';
 import { ADMIN_LOCALES, ADMIN_ROUTES, type GateRoute, PUBLIC_ROUTES } from './routes';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { testTenant } from '@mycel/db/testing';
-import { callApi, requireApi } from './lib/api';
+import { callApi, longArticle, requireApi } from './lib/api';
 import { ask, armRenderer, rendererStack } from './lib/evidence/renderer';
 
 // The generic gate over routes.ts: every route at 320 CSS px in default and 200% text passes
@@ -319,6 +320,157 @@ test.describe('admin-ui', () => {
       await expect(page.locator('script:not([src="/_admin/nav.js"])')).toHaveCount(0);
       await expectNoAxeViolations(page, { dark: true });
     });
+
+  test('the editor preserves long article geometry through enhancement', async ({
+    browser,
+    request,
+  }) => {
+    onlyA11y('measures the native document before its enhancement');
+    const geometry = (page: Page) =>
+      page.evaluate(() =>
+        Object.fromEntries(
+          [
+            'html',
+            '.ui-item-bar',
+            '[data-presence]',
+            '.ui-edit-main',
+            '.ui-edit-side',
+            '.ui-tabs',
+            '.item-blocks',
+            '.writing',
+            '.writing .ui-writing-sheet-toolbar',
+            '.writing .writing-document',
+            '#insert-end',
+            '#insert-end [data-type-search]',
+          ].map((selector) => {
+            const rect = document.querySelector(selector)!.getBoundingClientRect();
+            return [selector, { top: rect.top + scrollY, height: rect.height }];
+          })
+        )
+      );
+    const showWriter = (page: Page) =>
+      page
+        .locator('.writing')
+        .first()
+        .evaluate((element) => {
+          element.scrollIntoView({ block: 'start' });
+          window.scrollBy(0, -120);
+        });
+    // The admin language deliberately differs from the document's: hyphenation must inherit
+    // the content locale before TipTap supplies lang, as well as after it.
+    for (const locale of ['nl', 'en']) {
+      // Each browser owns its article: a closed context's presence remains alive for 70s
+      // (ADR 029), and a new context is correctly shown as a second tab of the same editor.
+      // That live collaboration notice is not a change of the editor's hydration geometry.
+      const edit = await longArticle(request);
+      const adminLocale = locale === 'nl' ? 'en' : 'nl';
+      const context = await browser.newContext({ locale: adminLocale, viewport: NARROW });
+      try {
+        const page = await context.newPage();
+        await login(page, edit);
+        for (const width of [320, 1280])
+          for (const text of TEXT_SIZES) {
+            const sample = `${locale}-${width}-${text}`;
+            await page.setViewportSize({ width, height: 900 });
+            let release!: () => void;
+            const ready = new Promise<void>((resolve) => {
+              release = resolve;
+            });
+            await page.route('**/_app/immutable/**/*.js', async (route) => {
+              await ready;
+              await route.continue();
+            });
+            const query = new URLSearchParams({ locale, layoutSample: sample });
+            await page.goto(`${edit}?${query}`, { waitUntil: 'commit' });
+            await expect(page.locator('#insert-end')).toBeAttached();
+            await expect(page.locator('html')).toHaveAttribute('lang', adminLocale);
+            await expect(page.locator('[data-native-article] > summary')).toHaveText(
+              adminLocale === 'nl' ? 'Velden bewerken' : 'Edit fields'
+            );
+            await setTextSize(page, text);
+            const originalBeforeScroll = await page.evaluate(() => scrollY);
+            await page.evaluate(async () => {
+              await document.fonts.ready;
+              window.scrollTo({ top: 0, behavior: 'instant' });
+              await new Promise((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(resolve))
+              );
+            });
+            await expect(page.locator('.writing .writing-document')).toHaveAttribute(
+              'lang',
+              locale
+            );
+            const beforeScroll = await page.evaluate(() => scrollY);
+            await expect(page.locator('[data-presence]')).toBeEmpty();
+            const before = await geometry(page);
+            await layoutGate(page, `native article ${sample}`, '.ui-edit-page');
+            await page.screenshot({ path: test.info().outputPath(`native-${sample}.png`) });
+            if (text === '200%') {
+              await showWriter(page);
+              await page.screenshot({
+                path: test.info().outputPath(`native-writing-${sample}.png`),
+              });
+            }
+            await page.evaluate(() => window.scrollTo(0, 0));
+            const beat = page.waitForResponse(
+              (r) => r.url().endsWith('/presence') && r.request().method() === 'POST'
+            );
+            release();
+            expect((await beat).ok()).toBe(true);
+            await expect(page.locator('.writing.active')).toBeVisible();
+            await expect(page.locator('.ui-tabs')).toHaveAttribute('data-tabs', '');
+            await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+            const originalAfterScroll = await page.evaluate(() => scrollY);
+            await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+            const afterScroll = await page.evaluate(() => scrollY);
+            await expect(page.locator('[data-presence]')).toBeEmpty();
+            const after = await geometry(page);
+            const measurement = test.info().outputPath(`geometry-${sample}.json`);
+            await writeFile(
+              measurement,
+              JSON.stringify(
+                {
+                  before,
+                  after,
+                  scroll: {
+                    originalBefore: originalBeforeScroll,
+                    originalAfter: originalAfterScroll,
+                    controlledBefore: beforeScroll,
+                    controlledAfter: afterScroll,
+                  },
+                },
+                null,
+                2
+              )
+            );
+            await test
+              .info()
+              .attach(`geometry-${sample}`, { path: measurement, contentType: 'application/json' });
+            await page.unroute('**/_app/immutable/**/*.js');
+            // Independent rectangles prevent a shrinking writer and growing sidebar cancelling out.
+            for (const [selector, rect] of Object.entries(before))
+              for (const dimension of ['top', 'height'] as const)
+                expect
+                  .soft(
+                    Math.abs(after[selector]![dimension] - rect[dimension]),
+                    `${sample} ${selector} ${dimension}`
+                  )
+                  .toBeLessThan(10);
+            await layoutGate(page, `enhanced article ${sample}`, '.ui-edit-page');
+            await page.screenshot({ path: test.info().outputPath(`enhanced-${sample}.png`) });
+            if (text === '200%') {
+              await showWriter(page);
+              await page.screenshot({
+                path: test.info().outputPath(`enhanced-writing-${sample}.png`),
+              });
+            }
+            if (text === '100%') await expectNoAxeViolations(page);
+          }
+      } finally {
+        await context.close();
+      }
+    }
+  });
 
   // The edit screen's actions in every window (#160): the bar stays where it is one or two lines,
   // the dock takes Save and the main action where it scrolls away, and neither is kept where it

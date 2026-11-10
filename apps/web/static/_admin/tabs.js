@@ -15,11 +15,13 @@
 // panel that costs nothing to show) and `novalidate` with our own check (it would drop the
 // browser's own message on a required field and duplicate what the server already refuses).
 for (const root of document.querySelectorAll('.ui-tabs')) {
-  const list = root.querySelector(':scope > [role="tablist"]');
-  const tabs = [...(list?.querySelectorAll('[role="tab"]') ?? [])];
+  const list = root.querySelector(':scope > .ui-tabs-list');
+  const tabs = [...(list?.querySelectorAll('[data-tab-link]') ?? [])];
   const panels = tabs.map((tab) => document.getElementById(tab.getAttribute('aria-controls')));
   if (!list || !tabs.length || panels.some((panel) => !panel)) continue;
 
+  list.setAttribute('role', 'tablist');
+  tabs.forEach((tab) => tab.setAttribute('role', 'tab'));
   const select = (index, { focus = false, remember = true } = {}) => {
     tabs.forEach((tab, i) => {
       const on = i === index;
@@ -79,7 +81,10 @@ for (const root of document.querySelectorAll('.ui-tabs')) {
 
   list.addEventListener('click', (event) => {
     const tab = event.target instanceof Element && event.target.closest('[role="tab"]');
-    if (tab) select(tabs.indexOf(tab));
+    if (tab) {
+      event.preventDefault();
+      select(tabs.indexOf(tab));
+    }
   });
   list.addEventListener('keydown', (event) => {
     const at = tabs.indexOf(document.activeElement);

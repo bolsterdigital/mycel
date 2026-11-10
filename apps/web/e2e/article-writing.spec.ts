@@ -57,6 +57,7 @@ test.describe('article-writing', () => {
       await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
       await page.locator('.writing-surface .editor-prose p').first().fill('English edited');
     } else {
+      await page.locator('[data-native-article] > summary').click();
       const prose = page.locator('details.block').first();
       await prose.locator(':scope > summary').click();
       await prose.getByLabel('Tekst', { exact: true }).fill('English edited');
@@ -451,6 +452,7 @@ test.describe('article-writing', () => {
       await expect(page.locator('.writing-surface .ProseMirror').first()).toBeVisible();
       await page.locator('.writing-surface .editor-prose p').first().fill('Nieuwe tekst');
     } else {
+      await page.locator('[data-native-article] > summary').click();
       const prose = page.locator('details.block').first();
       await prose.locator(':scope > summary').click();
       await prose.getByLabel('Tekst', { exact: true }).fill('Nieuwe tekst');
@@ -460,6 +462,7 @@ test.describe('article-writing', () => {
     const { revision } = await callApi(request, 'content.item.get', {
       itemId: edit.split('/').at(-1)!,
     });
+    await expect(page.locator(`#block-${revision.document.blocks[0].id}`)).toBeVisible();
     expect(revision.document.title.nl).toBe('Gewijzigde kop');
     expect(revision.document.blocks[0].props.content.nl.content[0].content[0].text).toBe(
       'Nieuwe tekst'
@@ -489,6 +492,7 @@ test.describe('article-writing', () => {
     });
     await page.reload({ waitUntil: 'commit' });
     await page.locator('#title\\.nl').fill('Voor de enhancement');
+    await page.locator('[data-native-article] > summary').click();
     const native = page.locator('details.block').first();
     await native.locator(':scope > summary').click();
     await native.getByLabel('Tekst', { exact: true }).fill('Native invoer voor het laden');
@@ -1601,7 +1605,7 @@ test.describe('article-writing', () => {
     await tool('Vet').focus();
     await page.keyboard.press('ArrowRight');
     await expect(tool('Cursief')).toBeFocused();
-    await expect(bar.locator('.format-tip')).toHaveText(/^Cursief \((Ctrl\+|⌘)I\)$/);
+    await expect(bar.locator(':scope > .format-tip')).toHaveText(/^Cursief \((Ctrl\+|⌘)I\)$/);
     await page.screenshot({ path: test.info().outputPath('formatting-bar-1280.png') });
     await expect(tool('Ongedaan maken')).toBeEnabled();
     await expectNoAxeViolations(page);

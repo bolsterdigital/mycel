@@ -43,6 +43,8 @@ export interface RichTextContext {
   footnoteBack: string;
   /** No `<a>`, no heading element and no footnote ids: see the top of this file. */
   inert?: boolean;
+  /** The article's SSR writing sheet: editor-relative headings and inline note marks. */
+  editing?: boolean;
 }
 
 type Node = RichTextDoc['content'][number] | { type: string; [k: string]: unknown };
@@ -77,6 +79,8 @@ export function richTextHtml(doc: RichTextDoc, ctx: RichTextContext): string {
           } else if (m.type === 'link') {
             const href = linkTarget(m, ctx.links);
             if (href !== null) out = `<a href="${escape(withBase(ctx.base, href))}">${out}</a>`;
+          } else if (m.type === 'footnote_reference' && ctx.editing) {
+            out = `<span data-note="${escape(m.attrs.text)}">${out}</span>`;
           } else if (m.type === 'footnote_reference') {
             notes.push(m.attrs.text);
             const n = notes.length;
@@ -93,11 +97,12 @@ export function richTextHtml(doc: RichTextDoc, ctx: RichTextContext): string {
   const block = (node: Node): string => {
     switch (node.type) {
       case 'paragraph':
-        return `<p>${inline((node as { content?: Inline[] }).content)}</p>`;
+        return `<p>${inline((node as { content?: Inline[] }).content) || (ctx.editing ? '<br>' : '')}</p>`;
       case 'heading': {
         const n = node as { attrs: { level: number }; content?: Inline[] };
-        if (ctx.inert) return `<p data-heading="${n.attrs.level}">${inline(n.content)}</p>`;
-        const tag = headingTag(ctx.depth + n.attrs.level);
+        if (ctx.inert && !ctx.editing)
+          return `<p data-heading="${n.attrs.level}">${inline(n.content)}</p>`;
+        const tag = headingTag((ctx.editing ? 0 : ctx.depth) + n.attrs.level);
         return `<${tag}>${inline(n.content)}</${tag}>`;
       }
       case 'bullet_list':
