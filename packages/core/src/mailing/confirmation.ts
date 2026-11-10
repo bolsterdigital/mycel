@@ -118,6 +118,15 @@ export function confirmationMailSource(deps: ConfirmationMailDeps): MailSource {
     const p = event.props as unknown as NewsletterSubscribedProps;
     if (p.confirmed) return null;
     if (deps.access && (await deps.access(event.tenantId)).status === 'suspended') return null;
+    if (
+      !p.formVersion &&
+      (await deps.uow.run(systemPrincipal(event.tenantId, CONFIRMATION_SUBSCRIBER), async (ctx) =>
+        (await ctx.formFeeds.get()).value.feeds.some(
+          (f) => f.enabled && f.scope === p.list && f.confirmationOwner === 'external'
+        )
+      ))
+    )
+      return null;
     if (p.formVersion) {
       const allowed = await deps.uow.run(
         systemPrincipal(event.tenantId, CONFIRMATION_SUBSCRIBER),

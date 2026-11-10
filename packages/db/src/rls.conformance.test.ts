@@ -240,6 +240,19 @@ describe.skipIf(skip)('row level security conformance', () => {
         createdAt: clock.now(),
         updatedAt: clock.now(),
       });
+      await ctx.mailchimpReceipts.insert({
+        intentId,
+        connectionId: connection.id,
+        supporterId: uuidv7(),
+        memberHash: 'a'.repeat(32),
+        baselineStatus: 'absent',
+        baselineChangedAt: null,
+        requestedAt: clock.now(),
+        status: 'pending',
+        observedAt: clock.now(),
+        confirmedAt: null,
+        retryable: false,
+      });
       await ctx.connectionIntents.record({
         id: uuidv7(),
         intentId,
