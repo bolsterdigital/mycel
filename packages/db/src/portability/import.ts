@@ -64,6 +64,7 @@ const IMPORT_RULE = {
   forms: 'as-exported',
   form_submissions: 'as-exported',
   supporters: 'as-exported',
+  supporter_lifecycles: 'as-exported',
   supporter_admissions: 'as-exported',
   events: 'as-exported',
   people: 'as-exported',

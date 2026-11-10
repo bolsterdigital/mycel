@@ -208,6 +208,7 @@ export const submitForm = defineUseCase({
     // (`ctx.admissions`, TODO #16). The lock comes first and ingest takes the same lock before
     // it releases, so a projection cannot land between this check and the reservation and leave
     // a seat taken for the whole admission window.
+    await ctx.supporters.lock(email);
     await ctx.admissions.lock();
 
     // Every signup causes a confirmation mail, so every signup passes the recipient cooldown.
@@ -223,6 +224,12 @@ export const submitForm = defineUseCase({
     )
       return reject('recipient-limited');
 
+    if (consent && ['signup', 'petition'].includes(form.kind)) {
+      const lifecycleId = await ctx.erasures.admit(email, submissionId, now);
+      if (lifecycleId === null)
+        return { status: 'rejected', reason: 'unavailable', message: 'forms.rejected.unavailable' };
+      if (lifecycleId) submission.evaluation!.supporterLifecycleId = lifecycleId;
+    }
     const mailPlan = await planFormMail(ctx, submission, email);
     submission.evaluation!.mailActions = mailPlan.pins;
     if (mailPlan.confirmation && mailPlan.confirmationVersion)
@@ -230,7 +237,14 @@ export const submitForm = defineUseCase({
         version: mailPlan.confirmationVersion,
         copy: mailPlan.confirmation,
       };
-    for (const event of mailPlan.events) await ctx.events.publish(event);
+    for (const event of mailPlan.events)
+      await ctx.events.publish({
+        ...event,
+        props: {
+          ...event.props,
+          supporterLifecycleId: submission.evaluation!.supporterLifecycleId,
+        },
+      });
 
     // A receipt is not marketing permission. Inactive or unchecked consent creates no signup,
     // no admission seat and no confirmation mail, even if a browser forged its checkbox value.
@@ -239,7 +253,9 @@ export const submitForm = defineUseCase({
       return { status: 'accepted', submissionId };
     }
 
-    if (!(await ctx.supporters.getProjection(email)) && !(await ctx.admissions.pending(email))) {
+    const holder = await ctx.supporters.getProjection(email);
+    const liveHolder = holder && (await ctx.erasures.allows(email, holder.id));
+    if (!liveHolder && !(await ctx.admissions.pending(email))) {
       withinLimit(ctx, 'supporters.max', await ctx.admissions.count());
       await ctx.admissions.reserve(email);
     }
@@ -248,6 +264,7 @@ export const submitForm = defineUseCase({
 
     const props: NewsletterSubscribedProps = {
       email,
+      supporterLifecycleId: submission.evaluation!.supporterLifecycleId,
       list: form.list,
       formId: form.id,
       submissionId,

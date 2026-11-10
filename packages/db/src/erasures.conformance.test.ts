@@ -201,7 +201,8 @@ describe.skipIf(skip)('erasure conformance', () => {
     });
     const ids = await asRole(operatorDb, 'mycel_worker', async (trx) => {
       return (
-        await sql<{ id: string }>`select id from outbox where tenant_id = ${tenantId}`.execute(trx)
+        await sql<{ id: string }>`select id from outbox where tenant_id = ${tenantId}
+        and props->>'submissionId' = ${submitted.submissionId}`.execute(trx)
       ).rows;
     });
     for (const { id } of ids) {
@@ -463,6 +464,7 @@ describe.skipIf(skip)('erasure conformance', () => {
       'mailchimp_receipts.erasure_select',
       'outbox.erasure_apply',
       'supporter_admissions.erasure_apply',
+      'supporter_lifecycles.erasure_apply',
       'supporters.erasure_apply',
       'tenant_exports.erasure_apply',
     ]);
@@ -479,5 +481,25 @@ describe.skipIf(skip)('erasure conformance', () => {
       operatorDb
     );
     expect(rows.filter((r) => r.granted)).toEqual([]);
+  });
+  it('preserves a new explicit lifecycle across two applies, then erases that lifecycle too', async () => {
+    const tenant = (await testTenant(operatorDb, `readmit-${run}`, { name: 'Readmission' })).id;
+    const admin = systemPrincipal(tenant, 'readmission');
+    const address = `readmit-${run}@example.org`;
+    await signup(tenant, address, uow);
+    const old = (await uow.run(admin, (ctx) => ctx.supporters.getProjection(address)))!;
+    await uow.run(admin, (ctx) => ctx.erasures.register(old.id, address));
+    await applyErasures(operatorDb, tenant);
+    await signup(tenant, address, uow);
+    await closeTenantWork(operatorDb, [tenant]);
+    const next = (await uow.run(admin, (ctx) => ctx.supporters.getProjection(address)))!;
+    expect(next.id).not.toBe(old.id);
+    await applyErasures(operatorDb, tenant);
+    expect(await uow.run(admin, (ctx) => ctx.supporters.getProjection(address))).toEqual(next);
+    expect(await applyErasures(operatorDb, tenant)).toBe(0);
+    await uow.run(admin, (ctx) => ctx.erasures.register(next.id, address));
+    await applyErasures(operatorDb, tenant);
+    expect(await uow.run(admin, (ctx) => ctx.supporters.getProjection(address))).toBeNull();
+    expect(await uow.run(admin, (ctx) => ctx.erasures.status())).toMatchObject({ registered: 2 });
   });
 });

@@ -130,6 +130,10 @@ export interface TransactionContext {
  * fronts cannot: a web request registers, the worker applies.
  */
 export interface Erasures {
+  /** Called only for explicit consent under the address lock. null means erasure wins a tie. */
+  admit(email: string, submissionId: string, at: Date): Promise<string | undefined | null>;
+  /** No registered address is usable without its current explicit lifecycle evidence. */
+  allows(email: string, lifecycleId?: string): Promise<boolean>;
   register(supporterId: string, email: string): Promise<void>;
   apply(): Promise<number>;
   /**

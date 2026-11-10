@@ -64,6 +64,7 @@ export async function applyMailchimpObservation(
           email: supporter.email,
           list: sub.list,
           submissionId: sub.id,
+          supporterLifecycleId: sub.evaluation?.supporterLifecycleId,
           formId: sub.formId,
           locale: sub.locale,
           consentTextVersion: sub.consentTextVersion,
@@ -87,17 +88,24 @@ export async function applyMailchimpObservation(
       actor: ctx.principal.actor,
       props: { email: supporter.email, list: intent.scope, connectionId: intent.connectionId },
     };
-    await ingest(ctx, {
-      schema: 'wings.supporter-event.v1',
-      id: `${supporter.appliedThrough.id}:mailchimp:${event.id}`,
-      type: 'newsletter.unsubscribed',
-      email: supporter.email,
-      occurred_at: now.toISOString(),
-      source: 'mailchimp',
-      source_site: 'urn:mycel:connection:' + intent.connectionId,
-      source_ref: intent.id,
-      props: { list: intent.scope, connectionId: intent.connectionId },
-    });
+    await ingest(
+      ctx,
+      {
+        schema: 'wings.supporter-event.v1',
+        id: `${supporter.appliedThrough.id}:mailchimp:${event.id}`,
+        type: 'newsletter.unsubscribed',
+        email: supporter.email,
+        occurred_at: now.toISOString(),
+        ...(sub.evaluation?.supporterLifecycleId
+          ? { lifecycle_id: sub.evaluation.supporterLifecycleId }
+          : {}),
+        source: 'mailchimp',
+        source_site: 'urn:mycel:connection:' + intent.connectionId,
+        source_ref: intent.id,
+        props: { list: intent.scope, connectionId: intent.connectionId },
+      },
+      sub.id
+    );
     await ctx.events.publish(event);
   }
   await ctx.mailchimpReceipts.observe(intent.id, observation.status, now, confirmedAt);

@@ -70,6 +70,8 @@ async function resolveToken(ctx: TransactionContext, token: string, now: Date) {
   const emailField = form?.fields.find((f) => f.type === 'email');
   const email = emailField ? submission.values[emailField.name] : undefined;
   if (typeof email !== 'string' || !email) return null;
+  await ctx.supporters.lock(email);
+  if (!(await ctx.erasures.allows(email, submission.evaluation?.supporterLifecycleId))) return null;
   return { submission, email };
 }
 
@@ -131,6 +133,7 @@ export const confirmSubscription = defineUseCase({
       locale,
       consentTextVersion: submission.consentTextVersion,
       confirmedAt: now.toISOString(),
+      supporterLifecycleId: submission.evaluation?.supporterLifecycleId,
     };
     await ctx.events.publish({
       id: ctx.ids.next(),

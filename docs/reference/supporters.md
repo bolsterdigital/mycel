@@ -19,6 +19,7 @@ A supporter is one person per tenant, identified by a normalised e-mail address 
 | `email`                               | lower-cased and trimmed; for `supporter.email_changed` the address before the change                                                                        |
 | `occurred_at`                         | ISO 8601 with offset                                                                                                                                        |
 | `source`, `source_site`, `source_ref` | origin; Mycel writes `source: mycel` and `source_ref: submission:<id>` or `supporter:<id>`                                                                  |
+| `lifecycle_id`                        | optional server-owned readmission id (ADR 032); validated against durable lifecycle and submission evidence, never a caller-selected supporter id           |
 | `props`                               | type-specific extras                                                                                                                                        |
 
 Today the `supporters.ingest` subscriber maps `newsletter.subscribed` and `consent.given` from forms. A signup and its confirmation share `source_ref` and differ in type, so both ids are deterministic and distinct.
@@ -27,8 +28,8 @@ Today the `supporters.ingest` subscriber maps `newsletter.subscribed` and `conse
 
 `ingest(ctx, event)` runs in one tenant transaction under a `system` principal:
 
-1. **Lock** the address: a transaction-scoped advisory lock on `supporter:<tenant>:<address>` (`advisoryLock` in `packages/db/src/infra/roles.ts`). Two workers on one supporter serialise; different supporters run in parallel.
-2. **Resolve** the address to the projection's `id`, or a fresh UUIDv7 on first sight. The address decides, never a `supporter_id` on the input.
+1. **Lock** the address: a transaction-scoped advisory lock on `supporter:<tenant>:<emailKey(tenant, address, 'erasure')>` (`advisoryLock` in `packages/db/src/infra/roles.ts`). Two workers on one supporter serialise; different supporters run in parallel.
+2. **Resolve** the address to the projection's `id`, or a fresh UUIDv7 on first sight. The address decides, never a `supporter_id` on the input. After a registered erasure, require explicit lifecycle provenance and a matching submission before resolving to that lifecycle's fresh id (ADR 032). Unproven or delayed old facts are ignored.
 3. **Append** to `events`; a conflict on `(tenant_id, id, occurred_at)` is a duplicate and ends ingest without a fold, so ingest is idempotent.
 4. **Fold**: if a projection exists and the event sorts after its `appliedThrough`, apply it on top; otherwise (a late event, or no projection) rebuild the projection of that one supporter from its whole log.
 5. **Release** the supporter's admission seat under the tenant's admission lock, always after the address lock so the two cannot deadlock.
@@ -43,7 +44,7 @@ Fold order is `occurred_at` compared as an instant, then `id` by code unit, whic
 
 ## Changing an address
 
-`supporter.email.update` (capability `supporters:write`) takes `supporterId`, `newEmail` and a `reason` (the evidence: who asked, through which channel). It locks both addresses in sorted order, rereads the supporter, and refuses with `conflict` when the supporter changed meanwhile, another supporter holds the new address, or a change for the same supporter was recorded in the same millisecond. Otherwise it appends `supporter.email_changed` with `old_email`, `new_email` and `reason` and folds it; the address is never overwritten in place. After the change the old address no longer resolves: an event that still uses it starts a new supporter.
+`supporter.email.update` (capability `supporters:write`) takes `supporterId`, `newEmail` and a `reason` (the evidence: who asked, through which channel). It locks both address hashes in sorted order, rereads the supporter, and refuses with `conflict` when the supporter changed meanwhile, another supporter holds the new address, an erased lifecycle would be reused, or a change for the same supporter was recorded in the same millisecond. Otherwise it appends `supporter.email_changed` with `old_email`, `new_email` and `reason` and folds it; the address is never overwritten in place. After the change the old address no longer resolves: an event that still uses it starts a new supporter.
 
 ## Admission seats
 
@@ -56,6 +57,10 @@ Fold order is `occurred_at` compared as an instant, then `id` by code unit, whic
 ## Erasure
 
 `ctx.erasures.register(supporterId, email)` records a permanent registration without the address; `ctx.erasures.apply()` (worker and `mycel erasures apply`, as `mycel_erasure`) turns every copy into a tombstone: events and the projection get `<supporter id>@erased.invalid` (`tombstoneEmail`; `.invalid` can never be delivered), empty props and empty lists, while type and time stay so counts still add up. A use case that registers an erasure is planned (ADR 019). Rows, roles, backups and restore are in [export.md](export.md#erasure-register).
+
+An explicit signup or petition with active consent strictly after the latest registration creates a durable `supporter_lifecycles` row: fresh id, address hash, first submission id and server time. It stores no address. The id is pinned in submission evaluation and outbox props; ingest checks it against the actual submission. A provider withdrawal may carry the same server-validated submission evidence without granting consent. An old event received later, a future timestamp or an old confirmation alone cannot open a lifecycle. At equal timestamps erasure wins. If apply has not run yet, ingest retires the ended projection before writing the new one. A second erasure registers the new id; every registration stays permanent.
+
+Apply exempts only copies proven to belong to a current lifecycle. This includes its projection/events, pinned submissions, outbox events and dependent effects; arbitrary address-bearing jobs remain erasable. Mail claims and connector preparation reread that boundary under the address lock. A provider request already claimed or in flight cannot be recalled; no remote deletion is implied. The ordinary erasure route and worker scheduling, retention and people/credit erasure are not implemented by this lifecycle boundary.
 
 ## Constants
 

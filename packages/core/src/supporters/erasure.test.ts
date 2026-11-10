@@ -18,8 +18,9 @@ import {
   TENANT,
   adminOf,
 } from '../testing/index.js';
+import { sendOnce } from '../mailing/send-attempts.js';
 import { confirmationMailSubscriber } from '../mailing/confirmation.js';
-import { supporterIngestSubscriber } from './service.js';
+import { ingest, supporterIngestSubscriber, toSupporterEvent } from './service.js';
 import { emailKey } from './email-key.js';
 import { carriesErasedAddress, tombstoneEmail } from './erasure.js';
 
@@ -30,6 +31,7 @@ describe('ctx.erasures in memory', () => {
   let uow: MemoryUnitOfWork;
 
   async function signup(tenant: string, email: string) {
+    const start = uow.store.outbox.length;
     const invoker = new Invoker(buildRegistry(), uow);
     await uow.run(adminOf(tenant), (ctx) => ctx.forms.insert(probeForm(FORM)));
     const result = await invoker.run(useCases.submitForm, adminOf(tenant), {
@@ -48,7 +50,7 @@ describe('ctx.erasures in memory', () => {
       platform: { platformOrigin: 'https://example.org', siteUrlMode: 'path' },
     });
     // Handled, not drained: the outbox keeps its events, as processed rows stay in Postgres.
-    for (const event of uow.store.outbox.filter((e) => e.tenantId === tenant)) {
+    for (const event of uow.store.outbox.slice(start).filter((e) => e.tenantId === tenant)) {
       await supporterIngestSubscriber(uow).handle(event);
       await mail.handle(event);
     }
@@ -155,6 +157,129 @@ describe('ctx.erasures in memory', () => {
       expect(s.submissions.size).toBe(0);
     }
   );
+
+  it('retains explicit readmission through repeated apply and erases its second lifecycle', async () => {
+    const s = uow.store.for(TENANT);
+    const old = [...s.projections.values()][0]!;
+    const delayed = structuredClone(uow.store.outbox.find((e) => e.tenantId === TENANT)!);
+    await uow.run(adminOf(), (ctx) => ctx.erasures.register(old.id, old.email));
+    await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+    (uow.clock as FakeClock).advance(86_400_001);
+    await signup(TENANT, 'ada@example.org');
+    const next = await uow.run(adminOf(), (ctx) => ctx.supporters.getProjection('ada@example.org'));
+    expect(next).not.toBeNull();
+    expect(next!.id).not.toBe(old.id);
+    const newCopies = copies(TENANT, 'ada@example.org');
+    await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+    expect(copies(TENANT, 'ada@example.org')).toEqual(newCopies);
+    expect(await uow.run(adminOf(), (ctx) => ctx.erasures.apply())).toBe(0);
+    delayed.id = uow.ids.next();
+    delayed.occurredAt = uow.clock.now();
+    await supporterIngestSubscriber(uow).handle(delayed);
+    expect(s.projections.get(next!.id)).toEqual(next);
+    expect(s.projections.get(old.id)?.email).toBe(tombstoneEmail(old.id));
+    (uow.clock as FakeClock).advance(1);
+    await uow.run(adminOf(), (ctx) => ctx.erasures.register(next!.id, 'ada@example.org'));
+    await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+    expect(copies(TENANT, 'ada@example.org')).toEqual(none);
+    expect(s.erasures.size).toBe(2);
+    expect(copies(OTHER, 'ada@example.org').supporters).toBe(1);
+  });
+
+  it('ignores old and future-dated unproven facts before apply, including old mail claims', async () => {
+    const s = uow.store.for(TENANT);
+    const old = structuredClone([...s.projections.values()][0]!);
+    const queued = structuredClone(uow.store.outbox.find((e) => e.tenantId === TENANT)!);
+    await uow.run(adminOf(), (ctx) => ctx.erasures.register(old.id, old.email));
+    const late = await toSupporterEvent({
+      ...queued,
+      occurredAt: new Date('2026-11-01T00:00:00Z'),
+    });
+    const count = s.events.size;
+    expect(await uow.run(adminOf(), (ctx) => ingest(ctx, late))).toBe(false);
+    expect(s.events.size).toBe(count);
+    const mailer = new MemoryMailer();
+    expect(
+      await sendOnce({ uow, clock: uow.clock, mailer }, queued, 'test-old-queue', {
+        from: { email: 'team@example.org' },
+        to: { email: old.email },
+        subject: 'Old queue',
+        text: 'Private',
+        html: '<p>Private</p>',
+        stream: 'transactional',
+      })
+    ).toBe('skipped');
+    expect(mailer.sent).toHaveLength(0);
+    expect(
+      await uow.run(adminOf(), (ctx) =>
+        ctx.erasures.admit(old.email, uow.ids.next(), uow.clock.now())
+      )
+    ).toBeNull();
+    (uow.clock as FakeClock).advance(86_400_001);
+    // Admission and ingest can precede apply, without reusing or folding the ended id.
+    await signup(TENANT, old.email);
+    const fresh = (await uow.run(adminOf(), (ctx) => ctx.supporters.getProjection(old.email)))!;
+    expect(fresh.id).not.toBe(old.id);
+    await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+    expect(s.projections.get(fresh.id)).toEqual(fresh);
+    expect(s.projections.get(old.id)?.email).toBe(tombstoneEmail(old.id));
+  });
+
+  it('removes restored old copies without a projection and retains readmission evidence', async () => {
+    const s = uow.store.for(TENANT);
+    const old = structuredClone([...s.projections.values()][0]!);
+    const restored = structuredClone([...s.submissions.values()][0]!);
+    await uow.run(adminOf(), (ctx) => ctx.erasures.register(old.id, old.email));
+    await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+    (uow.clock as FakeClock).advance(86_400_001);
+    await signup(TENANT, old.email);
+    const fresh = structuredClone(
+      await uow.run(adminOf(), (ctx) => ctx.supporters.getProjection(old.email))
+    );
+    // Crash/restore before an old submission had ever reached the projector.
+    s.projections.delete(old.id);
+    for (const [id, e] of s.events) if (e.supporter_id === old.id) s.events.delete(id);
+    s.submissions.set(restored.id, restored);
+    expect(await uow.run(adminOf(), (ctx) => ctx.erasures.apply())).toBeGreaterThan(0);
+    expect(s.submissions.has(restored.id)).toBe(false);
+    expect(await uow.run(adminOf(), (ctx) => ctx.supporters.getProjection(old.email))).toEqual(
+      fresh
+    );
+    expect(await uow.run(adminOf(), (ctx) => ctx.erasures.apply())).toBe(0);
+    expect(s.supporterLifecycles.size).toBe(1);
+  });
+
+  it('does not attach an old address signup to a readmitted supporter who moved address', async () => {
+    const s = uow.store.for(TENANT);
+    const old = [...s.projections.values()][0]!;
+    await uow.run(adminOf(), (ctx) => ctx.erasures.register(old.id, old.email));
+    await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+    (uow.clock as FakeClock).advance(86_400_001);
+    await signup(TENANT, 'ada@example.org');
+    const fresh = (await uow.run(adminOf(), (ctx) =>
+      ctx.supporters.getProjection('ada@example.org')
+    ))!;
+    const invoker = new Invoker(buildRegistry(), uow);
+    (uow.clock as FakeClock).advance(1);
+    await invoker.run(useCases.changeSupporterEmail, adminOf(), {
+      supporterId: fresh.id,
+      newEmail: 'moved@example.org',
+      reason: 'Requested by the supporter',
+    });
+    (uow.clock as FakeClock).advance(86_400_001);
+    await signup(TENANT, 'ada@example.org');
+    const next = (await uow.run(adminOf(), (ctx) =>
+      ctx.supporters.getProjection('ada@example.org')
+    ))!;
+    expect(next.id).not.toBe(fresh.id);
+    expect(
+      (await uow.run(adminOf(), (ctx) => ctx.supporters.getProjection('moved@example.org')))?.id
+    ).toBe(fresh.id);
+    await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+    expect(
+      (await uow.run(adminOf(), (ctx) => ctx.supporters.getProjection('ada@example.org')))?.id
+    ).toBe(next.id);
+  });
 
   it("expires an export archive that may hold the person, and no other site's", async () => {
     const ready = async (tenant: string) => {

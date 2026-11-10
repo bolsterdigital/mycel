@@ -1,6 +1,6 @@
 {
   "$comment": "Project profile for targeted review (docs/architecture/review.md). Data, not code: which paths touch which review lens, which ADRs and gates already cover it, and which flags a reviewer reads first. scripts/review-signals.mjs maps a diff through it; scripts/review-signals.test.mjs keeps every path, ADR and gate here real.",
-  "version": 2,
+  "version": 3,
   "phase": "Platform, content with its editor, forms and mail are built. No money yet.",
   "lenses": [
     {
@@ -50,6 +50,7 @@
         "packages/core/src/forms/**",
         "packages/core/src/mailing/**",
         "packages/db/src/supporters*",
+        "packages/db/src/supporters/**",
         "packages/db/src/infra/admissions.ts",
         "packages/db/src/audit.ts",
         "packages/db/src/hostnames*",

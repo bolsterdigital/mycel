@@ -115,6 +115,7 @@ export interface Submission {
   confirmedAt: Date | null;
   /** Null only on historical submissions made before versioned evaluation was introduced. */
   evaluation: {
+    supporterLifecycleId?: string;
     confirmationMail?: { version: string; copy: import('./mail-model.js').ResolvedFormMail };
     feedActions?: import('./feed/model.js').PinnedFormFeed[];
     mailActions?: import('./mail-model.js').PinnedMailAction[];

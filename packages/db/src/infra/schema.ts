@@ -497,6 +497,13 @@ export interface Database {
     subject_id: string | null;
   };
   /** The erasure register (0019): permanent, the hash of the address, never the address. */
+  supporter_lifecycles: {
+    tenant_id: string;
+    id: string;
+    email_hash: string;
+    submission_id: string;
+    started_at: Timestamp;
+  };
   erasures: {
     tenant_id: string;
     supporter_id: string;

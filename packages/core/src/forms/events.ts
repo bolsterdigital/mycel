@@ -2,6 +2,7 @@
 // none of them has to read the forms tables: the supporter module builds its envelope from this.
 
 export interface NewsletterSubscribedProps {
+  supporterLifecycleId?: string | undefined;
   email: string;
   list: string;
   formId: string;
@@ -18,6 +19,7 @@ export interface NewsletterSubscribedProps {
 
 /** Published by `mailing.opt_in.confirm` for the first click on a confirmation link, never for a second. */
 export interface ConsentGivenProps {
+  supporterLifecycleId?: string | undefined;
   email: string;
   list: string;
   formId: string;

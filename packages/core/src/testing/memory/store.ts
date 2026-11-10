@@ -106,6 +106,7 @@ export interface TenantStore {
   /** `audit_log` (0015), in insertion order. */
   audit: AuditEntry[];
   /** `erasures` (0019), keyed by supporter id: the hash of the address, never the address. */
+  supporterLifecycles: Map<string, import('../../supporters/lifecycle.js').SupporterLifecycle>;
   erasures: Map<string, { emailHash: string; erasedAt: Date; actor: Principal['actor'] }>;
   /**
    * `erasure_backups` (0021), keyed by supporter id. Only the backup writes it over Postgres; a
@@ -169,6 +170,7 @@ const emptyTenant = (): TenantStore => ({
   media: new Map(),
   mediaUsages: new Map(),
   audit: [],
+  supporterLifecycles: new Map(),
   erasures: new Map(),
   erasureBackups: new Map(),
   exports: new Map(),

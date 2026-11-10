@@ -255,6 +255,7 @@ describe.skipIf(skip)('tenant export and import', () => {
       await ctx.admissions.lock();
       await ctx.admissions.reserve(`pending-${t.slug}@example.org`);
       await ctx.erasures.register(uuidv7(), `gone-${t.slug}@example.org`);
+      await ctx.erasures.admit(`gone-${t.slug}@example.org`, uuidv7(), new Date(Date.now() + 1));
       await ctx.assist.saveSettings({
         enabled: false,
         allowRestricted: false,
@@ -371,6 +372,7 @@ describe.skipIf(skip)('tenant export and import', () => {
       ['audit_log.input_hash', 'a keyed digest of an input, verifiable only with the audit key'],
       ['connections.credential_version', 'a counter; the credential itself is not exported'],
       ['erasures.email_hash', 'the erasure register, which must survive a move (ADR 019)'],
+      ['supporter_lifecycles.email_hash', 'readmission evidence must survive a move (ADR 032)'],
       ['form_submissions.ip_hash', 'a keyed digest for spam defence, no credential'],
       ['supporter_admissions.email_hash', 'a keyed digest of an address, no credential'],
       ['tenant_hostnames.verification_token', 'public by design: it is published in DNS'],
