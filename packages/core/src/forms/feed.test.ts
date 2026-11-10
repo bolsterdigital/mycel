@@ -172,6 +172,24 @@ describe('form feeds', () => {
       code: 'invalid_input',
     });
   });
+  it('retains a new explicit lifecycle and blocks old feeds before and after apply', async () => {
+    const oldId = await submit();
+    const oldEvent = await confirm(oldId);
+    const old = (await intents())[0]!;
+    await uow.run(admin, (ctx) => ctx.erasures.register(old.supporterId!, 'visitor@example.org'));
+    expect(await dispatch(old.id)).toEqual([]);
+    clock.advance(86_400_001);
+    const nextId = await submit();
+    await confirm(nextId);
+    const fresh = (await intents()).find((r) => r.supporterId !== old.supporterId)!;
+    expect(fresh).toBeTruthy();
+    await uow.run(admin, (ctx) => ctx.erasures.apply());
+    await formFeedSubscriber(uow).handle(oldEvent);
+    expect(await dispatch(old.id)).toEqual([]);
+    expect(await dispatch(fresh.id)).toHaveLength(1);
+    expect(await uow.run(admin, (ctx) => ctx.erasures.apply())).toBe(0);
+  });
+
   it.each(['disabled', 'version', 'erased', 'withdrawn', 'missing', 'revoked'] as const)(
     'blocks %s before dispatch',
     async (reason) => {

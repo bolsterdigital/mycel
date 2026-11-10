@@ -9,7 +9,7 @@ import {
   type SupporterRepository,
 } from '@mycel/core';
 import type { Database } from './infra/schema.js';
-import { advisoryLock } from './infra/roles.js';
+import { lockSupporter } from './supporters/lifecycle.js';
 
 type Trx = Kysely<Database>;
 
@@ -33,7 +33,7 @@ export function supporterRepository(trx: Trx, tenantId: string, ids: Ids): Suppo
   });
   return {
     async lock(email) {
-      await advisoryLock(trx, 'supporter', tenantId, email);
+      await lockSupporter(trx, tenantId, email);
     },
     async resolve(email) {
       const row = await trx

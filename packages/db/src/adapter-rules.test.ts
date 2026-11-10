@@ -402,6 +402,32 @@ async function observeMediaListing(invoker: Invoker, uow: UnitOfWork, admin: Pri
   };
 }
 
+async function observeReadmission(uow: UnitOfWork, admin: Principal, clock: FakeClock) {
+  const email = 'lifecycle@example.org';
+  const first = uuidv7();
+  const next = uuidv7();
+  await uow.run(admin, (ctx) => ctx.erasures.register(first, email));
+  const tie = await uow.run(admin, (ctx) => ctx.erasures.admit(email, next, clock.now()));
+  clock.advance(1);
+  const id = await uow.run(admin, (ctx) => ctx.erasures.admit(email, next, clock.now()));
+  const duplicate = await uow.run(admin, (ctx) => ctx.erasures.admit(email, uuidv7(), clock.now()));
+  const allowed = await uow.run(admin, (ctx) => ctx.erasures.allows(email, id!));
+  const unproven = await uow.run(admin, (ctx) => ctx.erasures.allows(email));
+  clock.advance(1);
+  await uow.run(admin, (ctx) => ctx.erasures.register(id!, email));
+  const ended = await uow.run(admin, (ctx) => ctx.erasures.allows(email, id!));
+  const untouched = await uow.run(admin, (ctx) => ctx.erasures.allows('neighbour@example.org'));
+  return {
+    tie,
+    fresh: id === next,
+    reused: duplicate === next,
+    allowed,
+    unproven,
+    ended,
+    untouched,
+  };
+}
+
 async function observe({ uow, clock, tenant, apply }: Adapter) {
   const t = await tenant();
   const admin = systemPrincipal(t, 'adapter-rules');
@@ -498,10 +524,12 @@ async function observe({ uow, clock, tenant, apply }: Adapter) {
     const row = (await uow.run(admin, (ctx) => ctx.connectionIntents.get(id)))!;
     erased[before] = { state: row.state, failure: row.failure, supporterId: row.supporterId };
   }
+  const readmission = await observeReadmission(uow, admin, clock);
   const invoker = new Invoker(buildRegistry(), uow);
   const listing = await observeListing(invoker, admin, clock);
   const mediaListing = await observeMediaListing(invoker, uow, admin);
   return {
+    readmission,
     credential,
     frozen,
     erased,
@@ -512,6 +540,15 @@ async function observe({ uow, clock, tenant, apply }: Adapter) {
 }
 
 const expected = {
+  readmission: {
+    tie: null,
+    fresh: true,
+    reused: true,
+    allowed: true,
+    unproven: false,
+    ended: false,
+    untouched: true,
+  },
   credential: {
     paused: null,
     activeWorker: 'rule-secret',

@@ -24,7 +24,10 @@ import {
   memoryPlatform,
   runSuffix,
 } from '@mycel/core/testing';
-import { createDb, createUnitOfWork, uuidv7Ids } from './index.js';
+import { applyErasures, createDb, createUnitOfWork, uuidv7Ids } from './index.js';
+import { erasureRepository } from './erasures.js';
+import { supporterRepository } from './supporters.js';
+import { withTenant } from './index.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -158,6 +161,77 @@ describe.skipIf(skip)('supporter conformance', () => {
     expect(await projection(email)).toBeNull();
     expect(after).toEqual(rebuildProjection(await log(id)));
   });
+
+  it.each(['register', 'apply'] as const)(
+    'serialises %s with ingest and rolls back failed erasure work',
+    async (operation) => {
+      const email = `erase-lock-${operation}-${run}@example.org`;
+      await ingestOne(
+        event(email, `erase-lock-${operation}`, 'newsletter.subscribed', 1, { list: 'seed' })
+      );
+      const before = (await projection(email))!;
+      if (operation === 'apply')
+        await uow.run(admin, (ctx) => ctx.erasures.register(before.id, email));
+      let unlock!: () => void;
+      let locked!: (pid: number) => void;
+      const held = new Promise<void>((resolve) => {
+        unlock = resolve;
+      });
+      const ready = new Promise<number>((resolve) => {
+        locked = resolve;
+      });
+      const holder = withTenant(operatorDb, admin, async (trx) => {
+        await supporterRepository(trx, admin.tenantId, uuidv7Ids).lock(email);
+        const pid = (await sql<{ pid: number }>`select pg_backend_pid() as pid`.execute(trx))
+          .rows[0]!.pid;
+        locked(pid);
+        await held;
+      });
+      const pid = await ready;
+      const pending =
+        operation === 'register'
+          ? uow.run(admin, (ctx) => ctx.erasures.register(before.id, email))
+          : applyErasures(operatorDb, admin.tenantId);
+      const racingIngest = ingestOne(
+        event(email, `erase-racing-${operation}`, 'newsletter.subscribed', 8, { list: 'racing' })
+      );
+      try {
+        await expect
+          .poll(async () => {
+            const { rows } = await sql<{ blocked: boolean }>`select exists(
+          select 1 from pg_stat_activity where ${pid} = any(pg_blocking_pids(pid))) as blocked`.execute(
+              operatorDb
+            );
+            return rows[0]!.blocked;
+          })
+          .toBe(true);
+      } finally {
+        unlock();
+        await holder;
+        await pending;
+        await racingIngest;
+      }
+      expect(
+        await ingestOne(
+          event(email, `erase-late-${operation}`, 'newsletter.subscribed', 9, { list: 'late' })
+        )
+      ).toBe(false);
+      if (operation === 'register') {
+        const beforeApply = await projection(email);
+        // A crash before commit never leaves a half-applied erasure; retry performs the work.
+        await expect(
+          withTenant(operatorDb, admin, async (trx) => {
+            await erasureRepository(trx, admin.tenantId, admin, { now: () => new Date() }).apply();
+            throw new Error('simulated crash before commit');
+          })
+        ).rejects.toThrow('simulated crash');
+        expect(await projection(email)).toEqual(beforeApply);
+        await applyErasures(operatorDb, admin.tenantId);
+      }
+      expect(await projection(email)).toBeNull();
+      expect(await applyErasures(operatorDb, admin.tenantId)).toBe(0);
+    }
+  );
 
   it('keeps events_default empty after every fixture', async () => {
     // As the operator: the partition has no RLS of its own, so the owner sees every tenant.

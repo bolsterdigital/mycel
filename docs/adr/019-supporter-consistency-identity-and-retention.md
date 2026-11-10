@@ -2,6 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-10-21
+- **Rule 8 identity/time boundary superseded**: [ADR 032](032-erasure-and-explicit-readmission.md); every-copy and backup obligations remain
 - **Amends**: ADR 003 (rules 1, 3 and 5), ADR 011 (rule 4), ADR 016 (rule 1)
 - **Prompted by**: second-opinion review of 2026-10-21, finding 4
 

@@ -20,6 +20,8 @@ import {
 } from './model.js';
 import './ports.js';
 import { EmailAddress } from '../util/email.js';
+import { isTombstone, tombstoneEmail } from './erasure.js';
+import { emailKey } from './email-key.js';
 import { exampleId } from '../util/ids.js';
 
 export const SOURCE = 'mycel';
@@ -32,7 +34,12 @@ export const SOURCE = 'mycel';
 export async function toSupporterEvent(event: DomainEvent): Promise<SupporterEvent> {
   const occurredAt = event.occurredAt.toISOString();
   const envelope = async (
-    p: { email: string; submissionId: string; formId: string },
+    p: {
+      email: string;
+      submissionId: string;
+      formId: string;
+      supporterLifecycleId?: string | undefined;
+    },
     sourceSite: string,
     props: Record<string, unknown>
   ) => {
@@ -41,6 +48,7 @@ export async function toSupporterEvent(event: DomainEvent): Promise<SupporterEve
       schema: 'wings.supporter-event.v1',
       id: await sha1Hex([SOURCE, sourceRef, event.type, occurredAt].join('|')),
       type: event.type,
+      lifecycle_id: p.supporterLifecycleId,
       email: p.email,
       occurred_at: occurredAt,
       source: SOURCE,
@@ -75,9 +83,40 @@ export async function toSupporterEvent(event: DomainEvent): Promise<SupporterEve
  * the address decides. After a `supporter.email_changed` the old address no longer resolves, so an
  * event that still uses it starts a new supporter: the source has to use the new address.
  */
-export async function ingest(ctx: TransactionContext, event: SupporterEvent): Promise<boolean> {
+export async function ingest(
+  ctx: TransactionContext,
+  event: SupporterEvent,
+  withdrawalSubmissionId?: string
+): Promise<boolean> {
   await ctx.supporters.lock(event.email);
-  const { id } = await ctx.supporters.resolve(event.email);
+  if (!(await ctx.erasures.allows(event.email, event.lifecycle_id))) return false;
+  if (event.lifecycle_id) {
+    const withdrawal =
+      ['newsletter.unsubscribed', 'consent.withdrawn'].includes(event.type) &&
+      withdrawalSubmissionId;
+    const sub = withdrawal
+      ? await ctx.submissions.findById(withdrawal)
+      : event.source === SOURCE && event.source_ref.startsWith('submission:')
+        ? await ctx.submissions.findById(event.source_ref.slice('submission:'.length))
+        : null;
+    if (sub?.evaluation?.supporterLifecycleId !== event.lifecycle_id) return false;
+    const field = sub.evaluation.definition.fields.find((f) => f.type === 'email');
+    if (!field || sub.values[field.name] !== event.email) return false;
+  }
+  const resolved = await ctx.supporters.resolve(event.email);
+  const id = event.lifecycle_id ?? resolved.id;
+  if (event.lifecycle_id && resolved.id !== id && !resolved.isNew) {
+    // An explicit admission may commit before apply. Only ingest retires the old projection.
+    if (await ctx.erasures.allows(event.email, resolved.id))
+      throw new UseCaseError('conflict', 'another live lifecycle holds the address');
+    const old = (await ctx.supporters.getProjectionById(resolved.id))!;
+    await ctx.supporters.saveProjection({
+      ...old,
+      email: tombstoneEmail(old.id),
+      lists: [],
+      pendingLists: [],
+    });
+  }
   const appended = await appendAndFold(ctx, { ...event, supporter_id: id });
   // The projection exists now (or did already): the seat `form.submit` reserved is taken by it,
   // in this same transaction, so the address is never counted twice (TODO #16). Under the
@@ -164,10 +203,26 @@ export const changeSupporterEmail = defineUseCase({
 
     // Both addresses, in a fixed order so two opposite changes cannot deadlock. The read above
     // was unlocked: if the address moved in between, the caller retries on fresh data.
-    for (const email of [before.email, newEmail].sort()) await ctx.supporters.lock(email);
+    const ordered = await Promise.all(
+      [before.email, newEmail].map(async (email) => ({
+        email,
+        hash: await emailKey(ctx.principal.tenantId, email, 'erasure'),
+      }))
+    );
+    for (const { email } of ordered.sort((a, b) => a.hash.localeCompare(b.hash)))
+      await ctx.supporters.lock(email);
     const current = await ctx.supporters.getProjectionById(supporterId);
     if (!current || current.email !== before.email)
       throw new UseCaseError('conflict', 'the supporter changed while the request ran; retry');
+    if (
+      isTombstone(current.email) ||
+      !(await ctx.erasures.allows(current.email, supporterId)) ||
+      !(await ctx.erasures.allows(newEmail, supporterId))
+    )
+      throw new UseCaseError(
+        'conflict',
+        'an erased lifecycle cannot be moved; submit a new signup'
+      );
     const holder = await ctx.supporters.getProjection(newEmail);
     if (holder) throw new UseCaseError('conflict', 'another supporter has that e-mail address');
 

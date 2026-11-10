@@ -16,6 +16,8 @@
 import { sql, type Kysely } from 'kysely';
 import {
   carriesErasedAddress,
+  liveLifecycle,
+  protectsErasureCopy,
   isTombstone,
   normalizeEmail,
   eraseOutboxProps,
@@ -31,7 +33,8 @@ import {
 } from '@mycel/core';
 import { withTenant } from './index.js';
 import type { Database } from './infra/schema.js';
-import { setRole } from './infra/roles.js';
+import { lifecycleEvidence, lifecycleRepository, lockSupporter } from './supporters/lifecycle.js';
+import { advisoryLock, setRole } from './infra/roles.js';
 
 type Trx = Kysely<Database>;
 
@@ -44,7 +47,9 @@ export function erasureRepository(
   clock: Clock
 ): Erasures {
   return {
+    ...lifecycleRepository(trx, tenantId),
     async register(supporterId, email) {
+      await lockSupporter(trx, tenantId, email);
       await trx
         .insertInto('erasures')
         .values({
@@ -67,7 +72,19 @@ export function erasureRepository(
             `not as the fronts' login: ${(e as Error).message}`
         );
       }
-      const changed = await applyAsEraser(trx, tenantId);
+      const hashes = await trx
+        .selectFrom('erasures')
+        .select('email_hash')
+        .distinct()
+        .orderBy('email_hash')
+        .execute();
+      for (const { email_hash } of hashes)
+        await advisoryLock(trx, 'supporter', tenantId, email_hash);
+      if (!hashes.length) {
+        await setRole(trx, 'mycel_app');
+        return 0;
+      }
+      const changed = await applyAsEraser(trx, tenantId, new Set(hashes.map((r) => r.email_hash)));
       await setRole(trx, 'mycel_app');
       return changed;
     },
@@ -89,23 +106,39 @@ export function erasureRepository(
   };
 }
 
-async function applyAsEraser(trx: Trx, tenantId: string): Promise<number> {
-  const changed = await eraseRows(trx, tenantId);
+async function applyAsEraser(
+  trx: Trx,
+  tenantId: string,
+  lockedHashes: ReadonlySet<string>
+): Promise<number> {
+  const changed = await eraseRows(trx, tenantId, lockedHashes);
   // Core `expiresOnErasure` as one statement. The file goes after commit (`expireExports`, run
   // by `mycel erasures apply` and daily by the worker); the row keeps no trace of who.
   const r = await sql`
     update tenant_exports
     set status = 'expired', error = ${ERASURE_EXPORT_ERROR}, expires_at = now()
     where status = any(${[...ERASURE_EXPIRES_EXPORTS]}::text[])
-      and (${changed > 0} or requested_at < (select max(erased_at) from erasures))`.execute(trx);
+      and (${changed > 0} or requested_at < (select max(erased_at) from erasures where email_hash = any(${[...lockedHashes]}::text[])))`.execute(
+    trx
+  );
   return changed + Number(r.numAffectedRows ?? 0n);
 }
 
-async function eraseRows(trx: Trx, tenantId: string): Promise<number> {
-  const registered = await trx
-    .selectFrom('erasures')
-    .select(['supporter_id', 'email_hash'])
-    .execute();
+async function eraseRows(
+  trx: Trx,
+  tenantId: string,
+  lockedHashes: ReadonlySet<string>
+): Promise<number> {
+  const evidence = await lifecycleEvidence(trx);
+  const registrations = evidence.registrations.filter((r) => lockedHashes.has(r.emailHash));
+  const lifecycles = evidence.lifecycles;
+  const registered = registrations.map((r) => ({
+    supporter_id: r.supporterId,
+    email_hash: r.emailHash,
+  }));
+  const live = new Map(
+    lifecycles.filter((l) => liveLifecycle(l, registrations)).map((l) => [l.id, l])
+  );
   if (!registered.length) return 0;
   const ids = registered.map((r) => r.supporter_id);
   const receiptChanges = await trx
@@ -126,7 +159,10 @@ async function eraseRows(trx: Trx, tenantId: string): Promise<number> {
   const hashes = new Set(registered.map((r) => r.email_hash));
   const supporters = await trx.selectFrom('supporters').select(['id', 'email']).execute();
   const events = await trx.selectFrom('events').select(['id', 'supporter_id', 'email']).execute();
-  const submissions = await trx.selectFrom('form_submissions').select(['id', 'values']).execute();
+  const submissions = await trx
+    .selectFrom('form_submissions')
+    .select(['id', 'values', 'evaluation'])
+    .execute();
   const addresses = new Set<string>();
   const consider = async (email: string, owner?: string | null) => {
     if (isTombstone(email)) return;
@@ -139,12 +175,24 @@ async function eraseRows(trx: Trx, tenantId: string): Promise<number> {
     for (const value of Object.values(row.values))
       if (typeof value === 'string' && value.includes('@')) await consider(value);
   const carries = (value: unknown) => carriesErasedAddress(value, addresses);
+  const addressHashes = new Map(
+    await Promise.all(
+      [...addresses].map(async (a) => [a, await emailKey(tenantId, a, 'erasure')] as const)
+    )
+  );
+  const proven = (value: unknown, provenance: unknown) =>
+    protectsErasureCopy(value, provenance, live, addressHashes);
   const supporterIds = supporters
-    .filter((row) => ids.includes(row.id) || addresses.has(normalizeEmail(row.email)))
+    .filter(
+      (row) =>
+        !live.has(row.id) && (ids.includes(row.id) || addresses.has(normalizeEmail(row.email)))
+    )
     .map((row) => row.id);
   const eventRowIds = events
     .filter(
-      (row) => ids.includes(row.supporter_id ?? '') || addresses.has(normalizeEmail(row.email))
+      (row) =>
+        !live.has(row.supporter_id ?? '') &&
+        (ids.includes(row.supporter_id ?? '') || addresses.has(normalizeEmail(row.email)))
     )
     .map((row) => row.id);
 
@@ -170,21 +218,30 @@ async function eraseRows(trx: Trx, tenantId: string): Promise<number> {
 
   // Mail intents and their reconcile jobs hang off the outbox event that carried the address;
   // find them before the scrub below takes the address out of that event.
-  const outbox = (
+  const outboxCandidates = (
     await sql<{ id: string; type: string; props: Record<string, unknown> }>`
       select id, type, props from outbox`.execute(trx)
   ).rows.filter((row) => carries(row.props));
+  const outbox = [];
+  for (const row of outboxCandidates) if (!proven(row.props, row.props)) outbox.push(row);
   const eventIds = outbox.map((e) => e.id);
   count(
     await sql`delete from mail_sends where event_id::text = any(${eventIds}::text[])`.execute(trx)
   );
-  const submissionIds = submissions.filter((row) => carries(row.values)).map((row) => row.id);
+  const submissionIds = submissions
+    .filter((row) => carries(row.values) && !proven(row.values, row.evaluation))
+    .map((row) => row.id);
   count(
     await sql`delete from form_submissions where id = any(${submissionIds}::uuid[])`.execute(trx)
   );
   // A seat reserved for a signup that was never ingested, under core's admission key.
   // A rate-limit bucket stays: a hash that lives a day at most is no copy (ADR 019 rule 8).
-  const seats = await Promise.all([...addresses].map((a) => emailKey(tenantId, a, 'admission')));
+  const seats: string[] = [];
+  for (const a of addresses) {
+    const hash = await emailKey(tenantId, a, 'erasure');
+    if (![...live.values()].some((l) => l.emailHash === hash))
+      seats.push(await emailKey(tenantId, a, 'admission'));
+  }
   count(
     await sql`delete from supporter_admissions where email_hash = any(${seats}::text[])`.execute(
       trx

@@ -2,6 +2,12 @@
 // same rows (ADR 019 rule 8). The decisions (intent state, tombstone, archive expiry) are core's,
 // in supporters/erasure.ts; this file only finds the rows they apply to.
 
+import {
+  liveLifecycle,
+  protectsErasureCopy,
+  admissionFor,
+  allowsLifecycle,
+} from '../../supporters/lifecycle.js';
 import type { Principal } from '../../principal.js';
 import type { Clock, Erasures } from '../../ports.js';
 import { emailKey } from '../../supporters/email-key.js';
@@ -25,7 +31,26 @@ import type { MemoryStore } from './store.js';
 export function memoryErasures(store: MemoryStore, principal: Principal, clock: Clock): Erasures {
   const tenantId = principal.tenantId;
   const s = store.for(tenantId);
+  const evidence = () => [...s.erasures].map(([supporterId, r]) => ({ supporterId, ...r }));
   return {
+    async admit(email, submissionId, at) {
+      const hash = await emailKey(tenantId, email, 'erasure');
+      const id = admissionFor(hash, submissionId, at, evidence(), [
+        ...s.supporterLifecycles.values(),
+      ]);
+      if (!id || s.supporterLifecycles.has(id)) return id;
+      s.supporterLifecycles.set(id, {
+        id,
+        emailHash: hash,
+        submissionId,
+        startedAt: at,
+      });
+      return id;
+    },
+    async allows(email, lifecycleId) {
+      const hash = await emailKey(tenantId, email, 'erasure');
+      return allowsLifecycle(hash, lifecycleId, evidence(), [...s.supporterLifecycles.values()]);
+    },
     async register(supporterId, email) {
       if (s.erasures.has(supporterId)) return;
       s.erasures.set(supporterId, {
@@ -94,12 +119,25 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
       row.leaseUntil = null;
     }
   const ids = new Set(s.erasures.keys());
+  const registrations = [...s.erasures].map(([supporterId, r]) => ({ supporterId, ...r }));
+  const live = new Map(
+    [...s.supporterLifecycles.values()]
+      .filter((l) => liveLifecycle(l, registrations))
+      .map((l) => [l.id, l])
+  );
   const addresses = await registeredAddresses(store, tenantId);
   const carries = (value: unknown) => carriesErasedAddress(value, addresses);
+  const hashes = new Map(
+    await Promise.all(
+      [...addresses].map(async (a) => [a, await emailKey(tenantId, a, 'erasure')] as const)
+    )
+  );
+  const proven = (value: unknown, provenance: unknown) =>
+    protectsErasureCopy(value, provenance, live, hashes);
 
   for (const e of s.events.values()) {
     const owner = e.supporter_id ?? '';
-    if (!(ids.has(owner) || addresses.has(normalizeEmail(e.email)))) continue;
+    if (live.has(owner) || !(ids.has(owner) || addresses.has(normalizeEmail(e.email)))) continue;
     const tomb = tombstoneEmail(owner || e.id);
     if (e.email === tomb && !Object.keys(e.props).length) continue;
     e.email = tomb;
@@ -107,7 +145,7 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
     changed++;
   }
   for (const p of s.projections.values()) {
-    if (!(ids.has(p.id) || addresses.has(normalizeEmail(p.email)))) continue;
+    if (live.has(p.id) || !(ids.has(p.id) || addresses.has(normalizeEmail(p.email)))) continue;
     const tomb = tombstoneEmail(p.id);
     if (p.email === tomb && !p.lists.length && !p.pendingLists.length) continue;
     Object.assign(p, { email: tomb, lists: [], pendingLists: [] });
@@ -116,16 +154,23 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
   // Mail intents and their reconcile jobs hang off the outbox event that carried the address;
   // find them before the scrub below takes the address out of that event.
   const tenantOutbox = store.outbox.filter((e) => e.tenantId === tenantId);
-  const eventIds = new Set(tenantOutbox.filter((e) => carries(e.props)).map((e) => e.id));
+  const eventIds = new Set<string>();
+  for (const e of tenantOutbox)
+    if (carries(e.props) && !proven(e.props, e.props)) eventIds.add(e.id);
   for (const [key, send] of s.mailSends)
     if (eventIds.has(send.eventId) && s.mailSends.delete(key)) changed++;
   for (const [id, sub] of s.submissions)
-    if (carries(sub.values) && s.submissions.delete(id)) changed++;
+    if (carries(sub.values) && !proven(sub.values, sub.evaluation) && s.submissions.delete(id))
+      changed++;
   // A seat reserved for a signup that was never ingested.
   for (const a of addresses)
-    if (s.admissions.delete(await emailKey(tenantId, a, 'admission'))) changed++;
+    if (
+      ![...live.values()].some((l) => l.emailHash === hashes.get(a)) &&
+      s.admissions.delete(await emailKey(tenantId, a, 'admission'))
+    )
+      changed++;
   for (const e of tenantOutbox)
-    if (carries(e.props)) {
+    if (eventIds.has(e.id)) {
       e.props = eraseOutboxProps(e.type, e.props);
       changed++;
     }

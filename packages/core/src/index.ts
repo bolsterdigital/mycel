@@ -141,3 +141,5 @@ export * from './connections/mailchimp/service.js';
 export * from './connections/mailchimp/observations.js';
 export * from './connections/mailchimp/callback.js';
 export * from './connections/mailchimp/destination.js';
+
+export * from './supporters/lifecycle.js';

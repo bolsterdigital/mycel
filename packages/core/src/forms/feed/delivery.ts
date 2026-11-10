@@ -63,6 +63,8 @@ export function formFeedSubscriber(uow: UnitOfWork): Subscriber {
           sub.list !== event.props['list']
         )
           return;
+        await ctx.supporters.lock(email);
+        if (!(await ctx.erasures.allows(email, sub.evaluation.supporterLifecycleId))) return;
         // Subscriber order is not a correctness dependency. Ingest is deterministic and idempotent.
         await ingest(ctx, await toSupporterEvent(event));
         const supporter = await ctx.supporters.getProjection(email);
@@ -121,6 +123,9 @@ export const formFeedSource: ConnectionSource = {
       intent.supporterId && (await ctx.supporters.getProjectionById(intent.supporterId));
     const emailField = sub.evaluation!.definition.fields.find((f) => f.type === 'email');
     if (!supporter || !emailField || supporter.email !== sub.values[emailField.name])
+      return { ready: false, failure: 'erasure' };
+    await ctx.supporters.lock(supporter.email);
+    if (!(await ctx.erasures.allows(supporter.email, sub.evaluation?.supporterLifecycleId)))
       return { ready: false, failure: 'erasure' };
     const history = await ctx.supporters.eventsFor(supporter.id);
     if (

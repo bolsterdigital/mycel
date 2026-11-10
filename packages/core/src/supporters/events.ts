@@ -36,6 +36,7 @@ export const SupporterEvent = z.object({
    */
   supporter_id: z.string().guid().optional(),
   type: SupporterEventType,
+  lifecycle_id: z.string().guid().optional(),
   /**
    * Lowercased and trimmed; resolves to `supporter_id` at ingest (ADR 019 rule 1). For
    * `supporter.email_changed` it is the address before the change.

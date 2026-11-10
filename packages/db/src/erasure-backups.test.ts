@@ -11,8 +11,16 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql, type Kysely } from 'kysely';
-import { systemPrincipal } from '@mycel/core';
 import {
+  Invoker,
+  buildRegistry,
+  supporterIngestSubscriber,
+  systemPrincipal,
+  useCases,
+} from '@mycel/core';
+import {
+  testPlatformActor,
+  probeForm,
   FakeDns,
   FakeInputHasher,
   FakeSigner,
@@ -20,9 +28,19 @@ import {
   requireInCi,
   runSuffix,
 } from '@mycel/core/testing';
-import { createDb, createUnitOfWork, erasureStatus, uuidv7, uuidv7Ids } from './index.js';
+import {
+  applyErasures,
+  createDb,
+  createTenant,
+  createUnitOfWork,
+  erasureStatus,
+  readOutboxEvent,
+  withTenant,
+  uuidv7,
+  uuidv7Ids,
+} from './index.js';
 import type { Database } from './infra/schema.js';
-import { requireDatabase, testTenant, migrateSchema } from './testing.js';
+import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
@@ -105,6 +123,7 @@ describe.skipIf(skip)('erasure backups conformance', () => {
 
   afterAll(async () => {
     if (second.url) await dropDatabase(operatorDb, second.name);
+    await closeTenantWork(operatorDb, [tenants.a, tenants.b]);
     await operatorDb.destroy();
     await appDb.destroy();
   });
@@ -195,6 +214,104 @@ describe.skipIf(skip)('erasure backups conformance', () => {
       expect(rls[0]).toEqual({ rls: true, forced: true });
     } finally {
       await db.destroy();
+    }
+  });
+  it('overlays a newer five-column register on restored copies without the old projection', async (ctx) => {
+    if (!second.url) ctx.skip();
+    const restoredDb = createDb(second.url);
+    const tenantId = tenants.a;
+    const admin = systemPrincipal(tenantId, 'restore-readmission');
+    const address = `erabak-a-${run}@example.org`;
+    const form = probeForm(uuidv7());
+    await uow.run(admin, (c) => c.forms.insert(form));
+    const invoker = new Invoker(buildRegistry(), uow);
+    const submitted = await invoker.run(useCases.submitForm, admin, {
+      formId: form.id,
+      values: { email: address, consent: true },
+      locale: 'nl',
+    });
+    if (submitted.status !== 'accepted') throw new Error(submitted.status);
+    const fresh = (await uow.run(admin, (c) => c.submissions.findById(submitted.submissionId)))!;
+    const lifecycleId = fresh.evaluation!.supporterLifecycleId!;
+    expect(lifecycleId).toBeTruthy();
+    const old = {
+      ...structuredClone(fresh),
+      id: uuidv7(),
+      createdAt: new Date(0),
+      evaluation: null,
+    };
+    const deps = {
+      clock: { now: () => new Date() },
+      ids: uuidv7Ids,
+      signer: new FakeSigner(),
+      inputHasher: new FakeInputHasher(),
+      dns: new FakeDns(),
+      platform: memoryPlatform,
+    };
+    const restoredUow = createUnitOfWork(restoredDb, deps);
+    try {
+      await createTenant(
+        restoredDb,
+        { id: tenantId, slug: `restored-${run}`, name: 'Restored', locales: ['nl'] },
+        memoryPlatform,
+        testPlatformActor
+      );
+      await restoredUow.run(admin, async (c) => {
+        await c.forms.insert(form);
+        await c.submissions.insert(old);
+        await c.submissions.insert(fresh);
+      });
+      // Full-backup evidence is copied without re-admitting on restore. The separate register
+      // overlay retains exactly the five columns emitted by backup.sh, including its cutoff.
+      const saved = await withTenant(operatorDb, admin, async (trx) => ({
+        lifecycle: await trx
+          .selectFrom('supporter_lifecycles')
+          .selectAll()
+          .where('id', '=', lifecycleId)
+          .executeTakeFirstOrThrow(),
+        registration: await trx
+          .selectFrom('erasures')
+          .selectAll()
+          .where('supporter_id', '=', erased.a)
+          .executeTakeFirstOrThrow(),
+      }));
+      await withTenant(restoredDb, admin, async (trx) => {
+        await trx.insertInto('supporter_lifecycles').values(saved.lifecycle).execute();
+        await trx
+          .insertInto('erasures')
+          .values({ ...saved.registration, actor: JSON.stringify(saved.registration.actor) })
+          .execute();
+      });
+      expect(await restoredUow.run(admin, (c) => c.supporters.getProjection(address))).toBeNull();
+      await applyErasures(restoredDb, tenantId);
+      expect(await restoredUow.run(admin, (c) => c.submissions.findById(old.id))).toBeNull();
+      expect(await restoredUow.run(admin, (c) => c.submissions.findById(fresh.id))).toEqual(fresh);
+      const outboxId = await operatorDb.transaction().execute(async (trx) => {
+        await sql`set local role mycel_worker`.execute(trx);
+        return (
+          await trx
+            .selectFrom('outbox')
+            .select('id')
+            .where('tenant_id', '=', tenantId)
+            .where('type', '=', 'newsletter.subscribed')
+            .executeTakeFirstOrThrow()
+        ).id;
+      });
+      const event = (await readOutboxEvent(operatorDb, outboxId))!;
+      await supporterIngestSubscriber(restoredUow).handle(event);
+      const projection = await restoredUow.run(admin, (c) => c.supporters.getProjection(address));
+      expect(projection?.id).toBe(lifecycleId);
+      expect(await applyErasures(restoredDb, tenantId)).toBe(0);
+      // A later request ends this lifecycle too; backup confirmation remains per registration.
+      await restoredUow.run(admin, (c) => c.erasures.register(lifecycleId, address));
+      await applyErasures(restoredDb, tenantId);
+      expect(await restoredUow.run(admin, (c) => c.supporters.getProjection(address))).toBeNull();
+      expect(await restoredUow.run(admin, (c) => c.erasures.status())).toMatchObject({
+        registered: 2,
+        secured: 0,
+      });
+    } finally {
+      await restoredDb.destroy();
     }
   });
 });

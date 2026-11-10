@@ -16,6 +16,7 @@
 // by the recipient, and it moves the problem to every other provider), and an advisory lock per
 // key (it does not outlive the three transactions, and proves nothing after a crash).
 
+import { erasureAllowsEvent } from '../supporters/lifecycle.js';
 import type { JobOutcome } from '../jobs/ports.js';
 import { jobKey } from '../jobs/types.js';
 import type { Clock, DomainEvent, TransactionContext, UnitOfWork } from '../ports.js';
@@ -169,13 +170,16 @@ export async function settleIntent(
  */
 export async function sendOnce(
   deps: DeliveryDeps,
-  event: Pick<DomainEvent, 'id' | 'tenantId'>,
+  event: Pick<DomainEvent, 'id' | 'tenantId'> & Partial<Pick<DomainEvent, 'props'>>,
   subscriber: string,
   message: MailMessage
 ): Promise<SendOutcome> {
   const key = intentKey(subscriber, event.id);
   const run = runAs(deps, event.tenantId, subscriber);
 
+  const props =
+    typeof event.props?.['email'] === 'string' ? event.props : { email: message.to.email };
+  if (!(await run((ctx) => erasureAllowsEvent(ctx, { props })))) return 'skipped';
   const existing = await run((ctx) => ctx.mailSends.get(key));
   let expected: Date | null = null;
   if (existing) {
@@ -196,13 +200,15 @@ export async function sendOnce(
   }
 
   const correlation = await mailCorrelation(event.tenantId, message);
-  const claimed = await run((ctx) =>
-    claimAttempt(
+  const claimed = await run(async (ctx) => {
+    if (!(await erasureAllowsEvent(ctx, { props }))) return false;
+    return claimAttempt(
       ctx,
       { key, subscriber, eventId: event.id, correlation },
       { at: deps.clock.now(), expected, lagMs: deps.reconcileLagMs ?? RECONCILE_LAG_MS }
-    )
-  );
+    );
+  });
+  if (claimed === false) return 'skipped';
   if (!claimed) return 'deferred';
 
   let providerId: string;
@@ -229,7 +235,7 @@ const TERMINAL: ReadonlySet<SendOutcome> = new Set(['sent', 'reconciled', 'skipp
  */
 export async function reconcileMail(
   deps: DeliveryDeps,
-  event: Pick<DomainEvent, 'id' | 'tenantId'>,
+  event: Pick<DomainEvent, 'id' | 'tenantId'> & Partial<Pick<DomainEvent, 'props'>>,
   subscriber: string,
   message: MailMessage
 ): Promise<JobOutcome> {
