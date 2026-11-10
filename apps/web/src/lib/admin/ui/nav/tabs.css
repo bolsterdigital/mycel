@@ -45,17 +45,18 @@
   .ui-tabs:not([data-tabs]) > .ui-tabs-panel {
     display: none;
   }
-  .ui-tabs:not([data-tabs]):not(:has(> .ui-tabs-panel:target, > .ui-tabs-panel :target))
+  .ui-tabs:not([data-tabs]):not(
+      :has(> .ui-tabs-panel:target, > .ui-tabs-panel :target, .ui-tabs-panel [aria-invalid='true'])
+    )
     > .ui-tabs-panel:first-of-type,
-  .ui-tabs:not([data-tabs]) > .ui-tabs-panel:is(:target, :has(:target)) {
+  .ui-tabs:not([data-tabs]) > .ui-tabs-panel:is(:target, :has(:target)),
+  .ui-tabs:not([data-tabs]):not(:has(> .ui-tabs-panel:target, > .ui-tabs-panel :target))
+    > .ui-tabs-panel:has([aria-invalid='true']) {
     display: grid;
   }
-  .ui-tabs:not([data-tabs]):has(.ui-tabs-panel [aria-invalid='true'], .ui-tabs-panel :user-invalid)
-    > .ui-tabs-panel {
-    display: none;
-  }
-  .ui-tabs:not([data-tabs]):has(.ui-tabs-panel [aria-invalid='true'], .ui-tabs-panel :user-invalid)
-    > .ui-tabs-panel:has([aria-invalid='true'], :user-invalid) {
+  /* Native validation can refuse a control on another panel. Reveal every panel after that
+     deliberate submit so the browser can focus the field and navigation remains available. */
+  .ui-tabs:not([data-tabs]):has(.ui-tabs-panel :user-invalid) > .ui-tabs-panel {
     display: grid;
   }
   .ui-tabs-panel[hidden] {

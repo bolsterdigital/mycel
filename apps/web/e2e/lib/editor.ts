@@ -129,4 +129,6 @@ export async function nativeTabNavigation(page: Page, titles: readonly string[])
   await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
   await expect(page.locator('#title\\.nl')).toBeVisible();
   await expect(page.locator('#title\\.nl')).toBeFocused();
+  await nav.getByRole('link', { name: 'Zoeken en delen', exact: true }).click();
+  await expect(page.locator('#item-tabs-findability')).toBeVisible();
 }
