@@ -2,7 +2,7 @@
      path; this surface only adds a JSON field, never an autosave endpoint or a second revision. -->
 <script lang="ts">
   import { removedArticleCards, type ArticleEditorDocument } from './article-document.js';
-  import { AllSelection, NodeSelection } from '@tiptap/pm/state';
+  import { AllSelection, NodeSelection, TextSelection } from '@tiptap/pm/state';
   import { onMount, tick, type Snippet } from 'svelte';
   import { articleExtensions, proseExtensions } from './article-extensions.js';
   import { Editor, type JSONContent } from '@tiptap/core';
@@ -426,6 +426,19 @@
             !event.altKey
           ) {
             event.preventDefault();
+            // Reuse adjacent prose instead of creating a second locale-incomplete block.
+            // A new Dutch-only block beside existing English words cannot be merged losslessly.
+            const { from, to, $from: beforeSelection } = view.state.selection;
+            const next = view.state.doc.nodeAt(to);
+            const previous = beforeSelection.nodeBefore;
+            if (next?.type.name === 'mycelProse' || previous?.type.name === 'mycelProse') {
+              const transaction = view.state.tr.deleteSelection();
+              const position = Math.min(from, transaction.doc.content.size);
+              const bias = next?.type.name === 'mycelProse' ? 1 : -1;
+              transaction.setSelection(TextSelection.near(transaction.doc.resolve(position), bias));
+              view.dispatch(transaction.insertText(event.key));
+              return true;
+            }
             const id = crypto.randomUUID();
             const schema = view.state.schema;
             const prose = schema.nodes.mycelProse!.create(

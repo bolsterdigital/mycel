@@ -316,7 +316,11 @@ test.describe('article-writing', () => {
         await callApi<{
           revision: {
             document: {
-              blocks: { id: string; type: string; props: { text?: { nl?: string } } }[];
+              blocks: {
+                id: string;
+                type: string;
+                props: { text?: { nl?: string }; content?: Record<string, unknown> };
+              }[];
             };
           };
         }>(request, 'content.item.get', { itemId })
@@ -324,14 +328,15 @@ test.describe('article-writing', () => {
     const open = async (
       page: Page,
       request: APIRequestContext,
-      blocks: unknown[]
+      blocks: unknown[],
+      locales = ['nl']
     ): Promise<string> => {
       const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
         slug: `writer-gone-${test.info().project.name}-${test.info().title.length}-${Date.now()}`,
         document: {
           type: 'article',
           defaultLocale: 'nl',
-          locales: ['nl'],
+          locales,
           title: { nl: 'Leeg' },
           blocks,
         },
@@ -351,7 +356,18 @@ test.describe('article-writing', () => {
 
     for (const action of ['erase all', 'type over first card', 'undo removal'] as const) {
       test(`a visible card removal: ${action}`, async ({ page, request }) => {
-        const itemId = await open(page, request, [quote('Blijft alleen na ongedaan maken'), prose]);
+        const itemId = await open(
+          page,
+          request,
+          [
+            quote('Blijft alleen na ongedaan maken'),
+            {
+              ...prose,
+              props: { content: { nl: line('Wordt leeg'), en: line('English retained') } },
+            },
+          ],
+          ['nl', 'en']
+        );
         await editorReady(page);
         const surface = page.locator('.writing-surface .ProseMirror').first();
         if (action === 'type over first card') {
@@ -380,6 +396,9 @@ test.describe('article-writing', () => {
           action === 'undo removal' ? 1 : 0
         );
         if (action === 'type over first card') await expect(surface).toContainText('Nieuwe tekst');
+        expect(saved.find((block) => block.type === 'rich-text')?.props.content?.en).toEqual(
+          line('English retained')
+        );
         await expectNoAxeViolations(page);
       });
     }
