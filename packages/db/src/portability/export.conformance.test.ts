@@ -255,7 +255,6 @@ describe.skipIf(skip)('tenant export and import', () => {
       await ctx.admissions.lock();
       await ctx.admissions.reserve(`pending-${t.slug}@example.org`);
       await ctx.erasures.register(uuidv7(), `gone-${t.slug}@example.org`);
-      // Durable readmission evidence is exported even if its projection has not arrived yet.
       await ctx.erasures.admit(`gone-${t.slug}@example.org`, uuidv7(), new Date(Date.now() + 1));
       await ctx.assist.saveSettings({
         enabled: false,

@@ -19,6 +19,7 @@ A supporter is one person per tenant, identified by a normalised e-mail address 
 | `email`                               | lower-cased and trimmed; for `supporter.email_changed` the address before the change                                                                        |
 | `occurred_at`                         | ISO 8601 with offset                                                                                                                                        |
 | `source`, `source_site`, `source_ref` | origin; Mycel writes `source: mycel` and `source_ref: submission:<id>` or `supporter:<id>`                                                                  |
+| `lifecycle_id`                        | optional server-owned readmission id (ADR 032); validated against durable lifecycle and submission evidence, never a caller-selected supporter id           |
 | `props`                               | type-specific extras                                                                                                                                        |
 
 Today the `supporters.ingest` subscriber maps `newsletter.subscribed` and `consent.given` from forms. A signup and its confirmation share `source_ref` and differ in type, so both ids are deterministic and distinct.

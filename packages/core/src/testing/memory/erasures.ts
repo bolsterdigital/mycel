@@ -35,9 +35,14 @@ export function memoryErasures(store: MemoryStore, principal: Principal, clock: 
   return {
     async admit(email, submissionId, at) {
       const hash = await emailKey(tenantId, email, 'erasure');
-      const id = admissionFor(hash, submissionId, at, evidence(), [
-        ...s.supporterLifecycles.values(),
-      ]);
+      const id = admissionFor(
+        hash,
+        submissionId,
+        at,
+        evidence(),
+        [...s.supporterLifecycles.values()],
+        new Set([...s.projections.values()].filter((p) => p.email !== email).map((p) => p.id))
+      );
       if (!id || s.supporterLifecycles.has(id)) return id;
       s.supporterLifecycles.set(id, {
         id,

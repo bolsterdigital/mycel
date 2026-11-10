@@ -105,6 +105,8 @@ export async function ingest(
   }
   const resolved = await ctx.supporters.resolve(event.email);
   const id = event.lifecycle_id ?? resolved.id;
+  const lifecycleProjection = event.lifecycle_id && (await ctx.supporters.getProjectionById(id));
+  if (lifecycleProjection && lifecycleProjection.email !== event.email) return false;
   if (event.lifecycle_id && resolved.id !== id && !resolved.isNew) {
     // An explicit admission may commit before apply. Only ingest retires the old projection.
     if (await ctx.erasures.allows(event.email, resolved.id))

@@ -249,6 +249,38 @@ describe('ctx.erasures in memory', () => {
     expect(s.supporterLifecycles.size).toBe(1);
   });
 
+  it('does not attach an old address signup to a readmitted supporter who moved address', async () => {
+    const s = uow.store.for(TENANT);
+    const old = [...s.projections.values()][0]!;
+    await uow.run(adminOf(), (ctx) => ctx.erasures.register(old.id, old.email));
+    await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+    (uow.clock as FakeClock).advance(86_400_001);
+    await signup(TENANT, 'ada@example.org');
+    const fresh = (await uow.run(adminOf(), (ctx) =>
+      ctx.supporters.getProjection('ada@example.org')
+    ))!;
+    const invoker = new Invoker(buildRegistry(), uow);
+    (uow.clock as FakeClock).advance(1);
+    await invoker.run(useCases.changeSupporterEmail, adminOf(), {
+      supporterId: fresh.id,
+      newEmail: 'moved@example.org',
+      reason: 'Requested by the supporter',
+    });
+    (uow.clock as FakeClock).advance(86_400_001);
+    await signup(TENANT, 'ada@example.org');
+    const next = (await uow.run(adminOf(), (ctx) =>
+      ctx.supporters.getProjection('ada@example.org')
+    ))!;
+    expect(next.id).not.toBe(fresh.id);
+    expect(
+      (await uow.run(adminOf(), (ctx) => ctx.supporters.getProjection('moved@example.org')))?.id
+    ).toBe(fresh.id);
+    await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+    expect(
+      (await uow.run(adminOf(), (ctx) => ctx.supporters.getProjection('ada@example.org')))?.id
+    ).toBe(next.id);
+  });
+
   it("expires an export archive that may hold the person, and no other site's", async () => {
     const ready = async (tenant: string) => {
       const { record } = await uow.run(adminOf(tenant), (ctx) =>

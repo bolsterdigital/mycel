@@ -35,7 +35,19 @@ export function lifecycleRepository(trx: Kysely<Database>, tenantId: string) {
       await lockSupporter(trx, tenantId, email);
       const hash = await emailKey(tenantId, email, 'erasure');
       const { registrations, lifecycles } = await lifecycleEvidence(trx);
-      const id = admissionFor(hash, submissionId, at, registrations, lifecycles);
+      const moved = await trx
+        .selectFrom('supporters')
+        .select('id')
+        .where('email', '!=', email)
+        .execute();
+      const id = admissionFor(
+        hash,
+        submissionId,
+        at,
+        registrations,
+        lifecycles,
+        new Set(moved.map((r) => r.id))
+      );
       if (!id || lifecycles.some((l) => l.id === id)) return id;
       await trx
         .insertInto('supporter_lifecycles')

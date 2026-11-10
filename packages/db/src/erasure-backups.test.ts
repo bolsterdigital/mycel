@@ -10,6 +10,7 @@
 // CI that is a failure. Skips without DATABASE_URL and APP_DATABASE_URL.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { asRole } from './infra/roles.js';
 import { sql, type Kysely } from 'kysely';
 import {
   Invoker,
@@ -286,8 +287,7 @@ describe.skipIf(skip)('erasure backups conformance', () => {
       await applyErasures(restoredDb, tenantId);
       expect(await restoredUow.run(admin, (c) => c.submissions.findById(old.id))).toBeNull();
       expect(await restoredUow.run(admin, (c) => c.submissions.findById(fresh.id))).toEqual(fresh);
-      const outboxId = await operatorDb.transaction().execute(async (trx) => {
-        await sql`set local role mycel_worker`.execute(trx);
+      const outboxId = await asRole(operatorDb, 'mycel_worker', async (trx) => {
         return (
           await trx
             .selectFrom('outbox')

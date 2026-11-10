@@ -50,14 +50,16 @@ export function admissionFor(
   submissionId: string,
   at: Date,
   registrations: readonly ErasureBoundary[],
-  lifecycles: readonly SupporterLifecycle[]
+  lifecycles: readonly SupporterLifecycle[],
+  movedIds: ReadonlySet<string> = new Set()
 ): string | undefined | null {
   const ended = registrations.filter((r) => r.emailHash === hash);
   if (!ended.length) return undefined;
   if (ended.some((r) => r.erasedAt >= at)) return null;
   return (
-    lifecycles.find((l) => l.emailHash === hash && liveLifecycle(l, registrations))?.id ??
-    submissionId
+    lifecycles.find(
+      (l) => l.emailHash === hash && !movedIds.has(l.id) && liveLifecycle(l, registrations)
+    )?.id ?? submissionId
   );
 }
 
