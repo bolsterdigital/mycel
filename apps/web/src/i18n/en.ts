@@ -804,6 +804,7 @@ export const en = {
   'admin.audit.op.site.chrome.update': 'Header and footer changed',
   'admin.audit.op.site.general.update': 'General settings changed',
   'admin.audit.op.site.image.update': 'Default image changed',
+  'admin.audit.op.site.retention.update': 'Retention of form submissions changed',
   'admin.audit.op.site.theme.update': 'House style changed',
   'admin.audit.op.supporter.email.update': 'Supporter e-mail address changed',
   'admin.audit.op.supporter.erase': 'Supporter erasure requested',

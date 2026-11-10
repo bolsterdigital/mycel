@@ -71,7 +71,9 @@ Opening the link only reads (`mailing.opt_in.get`); the button on that page post
 
 ## Retention
 
-Rate-limit and cooldown windows live in `rate_limits` and are deleted by the hourly `rate_limits.sweep` job as `mycel_janitor` once older than a day (`packages/db/src/infra/janitor.ts`); that is why no cooldown may exceed a day. A seat reservation stops counting after seven days and is swept by the tenant's next `reserve`.
+Rate-limit and cooldown windows live in `rate_limits` and are deleted by the hourly `rate_limits.sweep` job as `mycel_janitor` once older than a day (`packages/db/src/infra/janitor.ts`); that is why no cooldown may exceed a day. A seat reservation stops counting after seven days and is removed by the tenant's next `reserve` or the daily `retention.apply`, whichever comes first.
+
+A submission is kept for 24 calendar months, or the fewer months the site set with `site.retention.update`, and is then deleted by the daily `retention.apply`; one that an open mail or connector effect still reads stays until that settles ([jobs.md](jobs.md) § Retention). Deleting a submission changes nothing about the supporter it led to: the event log, the projection and consent stay.
 
 ## Constants
 
