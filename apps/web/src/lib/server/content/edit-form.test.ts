@@ -7,12 +7,14 @@ import {
   BLOCK_DEFINITIONS,
   BLOCK_TYPES,
   Block,
+  ContentDocument,
   INSERTABLE_BLOCK_TYPES,
   UseCaseError,
   type BlockField,
 } from '@mycel/core';
 import { formValues, postedValues } from '#lib/editor/block-form.js';
 import {
+  formDocument,
   blockIssueField,
   blockIssues,
   documentFieldIssues,
@@ -360,4 +362,37 @@ describe('the one edit form', () => {
       'locales',
     ]);
   });
+});
+
+// A visible deletion crosses the ordinary form parser; leftover card fields cannot resurrect it.
+it('saves explicit writer card removal, accepts undo and refuses unannounced card loss', () => {
+  const quote = blocks.find((block) => block.type === 'quote')!;
+  const base = ContentDocument.parse({
+    type: 'article',
+    defaultLocale: 'nl',
+    locales: ['nl', 'en'],
+    title: { nl: 'Artikel' },
+    blocks: [quote],
+  });
+  const parse = (content: unknown[], removedCardIds?: unknown) => {
+    const post = new FormData();
+    post.set('articleEditor', JSON.stringify({ type: 'doc', content, removedCardIds }));
+    for (const [name, value] of Object.entries(formOf([quote]))) post.set(name, value);
+    return formDocument(
+      base,
+      { 'title.nl': 'Artikel' },
+      postedValues(Object.fromEntries(post.entries()) as Record<string, string>),
+      '2026-11-10',
+      'nl'
+    );
+  };
+  const removed = parse([], [quote.id]);
+  expect(removed.errors).toEqual([]);
+  expect(removed.blocks).toEqual([]);
+  const undone = parse([{ type: 'mycelCard', attrs: { blockId: quote.id } }], []);
+  expect(undone.errors).toEqual([]);
+  expect(undone.blocks.map((block) => block.id)).toEqual([quote.id]);
+  expect(parse([]).errors).toEqual([
+    { name: 'articleEditor', message: 'editor.markdown.invalid', line: 1 },
+  ]);
 });

@@ -9,7 +9,13 @@ import {
   ContentDocument,
   readinessIssues,
 } from '@mycel/core';
-import { fromArticleEditor, toArticleEditor, toTiptap, fromTiptap } from './article-document.js';
+import {
+  fromArticleEditor,
+  toArticleEditor,
+  toTiptap,
+  fromTiptap,
+  removedArticleCards,
+} from './article-document.js';
 import { articleExtensions, proseExtensions } from './article-extensions.js';
 
 const editorSchema = getSchema(articleExtensions);
@@ -156,6 +162,53 @@ describe('article editor document', () => {
         content: [{ ...editor.content[0], attrs: { blockId: 'invented' } }, editor.content[1]],
       })
     ).toThrow('Unknown');
+  });
+
+  it('accepts only explicit card removal, clears it on undo, and refuses unexplained loss', () => {
+    const quote = blocks.find((block) => block.type === 'quote')!;
+    const document = base(quote);
+    const before = toArticleEditor(document, 'nl');
+    const after = { type: 'doc' as const, content: [] };
+    const removedCardIds = removedArticleCards(before, after, [], true);
+    expect(removedCardIds).toEqual([quote.id]);
+    expect(fromArticleEditor(document, 'nl', { ...after, removedCardIds }).blocks).toEqual([]);
+    expect(removedArticleCards(after, before, removedCardIds, true)).toEqual([]);
+    expect(fromArticleEditor(document, 'nl', before)).toEqual(document);
+    expect(removedArticleCards(before, after, [], false)).toEqual([]);
+    expect(() => fromArticleEditor(document, 'nl', after)).toThrow('missing');
+    expect(() =>
+      fromArticleEditor(document, 'nl', { ...after, removedCardIds: ['unknown'] })
+    ).toThrow('Invalid card removal');
+    expect(() => fromArticleEditor(document, 'nl', { ...after, removedCardIds: 'all' })).toThrow(
+      'Invalid card removal'
+    );
+    const prose = blocks.find((block) => block.type === 'rich-text')!;
+    expect(() =>
+      fromArticleEditor(base(prose), 'nl', { ...after, removedCardIds: [prose.id] })
+    ).toThrow('Invalid card removal');
+    expect(() => fromArticleEditor(base(prose), 'nl', after)).toThrow('missing');
+  });
+
+  it('normalizes prose brought together by a removed card without losing translations', () => {
+    const prose = blocks.find((block) => block.type === 'rich-text')!;
+    const quote = blocks.find((block) => block.type === 'quote')!;
+    const second = { ...prose, id: 'second-prose' };
+    const document = ContentDocument.parse({ ...base(prose), blocks: [prose, quote, second] });
+    const editor = toArticleEditor(document, 'nl');
+    const saved = fromArticleEditor(document, 'nl', {
+      ...editor,
+      content: editor.content.filter((node) => node.attrs.blockId !== quote.id),
+      removedCardIds: [quote.id],
+    });
+    expect(saved.blocks).toHaveLength(1);
+    expect(saved.blocks[0]?.id).toBe(prose.id);
+    if (prose.type !== 'rich-text' || saved.blocks[0]?.type !== 'rich-text')
+      throw new Error('prose');
+    for (const locale of Object.keys(prose.props.content))
+      expect(saved.blocks[0].props.content[locale]?.content).toEqual([
+        ...prose.props.content[locale]!.content,
+        ...prose.props.content[locale]!.content,
+      ]);
   });
 
   it('accepts a validated new quote card and a new prose block without changing other locales', () => {

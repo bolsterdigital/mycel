@@ -1,6 +1,8 @@
 <!-- A progressive view of the one document form. The native fields remain the no-JavaScript
      path; this surface only adds a JSON field, never an autosave endpoint or a second revision. -->
 <script lang="ts">
+  import { removedArticleCards, type ArticleEditorDocument } from './article-document.js';
+  import { AllSelection, NodeSelection } from '@tiptap/pm/state';
   import { onMount, tick, type Snippet } from 'svelte';
   import { articleExtensions, proseExtensions } from './article-extensions.js';
   import { Editor, type JSONContent } from '@tiptap/core';
@@ -317,10 +319,23 @@
     }
   }
 
+  let removedCardIds: string[] = [];
+  let userEdit = false;
+  function noteUserEdit() {
+    userEdit = true;
+    // DOM input is read by ProseMirror's mutation observer after the input event returns.
+    setTimeout(() => {
+      userEdit = false;
+    }, 0);
+    return false;
+  }
+
   function sync() {
     if (!editor) return;
     const json = editor.getJSON();
-    payload = JSON.stringify(json);
+    payload = JSON.stringify(
+      article ? { ...json, content: json.content ?? [], removedCardIds } : json
+    );
   }
   onMount(() => {
     if (fallback || (!article && host.closest('[data-native-prose]'))) return;
@@ -356,15 +371,65 @@
     // The SSR preview has already laid out these words and cards. Preserve card references above,
     // then let TipTap own the same host instead of appending a second copy of the document.
     if (preview) host.replaceChildren();
+    const baseCardIds = new Set(
+      ((initial as ArticleEditorDocument).content ?? [])
+        .filter((node) => node.type === 'mycelCard')
+        .map((node) => node.attrs.blockId)
+    );
     const instance = new Editor({
       element: host,
       injectCSS: false,
       extensions: article ? articleExtensions : proseExtensions,
       content: initial as JSONContent,
       editorProps: {
+        handleDOMEvents: {
+          keydown: noteUserEdit,
+          beforeinput: noteUserEdit,
+          cut: noteUserEdit,
+          paste: noteUserEdit,
+        },
         handlePaste: (_view, event) => paste(event),
         // The shortcut the screen's help names for a link; the other marks have TipTap's own.
-        handleKeyDown: (_view, event) => {
+        handleKeyDown: (view, event) => {
+          // Keep emptied prose identities so other locales survive selecting and deleting all.
+          // Cards disappear visibly; a missing prose id must still be refused by the server.
+          if (
+            article &&
+            view.state.selection instanceof AllSelection &&
+            ['Backspace', 'Delete'].includes(event.key)
+          ) {
+            event.preventDefault();
+            const prose = [];
+            for (const node of view.state.doc.content.content)
+              if (node.type.name === 'mycelProse')
+                prose.push(
+                  node.type.create(node.attrs, view.state.schema.nodes.paragraph!.create())
+                );
+            view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, prose));
+            return true;
+          }
+          if (
+            article &&
+            view.state.selection instanceof NodeSelection &&
+            view.state.selection.node.type.name === 'mycelCard' &&
+            event.key.length === 1 &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.altKey
+          ) {
+            event.preventDefault();
+            const id = crypto.randomUUID();
+            const schema = view.state.schema;
+            const prose = schema.nodes.mycelProse!.create(
+              {
+                blockId: id,
+                newBlock: { id, type: 'rich-text', version: 1, props: { content: {} } },
+              },
+              schema.nodes.paragraph!.create(null, schema.text(event.key))
+            );
+            view.dispatch(view.state.tr.replaceSelectionWith(prose));
+            return true;
+          }
           if (!(event.metaKey || event.ctrlKey) || event.altKey || event.key.toLowerCase() !== 'k')
             return false;
           event.preventDefault();
@@ -387,9 +452,20 @@
           class: 'writing-document',
         },
       },
+      onTransaction: ({ editor: current, transaction }) => {
+        if (!article || !transaction.docChanged) return;
+        removedCardIds = removedArticleCards(
+          transaction.before.toJSON() as ArticleEditorDocument,
+          current.getJSON() as unknown as ArticleEditorDocument,
+          removedCardIds,
+          userEdit
+        ).filter((id) => baseCardIds.has(id));
+      },
       onUpdate: ({ editor: current }) => {
         const json = current.getJSON();
-        payload = JSON.stringify(json);
+        payload = JSON.stringify(
+          article ? { ...json, content: json.content ?? [], removedCardIds } : json
+        );
       },
     });
     // TipTap installs extension node views at creation; set the native form portals afterwards.

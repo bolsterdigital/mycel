@@ -349,6 +349,41 @@ test.describe('article-writing', () => {
       }, value);
     const save = (page: Page) => page.getByRole('button', { name: 'Opslaan', exact: true }).click();
 
+    for (const action of ['erase all', 'type over first card', 'undo removal'] as const) {
+      test(`a visible card removal: ${action}`, async ({ page, request }) => {
+        const itemId = await open(page, request, [quote('Blijft alleen na ongedaan maken'), prose]);
+        await editorReady(page);
+        const surface = page.locator('.writing-surface .ProseMirror').first();
+        if (action === 'type over first card') {
+          // Focus the editor view without DOM focus changing its initial card selection to prose.
+          await surface.evaluate((node) => {
+            const editor = (node as HTMLElement & { editor: { view: { focus(): void } } }).editor;
+            editor.view.focus();
+          });
+          await page.keyboard.type('Nieuwe tekst');
+        } else {
+          await surface.focus();
+          await surface.press('ControlOrMeta+a');
+          await surface.press('Backspace');
+        }
+        if (action === 'undo removal') await surface.press('ControlOrMeta+z');
+        await expect(surface.locator('.editor-card')).toHaveCount(
+          action === 'undo removal' ? 1 : 0
+        );
+        await expectNoAxeViolations(page);
+        await save(page);
+        await expect(page).toHaveURL(/saved/);
+        await page.reload();
+        await editorReady(page);
+        const saved = await stored(request, itemId);
+        expect(saved.filter((block) => block.type === 'quote')).toHaveLength(
+          action === 'undo removal' ? 1 : 0
+        );
+        if (action === 'type over first card') await expect(surface).toContainText('Nieuwe tekst');
+        await expectNoAxeViolations(page);
+      });
+    }
+
     test('a refused insert keeps what was typed, and the next save stands', async ({
       page,
       request,
