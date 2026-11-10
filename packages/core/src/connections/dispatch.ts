@@ -156,7 +156,13 @@ export async function runConnectionIntent(
   } else {
     try {
       result = reconcile
-        ? await deps.transport.reconcile!({ tenantId, intent: row })
+        ? await deps.transport.reconcile!({
+            tenantId,
+            intent: row,
+            connection: prepared.connection,
+            credential: prepared.credential,
+            payload: prepared.payload,
+          })
         : await deps.transport.dispatch({
             tenantId,
             intent: row,

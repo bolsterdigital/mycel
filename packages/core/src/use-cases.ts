@@ -1,3 +1,5 @@
+import { getMailchimpCallback } from './connections/mailchimp/callback.js';
+import { inspectMailchimpAccount } from './connections/mailchimp/service.js';
 import {
   listForms,
   getFormForAuthoring,
@@ -146,6 +148,8 @@ import {
 import { listExports, requestExport } from './tenants/exports.js';
 
 export const useCases = {
+  getMailchimpCallback,
+  inspectMailchimpAccount,
   listForms,
   getFormForAuthoring,
   createForm,

@@ -82,7 +82,7 @@ export const SubmitResult = z.discriminatedUnion('status', [
      * 24 hours. A public front shows it like `spam` (the thank-you page), so nobody learns
      * whether an address was used; an authenticated integration sees why nothing happened.
      */
-    reason: z.enum(['spam', 'too-fast', 'rate-limited', 'recipient-limited']),
+    reason: z.enum(['spam', 'too-fast', 'rate-limited', 'recipient-limited', 'unavailable']),
     message: z.string(),
   }),
 ]);

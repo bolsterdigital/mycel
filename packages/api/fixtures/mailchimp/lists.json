@@ -1,0 +1,13 @@
+{
+  "lists": [
+    {
+      "id": "list1",
+      "name": "Newsletter",
+      "contact": { "company": "Synthetic organisation" },
+      "permission_reminder": "You requested these messages.",
+      "double_optin": true
+    }
+  ],
+  "total_items": 1,
+  "_links": []
+}

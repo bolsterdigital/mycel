@@ -8,6 +8,7 @@
 import { z } from 'zod';
 
 export const JobPayloads = {
+  'connections.mailchimp.sync': z.object({ intentId: z.string().guid() }).strict(),
   'connections.run': z.object({ intentId: z.string().guid() }).strict(),
   /** Tenant job: evaluate one pending proposal outside the request transaction. */
   'assist.run': z.object({ suggestionId: z.string().guid() }).strict(),

@@ -58,6 +58,7 @@ export interface TenantStore {
   brandLogo: { version: number; asset: BrandAsset | null };
   brandFont: { version: number; asset: BrandAsset | null };
   connections: Map<string, ConnectionRecord>;
+  mailchimpReceipts: Map<string, import('../../connections/mailchimp/ports.js').MailchimpReceipt>;
   connectionSecrets: Map<string, string>;
   connectionIntents: Map<string, ConnectionIntent>;
   connectionAttempts: ConnectionAttempt[];
@@ -127,6 +128,7 @@ const emptyTenant = (): TenantStore => ({
   brandFont: { version: 0, asset: null },
   connections: new Map(),
   connectionSecrets: new Map(),
+  mailchimpReceipts: new Map(),
   connectionIntents: new Map(),
   connectionAttempts: [],
   assistSettings: {

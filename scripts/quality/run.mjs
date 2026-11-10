@@ -284,13 +284,19 @@ try {
     if (!formsResponse.ok) throw new Error('Cannot resolve corpus form');
     const { forms } = await formsResponse.json();
     if (!forms.length) throw new Error('Corpus form missing');
+    const mailchimpId = process.env.E2E_MAILCHIMP_CONNECTION_ID;
+    if (!mailchimpId || !/^[a-f0-9-]{36}$/.test(mailchimpId))
+      throw new Error('Corpus Mailchimp connection missing');
     for (const entry of corpus.admin.routes)
       entries.push({
         id: `${entry.name}-${locale}-${profile}-${cache}`,
         name: entry.name,
         url:
           origin +
-          entry.path.replace('{quality-article-id}', items[0].id).replace('{form-id}', forms[0].id),
+          entry.path
+            .replace('{quality-article-id}', items[0].id)
+            .replace('{form-id}', forms[0].id)
+            .replace('{mailchimp-id}', mailchimpId),
         locale,
         indexable: false,
         title: '',

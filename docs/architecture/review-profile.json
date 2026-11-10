@@ -258,7 +258,8 @@
         "packages/db/src/operations/ops.ts",
         "packages/db/src/operations/usage.ts",
         "packages/db/src/site-settings*",
-        "packages/core/src/assist/**"
+        "packages/core/src/assist/**",
+        "packages/api/src/mailchimp/**"
       ],
       "adrs": ["005", "011", "019"],
       "gates": [
@@ -371,7 +372,8 @@
         "apps/web/e2e/lib/**",
         "apps/web/e2e/routes.ts",
         "apps/web/playwright.config.ts",
-        "**/vitest.config.ts"
+        "**/vitest.config.ts",
+        "packages/api/fixtures/mailchimp/**"
       ],
       "note": "Tests or fixtures changed. Read these diffs before the code: an assertion that got weaker, a skip, or a regenerated snapshot needs its reason in the PR (testing.md rule 5)."
     },

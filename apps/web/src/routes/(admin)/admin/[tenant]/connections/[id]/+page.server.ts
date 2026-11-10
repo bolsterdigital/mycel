@@ -7,7 +7,7 @@
 // Rejected: reading the connection with `connection.get` (an unknown id would surface as a
 // server error; the list is small and already authorised) and a confirm dialog in JavaScript
 // for disconnecting (a second post with `confirm=yes` works without it).
-import { useCases } from '@mycel/core';
+import { can, useCases } from '@mycel/core';
 import { act, loaded, text } from '#lib/server/admin/admin-actions.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -24,7 +24,28 @@ export const load: PageServerLoad = async ({ parent, locals, params }) => {
     run.run(useCases.listConnectionIntents, principal, { connectionId: connection.id })
   );
   /** One moment for every relative time on the page, the same on server and client. */
-  return { connection, intents, now: new Date().toISOString() };
+  const forms = can(principal, 'content:write')
+    ? (await loaded(run.run(useCases.listForms, principal, {}))).forms
+    : [];
+  const callback =
+    runtime().config.PUBLIC_API_URL &&
+    connection.provider === 'mailchimp' &&
+    connection.state !== 'disconnected' &&
+    can(principal, 'connections:configure')
+      ? await loaded(run.run(useCases.getMailchimpCallback, principal, { id: connection.id }))
+      : null;
+  return {
+    connection,
+    intents,
+    forms,
+    callback:
+      callback && runtime().config.PUBLIC_API_URL
+        ? {
+            url: `${runtime().config.PUBLIC_API_URL!.replace(/\/$/, '')}/hooks/mailchimp/${callback.token}`,
+          }
+        : null,
+    now: new Date().toISOString(),
+  };
 };
 
 const copy = {
@@ -45,6 +66,8 @@ export const actions: Actions = {
           maintainer: text(data, 'maintainer'),
           purpose: text(data, 'purpose'),
           destination: text(data, 'destination'),
+          formIds: data.getAll('formIds').map(String),
+          consentAuthority: text(data, 'confirmationOwner') === 'external' ? 'external' : 'mycel',
           consentScopes: text(data, 'consentScopes')
             .split(',')
             .map((s) => s.trim())

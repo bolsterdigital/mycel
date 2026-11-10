@@ -105,6 +105,20 @@ export interface Database {
     kind: ConnectionAttempt['kind'];
     outcome: ConnectionAttempt['outcome'];
   };
+  mailchimp_receipts: {
+    tenant_id: string;
+    intent_id: string;
+    connection_id: string;
+    supporter_id: string;
+    member_hash: string;
+    baseline_status: import('@mycel/core').MailchimpReceipt['baselineStatus'];
+    baseline_changed_at: Timestamp | null;
+    requested_at: Timestamp;
+    status: import('@mycel/core').MailchimpReceipt['status'];
+    observed_at: Timestamp;
+    confirmed_at: Timestamp | null;
+    retryable: boolean;
+  };
   connections: {
     id: string;
     tenant_id: string;

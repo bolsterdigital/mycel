@@ -135,3 +135,9 @@ export * from './content/people/credit.js';
 
 export type { FieldPredicate } from './forms/fields.js';
 export { predicateMatches, fieldPattern } from './forms/fields.js';
+
+export * from './connections/mailchimp/ports.js';
+export * from './connections/mailchimp/service.js';
+export * from './connections/mailchimp/observations.js';
+export * from './connections/mailchimp/callback.js';
+export * from './connections/mailchimp/destination.js';

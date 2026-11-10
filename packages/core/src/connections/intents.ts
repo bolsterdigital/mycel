@@ -1,3 +1,4 @@
+import { iso } from '../util/date.js';
 // Durable connector work keeps uncertainty separate from retryability (ADR 019/024).
 // Rejected: retrying a thrown transport call, which may already have changed the provider.
 import { z } from 'zod';
@@ -118,7 +119,11 @@ export async function connectionIntentGuard(
   if (!row.supporterId || (await ctx.connectionIntents.erased(row.supporterId))) return 'erasure';
   const supporter = await ctx.supporters.getProjectionById(row.supporterId);
   if (!supporter || isTombstone(supporter.email)) return 'erasure';
-  if (!supporter.lists.includes(row.scope)) return 'consent';
+  if (
+    !supporter.lists.includes(row.scope) &&
+    !(c.provider === 'mailchimp' && c.consentAuthority === 'external' && row.source === 'form.feed')
+  )
+    return 'consent';
   return null;
 }
 
@@ -200,6 +205,18 @@ const view = z.object({
   nextAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   externalCopyAction: z.enum(['requested', 'confirmed', 'failed', 'manual']).nullable(),
+  providerStatus: z
+    .enum([
+      'absent',
+      'subscribed',
+      'unsubscribed',
+      'cleaned',
+      'pending',
+      'transactional',
+      'archived',
+    ])
+    .optional(),
+  providerConfirmedAt: z.string().datetime().nullable().optional(),
   /** What an operator with `connections:replay` can do next; the fronts render only this. */
   operatorAction: z.enum(['replay', 'resolve']).nullable(),
 });
@@ -218,7 +235,7 @@ function operatorAction(
     return reconciles && r.attempts < CONNECTION_MAX_ATTEMPTS ? 'replay' : 'resolve';
   return r.state === 'pending' && r.attempts < CONNECTION_MAX_ATTEMPTS ? 'replay' : null;
 }
-const asView = (r: ConnectionIntent, provider: ConnectionProvider) => ({
+const asView = (r: ConnectionIntent, provider: ConnectionProvider, disconnected = false) => ({
   id: r.id,
   connectionId: r.connectionId,
   state: r.state,
@@ -228,15 +245,31 @@ const asView = (r: ConnectionIntent, provider: ConnectionProvider) => ({
   updatedAt: r.updatedAt.toISOString(),
   externalCopyAction: isSyntheticIntent(r)
     ? null
-    : ((r.state === 'succeeded'
-        ? 'confirmed'
-        : r.state === 'unknown' || r.state === 'resolved'
-          ? 'manual'
-          : r.state === 'blocked' || r.state === 'failed'
-            ? 'failed'
-            : 'requested') as 'requested' | 'confirmed' | 'failed' | 'manual'),
+    : ((disconnected || r.failure === 'erasure'
+        ? 'manual'
+        : r.state === 'succeeded'
+          ? 'confirmed'
+          : r.state === 'unknown' || r.state === 'resolved'
+            ? 'manual'
+            : r.state === 'blocked' || r.state === 'failed'
+              ? 'failed'
+              : 'requested') as 'requested' | 'confirmed' | 'failed' | 'manual'),
   operatorAction: operatorAction(r, provider),
 });
+async function withProviderStatus(
+  ctx: TransactionContext,
+  row: ConnectionIntent,
+  provider: ConnectionProvider,
+  disconnected = false
+) {
+  const receipt = provider === 'mailchimp' ? await ctx.mailchimpReceipts.get(row.id) : null;
+  return {
+    ...asView(row, provider, disconnected),
+    ...(receipt
+      ? { providerStatus: receipt.status, providerConfirmedAt: iso(receipt.confirmedAt) }
+      : {}),
+  };
+}
 export const listConnectionIntents = defineUseCase({
   name: 'connection.intent.list',
   description: 'List redacted recent delivery status for one managed connection.',
@@ -249,8 +282,10 @@ export const listConnectionIntents = defineUseCase({
     const c = await ctx.connections.get(connectionId);
     if (!c) throw notFound('connection');
     return {
-      intents: (await ctx.connectionIntents.list(connectionId, STAND_INTENTS)).map((r) =>
-        asView(r, c.provider)
+      intents: await Promise.all(
+        (await ctx.connectionIntents.list(connectionId, STAND_INTENTS)).map((r) =>
+          withProviderStatus(ctx, r, c.provider, c.state === 'disconnected')
+        )
       ),
     };
   },
@@ -267,7 +302,7 @@ export const testConnection = defineUseCase({
   async handler(ctx, { id }) {
     const c = await ctx.connections.get(id);
     if (!c) throw notFound('connection');
-    if (c.provider !== 'webhook') throw new UseCaseError('invalid_input', 'not a webhook');
+
     const actor = ctx.principal.actor;
     if (actor.kind === 'anonymous') throw new UseCaseError('forbidden', 'authentication required');
     const at = ctx.clock.now();
@@ -310,7 +345,7 @@ const intentWithProvider = async (ctx: TransactionContext, id: string) => {
   const row = await ctx.connectionIntents.get(id);
   const c = row && (await ctx.connections.get(row.connectionId));
   if (!row || !c) throw notFound('connection intent');
-  return { row, provider: c.provider };
+  return { row, provider: c.provider, disconnected: c.state === 'disconnected' };
 };
 export const getConnectionIntent = defineUseCase({
   name: 'connection.intent.get',
@@ -321,8 +356,8 @@ export const getConnectionIntent = defineUseCase({
   output: view,
   examples: [{ input: example }],
   async handler(ctx, { id }) {
-    const { row, provider } = await intentWithProvider(ctx, id);
-    return asView(row, provider);
+    const { row, provider, disconnected } = await intentWithProvider(ctx, id);
+    return withProviderStatus(ctx, row, provider, disconnected);
   },
 });
 export const replayConnectionIntent = defineUseCase({

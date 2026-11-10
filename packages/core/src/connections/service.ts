@@ -1,3 +1,4 @@
+import { mailchimpTarget } from './mailchimp/destination.js';
 // Managed connection metadata and credentials are separate capabilities. Rejected: exposing
 // secrets through a general tenant settings document or accepting tenant ids from input.
 
@@ -124,6 +125,8 @@ export const createConnection = defineUseCase({
   output: view,
   examples: [{ input: { provider: 'webhook', ...exampleFields } }],
   async handler(ctx, input) {
+    if (input.provider === 'mailchimp' && !mailchimpTarget(input.destination))
+      throw new UseCaseError('invalid_input', 'Mailchimp audience destination required');
     if (input.provider === 'webhook' && input.destination === null)
       throw new UseCaseError('invalid_input', 'webhook destination required');
     if (input.destination !== null) await checkDestination(ctx.dns, input.destination);
@@ -150,8 +153,16 @@ export const updateConnection = defineUseCase({
   async handler(ctx, { id, baseVersion, changes }) {
     const prior = await find(ctx, id);
     refuseFrozen(prior);
+    if (
+      prior.provider === 'mailchimp' &&
+      changes.accountRef !== undefined &&
+      changes.accountRef !== prior.accountRef
+    )
+      throw new UseCaseError('invalid_input', 'Mailchimp account changes require a new connection');
     const nextDestination =
       changes.destination === undefined ? prior.destination : changes.destination;
+    if (prior.provider === 'mailchimp' && !mailchimpTarget(nextDestination))
+      throw new UseCaseError('invalid_input', 'Mailchimp audience destination required');
     if (prior.provider === 'webhook' && nextDestination === null)
       throw new UseCaseError('invalid_input', 'webhook destination required');
     if (changes.destination) await checkDestination(ctx.dns, changes.destination);
@@ -215,6 +226,25 @@ export const replaceConnectionCredential = defineUseCase({
   async handler(ctx, { id, baseVersion, secret }) {
     const prior = await find(ctx, id);
     refuseFrozen(prior);
+    if (prior.provider === 'mailchimp') {
+      let account;
+      try {
+        account = await ctx.mailchimpDiscovery.inspect(secret);
+      } catch {
+        throw new UseCaseError('conflict', 'Mailchimp account is unavailable');
+      }
+      const target = mailchimpTarget(prior.destination);
+      if (
+        !target ||
+        account.accountId !== prior.accountRef ||
+        account.server !== target.server ||
+        !account.audiences.some((a) => a.id === target.audience)
+      )
+        throw new UseCaseError(
+          'invalid_input',
+          'Mailchimp credential does not match this account and audience'
+        );
+    }
     return changed(
       await ctx.connections.replaceCredential(id, baseVersion, secret, ctx.clock.now())
     );

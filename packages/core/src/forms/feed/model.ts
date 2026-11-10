@@ -12,10 +12,15 @@ export const FormFeed = z
     connectionId: z.string().guid().nullable(),
     connectionVersion: z.number().int().positive().nullable(),
     scope: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
-    confirmationOwner: z.literal('mycel'),
+    confirmationOwner: z.enum(['mycel', 'external']),
+    operation: z.enum(['subscribe', 'profile', 'resubscribe']).optional(),
     when: FieldPredicate.optional(),
     mapping: z
-      .array(z.object({ fieldId: Id, target: Id }).strict())
+      .array(
+        z
+          .object({ fieldId: Id, target: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/) })
+          .strict()
+      )
       .min(1)
       .max(64),
   })
@@ -55,12 +60,14 @@ export const FormFeedPayload = z
         feedId: Id,
         formVersion: z.string().min(1),
         mappingVersion: z.string().min(1),
-        fields: z.record(Id, FieldValue),
+        fields: z.record(z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/), FieldValue),
         consent: z
           .object({
             scope: z.string(),
-            owner: z.literal('mycel'),
-            confirmedAt: z.string().datetime(),
+            owner: z.enum(['mycel', 'external']),
+            operation: z.enum(['subscribe', 'profile', 'resubscribe']).optional(),
+            requestedAt: z.string().datetime().optional(),
+            confirmedAt: z.string().datetime().nullable(),
             textVersion: z.string(),
           })
           .strict(),

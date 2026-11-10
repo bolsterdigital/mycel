@@ -251,13 +251,24 @@ export function jobHandlers({
   assist?: { model: TextModel | null; timeoutMs: number; retentionDays: number; clock: Clock };
   /** The export jobs (TODO #28); without it they fail, which suites that build no archive allow. */
   exports?: ExportJobConfig | undefined;
-  connections?: Pick<ConnectionDispatchDeps, 'sources' | 'transport'>;
+  connections?: Pick<ConnectionDispatchDeps, 'sources' | 'transport'> & {
+    mailchimpSync?: (tenantId: string, intentId: string) => Promise<boolean>;
+  };
 }): JobHandlers {
   const exportConfig = (): ExportJobConfig => {
     if (!exports) throw new Error('the export jobs are not configured in this worker');
     return exports;
   };
   return {
+    'connections.mailchimp.sync': async (job) => {
+      if (!job.tenantId || !connections?.mailchimpSync)
+        throw new Error('Mailchimp comparison is not configured');
+      const { intentId } = parseJobPayload('connections.mailchimp.sync', job.payload);
+      const again = await connections.mailchimpSync(job.tenantId, intentId);
+      return again && job.key === `connections.mailchimp.sync:${intentId}`
+        ? { next: new Date(mail.clock.now().getTime() + 3600_000) }
+        : {};
+    },
     'connections.run': async (job) => {
       if (!job.tenantId) throw new Error('connections.run requires a tenant');
       const { intentId } = parseJobPayload('connections.run', job.payload);

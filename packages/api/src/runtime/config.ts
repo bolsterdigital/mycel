@@ -51,6 +51,10 @@ const Config = z
     MAIL_FROM: z.string().min(3),
     MAILER: z.enum(['console', 'tem']).default('console'),
     /** Console mailer only: also write each message as JSON here (the e2e flow reads it). */
+    MAILCHIMP_FIXTURE_ORIGIN: z
+      .string()
+      .regex(/^http:\/\/127\.0\.0\.1:[0-9]+$/)
+      .optional(),
     MAIL_SPOOL_DIR: z.string().optional(),
     TEM_SECRET_KEY: z.string().optional(),
     TEM_PROJECT_ID: z.string().optional(),
@@ -192,6 +196,9 @@ const Config = z
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.MAILER === 'console'), {
     message: 'MAILER=console is not allowed in production',
+  })
+  .refine((c) => !(c.NODE_ENV === 'production' && c.MAILCHIMP_FIXTURE_ORIGIN), {
+    message: 'MAILCHIMP_FIXTURE_ORIGIN is not allowed in production',
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.MAIL_SPOOL_DIR), {
     message: 'MAIL_SPOOL_DIR is not allowed in production',

@@ -35,7 +35,9 @@ export async function planFormMail(ctx: TransactionContext, submission: Submissi
     ['signup', 'petition'].includes(form.kind) &&
     form.fields.some((f) => f.type === 'consent' && submission.values[f.name] === true);
   const confirmation =
-    needsConfirmation && config.confirmation
+    needsConfirmation &&
+    !submission.evaluation?.feedActions?.some((p) => p.feed.confirmationOwner === 'external') &&
+    config.confirmation
       ? resolveFormMail(
           settings,
           config.confirmation,

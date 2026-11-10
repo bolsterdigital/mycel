@@ -253,6 +253,47 @@ describe.skipIf(skip)('managed connection storage', () => {
     return { p, c, request };
   }
 
+  it('keeps Mailchimp baselines insert-only under RLS and removes provider hashes on erasure', async () => {
+    const { p, c, request } = await planned();
+    const intent = await uow.run(p, (ctx) => planConnectionIntent(ctx, request));
+    const receipt = {
+      intentId: intent.id,
+      connectionId: c.id,
+      supporterId: request.supporterId,
+      memberHash: 'a'.repeat(32),
+      baselineStatus: 'absent' as const,
+      baselineChangedAt: null,
+      requestedAt: clock.now(),
+      status: 'pending' as const,
+      observedAt: clock.now(),
+      confirmedAt: null,
+      retryable: false,
+    };
+    expect(await uow.run(p, (ctx) => ctx.mailchimpReceipts.insert(receipt))).toBe(true);
+    expect(
+      await uow.run(p, (ctx) =>
+        ctx.mailchimpReceipts.insert({ ...receipt, baselineStatus: 'subscribed' })
+      )
+    ).toBe(false);
+    const other = systemPrincipal(b, 'test');
+    expect(await uow.run(other, (ctx) => ctx.mailchimpReceipts.get(intent.id))).toBeNull();
+    expect(
+      await uow.run(other, (ctx) => ctx.mailchimpReceipts.forMember(c.id, receipt.memberHash))
+    ).toBeNull();
+    await uow.run(other, (ctx) =>
+      ctx.mailchimpReceipts.observe(intent.id, 'subscribed', clock.now(), clock.now())
+    );
+    expect(await uow.run(p, (ctx) => ctx.mailchimpReceipts.get(intent.id))).toEqual(receipt);
+    await uow.run(p, (ctx) => ctx.mailchimpReceipts.retryable(intent.id, true));
+    expect((await uow.run(p, (ctx) => ctx.mailchimpReceipts.get(intent.id)))!.retryable).toBe(true);
+    expect(TABLES.mailchimp_receipts).toBe('operational');
+    await uow.run(p, (ctx) =>
+      ctx.erasures.register(request.supporterId, `${request.supporterId}@example.org`)
+    );
+    await applyErasures(operatorDb, a);
+    expect(await uow.run(p, (ctx) => ctx.mailchimpReceipts.get(intent.id))).toBeNull();
+  });
+
   it('rolls back intent and job together, deduplicates concurrent inserts, and fences stale updates', async () => {
     const { p, request } = await planned();
     let rolledBackId = '';

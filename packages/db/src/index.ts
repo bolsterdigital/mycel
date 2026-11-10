@@ -1,3 +1,5 @@
+import { unavailableMailchimp, type MailchimpDiscovery } from '@mycel/core';
+import { mailchimpReceipts } from './connections/mailchimp-receipts.js';
 // Postgres adapter (ADR 002). The only way to touch tenant data is `withTenant`, which opens a
 // transaction, sets `app.tenant_id` for its duration, and hands the use case a Kysely instance.
 // Kysely over an ORM: typed SQL without a second schema language, and RLS needs real SQL anyway.
@@ -184,6 +186,7 @@ export async function withTenant<T>(
 }
 
 export interface UnitOfWorkDeps {
+  mailchimpDiscovery?: MailchimpDiscovery;
   clock: Clock;
   ids: Ids;
   signer: Signer;
@@ -239,6 +242,8 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
             deps.brandProcessor ??
             (unconfigured('BrandProcessor') as import('@mycel/core').BrandProcessor),
           assist: assistRepository(trx, tenantId),
+          mailchimpReceipts: mailchimpReceipts(trx, tenantId),
+          mailchimpDiscovery: deps.mailchimpDiscovery ?? unavailableMailchimp,
           connections: connectionRepository(
             trx,
             tenantId,

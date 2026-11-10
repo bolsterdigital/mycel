@@ -373,4 +373,40 @@ describe('connection intent job composition', () => {
     await handler(j);
     expect(transport.dispatched).toHaveLength(1);
   });
+  it('Mailchimp callbacks run once while one canonical comparison job recurs', async () => {
+    const uow = new MemoryUnitOfWork();
+    const clock = uow.clock;
+    const identity = new MemoryIdentityStore(uow.store, new MemoryTenants());
+    const mail = { mailer: new MemoryMailer(), clock, sources: {} };
+    const handler = jobHandlers({
+      uow,
+      operatorDb,
+      identity,
+      mail,
+      connections: {
+        transport: new FakeConnectionTransport(),
+        sources: {},
+        mailchimpSync: async () => true,
+      },
+    })['connections.mailchimp.sync']!;
+    const intentId = '01900000-0000-7000-8000-000000000001';
+    expect(
+      await handler(
+        job({
+          type: 'connections.mailchimp.sync',
+          key: `connections.mailchimp.sync:${intentId}`,
+          payload: { intentId },
+        })
+      )
+    ).toEqual({ next: new Date(clock.now().getTime() + 3600_000) });
+    expect(
+      await handler(
+        job({
+          type: 'connections.mailchimp.sync',
+          key: `mailchimp.callback:${intentId}:one`,
+          payload: { intentId },
+        })
+      )
+    ).toEqual({});
+  });
 });
