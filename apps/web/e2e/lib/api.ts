@@ -13,6 +13,7 @@ import {
   type APIResponse,
   type Page,
 } from '@playwright/test';
+import type { ContentDocument } from '@mycel/core';
 import { login } from './login';
 import { isA11y } from './project';
 
@@ -54,6 +55,22 @@ export async function seededPage(request: APIRequestContext): Promise<string> {
   });
   expect(items, `${slug} is seeded by scripts/e2e/e2e.mjs`).toHaveLength(1);
   return `/admin/probe/content/${items[0]!.id}`;
+}
+
+/** An independent registry-backed page, so browser scenarios never depend on another save. */
+export async function copiedBlockPage(request: APIRequestContext) {
+  const source = await seededPage(request);
+  const { revision } = await callApi<{ revision: { document: ContentDocument } }>(
+    request,
+    'content.item.get',
+    { itemId: source.split('/').at(-1)! }
+  );
+  const slug = `blocks-${test.info().project.name}-${crypto.randomUUID()}`;
+  const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+    slug,
+    document: revision.document,
+  });
+  return { edit: `/admin/probe/content/${item.id}`, slug };
 }
 
 /** A page with its text in the middle and a picture at both ends; `mediaId` from the seeded page. */
