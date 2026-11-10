@@ -91,7 +91,7 @@ Flat keys, the names of ADR 015 rule 2. Missing keys get the default; an empty d
 
 A refused action is `403` with `urn:mycel:problem:limit_exceeded` and an issue naming the key (`entitlements.limit.supporters.max`, `entitlements.feature-off`); the admin and the public pages turn that into "ask your host", never a price. Only growth is blocked: what a tenant already has stays published (ADR 015 rule 7).
 
-**Status** is not an entitlement. A `suspended` tenant answers every command with `403 urn:mycel:problem:suspended`, except export commands; queries keep working, so the public site stays readable and the admin stays open.
+**Status** is not an entitlement. A `suspended` tenant answers every command with `403 urn:mycel:problem:suspended`, except the two data-subject rights, export and `supporter.erase` (ADR 015 rule 7 as amended); queries keep working, so the public site stays readable and the admin stays open.
 
 When a change shows: the API and the admin read entitlements and status with the credential on every request, so at once; the public site reads them with the hostname, cached for thirty seconds per hostname.
 

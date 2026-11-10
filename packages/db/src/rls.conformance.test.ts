@@ -35,6 +35,7 @@ import {
   createTenantDirectory,
   createUnitOfWork,
   deleteExpiredAudit,
+  STORAGE,
   TABLES,
   uuidv7,
   uuidv7Ids,
@@ -415,6 +416,19 @@ describe.skipIf(skip)('row level security conformance', () => {
       .map(([name]) => name)
       .sort();
     expect(tables.map((t) => t.name).sort()).toEqual(expected);
+  });
+
+  // The storage catalog (portability/storage.ts) says whose rows a table holds. Data a tenant answers for sits
+  // behind its tenant boundary: a `tenant` entry without a forced-RLS tenant table fails here.
+  it('keeps every table the storage catalog gives to a tenant behind forced RLS', () => {
+    const guarded = new Set(
+      tables.filter((t) => t.rowsecurity && t.forcerowsecurity).map((t) => t.name)
+    );
+    const failing = Object.entries(STORAGE)
+      .filter(([, e]) => e.owner === 'tenant')
+      .map(([name]) => name)
+      .filter((name) => !guarded.has(name));
+    expect(failing).toEqual([]);
   });
 
   it('enables and forces RLS on every table with a tenant_id', () => {

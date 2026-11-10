@@ -114,6 +114,7 @@ export {
   type ExportManifest,
   type ExportOptions,
 } from './portability/export.js';
+export { STORAGE } from './portability/storage.js';
 export { importTenant, type ImportOptions, type ImportReport } from './portability/import.js';
 export {
   JOB_LEASE_SECONDS,

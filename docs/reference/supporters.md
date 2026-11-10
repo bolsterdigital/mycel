@@ -64,6 +64,25 @@ An explicit signup or petition with active consent strictly after the latest reg
 
 Apply exempts only copies proven to belong to a current lifecycle. This includes its projection/events, pinned submissions, outbox events and dependent effects; arbitrary address-bearing jobs remain erasable. Mail claims and connector preparation reread that boundary under the address lock. A provider request already claimed or in flight cannot be recalled; no remote deletion is implied. Retention and people/credit erasure are not implemented by this lifecycle boundary.
 
+### Where copies are kept
+
+`STORAGE` in `packages/db/src/portability/storage.ts` lists every table and view, beside `TABLES` in `export.ts`, with its category, its owner (`tenant` or `installation`), each field that carries a copy of a person (whose: supporter, person, operator, visitor or free text), what ends that copy, and how long rows stay. `OFF_TABLE_STORAGE` does the same for media originals and variants, export archives, database and erasure-register snapshots, and copies at an external provider. A copy is ended by `apply`, by an ordinary use case the tenant runs, by the term of its table (`expires`), or is kept with a stated reason (`excluded`); a copy nothing ends yet is `planned` and names the open item: retention of the outbox and submissions (#169 E), people and image credits (#169 F), operator accounts and the actor recorded on revisions, plans and settings (#224). The catalog only describes; it adds no delete.
+
+Conformance keeps it true. `storage.test.ts` checks that every named use case, job, file and open item exists, that a supporter copy is applied, excluded or expiring, and that an expiring copy sits in a table with a term. `storage.conformance.test.ts` fails when a relation has no entry, when a listed field is no column, or when a column shaped like a person (an address, phone, actor, supporter, person or operator id, or a keyed digest of an address) is neither listed nor reviewed. `erasures.conformance.test.ts` fails when the erasure fixture leaves a copy in a table without a supporter entry, or when the tables `mycel_erasure` may change differ from the `apply` copies. `rls.conformance.test.ts` fails when a `tenant` entry is not behind forced RLS.
+
+### Scale of apply
+
+Apply is tenant-wide: each run (one per `supporter.erase` job, plus the daily `erasures.apply` for every tenant) reads every supporter, event, submission, outbox event and job of the tenant into the worker's memory, hashes each address with `emailKey`, and holds one advisory lock per registered address for the whole transaction. `scripts/drill/erasure-scale.mjs` measures this on synthetic rows; on a dev server (Postgres 16, `max_locks_per_transaction` 64, `max_connections` 100) it gave:
+
+| Tenant rows (supporters / events / submissions / outbox / jobs) | Registrations | First apply                 | Repeat apply (no change) | Worker RSS peak |
+| --------------------------------------------------------------- | ------------- | --------------------------- | ------------------------ | --------------- |
+| 20,000 / 40,000 / 20,000 / 20,000 / 2,000                       | 100           | 0.8 s, 500 rows             | 0.7 s                    | 201 MiB         |
+| 100,000 / 200,000 / 100,000 / 100,000 / 10,000                  | 1,000         | 9.0 s, 5,000 rows           | 5.7 s                    | 297 MiB         |
+| 10,000 / 20,000 / 10,000 / 10,000 / 100                         | 10,000        | 5.2 s, 50,000 rows          | 1.9 s                    | 192 MiB         |
+| 15,000 / 30,000 / 15,000 / 15,000 / 100                         | 15,000        | fails: out of shared memory | -                        | -               |
+
+What follows from it, without claiming production volumes: a repeat apply costs nearly as much as the first, because it scans and hashes everything again; time grows faster than the rows, because each row is matched against the list of registered ids; supporters, events and submissions are read through a tenant index, but the outbox and jobs scans have none and read every tenant's rows (120,000 rows of other tenants for a 10,000-supporter tenant in the third run); and the lock ceiling lies between 10,000 and 15,000 registrations per tenant on this configuration, shared with every other session of the cluster. Past it apply fails as a whole and, since the register only grows, keeps failing for that tenant. Batching the locks and scans is open work (#225); it needs no change to what apply erases.
+
 ## Constants
 
 | Constant                    | Value               | Where                                                                    | Why                                                                            |
