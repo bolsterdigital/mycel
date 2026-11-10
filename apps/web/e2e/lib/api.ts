@@ -123,3 +123,75 @@ export async function article(request: APIRequestContext) {
   });
   return `/admin/probe/content/${item.id}`;
 }
+
+/** Long formatted article and a native card, shared by the editor's initial-layout proof. */
+export async function longArticle(request: APIRequestContext): Promise<string> {
+  const paragraphs = Array.from({ length: 24 }, (_, i) => ({
+    type: 'paragraph',
+    content: [
+      {
+        type: 'text',
+        text: `${i + 1}. A long article keeps its paragraphs in their original place while the editor starts. Readers can begin before JavaScript arrives.`,
+      },
+    ],
+  }));
+  const prose = {
+    type: 'doc',
+    content: [
+      {
+        type: 'heading',
+        attrs: { level: 2 },
+        content: [{ type: 'text', text: 'Inside the article' }],
+      },
+      ...paragraphs,
+      {
+        type: 'ordered_list',
+        attrs: { start: 3 },
+        content: [
+          {
+            type: 'list_item',
+            content: [
+              {
+                type: 'paragraph',
+                content: [
+                  {
+                    type: 'text',
+                    text: 'A formatted point',
+                    marks: [
+                      { type: 'bold' },
+                      {
+                        type: 'footnote_reference',
+                        attrs: { text: 'The note remains lossless.' },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const { item } = await callApi(request, 'content.item.create', {
+    slug: `geometry-${crypto.randomUUID()}`,
+    document: {
+      type: 'article',
+      defaultLocale: 'nl',
+      locales: ['nl', 'en'],
+      title: { nl: 'Een lang artikel', en: 'A long article' },
+      blocks: [
+        { type: 'rich-text', version: 1, props: { content: { nl: prose, en: prose } } },
+        {
+          type: 'quote',
+          version: 1,
+          props: {
+            text: { nl: 'Een citaat na het artikel', en: 'A quote after the article' },
+            attribution: { name: 'The editors' },
+          },
+        },
+      ],
+    },
+  });
+  return `/admin/probe/content/${item.id}`;
+}

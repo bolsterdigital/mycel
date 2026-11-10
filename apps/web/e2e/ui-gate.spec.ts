@@ -21,7 +21,7 @@ import { forwarded, login } from './lib/login';
 import { ADMIN_LOCALES, ADMIN_ROUTES, type GateRoute, PUBLIC_ROUTES } from './routes';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { testTenant } from '@mycel/db/testing';
-import { callApi, requireApi } from './lib/api';
+import { callApi, longArticle, requireApi } from './lib/api';
 import { ask, armRenderer, rendererStack } from './lib/evidence/renderer';
 
 // The generic gate over routes.ts: every route at 320 CSS px in default and 200% text passes
@@ -325,74 +325,7 @@ test.describe('admin-ui', () => {
     request,
   }) => {
     onlyA11y('measures the native document before its enhancement');
-    const paragraphs = Array.from({ length: 24 }, (_, i) => ({
-      type: 'paragraph',
-      content: [
-        {
-          type: 'text',
-          text: `${i + 1}. A long article keeps its paragraphs in their original place while the editor starts. Readers can begin before JavaScript arrives.`,
-        },
-      ],
-    }));
-    const prose = {
-      type: 'doc',
-      content: [
-        {
-          type: 'heading',
-          attrs: { level: 2 },
-          content: [{ type: 'text', text: 'Inside the article' }],
-        },
-        ...paragraphs,
-        {
-          type: 'ordered_list',
-          attrs: { start: 3 },
-          content: [
-            {
-              type: 'list_item',
-              content: [
-                {
-                  type: 'paragraph',
-                  content: [
-                    {
-                      type: 'text',
-                      text: 'A formatted point',
-                      marks: [
-                        { type: 'bold' },
-                        {
-                          type: 'footnote_reference',
-                          attrs: { text: 'The note remains lossless.' },
-                        },
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    };
-    const { item } = await callApi(request, 'content.item.create', {
-      slug: `geometry-${crypto.randomUUID()}`,
-      document: {
-        type: 'article',
-        defaultLocale: 'nl',
-        locales: ['nl', 'en'],
-        title: { nl: 'Een lang artikel', en: 'A long article' },
-        blocks: [
-          { type: 'rich-text', version: 1, props: { content: { nl: prose, en: prose } } },
-          {
-            type: 'quote',
-            version: 1,
-            props: {
-              text: { nl: 'Een citaat na het artikel', en: 'A quote after the article' },
-              attribution: { name: 'The editors' },
-            },
-          },
-        ],
-      },
-    });
-    const edit = `/admin/probe/content/${item.id}`;
+    const edit = await longArticle(request);
     await login(page, edit);
     const geometry = () =>
       page.evaluate(() =>

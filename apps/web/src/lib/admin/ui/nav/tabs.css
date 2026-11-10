@@ -76,7 +76,7 @@
     outline: 3px solid var(--color-focus);
     outline-offset: 2px;
   }
-  /* One rhythm (#87): a heading, the panel's gap, then its content; no extra margin of its own. */
+  /* One rhythm: a heading, the panel's gap, then its content; no extra margin of its own. */
   .ui-tabs-title {
     margin: 0;
   }
