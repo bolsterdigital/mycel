@@ -628,9 +628,6 @@
     background: var(--color-surface-bg);
     cursor: pointer;
   }
-  .writing:has(.writing-native:not([hidden])) .writing-actions {
-    visibility: hidden;
-  }
   .writing:has(.writing-native[open]:not([hidden])) :global(.ui-writing-sheet) {
     display: none;
   }
