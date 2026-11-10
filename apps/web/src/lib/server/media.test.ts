@@ -128,6 +128,8 @@ describe('media delivery route', () => {
       bytes: btoa('%PDF-1.7\n%%EOF'),
     });
     const res = await get(m.id, 'file.pdf');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
     expect(res.headers.get('content-type')).toBe('application/pdf');
     expect(res.headers.get('content-disposition')).toBe(
       `inline; filename="jaarverslag 2026 _ d_finitief.pdf"; filename*=UTF-8''${encodeURIComponent('jaarverslag 2026 – définitief.pdf')}`
