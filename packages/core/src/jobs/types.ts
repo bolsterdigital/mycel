@@ -60,6 +60,18 @@ export const JobPayloads = {
    * expired ones, then drop rows older than a year (TODO #28).
    */
   'tenant.export.expire': z.object({}).strict(),
+  /**
+   * Tenant job: apply this tenant's erasure register on the operator connection (`supporter.erase`,
+   * ADR 019 rule 8 with ADR 032). Key `supporter.erase:<supporterId>`. Ids only: the address is
+   * found from the register at apply time and never sits in the queue.
+   */
+  'supporter.erase': z.object({ supporterId: z.string().guid() }).strict(),
+  /**
+   * Platform job: per tenant, apply the erasure register again. The safety net under
+   * `supporter.erase`: a job that exhausted its attempts, a lost wake-up or a register restored
+   * without its jobs is erased by the next run instead of waiting for someone to notice.
+   */
+  'erasures.apply': z.object({}).strict(),
 } as const;
 
 export type JobType = keyof typeof JobPayloads;

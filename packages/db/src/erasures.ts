@@ -63,6 +63,18 @@ export function erasureRepository(
         .execute();
     },
 
+    async get(supporterId) {
+      const row = await trx
+        .selectFrom('erasures as e')
+        .leftJoin('erasure_backups as b', (j) =>
+          j.onRef('b.tenant_id', '=', 'e.tenant_id').onRef('b.supporter_id', '=', 'e.supporter_id')
+        )
+        .select(['e.erased_at', 'b.supporter_id as secured'])
+        .where('e.supporter_id', '=', supporterId)
+        .executeTakeFirst();
+      return row ? { registeredAt: row.erased_at, secured: row.secured !== null } : null;
+    },
+
     async apply() {
       try {
         await setRole(trx, 'mycel_erasure');

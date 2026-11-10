@@ -19,6 +19,7 @@ export const Capability = z.enum([
   'supporters:read',
   'supporters:write',
   'supporters:export',
+  'supporters:erase',
   'donations:read',
   'donations:write',
   'mailing:read',

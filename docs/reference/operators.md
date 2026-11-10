@@ -22,9 +22,9 @@ The operator id is Mycel's own, never the IdP subject, so attribution survives a
 
 ## Capabilities
 
-`content:read`, `content:write`, `content:publish`, `forms:read`, `forms:write`, `supporters:read`, `supporters:write`, `supporters:export`, `donations:read`, `donations:write`, `mailing:read`, `mailing:send`, `money:refund`, `media:read`, `media:write`, `ai:assist`, `connections:read`, `connections:configure`, `connections:credentials`, `connections:replay`, `tenant:admin`.
+`content:read`, `content:write`, `content:publish`, `forms:read`, `forms:write`, `supporters:read`, `supporters:write`, `supporters:export`, `supporters:erase`, `donations:read`, `donations:write`, `mailing:read`, `mailing:send`, `money:refund`, `media:read`, `media:write`, `ai:assist`, `connections:read`, `connections:configure`, `connections:credentials`, `connections:replay`, `tenant:admin`.
 
-`tenant:admin` implies every other capability (`can` and `grants`). Fine-grained rules live in the use cases. A key never carries `tenant:admin` (`KeyCapability`), so no integration or agent can manage members or keys. Capability lists are non-empty and without duplicates.
+`tenant:admin` implies every other capability (`can` and `grants`). Fine-grained rules live in the use cases. A key never carries `tenant:admin` (`KeyCapability`), so no integration or agent can manage members or keys. Capability lists are non-empty and without duplicates. `supporters:erase` (`supporter.erase`) is in no preset role: an administrator holds it through `tenant:admin`, any other member or key only when it is ticked explicitly, so no existing key gained it.
 
 Six capabilities have no use case yet: `supporters:export`, `donations:read`, `donations:write`, `mailing:read`, `mailing:send` and `money:refund`. They stay valid in a stored set (ADR 018 rule 5 names them), they limit nothing, and the admin does not offer them unless the set being edited already holds one. `PLANNED_CAPABILITIES` in `principal.ts` gives the reason per capability, and the registry conformance suite fails when a capability is neither required nor listed, or is listed after it got a use case.
 

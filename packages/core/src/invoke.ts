@@ -200,9 +200,15 @@ async function auditEntry(
 
 /**
  * ADR 015 rule 7: a suspended tenant runs queries (the public site stays readable, the admin
- * stays open) and export commands (ADR 002 rule 5: leaving is never gated), and nothing else.
- * Checked before authorization, so every front and every use case gets it from this one line.
+ * stays open), export commands (ADR 002 rule 5: leaving is never gated) and erasure requests (an
+ * erasure is owed to the person, not a service to the tenant; rule 7 as amended 2026-11-10), and
+ * nothing else. Checked before authorization, so every front and every use case gets it from
+ * this one line.
  */
 export function guardSuspended(useCase: UseCase, principal: Principal): void {
-  if (useCase.kind === 'command' && useCase.effect !== 'export') requireActive(principal);
+  if (useCase.kind === 'command' && !SUSPENDED_EFFECTS.includes(useCase.effect ?? ''))
+    requireActive(principal);
 }
+
+/** The effects a suspended tenant may still run. Neither publishes, sends nor grows anything. */
+const SUSPENDED_EFFECTS: readonly string[] = ['export', 'erase'];

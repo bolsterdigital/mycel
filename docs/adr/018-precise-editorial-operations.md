@@ -5,6 +5,7 @@
 - **Amends**: ADR 012 (rules 4, 5 and 7), ADR 016 (rule 3)
 - **Prompted by**: second-opinion review of 2026-10-21, findings 2 and 3 and the product table
 - **Rule 5 amended**: 2026-11-05. The rule names the capabilities a use case needs once its feature exists; it did not say that `mailing:send`, `supporters:export` and `money:refund` have no use case yet. They are declared as planned (`PLANNED_CAPABILITIES`) and limit nothing until then. The only command with effect `export`, `tenant.export.create`, requires `tenant:admin`, because its archive holds members and the audit log, more than `supporters:export` covers; the registry allows an effect to require `tenant:admin`, which holds every capability and is never weaker. The original wording is retained below.
+- **Rule 5 amended**: 2026-11-10 (brief #169 C). Erasing a supporter (ADR 019 rule 8, ADR 032) is an effect of its own, `erase`, with its own capability `supporters:erase`: an e-mail change under `supporters:write` can be undone, an erasure cannot. `supporter.erase` requires it; `tenant:admin` holds it like every capability. Migration 0047 adds `erase` to the audit log's effects. The original wording is retained below.
 - **Rule 2 refined**: 2026-11-06 by [ADR 026](026-three-way-merge-on-save.md). A save on an older base merges with the latest revision per field, locale and block id; only a value both changed is the typed `conflict`, naming each path. The original wording is retained below.
 
 ## Context
