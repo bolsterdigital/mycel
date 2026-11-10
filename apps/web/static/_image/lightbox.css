@@ -13,6 +13,8 @@ html:has(dialog.lightbox[open]) {
   cursor: zoom-in;
 }
 
+/* Keep the dialog opaque from the first frame: fading its dark field into a light page loses
+   caption and control contrast, even though the final foreground/background pair passes. */
 dialog.lightbox {
   --lightbox-gap: clamp(0.5rem, 3vw, 3.5rem);
   box-sizing: border-box;
@@ -159,15 +161,7 @@ dialog.lightbox::backdrop {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  dialog.lightbox[open] {
-    animation: lightbox-in 180ms ease-out;
-  }
   .lightbox-image {
     transition: opacity 120ms ease-out;
-  }
-}
-@keyframes lightbox-in {
-  from {
-    opacity: 0;
   }
 }
