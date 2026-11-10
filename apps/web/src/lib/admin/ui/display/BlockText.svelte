@@ -242,7 +242,11 @@
       data-variant={view.variant}
       data-rest-variant={view.variantFrom}
     >
-      <p class="ui-block-text-kind" data-missing={view.form || view.unread ? undefined : ''}>
+      <p
+        class="ui-block-text-kind"
+        data-rest-option={view.idFrom}
+        data-missing={view.form || view.unread ? undefined : ''}
+      >
         {kindLabel}
       </p>
       {#if view.form}

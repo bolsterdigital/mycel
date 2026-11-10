@@ -11,6 +11,7 @@ import { expectNoAxeViolations } from './lib/axe';
 import { bfcacheBack, bfcacheBrowser } from './lib/bfcache';
 import { blockPage, card, editorReady, more, newPage, reloadsEditor } from './lib/editor';
 import { exercisePeople } from './lib/people/manage';
+import { exerciseFormPicker } from './lib/blocks/forms';
 import { exerciseBlockNames } from './lib/blocks/names';
 import { exerciseBlockMove } from './lib/block-move';
 import { tenantId, withInvoker } from './lib/invoker';
@@ -2159,3 +2160,11 @@ for (const type of ['page', 'article'] as const)
 test('people management preserves edits and adds an author inline', async ({ page, request }) => {
   await exercisePeople(page, request);
 });
+
+for (const locale of ['nl', 'en'])
+  test(`form block picker preserves references and draft in ${locale}`, async ({
+    page,
+    request,
+  }) => {
+    await exerciseFormPicker(page, request, locale);
+  });

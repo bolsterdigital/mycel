@@ -15,7 +15,7 @@ function kindLabel(view: TextRest, t: Translate): string | undefined {
   if (view.kind === 'video') return option(view.provider);
   if (view.kind === 'paywall') return t('admin.block.paywall.boundary');
   if (view.kind !== 'form') return undefined;
-  if (view.form) return fill(t('admin.block.form.signup'), { list: view.form.list });
+  if (view.form) return view.form.name ?? view.form.list;
   return t(view.unread ? 'admin.block.form.unread' : 'admin.block.form.missing');
 }
 

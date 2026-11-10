@@ -179,6 +179,7 @@ describe('textRestOf', () => {
       id: (block.props as { formId: string }).formId,
       kind: 'signup',
       list: 'nieuwsbrief',
+      name: { nl: 'Samen meedoen', en: 'Join us' },
       fields: [
         { type: 'email', name: 'email', label: { nl: 'E-mail' }, required: true },
         { type: 'consent', name: 'ok', label: { nl: 'Ik doe mee' }, required: true },
@@ -194,6 +195,7 @@ describe('textRestOf', () => {
       variantFrom: 'b.b.p.variant',
       idFrom: 'b.b.p.formId',
       form: {
+        name: 'Samen meedoen',
         list: 'nieuwsbrief',
         fields: [
           { type: 'email', label: 'E-mail' },
@@ -212,6 +214,10 @@ describe('textRestOf', () => {
     });
     expect(textRestOf(block, 'nl', 'b.b.')).toMatchObject({ form: null, unread: true });
     // The legacy type has the same view and no variant to follow.
+    expect(textRestOf(block, 'en', 'b.b.', found)).toMatchObject({ form: { name: 'Join us' } });
+    expect(textRestOf(block, 'fr', 'b.b.', found, 'nl')).toMatchObject({
+      form: { name: 'Samen meedoen' },
+    });
     const legacy = textRestOf(example('signup-form'), 'nl', 'b.b.', found);
     expect(legacy).toMatchObject({ kind: 'form', variant: 'default' });
     expect(legacy).not.toHaveProperty('variantFrom');

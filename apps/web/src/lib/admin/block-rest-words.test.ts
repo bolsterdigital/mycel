@@ -5,7 +5,7 @@ import { blockNotice, restWords } from './block-rest-words.js';
 const nl = ui('nl');
 const en = ui('en');
 const shape = { kind: 'form', variant: 'card', variantFrom: 'v', idFrom: 'i' } as const;
-const form = (list: string) => ({ list, fields: [], submit: 'Ja' });
+const form = (name: string) => ({ name, list: 'legacy-slug', fields: [], submit: 'Ja' });
 
 describe('restWords', () => {
   it('names a callout by its variant and a video by its host, in the language of the screen', () => {
@@ -32,9 +32,9 @@ describe('restWords', () => {
     expect(restWords(video, false, nl).kindLabel).toBe('YouTube');
   });
 
-  it('says which list a form signs up for, and that a reference found nothing', () => {
+  it('names the linked form, and that a reference found nothing', () => {
     const found = { ...shape, form: form('nieuws') };
-    expect(restWords(found, false, nl).kindLabel).toBe('Inschrijfformulier voor lijst nieuws');
+    expect(restWords(found, false, nl).kindLabel).toBe('nieuws');
     const missing = { ...shape, form: null };
     expect(restWords(missing, false, nl).kindLabel).toBe(nl('admin.block.form.missing'));
     const unread = { ...shape, form: null, unread: true } as const;

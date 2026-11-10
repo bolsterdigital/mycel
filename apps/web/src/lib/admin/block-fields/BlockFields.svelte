@@ -56,6 +56,7 @@
     upload: boolean;
     items?: readonly Option[];
     references?: {
+      forms?: readonly Option[] | null;
       items: readonly Option[];
       people: readonly Option[];
       personGroups: readonly Option[];
@@ -291,6 +292,23 @@
       {upload}
       invalid={bad(name)}
     />
+  {:else if f.kind === 'reference' && f.to === 'form' && references?.forms}
+    {@const chosen = v(name)}
+    {@const available = references.forms}
+    {@const found = available.some((o) => o.id === chosen)}
+    {@render select(
+      name,
+      t('admin.block.form.choose'),
+      chosen && !found
+        ? [{ id: chosen, label: fill(t('admin.block.form.unknown'), { id: chosen }) }, ...available]
+        : available,
+      t('admin.block.none')
+    )}
+    {#if available.length}
+      <p class="ui-hint">
+        <a href="{base}/forms">{t('admin.block.form.definition')}</a>
+      </p>
+    {/if}
   {:else if f.kind === 'reference' && f.to === 'item'}
     {@render select(name, label(f.key), references?.items ?? items, t('admin.block.none'))}
   {:else if f.kind === 'reference' && f.key === 'photographerPersonId'}

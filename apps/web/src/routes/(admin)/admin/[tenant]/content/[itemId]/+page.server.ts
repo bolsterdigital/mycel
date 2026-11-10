@@ -20,6 +20,7 @@
 // carries it as `editLocale`; a save reads only that locale and keeps every other one as the base
 // revision has it (`formDocument`). Switching locale saves first and remembers the choice; a
 // locale the document lacks shows "start the translation", empty or as a copy of another locale.
+import { editorForms } from '#lib/server/forms/editor.js';
 import { relationshipChoices } from '#lib/server/people/relationships.js';
 import { addAuthor } from '#lib/server/people/add-author.js';
 import { blockNaming } from '#lib/server/content/block-names.js';
@@ -43,7 +44,6 @@ import {
   type BlockInput,
   type ContentDocument,
   type Revision,
-  type FormDefinition,
   type Principal,
   type TenantInfo,
   MAX_PAGE_SIZE,
@@ -209,18 +209,10 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     principal.entitlements['ai.assist'] &&
     (doc.access.level === 'public' || assistSettings.allowRestricted)
   );
-  // What each form reference finds, for the rest view: read here, never copied into the block.
-  // An author may edit a page with a form but has no `forms:read`: that is no failure of the
-  // screen, the reference stays unread and the rest view says so.
-  const forms = new Map<string, FormDefinition | null>();
-  for (const b of doc.blocks) {
-    if ((b.type !== 'form' && b.type !== 'signup-form') || forms.has(b.props.formId)) continue;
-    if (!can(principal, 'forms:read')) continue;
-    const found = await orNull(invoker.run(useCases.getForm, principal, { id: b.props.formId }));
-    forms.set(b.props.formId, found?.form ?? null);
-  }
+  const forms = await editorForms(principal, doc.blocks, read, tenant.defaultLocale);
   rememberListFromReferer(cookies, request.headers.get('referer'), url, params.tenant, item.type);
   return {
+    forms: forms.choices,
     contentType: item.type,
     presence: await presenceOnLoad(principal, params.tenant, item.id, revision.id),
     // Back to the list as it was left: its search, status, order and page, at this item's row.
@@ -240,7 +232,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
       summary: summaryOf(b, read),
       preview: previewOf(b, read, options),
       image: imageRestOf(b, read, options.media, doc.locales, options.people),
-      text: textRestOf(b, read, blockPrefix(b.id), forms),
+      text: textRestOf(b, read, blockPrefix(b.id), forms.definitions, tenant.defaultLocale),
       duplicable: !SINGLE.has(b.type),
       // The other locales a text block has, to translate the shown one from (AI help).
       translatable:

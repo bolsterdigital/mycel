@@ -40,6 +40,7 @@
     upload: boolean;
     items?: readonly { id: string; label: string }[];
     references?: {
+      forms?: readonly { id: string; label: string }[] | null;
       items: readonly { id: string; label: string }[];
       people: readonly { id: string; label: string }[];
       personGroups: readonly { id: string; label: string }[];
