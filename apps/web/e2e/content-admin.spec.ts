@@ -794,10 +794,11 @@ test.describe('content-admin', () => {
 
     const fresh = await author(`Nieuw ${run}`);
     await login(page, `/admin/probe/content/${item.id}`);
+    await editorReady(page);
     await expect(page.getByLabel('Ver Weg')).toBeChecked();
     await expect(page.getByLabel('Rubriek')).toHaveValue(oldSection.id);
     await page.locator('#title\\.nl').fill('Alleen de titel');
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
     await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
     expect(await saved()).toMatchObject({ authorIds, sectionId: oldSection.id });
 
@@ -812,7 +813,7 @@ test.describe('content-admin', () => {
       baseRevisionId: revision.id,
       document: { ...revision.document, title: { nl: 'Andere titel' } },
     });
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
     await expect(page.getByRole('alert')).toContainText(
       'Iemand anders heeft dit item intussen opgeslagen'
     );
@@ -826,7 +827,7 @@ test.describe('content-admin', () => {
     // are not in the latest document, and the section/old author are outside the directory page.
     await showTab(page, 'Zoeken en delen');
     await page.locator('[name="canonical"]').fill('not-a-url');
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
     await expect(page.getByRole('alert')).toBeVisible();
     await expect(page.getByRole('alert')).not.toContainText(
       'Iemand anders heeft dit item intussen opgeslagen'
@@ -837,7 +838,7 @@ test.describe('content-admin', () => {
     await expect(page.locator('#title\\.nl')).toHaveValue('Mijn artikel bij conflict');
     await showTab(page, 'Zoeken en delen');
     await page.locator('[name="canonical"]').fill('');
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
     await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
     expect(await saved()).toMatchObject({
       title: { nl: 'Mijn artikel bij conflict' },
@@ -849,7 +850,7 @@ test.describe('content-admin', () => {
     await page.getByLabel(`Eerste ${run}`).uncheck();
     await page.getByLabel(`Nieuw ${run}`).check();
     await page.getByLabel('Rubriek').selectOption({ label: 'Geen rubriek' });
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
     await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
     const after = await saved();
     expect(after.authorIds).toEqual([second.id, old.id, fresh.id]);

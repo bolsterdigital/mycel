@@ -1784,6 +1784,19 @@ test.describe('an image that opens larger on the site', () => {
     page,
   }) => {
     onlyA11y('the dialog is the script');
+    // Sample the real opening transition deterministically: a fast machine otherwise runs axe
+    // after it ends, missing text which blends into the page while the whole dialog fades in.
+    await page.addInitScript(() => {
+      const show = HTMLDialogElement.prototype.showModal;
+      HTMLDialogElement.prototype.showModal = function () {
+        show.call(this);
+        for (const animation of this.getAnimations({ subtree: true })) {
+          animation.pause();
+          const duration = animation.effect?.getTiming().duration;
+          if (typeof duration === 'number') animation.currentTime = duration / 4;
+        }
+      };
+    });
     const errors = watchErrors(page);
     await page.goto(IMAGE);
     const link = page.locator('figure.image a.enlarge');
@@ -1802,6 +1815,10 @@ test.describe('an image that opens larger on the site', () => {
     // One image: no arrows and no count.
     await expect(dialog.getByRole('button', { name: 'Volgende afbeelding' })).toBeHidden();
     await expect(dialog.locator('.lightbox-count')).toHaveText('');
+    await expectNoAxeViolations(page);
+    await dialog.evaluate((element) => {
+      for (const animation of element.getAnimations({ subtree: true })) animation.finish();
+    });
     await expectNoAxeViolations(page);
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();

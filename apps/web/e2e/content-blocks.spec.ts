@@ -11,7 +11,7 @@ import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
-import { callApi, pictureAtBothEnds, requireApi, seededPage } from './lib/api';
+import { callApi, copiedBlockPage, pictureAtBothEnds, requireApi, seededPage } from './lib/api';
 import { expectPixels } from './lib/images';
 import { settingsEvidence } from './lib/evidence/settings';
 import { openPublication } from './lib/publication';
@@ -33,9 +33,8 @@ const localeEvidenceTest = test.extend({ trace: ['retain-on-failure', { scope: '
 // Block forms of the content admin (brief content-editor § B): every block type is edited once
 // through its generated form, and a block is inserted, moved and removed, all with native forms.
 // The `no-js` project is the no-JavaScript proof and the `a11y` project runs axe and the UI gate
-// (skill ui-action-layout). Each project edits its own seeded page (`e2e-blokken-<project>`,
-// scripts/e2e/e2e.mjs) with the first example of every type, so the bulk fixture is seeded once and
-// not made here (admin.spec.ts reads its audit log).
+// (skill ui-action-layout). Independent copies of the registry-backed seeded page keep editing,
+// rendering and axe within separate test budgets without sharing mutation-dependent ordering.
 test.describe('content-blocks', () => {
   test.use({ locale: 'nl-NL' });
 
@@ -44,7 +43,7 @@ test.describe('content-blocks', () => {
     request,
   }) => {
     requireApi();
-    const edit = await seededPage(request);
+    const { edit } = await copiedBlockPage(request);
     await login(page, edit);
     const stamp = String(Date.now());
     const titles = page.locator('.ui-block-card-title');
@@ -128,7 +127,6 @@ test.describe('content-blocks', () => {
     await page.reload();
     await editorReady(page);
     await expect((await block(page, 9)).getByLabel('Breedte')).toHaveValue('wide');
-    await expectNoAxeViolations(page);
 
     // The other locale, shown on its own (#66 PR 4), kept its values: the FAQ's questions, and
     // the rich text its item link, written as Markdown.
@@ -139,7 +137,42 @@ test.describe('content-blocks', () => {
     await expect((await block(page, 3)).getByLabel('Tekst', { exact: true })).toHaveValue(
       /^More about our work is in \[the annual report\]\(item:[0-9a-f-]{36}\)$/
     );
-    await page.goto(edit);
+  });
+
+  test('the block page passes axe independently of the editing flow', async ({ page, request }) => {
+    const { edit } = await copiedBlockPage(request);
+    await login(page, edit);
+    await (await block(page, 9)).getByLabel('Breedte').selectOption('wide');
+    await save(page, 1);
+    await page.reload();
+    await editorReady(page);
+    await expectNoAxeViolations(page);
+  });
+
+  test('edited blocks render in saved and live previews and after publication', async ({
+    page,
+    request,
+  }) => {
+    const { edit, slug } = await copiedBlockPage(request);
+    await login(page, edit);
+    const stamp = String(Date.now());
+    const text = `Nieuwe **tekst** met [een link](/over) ${stamp}`;
+    const prose = await block(page, 3);
+    if (isA11y()) {
+      const surface = prose.locator('.writing-surface .ProseMirror');
+      await surface.locator('p').first().fill('');
+      await surface.evaluate((element, source) => {
+        const clipboardData = new DataTransfer();
+        clipboardData.setData('text/plain', source);
+        element.dispatchEvent(
+          new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
+        );
+      }, text);
+    } else await prose.getByLabel('Tekst', { exact: true }).fill(text);
+    const faq = await block(page, 9);
+    await faq.getByLabel('Vraag', { exact: true }).first().fill(`Wat? ${stamp}`);
+    await faq.getByLabel('Breedte').selectOption('wide');
+    await save(page, 1);
     // And the edited locale was read back from Markdown: the preview renders the bold and the link.
     const preview = await page.locator('a[data-preview-link="nl"]').getAttribute('href');
     await page.goto(preview!);
@@ -158,7 +191,7 @@ test.describe('content-blocks', () => {
     }
     await openPublication(page);
     await page.getByRole('button', { name: /^(Wijzigingen )?publiceren$/i }).click();
-    await page.goto(`/probe/e2e-blokken-${test.info().project.name}`);
+    await page.goto(`/probe/${slug}`);
     await expect(page.locator('main .faq.width-wide')).toContainText(`Wat? ${stamp}`);
   });
 
