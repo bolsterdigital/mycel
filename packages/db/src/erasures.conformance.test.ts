@@ -41,6 +41,7 @@ import {
   uuidv7Ids,
 } from './index.js';
 import { asRole } from './infra/roles.js';
+import { STORAGE } from './portability/storage.js';
 import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -289,6 +290,42 @@ describe.skipIf(skip)('erasure conformance', () => {
     const rows = await rowsOf(tenants.a);
     expect(rows['mail_sends']!.length).toBeGreaterThanOrEqual(2);
     expect(rows['jobs']!.length).toBeGreaterThanOrEqual(2);
+  });
+
+  // The storage catalog (portability/storage.ts) is the list of what apply covers. Every table in which the fixture
+  // left the address, its admission key or the supporter's id names a supporter copy there, and
+  // the tables apply may change are exactly its `apply` copies: a new grant to mycel_erasure, or a
+  // copy marked `apply` that the eraser cannot reach, fails here.
+  it('finds every copy of the fixture, and every table apply changes, in the storage catalog', async () => {
+    const before = await rowsOf(tenants.a);
+    const seat = await emailKey(tenants.a, email, 'admission');
+    const copies = [
+      ...new Set([
+        ...holding(before, email),
+        ...holding(before, seat),
+        ...holding(before, supporterId),
+      ]),
+    ];
+    const supporterCopy = (table: string) =>
+      (STORAGE[table as keyof typeof STORAGE]?.copies ?? []).some((c) => c.subject === 'supporter');
+    expect(
+      copies.filter((t) => !supporterCopy(t)),
+      'copies without a supporter entry'
+    ).toEqual([]);
+    expect(copies).toEqual(expect.arrayContaining(['events', 'supporters', 'form_submissions']));
+
+    const { rows } = await sql<{ name: string }>`
+      select c.relname as name from pg_class c
+      where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+        and not c.relispartition
+        and (has_table_privilege('mycel_erasure', c.oid, 'DELETE')
+             or has_any_column_privilege('mycel_erasure', c.oid, 'UPDATE'))
+      order by 1`.execute(operatorDb);
+    const applied = Object.entries(STORAGE)
+      .filter(([, e]) => e.copies.some((c) => c.route.kind === 'apply'))
+      .map(([name]) => name)
+      .sort();
+    expect(rows.map((r) => r.name)).toEqual(applied);
   });
 
   it('refuses to apply on the fronts login', async () => {
