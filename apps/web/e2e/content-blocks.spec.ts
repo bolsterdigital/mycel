@@ -6,6 +6,7 @@ import { BLOCK_TYPES, UseCaseError, systemPrincipal, useCases } from '@mycel/cor
 import { conditionalProbeForm } from '@mycel/core/testing';
 import { type APIRequestContext, type Locator, type Page, expect } from '@playwright/test';
 import { test } from './lib/evidence/page';
+import { exerciseFormPicker } from './lib/blocks/forms';
 import { expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
@@ -2054,3 +2055,15 @@ test.describe('block cards', () => {
     await expect(page.locator('#block-new').getByRole('heading')).toHaveText('Nieuw blok: Citaat');
   });
 });
+
+for (const locale of ['nl', 'en']) {
+  test.describe(`form picker UI ${locale}`, () => {
+    test.use({ locale: locale === 'nl' ? 'nl-NL' : 'en-GB' });
+    test(`form block picker preserves references and draft in ${locale}`, async ({
+      page,
+      request,
+    }) => {
+      await exerciseFormPicker(page, request, locale);
+    });
+  });
+}
