@@ -153,6 +153,12 @@ export const updateConnection = defineUseCase({
   async handler(ctx, { id, baseVersion, changes }) {
     const prior = await find(ctx, id);
     refuseFrozen(prior);
+    if (
+      prior.provider === 'mailchimp' &&
+      changes.accountRef !== undefined &&
+      changes.accountRef !== prior.accountRef
+    )
+      throw new UseCaseError('invalid_input', 'Mailchimp account changes require a new connection');
     const nextDestination =
       changes.destination === undefined ? prior.destination : changes.destination;
     if (prior.provider === 'mailchimp' && !mailchimpTarget(nextDestination))
@@ -220,6 +226,25 @@ export const replaceConnectionCredential = defineUseCase({
   async handler(ctx, { id, baseVersion, secret }) {
     const prior = await find(ctx, id);
     refuseFrozen(prior);
+    if (prior.provider === 'mailchimp') {
+      let account;
+      try {
+        account = await ctx.mailchimpDiscovery.inspect(secret);
+      } catch {
+        throw new UseCaseError('conflict', 'Mailchimp account is unavailable');
+      }
+      const target = mailchimpTarget(prior.destination);
+      if (
+        !target ||
+        account.accountId !== prior.accountRef ||
+        account.server !== target.server ||
+        !account.audiences.some((a) => a.id === target.audience)
+      )
+        throw new UseCaseError(
+          'invalid_input',
+          'Mailchimp credential does not match this account and audience'
+        );
+    }
     return changed(
       await ctx.connections.replaceCredential(id, baseVersion, secret, ctx.clock.now())
     );

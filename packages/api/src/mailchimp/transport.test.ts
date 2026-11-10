@@ -148,6 +148,14 @@ describe('Mailchimp real form feed', () => {
     uow = new MemoryUnitOfWork({
       clock,
       dns: new FakeDns({ 'us7.api.mailchimp.com': ['8.8.8.8'] }),
+      mailchimpDiscovery: {
+        inspect: async () => ({
+          server: 'us7',
+          accountId: 'synthetic-account',
+          accountName: 'Synthetic',
+          audiences: [{ id: 'abc123', name: 'Synthetic', fields: [] }],
+        }),
+      },
     });
     invoker = new Invoker(buildRegistry(), uow);
     await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(FORM)));
@@ -421,6 +429,33 @@ describe('Mailchimp real form feed', () => {
       ).toBe('absent');
     }
   );
+  it('credential rotation cannot silently move the connection to another provider account', async () => {
+    await configure();
+    const before = await invoker.run(useCases.getConnection, admin, { id: connectionId });
+    uow.mailchimpDiscovery.inspect = async () => ({
+      server: 'us7',
+      accountId: 'other-account',
+      accountName: 'Other',
+      audiences: [{ id: 'abc123', name: 'Same id', fields: [] }],
+    });
+    await expect(
+      invoker.run(useCases.replaceConnectionCredential, admin, {
+        id: connectionId,
+        baseVersion: before.version,
+        secret: 'synthetic-foreign-key',
+      })
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+    expect((await invoker.run(useCases.getConnection, admin, { id: connectionId })).version).toBe(
+      before.version
+    );
+    await expect(
+      invoker.run(useCases.updateConnection, admin, {
+        id: connectionId,
+        baseVersion: before.version,
+        changes: { accountRef: 'other-account' },
+      })
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+  });
   it('incoming changes queue only an authenticated read and periodic comparison suppresses locally', async () => {
     await configure();
     const { intent } = await submit();
