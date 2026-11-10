@@ -77,7 +77,8 @@
         "apps/web/src/lib/server/admin/profile*",
         "packages/core/src/content/people/public.ts",
         "apps/web/src/lib/public/structured-data.ts",
-        "apps/web/src/lib/server/public/person-page.ts"
+        "apps/web/src/lib/server/public/person-page.ts",
+        "apps/web/src/lib/server/forms/**"
       ],
       "adrs": ["002", "009", "011", "014", "016", "019", "024"],
       "gates": [
@@ -181,7 +182,8 @@
         "apps/web/src/lib/assets/**",
         "apps/web/e2e/quality-corpus.json",
         "apps/web/e2e/routes.ts",
-        "apps/web/src/hooks.client.ts"
+        "apps/web/src/hooks.client.ts",
+        "apps/web/src/lib/server/forms/**"
       ],
       "adrs": ["009", "013", "020"],
       "gates": [

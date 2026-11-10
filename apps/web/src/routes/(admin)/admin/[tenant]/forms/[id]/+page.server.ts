@@ -45,7 +45,8 @@ async function mailChange(p: Principal, data: FormData, formId: string) {
   const value = structuredClone(state.value),
     command = text(data, 'command'),
     id = text(data, 'id');
-  if (command === 'template') {
+  if (command === 'removeTemplate') value.templates = value.templates.filter((t) => t.id !== id);
+  else if (command === 'template') {
     const old = value.templates.find((t) => t.id === id);
     const template = {
       id,

@@ -157,7 +157,7 @@ async function configureMessages(page: Page) {
   ]) {
     const template = page
       .locator('form[action="?/mail"]')
-      .filter({ has: page.locator('input[name="command"][value="template"]') })
+      .filter({ has: page.locator('button[name="command"][value="template"]') })
       .filter({ has: page.locator('input[name="id"]:not([readonly])') });
     await template.locator('..').locator('summary').first().click();
     await template.locator('[name="id"]').fill(id!);

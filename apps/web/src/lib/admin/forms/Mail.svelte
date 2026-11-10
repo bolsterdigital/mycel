@@ -22,11 +22,7 @@
     <details>
       <summary>{template?.id ?? t('admin.forms.newTemplate')}</summary>
       <form method="post" action="?/mail" class="ui-fields">
-        <input type="hidden" name="command" value="template" /><input
-          type="hidden"
-          name="version"
-          value={state.version}
-        />
+        <input type="hidden" name="version" value={state.version} />
         <Field
           id="template-{index}-id"
           name="id"
@@ -51,7 +47,16 @@
           value={template?.text}
           multiline
         />
-        <Actions><Button disabled={!editable}>{t('admin.forms.save')}</Button></Actions>
+        <Actions
+          ><Button name="command" value="template" disabled={!editable}
+            >{t('admin.forms.save')}</Button
+          >{#if template}<Button
+              name="command"
+              value="removeTemplate"
+              disabled={!editable}
+              formnovalidate>{t('admin.forms.remove')}</Button
+            >{/if}</Actions
+        >
       </form>
     </details>{/each}
   <h3>{t('admin.forms.confirmation')}</h3>

@@ -73,7 +73,9 @@ export function fieldInput(data: FormData, old?: FormField): FormField {
             .filter(Boolean)
             .map((row) => {
               const [value, nl, en] = row.split('|');
-              return { value, label: { nl: nl || value, en: en || value } };
+              const previous =
+                old && 'options' in old ? old.options.find((o) => o.value === value)?.label : {};
+              return { value, label: { ...previous, nl: nl || value, en: en || value } };
             }),
         }
       : {}),
