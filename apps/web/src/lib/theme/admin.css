@@ -345,13 +345,15 @@
     :root[data-admin-nav='rail'] .admin-sidebar {
       padding-inline: var(--space-0);
     }
-    :root[data-admin-nav='rail'] :is(.admin-brand, .admin-site-name, .admin-content-locale),
-    :root[data-admin-nav='rail'] .admin-account-actions,
-    :root[data-admin-nav='rail'] .ui-navgroup-sub,
+    :root[data-admin-nav='rail']
+      .admin-sidebar
+      :is(.admin-brand, .admin-site-name, .admin-content-locale),
+    :root[data-admin-nav='rail'] .admin-sidebar .admin-account-actions,
+    :root[data-admin-nav='rail'] .admin-sidebar .ui-navgroup-sub,
     :root[data-admin-nav='rail'] .admin-sidebar summary > .ui-icon:last-child {
       display: none;
     }
-    :root[data-admin-nav='rail'] .ui-navgroup-label {
+    :root[data-admin-nav='rail'] .admin-sidebar .ui-navgroup-label {
       position: absolute;
       width: 1px;
       height: 1px;
@@ -359,11 +361,12 @@
       clip-path: inset(50%);
       white-space: nowrap;
     }
-    :root[data-admin-nav='rail'] .ui-navgroup + .ui-navgroup {
+    :root[data-admin-nav='rail'] .admin-sidebar .ui-navgroup + .ui-navgroup {
       padding-block-start: var(--space-1);
       border-block-start: var(--border-width) solid var(--color-border);
     }
     :root[data-admin-nav='rail']
+      .admin-sidebar
       :is(
         .ui-navgroup > ul > li > a,
         .ui-navgroup summary,
@@ -377,6 +380,7 @@
       padding-inline: calc((var(--rail-width) - 2 * var(--space-0) - 1.125em) / 2);
     }
     :root[data-admin-nav='rail']
+      .admin-sidebar
       :is(
         .ui-navgroup > ul > li > a,
         .ui-navgroup summary,
@@ -394,6 +398,7 @@
       white-space: nowrap;
     }
     :root[data-admin-nav='rail']
+      .admin-sidebar
       :is(
         .ui-navgroup > ul > li > a,
         .ui-navgroup summary,
