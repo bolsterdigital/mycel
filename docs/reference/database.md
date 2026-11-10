@@ -31,4 +31,4 @@ An order a person reads (the titles of a content list) names its collation in th
 | --------------------- | -------------- | ------------------------------------ | ------------------------------------------------------------- |
 | pool `max`            | 10 connections | `packages/db/src/index.ts`           | bounds the connections of one `createDb` pool                 |
 | `db-refusals` `LIMIT` | 3              | `scripts/gates/db-refusals.test.mjs` | refusals `packages/db` may raise, each in a listed place      |
-| `db-raw-sql` `LIMIT`  | 3              | `scripts/gates/db-raw-sql.test.mjs`  | `sql.raw` and `sql.lit` calls allowed, each in a listed place |
+| `db-raw-sql` `LIMIT`  | 1              | `scripts/gates/db-raw-sql.test.mjs`  | `sql.raw` and `sql.lit` calls allowed, each in a listed place |

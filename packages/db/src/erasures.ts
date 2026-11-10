@@ -15,6 +15,9 @@
 
 import { sql, type Kysely } from 'kysely';
 import {
+  carriesErasedAddress,
+  isTombstone,
+  normalizeEmail,
   eraseOutboxProps,
   ERASED_DOMAIN,
   ERASURE_EXPIRES_EXPORTS,
@@ -32,18 +35,6 @@ import { setRole } from './infra/roles.js';
 
 type Trx = Kysely<Database>;
 
-/** The expressions `hashOf` may hash: the address columns the erasure reads. */
-const HASHED = ['email', 'v.value'] as const;
-type Hashed = (typeof HASHED)[number];
-
-/** `emailKey(..., 'erasure')` in SQL, over a column or value `x` of the current tenant's rows. */
-const hashOf = (x: Hashed) => {
-  // `sql.raw` splices `x` into the statement, so only an expression from the list gets there.
-  if (!HASHED.includes(x)) throw new Error(`not a hashed expression: ${x}`);
-  return sql.raw(
-    `encode(sha256(convert_to(tenant_id::text || E'\\n' || lower(btrim(${x})), 'UTF8')), 'hex')`
-  );
-};
 const TOMB = sql.raw(`'@${ERASED_DOMAIN}'`);
 
 export function erasureRepository(
@@ -110,12 +101,11 @@ async function applyAsEraser(trx: Trx, tenantId: string): Promise<number> {
   return changed + Number(r.numAffectedRows ?? 0n);
 }
 
-/** The jsonb columns that can carry an address in free form: outbox props, submissions, job payloads. */
-const CARRIER_COLUMNS = ['props', '"values"', 'payload'] as const;
-type CarrierColumn = (typeof CARRIER_COLUMNS)[number];
-
 async function eraseRows(trx: Trx, tenantId: string): Promise<number> {
-  const registered = await trx.selectFrom('erasures').select('supporter_id').execute();
+  const registered = await trx
+    .selectFrom('erasures')
+    .select(['supporter_id', 'email_hash'])
+    .execute();
   if (!registered.length) return 0;
   const ids = registered.map((r) => r.supporter_id);
   // No address or provider payload is stored. Detach the pseudonymous supporter reference while
@@ -126,28 +116,33 @@ async function eraseRows(trx: Trx, tenantId: string): Promise<number> {
                  else 'blocked' end,
     failure = 'erasure', lease_token = null, lease_until = null, revision = revision + 1
     where supporter_id = any(${ids}::uuid[])`.execute(trx);
-  const addresses = (
-    await sql<{ a: string }>`
-      with reg as (select supporter_id, email_hash from erasures)
-      select lower(btrim(email)) as a from supporters
-        where id in (select supporter_id from reg) and email not like ${'%@' + ERASED_DOMAIN}
-      union
-      select lower(btrim(email)) from events
-        where supporter_id in (select supporter_id from reg) and email not like ${'%@' + ERASED_DOMAIN}
-      union
-      select lower(btrim(email)) from supporters
-        where ${hashOf('email')} in (select email_hash from reg)
-      union
-      select lower(btrim(v.value)) from form_submissions, jsonb_each_text("values") v
-        where strpos(v.value, '@') > 0 and ${hashOf('v.value')} in (select email_hash from reg)`.execute(
-      trx
-    )
-  ).rows.map((r) => r.a);
-  const carries = (column: CarrierColumn) => {
-    // `sql.raw` splices the name into the statement, so only a column from the list gets there.
-    if (!CARRIER_COLUMNS.includes(column)) throw new Error(`not a carrier column: ${column}`);
-    return sql`exists (select from unnest(${addresses}::text[]) a where strpos(lower(${sql.raw(column)}::text), a) > 0)`;
+  // Use core's normalisation and hash for restored data too. SQL lower/btrim differs from
+  // JavaScript for Unicode spaces and case mappings. These tenant-bound scans replace the old
+  // SQL substring scans; decoded JSON also avoids treating serialization escapes as delimiters.
+  const hashes = new Set(registered.map((r) => r.email_hash));
+  const supporters = await trx.selectFrom('supporters').select(['id', 'email']).execute();
+  const events = await trx.selectFrom('events').select(['id', 'supporter_id', 'email']).execute();
+  const submissions = await trx.selectFrom('form_submissions').select(['id', 'values']).execute();
+  const addresses = new Set<string>();
+  const consider = async (email: string, owner?: string | null) => {
+    if (isTombstone(email)) return;
+    if (ids.includes(owner ?? '') || hashes.has(await emailKey(tenantId, email, 'erasure')))
+      addresses.add(normalizeEmail(email));
   };
+  for (const row of supporters) await consider(row.email, row.id);
+  for (const row of events) await consider(row.email, row.supporter_id);
+  for (const row of submissions)
+    for (const value of Object.values(row.values))
+      if (typeof value === 'string' && value.includes('@')) await consider(value);
+  const carries = (value: unknown) => carriesErasedAddress(value, addresses);
+  const supporterIds = supporters
+    .filter((row) => ids.includes(row.id) || addresses.has(normalizeEmail(row.email)))
+    .map((row) => row.id);
+  const eventRowIds = events
+    .filter(
+      (row) => ids.includes(row.supporter_id ?? '') || addresses.has(normalizeEmail(row.email))
+    )
+    .map((row) => row.id);
 
   let changed = Number(intentChanges.numAffectedRows ?? 0n);
   const count = (r: { numAffectedRows?: bigint }) => (changed += Number(r.numAffectedRows ?? 0n));
@@ -155,34 +150,37 @@ async function eraseRows(trx: Trx, tenantId: string): Promise<number> {
   count(
     await sql`
       update events set email = supporter_id::text || ${TOMB}, props = '{}'::jsonb
-      where (supporter_id = any(${ids}::uuid[]) or lower(email) = any(${addresses}::text[]))
+      where id = any(${eventRowIds}::text[])
         and not (email = supporter_id::text || ${TOMB} and props = '{}'::jsonb)`.execute(trx)
   );
   count(
     await sql`
       update supporters
       set email = id::text || ${TOMB}, lists = '{}', pending_lists = '{}', updated_at = now()
-      where (id = any(${ids}::uuid[]) or lower(email) = any(${addresses}::text[]))
+      where id = any(${supporterIds}::uuid[])
         and not (email = id::text || ${TOMB} and lists = '{}' and pending_lists = '{}')`.execute(
       trx
     )
   );
-  if (!addresses.length) return changed;
+  if (!addresses.size) return changed;
 
   // Mail intents and their reconcile jobs hang off the outbox event that carried the address;
   // find them before the scrub below takes the address out of that event.
   const outbox = (
     await sql<{ id: string; type: string; props: Record<string, unknown> }>`
-      select id, type, props from outbox where ${carries('props')}`.execute(trx)
-  ).rows;
+      select id, type, props from outbox`.execute(trx)
+  ).rows.filter((row) => carries(row.props));
   const eventIds = outbox.map((e) => e.id);
   count(
     await sql`delete from mail_sends where event_id::text = any(${eventIds}::text[])`.execute(trx)
   );
-  count(await sql`delete from form_submissions where ${carries('"values"')}`.execute(trx));
+  const submissionIds = submissions.filter((row) => carries(row.values)).map((row) => row.id);
+  count(
+    await sql`delete from form_submissions where id = any(${submissionIds}::uuid[])`.execute(trx)
+  );
   // A seat reserved for a signup that was never ingested, under core's admission key.
   // A rate-limit bucket stays: a hash that lives a day at most is no copy (ADR 019 rule 8).
-  const seats = await Promise.all(addresses.map((a) => emailKey(tenantId, a, 'admission')));
+  const seats = await Promise.all([...addresses].map((a) => emailKey(tenantId, a, 'admission')));
   count(
     await sql`delete from supporter_admissions where email_hash = any(${seats}::text[])`.execute(
       trx
@@ -193,14 +191,20 @@ async function eraseRows(trx: Trx, tenantId: string): Promise<number> {
       await sql`update outbox set props = ${JSON.stringify(eraseOutboxProps(e.type, e.props))}::jsonb
                 where id = ${e.id}`.execute(trx)
     );
-  count(
-    await sql`
-      delete from jobs
-      where ${carries('payload')}
-         or (type = 'mail.reconcile' and payload->>'eventId' = any(${eventIds}::text[]))`.execute(
-      trx
+  const jobs = await trx.selectFrom('jobs').select(['id', 'payload', 'type']).execute();
+  const jobIds = jobs
+    .filter(
+      (row) =>
+        carries(row.payload) ||
+        (row.type === 'mail.reconcile' &&
+          row.payload !== null &&
+          typeof row.payload === 'object' &&
+          'eventId' in row.payload &&
+          typeof row.payload.eventId === 'string' &&
+          eventIds.includes(row.payload.eventId))
     )
-  );
+    .map((row) => row.id);
+  count(await sql`delete from jobs where id = any(${jobIds}::uuid[])`.execute(trx));
   return changed;
 }
 

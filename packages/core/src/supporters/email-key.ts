@@ -14,7 +14,7 @@ export type EmailKeyPurpose = 'admission' | 'rate-limit' | 'erasure' | 'mail-cor
 
 /**
  * Hex sha256 of the tenant id and the normalised address. `admission` and `rate-limit` join with
- * `:`, `erasure` with a newline (`encode(sha256(...))` in packages/db/src/erasures.ts is equal),
+ * `:`, `erasure` with a newline (including restored rows read by the database adapter),
  * and `mail-correlation` appends the subject, which a provider listing also shows.
  */
 export function emailKey(

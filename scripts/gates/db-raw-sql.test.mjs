@@ -13,13 +13,9 @@ import { isTest, staleEntries, stripComments, workspaceSources } from '../lib/re
 
 /** Per file, the raw fragments it may build and why each takes no caller text. */
 export const ALLOWED = {
-  'packages/db/src/erasures.ts': [
-    'hashOf: the erasure hash over an address expression, only one from HASHED',
-    'TOMB: the tombstone domain, a constant from core',
-    'carries: a carrier column, only one from CARRIER_COLUMNS',
-  ],
+  'packages/db/src/erasures.ts': ['TOMB: the tombstone domain, a constant from core'],
 };
-export const LIMIT = 3;
+export const LIMIT = 1;
 
 const PATTERN = /\bsql\s*\.\s*(raw|lit)\s*\(/g;
 
@@ -93,9 +89,9 @@ test('the rule counts sql.raw and sql.lit in code, not comments or tests, and na
   assert.deepEqual(overAllowance(found), [
     'packages/db/src/media.ts: 1 raw fragment(s), 0 allowed',
     'apps/web/src/lib/server/x.ts: 1 raw fragment(s), 0 allowed',
-    'packages/db/src/erasures.ts: 4 raw fragment(s), 3 allowed',
+    'packages/db/src/erasures.ts: 4 raw fragment(s), 1 allowed',
   ]);
-  assert.deepEqual(unusedAllowance([{ path: 'packages/db/src/erasures.ts', count: 2 }]), [
+  assert.deepEqual(unusedAllowance([{ path: 'packages/db/src/erasures.ts', count: 0 }]), [
     'db-raw-sql ALLOWED: packages/db/src/erasures.ts is no longer needed; remove the entry',
   ]);
 });

@@ -21,7 +21,7 @@ import {
 import { confirmationMailSubscriber } from '../mailing/confirmation.js';
 import { supporterIngestSubscriber } from './service.js';
 import { emailKey } from './email-key.js';
-import { tombstoneEmail } from './erasure.js';
+import { carriesErasedAddress, tombstoneEmail } from './erasure.js';
 
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const FORM = '01900000-0000-7000-8000-00000000f000';
@@ -110,6 +110,52 @@ describe('ctx.erasures in memory', () => {
     expect(copies(OTHER, 'ada@example.org')).toMatchObject({ supporters: 1, submissions: 1 });
   });
 
+  it('keeps prefix and domain-suffix neighbours with all their dependent copies', async () => {
+    const neighbours = ['joada@example.org', 'ada@example.org.evil'];
+    for (const address of neighbours) await signup(TENANT, address);
+    for (const address of ['ada@example.org', ...neighbours]) {
+      const job = uow.store.jobs.find((row) => row.tenantId === TENANT)!;
+      uow.store.jobs.push({
+        ...job,
+        id: uow.ids.next(),
+        key: uow.ids.next(),
+        payload: { nested: [`Contact (${address}), please`] },
+      });
+      const event = uow.store.outbox.find((row) => row.tenantId === TENANT)!;
+      uow.store.outbox.push({
+        ...event,
+        id: uow.ids.next(),
+        type: 'form.mail.planned',
+        props: { nested: [`Contact (${address}), please`] },
+      });
+    }
+    const before = neighbours.map((address) => copies(TENANT, address));
+    const s = uow.store.for(TENANT);
+    const id = (await uow.run(adminOf(), (ctx) => ctx.supporters.getProjection('ada@example.org')))!
+      .id;
+    await uow.run(adminOf(), (ctx) => ctx.erasures.register(id, 'ADA@example.org'));
+    await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+    expect(neighbours.map((address) => copies(TENANT, address))).toEqual(before);
+    expect(s.mailSends.size).toBe(2);
+    expect(uow.store.jobs.filter((j) => j.tenantId === TENANT)).toHaveLength(4);
+  });
+
+  it.each(['\u00a0ANN@Example.org\u00a0', '\ufeffİN@Example.org\ufeff'])(
+    'finds restored submission values using core normalisation: %s',
+    async (address) => {
+      const s = uow.store.for(TENANT);
+      const submission = [...s.submissions.values()][0]!;
+      submission.values = { email: address };
+      s.projections.clear();
+      s.events.clear();
+      await uow.run(adminOf(), (ctx) =>
+        ctx.erasures.register(uow.ids.next(), address.trim().toLowerCase())
+      );
+      await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+      expect(s.submissions.size).toBe(0);
+    }
+  );
+
   it("expires an export archive that may hold the person, and no other site's", async () => {
     const ready = async (tenant: string) => {
       const { record } = await uow.run(adminOf(tenant), (ctx) =>
@@ -170,5 +216,28 @@ describe('ctx.erasures.status in memory', () => {
     await expect(
       uow.run(systemPrincipal(OTHER, 'test'), (ctx) => ctx.erasures.status())
     ).resolves.toMatchObject({ registered: 1, secured: 0 });
+  });
+});
+
+// These cases define row selection, not general log redaction: a neighbour's row survives.
+describe('erasure address boundaries in decoded JSON', () => {
+  const addresses = new Set(['ann@example.org']);
+  it.each([
+    ['ANN@example.org', true],
+    ['Contact ann@example.org. Next sentence.', true],
+    ['Contact: (ANN@example.org), please', true],
+    [{ nested: ['line\nann@example.org\tend'] }, true],
+    [{ 'ann@example.org': 'copy in a key' }, true],
+    ['joann@example.org', false],
+    ['ann@example.org.evil', false],
+    ['prefix+ann@example.org', false],
+    ['éann@example.org', false],
+    ['ann@example.orgé', false],
+    ['ann@example.org.𐐀', false],
+    ['ann@example.org_ann@example.org', false],
+    ['joann@example.org; ann@example.org', true],
+    [null, false],
+  ])('selects %j only when it carries the whole address (%s)', (value, expected) => {
+    expect(carriesErasedAddress(value, addresses)).toBe(expected);
   });
 });

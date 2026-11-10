@@ -4,6 +4,7 @@
 // Rejected: storing the address in the register (it would be the one copy erasure never removes)
 // and an HMAC under a key (a restore onto a box with another key could no longer match).
 
+import { normalizeEmail } from '../util/email.js';
 import { scrubText } from '../util/scrub.js';
 import type { ConnectionIntentState } from '../connections/intents.js';
 import type { ExportStatus } from '../tenants/exports.js';
@@ -68,4 +69,41 @@ export function eraseOutboxProps(
   const retained = { ...props };
   delete retained['confirmationCopy'];
   return JSON.parse(scrubText(JSON.stringify(retained))) as Record<string, unknown>;
+}
+
+// RFC-style local-part characters plus Unicode letters, marks and numbers. A substring of
+// another mailbox (including a plus tag or a longer domain) is never grounds to delete its row.
+const MAILBOX_CHAR = /[\p{L}\p{M}\p{N}.!#$%&'*+/=?^_`{|}~@-]/u;
+
+/** Match decoded JSON strings and keys, including addresses embedded in free text. */
+export function carriesErasedAddress(value: unknown, addresses: ReadonlySet<string>): boolean {
+  if (typeof value === 'string') {
+    const text = normalizeEmail(value);
+    for (const address of addresses) {
+      let start = text.indexOf(address);
+      while (start !== -1) {
+        const before = [...text.slice(Math.max(0, start - 2), start)].at(-1);
+        const end = start + address.length;
+        const after = [...text.slice(end, end + 2)][0];
+        // A sentence's final period is punctuation; a dot followed by a mailbox character
+        // continues the address (ann@example.org.evil must survive).
+        const finalPeriod =
+          after === '.' && !MAILBOX_CHAR.test([...text.slice(end + 1, end + 3)][0] ?? '');
+        if (
+          (!before || !MAILBOX_CHAR.test(before)) &&
+          (!after || !MAILBOX_CHAR.test(after) || finalPeriod)
+        )
+          return true;
+        start = text.indexOf(address, start + 1);
+      }
+    }
+    return false;
+  }
+  if (Array.isArray(value)) return value.some((entry) => carriesErasedAddress(entry, addresses));
+  return value !== null && typeof value === 'object'
+    ? Object.entries(value).some(
+        ([key, entry]) =>
+          carriesErasedAddress(key, addresses) || carriesErasedAddress(entry, addresses)
+      )
+    : false;
 }
