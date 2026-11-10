@@ -319,6 +319,32 @@ describe.skipIf(skip)('postgres adapter', () => {
     ).rejects.toThrow(/row-level security/);
   });
 
+  it('serializes competing form edits and keeps another tenant out of authoring and submissions', async () => {
+    const id = uuidv7(),
+      principal = systemPrincipal(tenantA, 'test');
+    await uow.run(principal, (ctx) => ctx.forms.insert(probeForm(id)));
+    const { form, version } = await invoker.run(useCases.getForm, principal, { id });
+    const edit = (label: string) =>
+      invoker.run(useCases.updateForm, principal, {
+        baseVersion: version,
+        value: { ...form, submitLabel: { nl: label, en: label } },
+      });
+    const outcomes = await Promise.allSettled([edit('First'), edit('Second')]);
+    expect(outcomes.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.find((r) => r.status === 'rejected')).toMatchObject({
+      status: 'rejected',
+      reason: { code: 'conflict' },
+    });
+    expect(
+      (await invoker.run(useCases.listForms, systemPrincipal(tenantB, 'test'), {})).forms.some(
+        (f) => f.id === id
+      )
+    ).toBe(false);
+    await expect(
+      invoker.run(useCases.listFormSubmissions, systemPrincipal(tenantB, 'test'), { formId: id })
+    ).rejects.toMatchObject({ code: 'not_found' });
+  });
+
   it('sends one confirmation per address per form a day in Postgres, and the refusal commits', async () => {
     const email = `busy-${run}@example.org`;
     const statuses: string[] = [];

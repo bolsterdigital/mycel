@@ -15,6 +15,9 @@
   display: grid;
   gap: var(--space-1);
 }
+.field[hidden] {
+  display: none;
+}
 .field label {
   font-weight: 600;
 }

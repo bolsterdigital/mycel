@@ -55,8 +55,8 @@ export const updateFormFeeds = defineUseCase({
   async handler(ctx, { baseVersion, value }) {
     if (value.feeds.some((f) => f.enabled) && !can(ctx.principal, 'content:publish'))
       throw new UseCaseError('forbidden', 'feed activation requires publishing permission');
-    for (const feed of value.feeds) {
-      const form = await ctx.forms.findById(feed.formId);
+    for (const feed of [...value.feeds].sort((a, b) => a.formId.localeCompare(b.formId))) {
+      const form = await ctx.forms.lock(feed.formId);
       if (!form) throw notFound('form');
       if (!validFeed(form, feed))
         throw new UseCaseError('invalid_input', 'invalid feed mapping or scope');

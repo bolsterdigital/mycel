@@ -575,16 +575,27 @@ test('conditional fields validate natively and forged inactive consent creates n
   await page.getByLabel('E-mailadres', { exact: true }).fill(email);
   await page.getByLabel('Alleen een bericht sturen, geen nieuwsbrief').check();
   await page.getByLabel('Onderwerp', { exact: true }).selectOption('question');
-  // The native browser must not block an inactive required field. The server decides instead.
-  await expect(page.getByLabel('Je vraag', { exact: true })).not.toHaveAttribute('required');
-  await pastMinimumFillTime(page);
-  await page.getByRole('button', { name: 'Aanmelden', exact: true }).click();
-  await expect(page.locator('.error-summary')).toContainText('Dit veld is verplicht.');
-  await expectNoAxeViolations(page);
+  if (isA11y()) {
+    await expect(page.getByLabel('Je vraag', { exact: true })).toHaveAttribute('required', '');
+    await expect(page.locator('[name=consent]')).toBeDisabled();
+    await expect(page.locator('[name=consent]')).toBeHidden();
+  } else {
+    // Without enhancement the server enforces the conditional requirement after the native post.
+    await expect(page.getByLabel('Je vraag', { exact: true })).not.toHaveAttribute('required');
+    await pastMinimumFillTime(page);
+    await page.getByRole('button', { name: 'Aanmelden', exact: true }).click();
+    await expect(page.locator('.error-summary')).toContainText('Dit veld is verplicht.');
+    await expectNoAxeViolations(page);
+  }
   await page.getByLabel('Je vraag', { exact: true }).fill('Kan ik langskomen?');
   await page.getByLabel('Interesses', { exact: true }).selectOption(['local', 'events']);
   // A forged checkbox is present in the POST but inactive according to validated contact_only.
-  await page.getByLabel('Ja, ik wil de nieuwsbrief ontvangen.', { exact: false }).check();
+  if (isA11y())
+    await page.locator('[name=consent]').evaluate((input: HTMLInputElement) => {
+      input.disabled = false;
+      input.checked = true;
+    });
+  else await page.getByLabel('Ja, ik wil de nieuwsbrief ontvangen.', { exact: false }).check();
   await pastMinimumFillTime(page);
   await page.getByRole('button', { name: 'Aanmelden', exact: true }).click();
   await expect(page).toHaveURL(/signup\/thanks$/);

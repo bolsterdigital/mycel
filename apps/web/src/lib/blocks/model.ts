@@ -101,6 +101,11 @@ export interface RenderForm {
   version?: string;
   conditionalHelp?: string;
   fields: {
+    id?: string;
+    baseRequired?: boolean;
+    pattern?: string;
+    activeWhen?: FormField['activeWhen'];
+    requiredWhen?: FormField['requiredWhen'];
     name: string;
     type: FormField['type'];
     label: string;

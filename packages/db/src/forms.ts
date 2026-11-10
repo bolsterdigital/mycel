@@ -17,6 +17,36 @@ type Trx = Kysely<Database>;
 
 export function formRepository(trx: Trx, tenantId: string): FormRepository {
   return {
+    async lock(id) {
+      const row = await trx
+        .selectFrom('forms')
+        .select('definition')
+        .where('id', '=', id)
+        .forUpdate()
+        .executeTakeFirst();
+      return row ? parseFormDefinition(row.definition) : null;
+    },
+    async list() {
+      const rows = await trx.selectFrom('forms').select('definition').orderBy('id').execute();
+      return rows.map((row) => parseFormDefinition(row.definition));
+    },
+    async save(base, value) {
+      // Compare against the canonical legacy parse while the row is locked, not raw JSON order.
+      const row = await trx
+        .selectFrom('forms')
+        .select('definition')
+        .where('id', '=', base.id)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!row || JSON.stringify(parseFormDefinition(row.definition)) !== JSON.stringify(base))
+        return false;
+      await trx
+        .updateTable('forms')
+        .set({ definition: JSON.stringify(value) })
+        .where('id', '=', base.id)
+        .execute();
+      return true;
+    },
     async findById(id) {
       const row = await trx
         .selectFrom('forms')
@@ -40,6 +70,18 @@ export function formRepository(trx: Trx, tenantId: string): FormRepository {
 
 export function submissionRepository(trx: Trx, tenantId: string): SubmissionRepository {
   return {
+    async list(formId) {
+      const rows = await trx
+        .selectFrom('form_submissions')
+        .select('id')
+        .where('form_id', '=', formId)
+        .orderBy('created_at', 'desc')
+        .limit(100)
+        .execute();
+      return Promise.all(
+        rows.map(async (r) => (await submissionRepository(trx, tenantId).findById(r.id))!)
+      );
+    },
     async insert(s) {
       await trx
         .insertInto('form_submissions')

@@ -54,6 +54,12 @@ export const MANAGE: NavSection = {
       hint: 'admin.manage.hint.domains',
     },
     {
+      path: 'forms',
+      label: 'admin.forms.title',
+      needs: 'content:write',
+      hint: 'admin.forms.intro',
+    },
+    {
       path: 'connections',
       label: 'admin.nav.connections',
       needs: 'connections:read',

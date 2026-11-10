@@ -2,6 +2,11 @@
 // Other catalogs are `Partial` and fall back to this one key by key.
 
 export const en = {
+  'forms.default.signupThanks': 'Thank you! Check your inbox and confirm your subscription.',
+  'forms.default.submit': 'Send',
+  'forms.default.thankYou': 'Thank you',
+  'forms.default.email': 'Email',
+  'forms.default.consent': 'Subscribe to news',
   'assist.error.ai-not-entitled': 'Assistance is not available for this site.',
   'assist.error.ai-disabled': 'An administrator must enable assistance first.',
   'assist.error.consent-required': 'Consent is required for the configured processor.',

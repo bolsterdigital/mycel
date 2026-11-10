@@ -19,7 +19,11 @@ export const onlyA11y = (reason = 'runs with JavaScript, in the a11y project'): 
 // the other scripts on a page does not spell it again.
 // Rejected: each spec naming the files it expects, which drifted into four copies of one selector.
 
-export const PUBLIC_SCRIPTS = ['/_form/proof.js', '/_image/lightbox.js'] as const;
+export const PUBLIC_SCRIPTS = [
+  '/_form/proof.js',
+  '/_form/conditions.js',
+  '/_image/lightbox.js',
+] as const;
 
 /** Unexpected executable scripts; application/ld+json is an inert data block. */
 export const OTHER_SCRIPTS = `script:not([type="application/ld+json"]):not(${PUBLIC_SCRIPTS.map((s) => `[src="${s}"]`).join(', ')})`;

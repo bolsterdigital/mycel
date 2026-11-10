@@ -374,7 +374,8 @@ function retained(event = 'workflow_dispatch') {
                 .find(
                   (entry) => id === `${entry.name}-${shard.locale}-${shard.profile}-${shard.cache}`
                 )
-                .path.replace('{quality-article-id}', 'a'.repeat(36))),
+                .path.replace('{quality-article-id}', 'a'.repeat(36))
+                .replace('{form-id}', 'b'.repeat(36))),
           profile: shard.profile,
           locale: shard.locale,
           cache: shard.cache,
@@ -411,8 +412,8 @@ test('consumer counts the versioned full matrix and retains all red observation 
   bad.batches[1].state = 'pass';
   bad.batches[1].reasons = [];
   const result = consumeRun(run, load);
-  assert.equal(result.expected, 84);
-  assert.equal(result.samples, 425);
+  assert.equal(result.expected, 92);
+  assert.equal(result.samples, 465);
   assert.equal(result.state, 'fail');
   assert.equal(result.conclusion, 'success');
   assert.equal(result.cells[0].batches.length, 2);
@@ -961,7 +962,7 @@ test('gate CLI retains full reports and fails for absent downloads instead of pa
   }
 });
 test('information expands both profiles/locales while historical v3 keeps its own coverage', () => {
-  assert.equal(contract.fixtureVersion, '43a-v8');
+  assert.equal(contract.fixtureVersion, '43a-v9');
   for (const locale of ['nl', 'en'])
     for (const profile of ['mobile', 'desktop']) {
       const shard = expectedShards(contract, 'local', {
@@ -989,7 +990,7 @@ test('information expands both profiles/locales while historical v3 keeps its ow
     lock: source('package-lock.json'),
   });
   assert.equal(expectedShards(historical, 'workflow_dispatch').flatMap((s) => s.ids).length, 36);
-  assert.equal(expectedShards(contract, 'workflow_dispatch').flatMap((s) => s.ids).length, 84);
+  assert.equal(expectedShards(contract, 'workflow_dispatch').flatMap((s) => s.ids).length, 92);
   assert.notEqual(historical.fixtureHash, contract.fixtureHash);
   const run = retained('pull_request');
   for (const a of run.artifacts)

@@ -2161,3 +2161,16 @@ test.describe('content-list-bulk', () => {
     ).toHaveAttribute('href', list);
   });
 });
+
+// Form self-service shares the access flow and runs in the native and enhanced projects.
+for (const locale of ['nl', 'en']) {
+  test.describe(`form admin ${locale}`, () => {
+    test.use({ locale });
+    test(`form self-service retains native saves and whole actions in ${locale}`, async ({
+      page,
+    }) => {
+      const { authorForm } = await import('./lib/forms/authoring');
+      await authorForm(page, locale);
+    });
+  });
+}

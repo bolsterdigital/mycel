@@ -1,3 +1,4 @@
+import { fieldPattern } from '@mycel/core';
 // The one server-side resolver (brief #8c § 1): from a published projection to the render model,
 // fetching every tenant reference the blocks make once, up front. Components never reach the
 // database, so the same renderer runs on a preview (#11) and in the conformance suite without
@@ -653,6 +654,11 @@ function toRenderForm(
     submitLabel: text(form.submitLabel),
     thankYou: text(form.thankYou),
     fields: form.fields.map((f) => ({
+      id: f.id ?? f.name,
+      pattern: fieldPattern(f.type),
+      baseRequired: f.required,
+      activeWhen: f.activeWhen,
+      requiredWhen: f.requiredWhen,
       name: f.name,
       type: f.type,
       label: text(f.label),
