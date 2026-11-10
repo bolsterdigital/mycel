@@ -148,6 +148,8 @@ describe('form feeds', () => {
     ]);
     expect(JSON.stringify(sent)).not.toContain('private');
     expect(JSON.stringify(sent)).not.toContain('renamed');
+    expect(JSON.stringify(sent)).not.toContain('requestedAt');
+    expect(JSON.stringify(sent)).not.toContain('operation');
     expect(await dispatch(rows[0]!.id)).toEqual([]);
   });
   it('rehearses the same condition without creating consent or work; unconnected feeds stay disabled', async () => {

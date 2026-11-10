@@ -83,6 +83,8 @@ export const updateFormFeeds = defineUseCase({
       if (feed.connectionId) {
         const c = await ctx.connections.get(feed.connectionId);
         if (!c) throw notFound('connection');
+        if (c.provider !== 'mailchimp' && feed.operation && feed.operation !== 'subscribe')
+          throw new UseCaseError('invalid_input', 'this operation requires the Mailchimp provider');
         if (
           c.version !== feed.connectionVersion ||
           !c.formIds.includes(form.id) ||

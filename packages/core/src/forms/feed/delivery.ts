@@ -148,8 +148,12 @@ export const formFeedSource: ConnectionSource = {
           consent: {
             scope: pin.feed.scope,
             owner: pin.feed.confirmationOwner,
-            operation: pin.feed.operation ?? 'subscribe',
-            requestedAt: sub.createdAt.toISOString(),
+            ...((await ctx.connections.get(intent.connectionId))?.provider === 'mailchimp'
+              ? {
+                  operation: pin.feed.operation ?? 'subscribe',
+                  requestedAt: sub.createdAt.toISOString(),
+                }
+              : {}),
             confirmedAt: iso(sub.confirmedAt),
             textVersion: sub.consentTextVersion,
           },
