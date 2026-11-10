@@ -1206,6 +1206,7 @@ export const en = {
   'admin.block.new.add': 'Add and save',
   'admin.block.new.discard': 'Cancel',
   'admin.editor.title': 'Write article',
+  'admin.editor.editFields': 'Edit fields',
   'admin.editor.native': 'Edit fields and cards without JavaScript',
   'admin.editor.locale': 'Writing language',
   'admin.editor.body': 'Article body',

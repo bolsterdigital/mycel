@@ -9,7 +9,7 @@
   import { parseInert, withoutLineBreakNodes } from './inert-html.js';
   import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
   import { imageAltProps } from '#lib/admin/hero-alt/hero-alt.js';
-  import { Actions, Button, MediaPicker, WritingSheet } from '#lib/admin/ui/index.js';
+  import { Actions, Button, Icon, MediaPicker, WritingSheet } from '#lib/admin/ui/index.js';
   import type { MediaChoice } from '#lib/admin/media-choice.js';
   import { dropIndex, type DropIndex } from './drop-index.js';
   import FormatBar from './FormatBar.svelte';
@@ -477,12 +477,32 @@
   });
 </script>
 
+{#snippet nativeStyle()}
+  {#if native}
+    <details
+      class="writing-native"
+      data-native-article
+      hidden={active}
+      aria-hidden={active ? 'true' : undefined}
+      open={fallback}
+    >
+      <summary><Icon name="chevron-down" />{t('admin.editor.editFields')}</summary>
+      {@render native()}
+    </details>
+  {/if}
+{/snippet}
+
 <input type="hidden" {name} value={payload} />
 <div class="writing" class:active bind:this={frame}>
   <WritingSheet hidden={!active && !preview}>
     {#snippet toolbar()}
       <div class="writing-actions" hidden={!active && !preview}>
-        <FormatBar {formatting} {locale} disabled={!active} />
+        <FormatBar
+          {formatting}
+          {locale}
+          disabled={!active}
+          styleAlternative={native ? nativeStyle : undefined}
+        />
       </div>
     {/snippet}
     <div
@@ -496,12 +516,6 @@
         </div>{/if}
     </div>
   </WritingSheet>
-  {#if native}
-    <details class="writing-native" data-native-article hidden={active} open={fallback}>
-      <summary>{t('admin.editor.native')}</summary>
-      {@render native()}
-    </details>
-  {/if}
 
   {#if active}<SelectionTools {formatting} {locale} {frame} id={nativeId ?? name} />{/if}
   {#if reason}<p role="alert">{reason}</p>{/if}
@@ -615,24 +629,35 @@
   .writing {
     position: relative;
   }
-  /* The native opener occupies the real toolbar while its commands are unavailable. Opening
-     it is deliberate user input, never an automatic layout change. */
-  .writing-native:not([open]) > summary {
-    position: absolute;
-    inset-block-start: var(--space-1);
-    inset-inline: var(--space-2);
+  /* The native disclosure fills the style control's intrinsic grid slot. It remains measured
+     but inert after enhancement; the live select then fills exactly that same space. */
+  .writing-native > summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-0);
     min-block-size: var(--tap);
-    z-index: 4;
-    scroll-margin-block-start: calc(var(--item-bar-block-size, 0px) + var(--space-2));
+    padding-inline: 0.35em;
+    border: var(--border-width) solid transparent;
+    border-radius: var(--radius);
     color: var(--color-link);
-    background: var(--color-surface-bg);
+    font: inherit;
+    font-weight: 600;
+    white-space: nowrap;
+    list-style: none;
     cursor: pointer;
   }
-  .writing:has(.writing-native[open]:not([hidden])) :global(.ui-writing-sheet) {
+  .writing-native > summary::-webkit-details-marker {
     display: none;
   }
   .writing-native[hidden] {
+    display: block;
+    visibility: hidden;
+  }
+  .writing:has(:global(.writing-native[open]:not([hidden]))) :global(.ui-writing-sheet-content) {
     display: none;
+  }
+  .writing:has(:global(.writing-native[open]:not([hidden]))) :global(.ui-writing-sheet-toolbar) {
+    position: static;
   }
   .writing-surface :global(.editor-pending-range) {
     color: var(--color-selected-fg);
