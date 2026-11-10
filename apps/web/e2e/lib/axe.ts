@@ -35,7 +35,7 @@ export async function expectNoAxeViolations(
   for (const colorScheme of dark ? (['light', 'dark'] as const) : [null]) {
     if (colorScheme) await page.emulateMedia({ colorScheme });
     const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
-    const under = await underStayingBar(
+    const remeasured = await remeasureTargets(
       page,
       violations
         .filter((v) => v.id === 'target-size')
@@ -47,7 +47,7 @@ export async function expectNoAxeViolations(
           id: v.id,
           targets: v.nodes
             .map((n) => n.target.join(' '))
-            .filter((target) => v.id !== 'target-size' || !under.includes(target)),
+            .filter((target) => v.id !== 'target-size' || !remeasured.includes(target)),
         }))
         .filter((v) => v.targets.length)
         .map((v) => `${colorScheme ? `${colorScheme}: ` : ''}${v.id}: ${v.targets.join(', ')}`),
@@ -58,42 +58,58 @@ export async function expectNoAxeViolations(
 }
 
 /**
- * Which of these targets are scrolled partly under a bar that stays in view (`position: sticky`
- * or `fixed`, not an ancestor). Axe measures only the part still showing, against the bar's own
- * buttons, and reports a `target-size` failure that is the scroll position's, not the control's:
- * one scroll shows it whole, and focus never lands under a bar (`tabStops` in layout.ts).
- * Only that rule and only those targets are set aside; every other target keeps its verdict.
- * Rejected: scrolling to the top before every analysis, which hides what a page looks like in
- * the state a test made.
+ * A sticky bar can leave only a slice of a full-sized target visible. Never infer an axe
+ * exemption from overlapping rectangles: fixed backgrounds overlap controls too. Instead,
+ * scroll each reported target into view and run the same rule again. Only a target axe now
+ * accepts can be cleared. Keep all other original violations and restore every scroll container.
+ * Rejected: disabling target-size, or accepting geometry without a second axe measurement.
  */
-function underStayingBar(page: Page, targets: string[]): Promise<string[]> {
-  if (!targets.length) return Promise.resolve([]);
-  return page.evaluate((selectors) => {
-    const bars = [...document.querySelectorAll<HTMLElement>('body *')].filter((el) => {
-      const position = getComputedStyle(el).position;
-      return (position === 'sticky' || position === 'fixed') && el.getClientRects().length > 0;
-    });
-    return selectors.filter((selector) => {
-      let target: Element | null = null;
-      try {
-        target = document.querySelector(selector);
-      } catch {
-        return false;
-      }
-      if (!target) return false;
-      const box = target.getBoundingClientRect();
-      return bars.some((bar) => {
-        if (bar.contains(target)) return false;
-        const over = bar.getBoundingClientRect();
+async function remeasureTargets(page: Page, targets: string[]): Promise<string[]> {
+  if (!targets.length) return [];
+  const scrolls = await page.evaluateHandle(() =>
+    [...document.querySelectorAll('*')].map((element) => ({
+      element,
+      left: element.scrollLeft,
+      top: element.scrollTop,
+    }))
+  );
+  const accepted: string[] = [];
+  try {
+    for (const target of targets) {
+      const control = page.locator(target);
+      // A small control must still fail even if scrolling changes its neighbours' visibility.
+      const box = await control.boundingBox();
+      if (!box || box.width < 24 || box.height < 24) continue;
+      await control.evaluate((element) =>
+        element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
+      );
+      const exposed = await control.evaluate((element) => {
+        const box = element.getBoundingClientRect();
         return (
-          box.left < over.right &&
-          box.right > over.left &&
-          box.top < over.bottom &&
-          box.bottom > over.top
+          box.top >= 0 &&
+          box.left >= 0 &&
+          box.bottom <= innerHeight &&
+          box.right <= innerWidth &&
+          [
+            [box.left + box.width / 4, box.top + box.height / 4],
+            [box.right - box.width / 4, box.bottom - box.height / 4],
+            [box.left + box.width / 2, box.top + box.height / 2],
+          ].every(([x, y]) => element.contains(document.elementFromPoint(x!, y!)))
         );
       });
+      if (!exposed) continue;
+      const { passes } = await new AxeBuilder({ page }).withRules(['target-size']).analyze();
+      if (passes.some((v) => v.nodes.some((node) => node.target.join(' ') === target)))
+        accepted.push(target);
+    }
+  } finally {
+    await scrolls.evaluate((positions) => {
+      for (const { element, left, top } of positions)
+        element.scrollTo({ left, top, behavior: 'instant' });
     });
-  }, targets);
+    await scrolls.dispose();
+  }
+  return accepted;
 }
 
 /**
