@@ -4,7 +4,7 @@
 // never trusts props sent by the browser. Rejected: storing the TipTap document as a revision,
 // which would make public rendering and MCP depend on an admin editor.
 import { richTextHtml } from '../blocks/rich-text.js';
-import { Block, ContentDocument, RichTextDoc, isBlankDoc } from '@mycel/core';
+import { Block, ContentDocument, RichTextDoc, isBlankDoc, normalizeBlocks } from '@mycel/core';
 
 export type EditorNode = {
   type: 'mycelProse' | 'mycelCard';
@@ -18,7 +18,31 @@ export type EditorNode = {
   content?: RichTextDoc['content'];
 };
 export type ShowThrough = { locale: string; text: string };
-export type ArticleEditorDocument = { type: 'doc'; content: EditorNode[] };
+export type ArticleEditorDocument = {
+  type: 'doc';
+  content: EditorNode[];
+  removedCardIds?: string[];
+};
+
+/** Only a user edit records missing cards; restoring one (including Undo) clears its intent. */
+export function removedArticleCards(
+  before: ArticleEditorDocument,
+  after: ArticleEditorDocument,
+  removed: readonly string[],
+  userEdit: boolean
+): string[] {
+  const present = new Set((after.content ?? []).map((node) => node.attrs?.blockId));
+  return [
+    ...new Set([
+      ...removed,
+      ...(userEdit
+        ? (before.content ?? [])
+            .filter((node) => node.type === 'mycelCard')
+            .map((node) => node.attrs.blockId)
+        : []),
+    ]),
+  ].filter((id) => !present.has(id));
+}
 export class EditorInputError extends Error {}
 
 export const toTiptap = (value: unknown): unknown => {
@@ -185,6 +209,15 @@ export function fromArticleEditor(
   if (root?.type !== 'doc' || !Array.isArray(root.content) || root.content.length > 200)
     throw new EditorInputError('Invalid editor document');
   const byId = new Map(base.blocks.map((block) => [block.id, block]));
+  const removed = root.removedCardIds ?? [];
+  if (
+    !Array.isArray(removed) ||
+    removed.length > 200 ||
+    removed.some(
+      (id) => typeof id !== 'string' || !byId.has(id) || byId.get(id)?.type === 'rich-text'
+    )
+  )
+    throw new EditorInputError('Invalid card removal');
   const seen = new Set<string>();
   const blocks: Block[] = root.content.flatMap((node) => {
     const id = node?.attrs?.blockId;
@@ -215,9 +248,9 @@ export function fromArticleEditor(
     const content = RichTextDoc.parse({ type: 'doc', content: fromTiptap(node.content) });
     return written(block, locale, content);
   });
-  if ([...byId.keys()].some((id) => !seen.has(id)))
+  if ([...byId.keys()].some((id) => !seen.has(id) && !removed.includes(id)))
     throw new EditorInputError('A block is missing');
-  return ContentDocument.parse({ ...base, blocks });
+  return ContentDocument.parse({ ...base, blocks: normalizeBlocks(blocks).blocks });
 }
 
 /** The same constrained renderer supplies the initial sheet; no independent HTML serializer. */
