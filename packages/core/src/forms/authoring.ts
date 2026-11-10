@@ -22,6 +22,28 @@ export const listForms = defineUseCase({
   examples: [{ input: {} }],
   handler: async (ctx) => ({ forms: await ctx.forms.list() }),
 });
+export const getFormForAuthoring = defineUseCase({
+  name: 'form.authoring.get',
+  kind: 'query',
+  requires: 'content:write',
+  description:
+    'Read a form and its save fingerprint for authoring, without a public timing token or challenge.',
+  input: z.object({ id: z.string().guid() }).strict(),
+  output: z.object({ form: FormDefinition, version: z.string() }),
+  examples: [{ input: { id: exampleId(0xf000) } }],
+  async handler(ctx, { id }) {
+    const form = await ctx.forms.findById(id);
+    if (!form) throw notFound('form');
+    return {
+      form,
+      version: await hashInput(ctx.inputHasher, {
+        domain: 'form-definition-v1',
+        tenantId: ctx.principal.tenantId,
+        form,
+      }),
+    };
+  },
+});
 export const createForm = defineUseCase({
   name: 'form.create',
   kind: 'command',

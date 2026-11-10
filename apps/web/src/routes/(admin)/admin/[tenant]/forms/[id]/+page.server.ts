@@ -16,7 +16,7 @@ export const load: PageServerLoad = async ({ parent, locals, params }) => {
   const p = locals.principal!;
   // The authoring inventory is the capability gate, independent of public form.get.
   await loaded(run().run(useCases.listForms, p, {}));
-  const definition = await loaded(run().run(useCases.getForm, p, { id: params.id }));
+  const definition = await loaded(run().run(useCases.getFormForAuthoring, p, { id: params.id }));
   const mail = can(p, 'mailing:read')
     ? await loaded(run().run(useCases.getFormMailSettings, p, {}))
     : null;
@@ -107,7 +107,7 @@ async function mailChange(p: Principal, data: FormData, formId: string) {
 export const actions: Actions = {
   definition: (event) =>
     act(event, 'definition', copy, async (p, data) => {
-      const { form } = await run().run(useCases.getForm, p, { id: event.params.id });
+      const { form } = await run().run(useCases.getFormForAuthoring, p, { id: event.params.id });
       await run().run(useCases.updateForm, p, {
         baseVersion: text(data, 'version'),
         value: updateDefinition(data, form),
@@ -150,7 +150,7 @@ export const actions: Actions = {
     }),
   preview: (event) =>
     act(event, 'preview', copy, async (p, data) => {
-      const { form } = await run().run(useCases.getForm, p, { id: event.params.id });
+      const { form } = await run().run(useCases.getFormForAuthoring, p, { id: event.params.id });
       const values = Object.fromEntries(
         form.fields.map((f) => [
           f.name,

@@ -1,4 +1,3 @@
-import { fieldPattern } from '@mycel/core';
 // The one server-side resolver (brief #8c § 1): from a published projection to the render model,
 // fetching every tenant reference the blocks make once, up front. Components never reach the
 // database, so the same renderer runs on a preview (#11) and in the conformance suite without
@@ -22,6 +21,7 @@ import { fieldPattern } from '@mycel/core';
 import { personPath } from '../public/person-path.js';
 import { formatBytes } from '../admin/format.js';
 import {
+  fieldPattern,
   type FormDefinition,
   type PublicPersonCard,
   resolvePeopleGrid,

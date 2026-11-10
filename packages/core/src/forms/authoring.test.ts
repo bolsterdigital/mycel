@@ -25,7 +25,7 @@ describe('form authoring', () => {
       await expect(invoker.run(useCases.createForm, author, { kind })).rejects.toMatchObject({
         code: 'forbidden',
       });
-    const { form, version } = await invoker.run(useCases.getForm, admin, { id });
+    const { form, version } = await invoker.run(useCases.getFormForAuthoring, author, { id });
     await expect(
       invoker.run(useCases.updateForm, author, { baseVersion: version, value: form })
     ).rejects.toMatchObject({ code: 'forbidden' });

@@ -133,4 +133,6 @@ Immediately before delivery the source checks the submission still exists, its p
 
 Migration 0043 stores private settings under forced tenant RLS. Settings and submission snapshots are portable; connection credentials, intents and attempts remain operational. A tenant import needs reconnection before feeds can run. Existing submission erasure removes the pinned feed together with its values; the connection inventory reports external-copy state without claiming to erase the receiver's copy. The form editor consumes this registry contract; provider-specific setup remains separate work.
 
+`form.authoring.get` reads the definition and save fingerprint with `content:write`, so an author does not need the public `forms:read` capability to open their editing screen.
+
 Creation does not place a form on a public page. Contact and RSVP forms require `content:write`; signup and petition creation also require `content:publish`, because they can initiate opt-in. Every update of an existing definition also requires `content:publish`: published block trees refer to that definition directly. Mail action authoring remains `mailing:send` and feed authoring remains `connections:configure`. Publishing a page remains its separate content operation. There is no second form draft lifecycle.

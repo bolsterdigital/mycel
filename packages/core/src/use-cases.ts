@@ -1,4 +1,10 @@
-import { listForms, createForm, updateForm, listFormSubmissions } from './forms/authoring.js';
+import {
+  listForms,
+  getFormForAuthoring,
+  createForm,
+  updateForm,
+  listFormSubmissions,
+} from './forms/authoring.js';
 // Every use case in the system, in one list (ADR 009). Fronts call `buildRegistry()`; nothing
 // registers itself as an import side effect, so what is exposed is exactly what is listed here.
 
@@ -141,6 +147,7 @@ import { listExports, requestExport } from './tenants/exports.js';
 
 export const useCases = {
   listForms,
+  getFormForAuthoring,
   createForm,
   updateForm,
   listFormSubmissions,
