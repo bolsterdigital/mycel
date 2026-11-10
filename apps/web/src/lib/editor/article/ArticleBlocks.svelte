@@ -38,7 +38,7 @@
     {@const prose = document?.content.find((node) => node.attrs.blockId === block.id)}
     {#if prose}
       <section
-        class="editor-prose"
+        class="writing-prose-preview"
         data-mycel-prose
         data-block-id={block.id}
         data-through={prose.attrs.showThrough?.text}

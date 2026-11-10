@@ -132,3 +132,9 @@ export async function nativeTabNavigation(page: Page, titles: readonly string[])
   await nav.getByRole('link', { name: 'Zoeken en delen', exact: true }).click();
   await expect(page.locator('#item-tabs-findability')).toBeVisible();
 }
+
+/** Tabs enhance fragment links; both paths stay within the one unsaved document form. */
+export async function showEditorTab(page: Page, name: string): Promise<void> {
+  if (isA11y()) await page.getByRole('tab', { name, exact: true }).click();
+  else await page.locator('.ui-tabs-list').getByRole('link', { name, exact: true }).click();
+}

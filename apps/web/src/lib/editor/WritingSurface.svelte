@@ -378,7 +378,11 @@
           void placeFiles(files, dropIndex(view, event, splitProse));
           return true;
         },
-        attributes: { 'aria-label': t('admin.editor.surface'), lang: contentLocale },
+        attributes: {
+          'aria-label': t('admin.editor.surface'),
+          lang: contentLocale,
+          class: 'writing-document',
+        },
       },
       onUpdate: ({ editor: current }) => {
         const json = current.getJSON();
@@ -472,12 +476,6 @@
 
 <input type="hidden" {name} value={payload} />
 <div class="writing" class:active bind:this={frame}>
-  {#if native}
-    <details class="writing-native" data-native-article hidden={active} open={fallback}>
-      <summary>{t('admin.editor.native')}</summary>
-      {@render native()}
-    </details>
-  {/if}
   <WritingSheet hidden={!active && !preview}>
     {#snippet toolbar()}
       <div class="writing-actions" hidden={!active && !preview}>
@@ -490,9 +488,17 @@
       hidden={!active && !preview}
       data-article-writer={article ? '' : undefined}
     >
-      {#if preview}<div class="ProseMirror" lang={contentLocale}>{@render preview()}</div>{/if}
+      {#if preview}<div class="writing-preview writing-document" lang={contentLocale}>
+          {@render preview()}
+        </div>{/if}
     </div>
   </WritingSheet>
+  {#if native}
+    <details class="writing-native" data-native-article hidden={active} open={fallback}>
+      <summary>{t('admin.editor.native')}</summary>
+      {@render native()}
+    </details>
+  {/if}
 
   {#if active}<SelectionTools {formatting} {locale} {frame} id={nativeId ?? name} />{/if}
   {#if reason}<p role="alert">{reason}</p>{/if}
@@ -637,7 +643,7 @@
     max-inline-size: 70ch;
     min-width: 0;
   }
-  .writing-surface :global(.ProseMirror) {
+  .writing-surface :global(.writing-document) {
     min-height: 10rem;
     /* Chromium gives contenteditable after-white-space line breaking. Match ordinary SSR text,
        or identical paragraphs wrap differently when the editor claims them. */
@@ -646,7 +652,7 @@
     overflow-wrap: anywhere;
     outline-offset: 0.25rem;
   }
-  .writing-surface :global(.editor-prose[data-through])::before {
+  .writing-surface :global(:is(.editor-prose, .writing-prose-preview)[data-through])::before {
     content: attr(data-through-locale) ': ' attr(data-through);
     display: block;
     color: var(--color-muted);
@@ -654,13 +660,13 @@
     pointer-events: none;
     user-select: none;
   }
-  .writing:not(.active) .writing-surface :global(.ProseMirror) {
+  .writing:not(.active) .writing-surface :global(.writing-document) {
     white-space: normal;
   }
-  .writing:not(.active) .writing-surface :global(.editor-prose p) {
+  .writing:not(.active) .writing-surface :global(:is(.editor-prose, .writing-prose-preview) p) {
     white-space: break-spaces;
   }
-  .writing-surface :global(.editor-prose) {
+  .writing-surface :global(:is(.editor-prose, .writing-prose-preview)) {
     margin-block: 1rem;
   }
   .writing-surface :global(.editor-card) {

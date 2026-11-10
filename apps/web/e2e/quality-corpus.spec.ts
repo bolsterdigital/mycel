@@ -493,6 +493,7 @@ test('admin corpus uses the populated shell, native editor and enhanced writer',
   else {
     await expect(page).toHaveURL(`/admin/probe/content/${id}#blocks`);
     await expect(page.locator('#item-edit')).toHaveCount(1);
+    await page.locator('[data-native-article] > summary').click();
     const prose = page.locator('[data-native-prose] details.block').first();
     await prose.locator(':scope > summary').click();
     await expect(prose.locator('textarea').first()).toBeVisible();

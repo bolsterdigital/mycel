@@ -338,7 +338,7 @@ test.describe('admin-ui', () => {
             '.item-blocks',
             '.writing',
             '.writing .ui-writing-sheet-toolbar',
-            '.writing .ProseMirror',
+            '.writing .writing-document',
             '#insert-end',
             '#insert-end [data-type-search]',
           ].map((selector) => {
@@ -380,7 +380,7 @@ test.describe('admin-ui', () => {
               requestAnimationFrame(() => requestAnimationFrame(resolve))
             );
           });
-          await expect(page.locator('.writing .ProseMirror')).toHaveAttribute('lang', locale);
+          await expect(page.locator('.writing .writing-document')).toHaveAttribute('lang', locale);
           const before = await geometry();
           await layoutGate(page, `native article ${sample}`, '.ui-edit-page');
           await page.screenshot({ path: test.info().outputPath(`native-${sample}.png`) });

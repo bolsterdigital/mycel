@@ -1,7 +1,7 @@
 // flow: publish
 // An operator writes and publishes: the content lifecycle, revisions, conflicts and preview.
 
-import { nativeTabNavigation } from './lib/editor';
+import { nativeTabNavigation, showEditorTab } from './lib/editor';
 import { createApp } from '@mycel/api';
 import { randomUUID } from 'node:crypto';
 import { UseCaseError, systemPrincipal, useCases } from '@mycel/core';
@@ -87,11 +87,7 @@ test.describe('content-admin', () => {
   const slugFor = (what: string) =>
     `a1-${what}-${test.info().project.name}-${randomUUID()}`.toLowerCase();
 
-  /** With JavaScript the edit screen's sections are tabs (#66 PR 3): show the one named. */
-  async function showTab(page: Page, name: string) {
-    if (isA11y()) await page.getByRole('tab', { name, exact: true }).click();
-    else await page.locator('.ui-tabs-list').getByRole('link', { name, exact: true }).click();
-  }
+  const showTab = showEditorTab;
 
   test('new content opens a draft immediately and chooses a pattern in the empty column', async ({
     page,
