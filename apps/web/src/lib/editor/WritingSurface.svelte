@@ -12,6 +12,9 @@
   import { Actions, Button, MediaPicker, WritingSheet } from '#lib/admin/ui/index.js';
   import type { MediaChoice } from '#lib/admin/media-choice.js';
   import { dropIndex, type DropIndex } from './drop-index.js';
+  import FormatBar from './FormatBar.svelte';
+  import SelectionTools from './SelectionTools.svelte';
+  import { Formatting } from './formatting.svelte.js';
   import { fill, ui } from '../../i18n/index.js';
 
   let {
@@ -44,6 +47,7 @@
   } = $props();
   const t = $derived(ui(locale));
   let host: HTMLDivElement;
+  let frame = $state<HTMLDivElement>();
   let editor = $state<Editor | null>(null);
   let payload = $state('');
   let active = $state(false);
@@ -91,15 +95,10 @@
     return figure;
   }
 
-  function setLink() {
-    if (!editor) return;
-    const current = editor.getAttributes('link').href as string | undefined;
-    const href = window.prompt(t('admin.editor.linkPrompt'), current ?? 'https://');
-    if (href === null) return;
-    if (href === '') editor.chain().focus().unsetMark('link').run();
-    else if (isSafeHref(href)) editor.chain().focus().setMark('link', { href, itemId: null }).run();
-    else reason = t('admin.editor.unsafeLink');
-  }
+  const formatting = new Formatting(
+    (href) => isSafeHref(href),
+    () => t('admin.editor.unsafeLink')
+  );
 
   function paste(event: ClipboardEvent): boolean {
     const files = [...(event.clipboardData?.files ?? [])];
@@ -354,6 +353,17 @@
       content: initial as JSONContent,
       editorProps: {
         handlePaste: (_view, event) => paste(event),
+        // The shortcut the screen's help names for a link; the other marks have TipTap's own.
+        handleKeyDown: (_view, event) => {
+          if (!(event.metaKey || event.ctrlKey) || event.altKey || event.key.toLowerCase() !== 'k')
+            return false;
+          event.preventDefault();
+          formatting.openLink();
+          return true;
+        },
+        // The cursor stays clear of the bars that stay in view above the text.
+        scrollMargin: { top: 128, right: 0, bottom: 48, left: 0 },
+        scrollThreshold: { top: 128, right: 0, bottom: 48, left: 0 },
         handleDrop: (view, event, _slice, moved) => {
           const files = [...(event.dataTransfer?.files ?? [])];
           if (moved || !article || !upload || !files.length) return false;
@@ -396,6 +406,7 @@
         : {},
     });
     editor = instance;
+    const unfollow = formatting.attach(instance);
     if (article) {
       host
         .closest('form')
@@ -446,45 +457,18 @@
       form?.removeEventListener('submit', check);
       host.removeEventListener('mycel:files', dropped);
       document.removeEventListener('click', toField);
+      unfollow();
       instance.destroy();
     };
   });
 </script>
 
 <input type="hidden" {name} value={payload} />
-<div class="writing" class:active>
+<div class="writing" class:active bind:this={frame}>
   <WritingSheet hidden={!active}>
     {#snippet toolbar()}
-      <div class="writing-actions" hidden={!active} aria-label={t('admin.editor.formatting')}>
-        <Actions>
-          <Button
-            variant="secondary"
-            type="button"
-            onclick={() => editor?.chain().focus().toggleBold().run()}
-            >{t('admin.editor.bold')}</Button
-          >
-          <Button
-            variant="secondary"
-            type="button"
-            onclick={() => editor?.chain().focus().toggleItalic().run()}
-            >{t('admin.editor.italic')}</Button
-          >
-          <Button
-            variant="secondary"
-            type="button"
-            onclick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
-            >{t('admin.editor.heading')}</Button
-          >
-          <Button variant="secondary" type="button" onclick={setLink}
-            >{t('admin.editor.link')}</Button
-          >
-          <Button variant="secondary" type="button" onclick={() => editor?.commands.undo()}
-            >{t('admin.editor.undo')}</Button
-          >
-          <Button variant="secondary" type="button" onclick={() => editor?.commands.redo()}
-            >{t('admin.editor.redo')}</Button
-          >
-        </Actions>
+      <div class="writing-actions" hidden={!active}>
+        <FormatBar {formatting} {locale} />
       </div>
     {/snippet}
     <div
@@ -494,6 +478,7 @@
       data-article-writer={article ? '' : undefined}
     ></div>
   </WritingSheet>
+  {#if active}<SelectionTools {formatting} {locale} {frame} id={nativeId ?? name} />{/if}
   {#if reason}<p role="alert">{reason}</p>{/if}
   {#each pending as card (card.id)}
     <fieldset class="card pending" id="pending-{card.id}">
@@ -586,6 +571,29 @@
   .pending progress {
     display: block;
     inline-size: 100%;
+  }
+  /* While the document bar stays in view, so does the formatting bar of the text being read: in
+     a long text the bar above it was a scroll away. It stops with its own sheet. Under the same
+     condition as the document bar (`.ui-item-bar` in ui.css), so the two never cover a narrow
+     or short screen, or a screen at 200% text, together. Rejected: always sticky, which took a
+     third of a 320 px screen once the bar wrapped. */
+  @media (min-width: 48rem) and (min-height: 36rem), (min-width: 60rem) and (min-height: 24rem) {
+    .writing :global(.ui-writing-sheet-toolbar) {
+      position: sticky;
+      inset-block-start: var(--item-bar-block-size, 0px);
+      z-index: 3;
+      background: var(--color-surface-bg);
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+  }
+  /* The selection bar and the link field are placed in this frame, at the words. */
+  .writing {
+    position: relative;
+  }
+  .writing-surface :global(.editor-pending-range) {
+    color: var(--color-selected-fg);
+    background: var(--color-selected-bg);
+    outline: var(--border-width) solid currentColor;
   }
   .writing-surface {
     max-inline-size: 70ch;

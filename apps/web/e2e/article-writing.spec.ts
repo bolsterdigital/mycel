@@ -1536,6 +1536,173 @@ test.describe('article-writing', () => {
       );
     }
   });
+
+  // The formatting bar is the complete way to every command and shows the state of the
+  // text at the cursor; the selection bar repeats the marks at the words for a pointer.
+  test('formatting bar and selection bar write marks, a heading, a list and code', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y();
+    requireApi();
+    const edit = await article(request);
+    await login(page, edit);
+    const writing = page.locator('.writing-surface .ProseMirror');
+    const bar = page.getByRole('toolbar', { name: 'Tekstopmaak' });
+    const tool = (name: string) => bar.getByRole('button', { name, exact: true });
+    const style = bar.getByRole('combobox', { name: 'Tekstsoort' });
+    await expect(tool('Link')).toBeDisabled();
+    await expect(tool('Ongedaan maken')).toBeDisabled();
+    await writing.locator('p').first().selectText();
+    await tool('Vet').click();
+    await expect(tool('Vet')).toHaveAttribute('aria-pressed', 'true');
+    const selection = page.getByRole('group', { name: 'Opmaak voor de selectie' });
+    await expect(selection.getByRole('button', { name: 'Vet' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    await selection.getByRole('button', { name: 'Cursief' }).click();
+    await page.screenshot({ path: test.info().outputPath('formatting-selection-1280.png') });
+    await expect(writing.locator('strong em, em strong')).toHaveText('Oude tekst');
+    // The bar stands clear of the words it belongs to.
+    const words = (await writing.locator('p').first().boundingBox())!;
+    const over = (await selection.boundingBox())!;
+    expect(over.y + over.height <= words.y || over.y >= words.y + words.height).toBe(true);
+    await page.keyboard.press('ArrowRight');
+    await expect(selection).toBeHidden();
+    await page.keyboard.press('Enter');
+    await tool('Vet').click();
+    await tool('Cursief').click();
+    await expect(tool('Vet')).toHaveAttribute('aria-pressed', 'false');
+    await page.keyboard.type('Tussenkopje');
+    await style.selectOption({ label: 'Tussenkop' });
+    await expect(writing.locator('h1')).toHaveText('Tussenkopje');
+    // A heading never skips a level: under the first heading only its own level and the next.
+    await expect(style.getByRole('option', { name: 'Kleine kop' })).toBeDisabled();
+    await page.keyboard.press('Enter');
+    await expect(style).toHaveValue('0');
+    await expect(style.getByRole('option', { name: 'Subkop' })).toBeEnabled();
+    await page.keyboard.type('eerste punt');
+    await tool('Opsomming').click();
+    await expect(tool('Opsomming')).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await expect(tool('Opsomming')).toHaveAttribute('aria-pressed', 'false');
+    await page.keyboard.type('npm run dev');
+    await writing.locator('p').last().selectText();
+    await tool('Code').click();
+    await expect(writing.locator('code')).toHaveText('npm run dev');
+    // One tab stop with arrow keys; the name and shortcut show on keyboard focus too.
+    await tool('Vet').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(tool('Cursief')).toBeFocused();
+    await expect(bar.locator('.format-tip')).toHaveText(/^Cursief \((Ctrl\+|⌘)I\)$/);
+    await page.screenshot({ path: test.info().outputPath('formatting-bar-1280.png') });
+    await expect(tool('Ongedaan maken')).toBeEnabled();
+    await expectNoAxeViolations(page);
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
+    const { revision } = await callApi(request, 'content.item.get', {
+      itemId: edit.split('/').at(-1)!,
+    });
+    const [first, heading, list, code] = revision.document.blocks[0].props.content.nl.content;
+    expect(first.content[0].marks.map((m: { type: string }) => m.type).sort()).toEqual([
+      'bold',
+      'italic',
+    ]);
+    expect(heading).toMatchObject({ type: 'heading', attrs: { level: 1 } });
+    expect(list.type).toBe('bullet_list');
+    expect(code.content[0].marks).toEqual([{ type: 'code' }]);
+  });
+
+  test('the link field marks the words, refuses an unsafe address and gives the selection back', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y();
+    requireApi();
+    const edit = await article(request);
+    await login(page, edit);
+    const writing = page.locator('.writing-surface .ProseMirror');
+    const bar = page.getByRole('toolbar', { name: 'Tekstopmaak' });
+    const field = page.getByRole('group', { name: 'Link', exact: true });
+    const address = field.getByLabel('Linkadres');
+    await writing.locator('p').first().selectText();
+    await page.keyboard.press('Control+k');
+    await expect(address).toBeFocused();
+    await expect(writing.locator('.editor-pending-range')).toHaveText('Oude tekst');
+    await address.fill('javascript:alert(1)');
+    await page.keyboard.press('Enter');
+    await expect(
+      field.getByText('Gebruik een http-, https-, mailto- of sitepadlink.')
+    ).toBeVisible();
+    await expect(address).toHaveAttribute('aria-invalid', 'true');
+    await address.fill('https://example.org/');
+    await page.keyboard.press('Enter');
+    await expect(field).toBeHidden();
+    await expect(writing.locator('a[href="https://example.org/"]')).toHaveText('Oude tekst');
+    await expect(writing).toBeFocused();
+    // With the cursor in a link the button edits the whole link, and can remove it.
+    await writing.locator('a').click();
+    await bar.getByRole('button', { name: 'Link', exact: true }).click();
+    await expect(address).toHaveValue('https://example.org/');
+    await page.keyboard.press('Escape');
+    await expect(field).toBeHidden();
+    await bar.getByRole('button', { name: 'Link', exact: true }).click();
+    await field.getByRole('button', { name: 'Link verwijderen' }).click();
+    await expect(writing.locator('a')).toHaveCount(0);
+    // Escape leaves the text as it was, the same words selected: typing replaces them.
+    await writing.locator('p').first().selectText();
+    await page.keyboard.press('Control+k');
+    await expect(address).toBeFocused();
+    await page.keyboard.press('Escape');
+    await page.keyboard.type('Nieuwe tekst');
+    await expect(writing.locator('p').first()).toHaveText('Nieuwe tekst');
+    await expect(page).toHaveURL(new RegExp(`${edit}$`));
+    // The open field with its refusal, at the narrowest width and the largest text.
+    await writing.locator('p').first().selectText();
+    await page.keyboard.press('Control+k');
+    await address.fill('ftp://example.org');
+    await page.keyboard.press('Enter');
+    await expect(address).toHaveAttribute('aria-invalid', 'true');
+    await expectNoAxeViolations(page);
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'link field', '.writing');
+    await page
+      .locator('.writing')
+      .first()
+      .screenshot({ path: test.info().outputPath('link-field-320-200.png') });
+  });
+
+  test('the formatting bar stays in view in a long text where the document bar does', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y();
+    requireApi();
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await login(page, await article(request));
+    const writing = page.locator('.writing-surface .ProseMirror');
+    const bar = page.getByRole('toolbar', { name: 'Tekstopmaak' });
+    await writing.locator('p').first().click();
+    for (let line = 0; line < 60; line++) await page.keyboard.press('Enter');
+    await page.keyboard.type('Laatste regel');
+    const top = async () => (await bar.boundingBox())!.y;
+    const documentBar = (await page.locator('.ui-item-bar').boundingBox())!;
+    expect(Math.abs((await top()) - (documentBar.y + documentBar.height))).toBeLessThan(12);
+    // The cursor is not under the bars that stay.
+    const cursor = (await writing.locator('p').last().boundingBox())!;
+    expect(cursor.y).toBeGreaterThan((await top()) + (await bar.boundingBox())!.height);
+    await page.screenshot({ path: test.info().outputPath('formatting-sticky-1280.png') });
+    // Narrow, both bars scroll along: together they would cover the text.
+    await page.setViewportSize(NARROW);
+    await writing.locator('p').last().scrollIntoViewIfNeeded();
+    expect(await top()).toBeLessThan(0);
+    await layoutGate(page, 'long text', '.writing-actions');
+    await page.locator('.writing-actions').first().scrollIntoViewIfNeeded();
+    await page.screenshot({ path: test.info().outputPath('formatting-bar-320.png') });
+  });
 });
 
 // What asks for attention (brief admin-attention-notifications): an offer for
