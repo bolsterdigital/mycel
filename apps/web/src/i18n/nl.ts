@@ -29,6 +29,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.forms.remove': 'Verwijderen',
   'admin.forms.up': 'Omhoog',
   'admin.forms.down': 'Omlaag',
+  'admin.forms.definitionName': 'Formuliernaam',
   'admin.forms.settings': 'Formulierinstellingen',
   'admin.forms.fields': 'Velden',
   'admin.forms.field': 'Veld',

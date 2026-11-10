@@ -172,7 +172,9 @@ describe.skipIf(skip)('tenant export and import', () => {
       licence: `Fixture licence ${t.slug}`,
     });
     const formId = uuidv7();
-    await uow.run(admin, (ctx) => ctx.forms.insert(conditionalProbeForm(formId)));
+    const definition = conditionalProbeForm(formId);
+    definition.name = { nl: 'Contact', en: 'Contact us', de: 'Kontakt' };
+    await uow.run(admin, (ctx) => ctx.forms.insert(definition));
     await seedFormActions(invoker, admin, formId, probeFormMail(formId));
     const published = await publishProbePage(invoker, admin, formId);
     const named = await invoker.run(useCases.getItem, admin, { itemId: published.id });

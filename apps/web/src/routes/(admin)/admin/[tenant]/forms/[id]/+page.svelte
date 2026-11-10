@@ -1,5 +1,6 @@
 <!-- Complete native form administration uses the same registry boundaries as every front. -->
 <script lang="ts">
+  import { formDefinitionName } from '@mycel/core';
   import { Actions, Button, Checkbox, Field, Notice, PageHeader } from '#lib/admin/ui/index.js';
   import Definition from '#lib/admin/forms/Definition.svelte';
   import Mail from '#lib/admin/forms/Mail.svelte';
@@ -15,7 +16,15 @@
   const preview = $derived(form && 'preview' in form ? form.preview : null);
 </script>
 
-<svelte:head><title>{t('admin.forms.title')} · {definition.list}</title></svelte:head>
+<svelte:head
+  ><title
+    >{t('admin.forms.title')} · {formDefinitionName(
+      definition,
+      data.locale,
+      data.tenant.defaultLocale
+    )}</title
+  ></svelte:head
+>
 <main class="page admin">
   <PageHeader
     title={t('admin.forms.title')}
@@ -23,7 +32,7 @@
     description={t('admin.forms.intro')}
     breadcrumb={[
       { label: t('admin.forms.title'), href: `/admin/${data.tenant.slug}/forms` },
-      { label: definition.list },
+      { label: formDefinitionName(definition, data.locale, data.tenant.defaultLocale) },
     ]}
   />
   {#if form && 'error' in form}<Notice tone="error" title={t('error.summary.title')}

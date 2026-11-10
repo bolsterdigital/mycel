@@ -23,6 +23,18 @@ export async function authorForm(page: Page, locale: string) {
   await expect(page).toHaveURL(/\/forms\/[a-f0-9-]+$/);
   await expect(page.locator('html')).toHaveAttribute('lang', locale);
   const formId = page.url().split('/').pop()!;
+  const settings = page
+    .locator('form[action="?/definition"]')
+    .filter({ has: page.locator('[name="command"][value="settings"]') });
+  await settings.locator('[name="name.nl"]').fill('Contact met ons');
+  await settings.locator('[name="name.en"]').fill('Contact our team');
+  await settings.locator('button').click();
+  await expect(settings.locator('[name="name.en"]')).toHaveValue('Contact our team');
+  await page.goto(`/admin/${slug}/forms`);
+  await expect(page.locator(`a[href="/admin/${slug}/forms/${formId}"]`)).toContainText(
+    locale === 'nl' ? 'Contact met ons' : 'Contact our team'
+  );
+  await page.locator(`a[href="/admin/${slug}/forms/${formId}"]`).click();
   const field = page
     .locator('details')
     .filter({ has: page.locator('input[name="fieldId"][value=""]') })

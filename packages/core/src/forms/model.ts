@@ -2,7 +2,7 @@
 // definition they validated, rather than interpreting old input through a later edit.
 
 import { z } from 'zod';
-import { Locale, localized } from '../i18n/locale.js';
+import { Locale, localized, pickAny } from '../i18n/locale.js';
 
 import { FormField, FieldValue, validFieldReferences } from './fields.js';
 export { FormField } from './fields.js';
@@ -10,6 +10,8 @@ export { FormField } from './fields.js';
 export const FormDefinition = z
   .object({
     id: z.string().guid(),
+    /** Editorial metadata only; absent on legacy definitions to preserve their fingerprints. */
+    name: localized(z.string().trim().min(1).max(200)).optional(),
     kind: z.enum(['signup', 'contact', 'petition', 'rsvp']),
     /** The consent scope a signup adds to (ADR 010 rule 6: a list is a consent scope). */
     list: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
@@ -35,6 +37,11 @@ export const FormDefinition = z
     message: 'forms.needs-active-required-email',
   });
 export type FormDefinition = z.infer<typeof FormDefinition>;
+
+/** A readable authoring label, without changing legacy definitions or submission pins. */
+export function formDefinitionName(form: FormDefinition, locale: string, fallback = 'en'): string {
+  return pickAny(form.name ?? {}, locale, fallback) ?? form.list;
+}
 
 /** Preserve a legacy name as the initial id before any authoring change can rename it. */
 export function parseFormDefinition(input: unknown): FormDefinition {
