@@ -1,0 +1,85 @@
+/* Fragment navigation and enhanced tabs share the first layout. Keep their geometry and
+   native invalid-field fallback together; rejected: late JavaScript-only panel hiding. */
+@layer tokens, base, components;
+@layer components {
+  /* Tabs: without a script every section stands below the other with its heading; tabs.js
+     (#66 PR 3) unhides the tablist, marks the panels and sets `data-tabs`. A panel's heading then
+     repeats its tab, so it steps out of sight and stays a heading to navigate by. */
+  .ui-tabs-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-0);
+    margin-block-end: var(--space-2);
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+  .ui-tabs-list[hidden] {
+    display: none;
+  }
+  .ui-tabs-list [data-tab-link] {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    min-height: var(--tap);
+    padding: var(--space-0) var(--space-1);
+    color: var(--color-link);
+    background: none;
+    border: 0;
+    border-block-end: 0.1875rem solid transparent;
+    font: inherit;
+    cursor: pointer;
+  }
+  .ui-tabs-list [data-tab-link][aria-selected='true'] {
+    font-weight: 700;
+    color: var(--color-body-fg);
+    border-block-end-color: var(--color-primary-bg);
+  }
+  /* A section's fields stand apart like those of a fieldset, and never widen the column. */
+  .ui-tabs,
+  .ui-tabs-panel {
+    min-width: 0;
+  }
+  .ui-tabs-panel {
+    display: grid;
+    gap: var(--space-2);
+  }
+  /* CSS fragment navigation has the same panel geometry before enhancement. Native browser
+     validation reveals the refused control even when another panel was selected. */
+  .ui-tabs:not([data-tabs]) > .ui-tabs-panel {
+    display: none;
+  }
+  .ui-tabs:not([data-tabs]):not(:has(> .ui-tabs-panel:target, > .ui-tabs-panel :target))
+    > .ui-tabs-panel:first-of-type,
+  .ui-tabs:not([data-tabs]) > .ui-tabs-panel:is(:target, :has(:target)) {
+    display: grid;
+  }
+  .ui-tabs:not([data-tabs]):has(.ui-tabs-panel [aria-invalid='true'], .ui-tabs-panel :user-invalid)
+    > .ui-tabs-panel {
+    display: none;
+  }
+  .ui-tabs:not([data-tabs]):has(.ui-tabs-panel [aria-invalid='true'], .ui-tabs-panel :user-invalid)
+    > .ui-tabs-panel:has([aria-invalid='true'], :user-invalid) {
+    display: grid;
+  }
+  .ui-tabs-panel[hidden] {
+    display: none;
+  }
+  .ui-tabs[data-tabs] .ui-tabs-panel + .ui-tabs-panel {
+    margin-block-start: 0;
+  }
+  .ui-tabs .ui-tabs-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .ui-tabs-panel:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  /* One rhythm (#87): a heading, the panel's gap, then its content; no extra margin of its own. */
+  .ui-tabs-title {
+    margin: 0;
+  }
+}

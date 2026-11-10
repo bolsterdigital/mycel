@@ -72,6 +72,7 @@ if (form instanceof HTMLFormElement) {
   };
   for (const grip of form.querySelectorAll('[data-block-move]')) {
     grip.hidden = false;
+    grip.disabled = false;
     grip.title = status?.dataset.picked ?? '';
     grip.addEventListener('pointerdown', (event) => {
       if (event.button !== 0 || !event.isPrimary) return;

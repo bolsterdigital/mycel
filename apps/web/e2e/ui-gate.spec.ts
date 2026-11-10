@@ -320,6 +320,157 @@ test.describe('admin-ui', () => {
       await expectNoAxeViolations(page, { dark: true });
     });
 
+  test('the editor preserves long article geometry through enhancement', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y('measures the native document before its enhancement');
+    const paragraphs = Array.from({ length: 24 }, (_, i) => ({
+      type: 'paragraph',
+      content: [
+        {
+          type: 'text',
+          text: `${i + 1}. A long article keeps its paragraphs in their original place while the editor starts. Readers can begin before JavaScript arrives.`,
+        },
+      ],
+    }));
+    const prose = {
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 2 },
+          content: [{ type: 'text', text: 'Inside the article' }],
+        },
+        ...paragraphs,
+        {
+          type: 'ordered_list',
+          attrs: { start: 3 },
+          content: [
+            {
+              type: 'list_item',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [
+                    {
+                      type: 'text',
+                      text: 'A formatted point',
+                      marks: [
+                        { type: 'bold' },
+                        {
+                          type: 'footnote_reference',
+                          attrs: { text: 'The note remains lossless.' },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const { item } = await callApi(request, 'content.item.create', {
+      slug: `geometry-${crypto.randomUUID()}`,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: 'Een lang artikel', en: 'A long article' },
+        blocks: [
+          { type: 'rich-text', version: 1, props: { content: { nl: prose, en: prose } } },
+          {
+            type: 'quote',
+            version: 1,
+            props: {
+              text: { nl: 'Een citaat na het artikel', en: 'A quote after the article' },
+              attribution: { name: 'The editors' },
+            },
+          },
+        ],
+      },
+    });
+    const edit = `/admin/probe/content/${item.id}`;
+    await login(page, edit);
+    const geometry = () =>
+      page.evaluate(() =>
+        Object.fromEntries(
+          [
+            'html',
+            '.ui-edit-main',
+            '.ui-edit-side',
+            '.ui-tabs',
+            '.item-blocks',
+            '.writing',
+            '.writing .ui-writing-sheet-toolbar',
+            '.writing .ProseMirror',
+            '#insert-end',
+            '#insert-end [data-type-search]',
+          ].map((selector) => {
+            const rect = document.querySelector(selector)!.getBoundingClientRect();
+            return [selector, { top: rect.top + scrollY, height: rect.height }];
+          })
+        )
+      );
+    // The admin language deliberately differs from the document's: hyphenation must inherit
+    // the content locale before TipTap supplies lang, as well as after it.
+    for (const locale of ['nl', 'en'])
+      for (const width of [320, 1280])
+        for (const text of TEXT_SIZES) {
+          const sample = `${locale}-${width}-${text}`;
+          await page.context().setExtraHTTPHeaders({
+            ...forwarded(),
+            'accept-language': locale === 'nl' ? 'en' : 'nl',
+          });
+          await page.setViewportSize({ width, height: 900 });
+          let release!: () => void;
+          const ready = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          await page.route('**/_app/immutable/**/*.js', async (route) => {
+            await ready;
+            await route.continue();
+          });
+          await page.goto(`${edit}?locale=${locale}`, { waitUntil: 'commit' });
+          await expect(page.locator('#insert-end')).toBeAttached();
+          await setTextSize(page, text);
+          await page.evaluate(async () => {
+            await document.fonts.ready;
+            await new Promise((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(resolve))
+            );
+          });
+          await expect(page.locator('.writing .ProseMirror')).toHaveAttribute('lang', locale);
+          const before = await geometry();
+          await layoutGate(page, `native article ${sample}`, '.ui-edit-page');
+          await page.screenshot({ path: test.info().outputPath(`native-${sample}.png`) });
+          release();
+          await expect(page.locator('.writing.active')).toBeVisible();
+          await expect(page.locator('.ui-tabs')).toHaveAttribute('data-tabs', '');
+          await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+          const after = await geometry();
+          await test.info().attach(`geometry-${sample}.json`, {
+            body: JSON.stringify({ before, after }, null, 2),
+            contentType: 'application/json',
+          });
+          await page.unroute('**/_app/immutable/**/*.js');
+          // Independent rectangles prevent a shrinking writer and growing sidebar cancelling out.
+          for (const [selector, rect] of Object.entries(before))
+            for (const dimension of ['top', 'height'] as const)
+              expect
+                .soft(
+                  Math.abs(after[selector]![dimension] - rect[dimension]),
+                  `${sample} ${selector} ${dimension}`
+                )
+                .toBeLessThan(10);
+          await layoutGate(page, `enhanced article ${sample}`, '.ui-edit-page');
+          await page.screenshot({ path: test.info().outputPath(`enhanced-${sample}.png`) });
+          if (text === '100%') await expectNoAxeViolations(page);
+        }
+  });
+
   // The edit screen's actions in every window (#160): the bar stays where it is one or two lines,
   // the dock takes Save and the main action where it scrolls away, and neither is kept where it
   // would cost too much of the window.

@@ -57,6 +57,7 @@ test.describe('article-writing', () => {
       await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
       await page.locator('.writing-surface .editor-prose p').first().fill('English edited');
     } else {
+      await page.locator('[data-native-article] > summary').click();
       const prose = page.locator('details.block').first();
       await prose.locator(':scope > summary').click();
       await prose.getByLabel('Tekst', { exact: true }).fill('English edited');
@@ -451,6 +452,7 @@ test.describe('article-writing', () => {
       await expect(page.locator('.writing-surface .ProseMirror').first()).toBeVisible();
       await page.locator('.writing-surface .editor-prose p').first().fill('Nieuwe tekst');
     } else {
+      await page.locator('[data-native-article] > summary').click();
       const prose = page.locator('details.block').first();
       await prose.locator(':scope > summary').click();
       await prose.getByLabel('Tekst', { exact: true }).fill('Nieuwe tekst');
@@ -489,6 +491,7 @@ test.describe('article-writing', () => {
     });
     await page.reload({ waitUntil: 'commit' });
     await page.locator('#title\\.nl').fill('Voor de enhancement');
+    await page.locator('[data-native-article] > summary').click();
     const native = page.locator('details.block').first();
     await native.locator(':scope > summary').click();
     await native.getByLabel('Tekst', { exact: true }).fill('Native invoer voor het laden');

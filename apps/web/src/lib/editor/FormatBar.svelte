@@ -13,7 +13,11 @@
   import { ui } from '../../i18n/index.js';
   import { isMac, shortcut, type Formatting, type TextStyle } from './formatting.svelte.js';
 
-  let { formatting, locale }: { formatting: Formatting; locale: string } = $props();
+  let {
+    formatting,
+    locale,
+    disabled = false,
+  }: { formatting: Formatting; locale: string; disabled?: boolean } = $props();
   const t = $derived(ui(locale));
   const now = $derived(formatting.state);
   let mac = $state(false);
@@ -177,6 +181,7 @@
 >
   <select
     class="format-style"
+    {disabled}
     aria-label={t('admin.editor.style')}
     value={String(now.style)}
     onchange={(event) => formatting.setStyle(Number(event.currentTarget.value) as TextStyle)}
@@ -198,7 +203,7 @@
           aria-label={tool.label}
           aria-pressed={tool.pressed}
           aria-keyshortcuts={keys.aria}
-          disabled={tool.disabled}
+          disabled={disabled || tool.disabled}
           tabindex={stop === tool.id ? 0 : -1}
           onmousedown={(event) => event.preventDefault()}
           onclick={(event) => {

@@ -92,7 +92,7 @@
         type="button"
         class="ui-block-move"
         data-block-move
-        hidden
+        disabled
         aria-describedby="{id}-title"
       >
         <svg aria-hidden="true" width="16" height="24" viewBox="0 0 16 24">
@@ -137,7 +137,7 @@
         aria-controls="{id}-content"
         aria-describedby="{id}-title"
         data-block-toggle
-        hidden
+        disabled
       >
         <span class="ui-block-card-collapse"><Icon name="chevron-up" />{labels.collapse}</span>
         <span class="ui-block-card-expand"><Icon name="chevron-down" />{labels.expand}</span>

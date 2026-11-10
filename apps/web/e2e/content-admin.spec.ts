@@ -1,6 +1,7 @@
 // flow: publish
 // An operator writes and publishes: the content lifecycle, revisions, conflicts and preview.
 
+import { nativeTabNavigation } from './lib/editor';
 import { createApp } from '@mycel/api';
 import { randomUUID } from 'node:crypto';
 import { UseCaseError, systemPrincipal, useCases } from '@mycel/core';
@@ -89,6 +90,7 @@ test.describe('content-admin', () => {
   /** With JavaScript the edit screen's sections are tabs (#66 PR 3): show the one named. */
   async function showTab(page: Page, name: string) {
     if (isA11y()) await page.getByRole('tab', { name, exact: true }).click();
+    else await page.locator('.ui-tabs-list').getByRole('link', { name, exact: true }).click();
   }
 
   test('new content opens a draft immediately and chooses a pattern in the empty column', async ({
@@ -167,7 +169,10 @@ test.describe('content-admin', () => {
     // Search settings are a tab away with JavaScript, folded away without (skill
     // cms-inrichting); the tab opens its one fold itself (#66 PR 3).
     if (isA11y()) await page.getByRole('tab', { name: 'Zoeken en delen' }).click();
-    else await page.locator('summary', { hasText: 'Zoeken en delen' }).click();
+    else {
+      await showTab(page, 'Zoeken en delen');
+      await page.locator('summary', { hasText: 'Zoeken en delen' }).click();
+    }
     await page.getByLabel('Titel in zoekresultaten').fill('De buurt');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(`${edit}?saved`);
@@ -234,17 +239,14 @@ test.describe('content-admin', () => {
     });
   });
 
-  test('the edit screen shows its sections as tabs with JavaScript, all of them without', async ({
+  test('the edit screen enhances native fragment navigation without losing form input', async ({
     page,
   }) => {
     await login(page, '/admin/probe');
     const edit = await newPage(page, slugFor('tabs'), 'Tabbladen');
     const titles = ['Inhoud', 'Uitgelicht', 'Zoeken en delen', 'Instellingen'];
     if (!isA11y()) {
-      // No script: every section below the other, each under its own heading.
-      for (const name of titles)
-        await expect(page.getByRole('heading', { level: 2, name, exact: true })).toBeVisible();
-      await expect(page.getByRole('tablist')).toBeHidden();
+      await nativeTabNavigation(page, titles);
       return;
     }
     const list = page.getByRole('tablist', { name: 'Onderdelen van dit item' });

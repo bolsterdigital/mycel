@@ -471,10 +471,14 @@ if (form instanceof HTMLFormElement) {
   const remembered = readCollapsed();
   for (const card of allCards()) {
     card.querySelector('[data-block-toggle]')?.removeAttribute('hidden');
+    card.querySelector('[data-block-toggle]')?.removeAttribute('disabled');
     if (remembered.has(card.dataset.blockCard) && !needed(card)) setCollapsed(card, true);
   }
   remember();
   document.querySelector('[data-block-bar]')?.removeAttribute('hidden');
+  document.querySelectorAll('[data-block-bar] button').forEach((button) => {
+    button.disabled = false;
+  });
   form.addEventListener('click', (event) => {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;

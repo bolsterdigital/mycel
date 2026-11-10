@@ -1,7 +1,7 @@
 <!-- A progressive view of the one document form. The native fields remain the no-JavaScript
      path; this surface only adds a JSON field, never an autosave endpoint or a second revision. -->
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, type Snippet } from 'svelte';
   import { articleExtensions, proseExtensions } from './article-extensions.js';
   import { Editor, type JSONContent } from '@tiptap/core';
   import MarkdownIt from 'markdown-it';
@@ -30,6 +30,8 @@
     base = '',
     upload = false,
     splitProse = false,
+    preview,
+    native,
   }: {
     content: unknown;
     name: string;
@@ -40,6 +42,8 @@
     upload?: boolean;
     /** A dropped image may split a text block: only while the item has one locale. */
     splitProse?: boolean;
+    preview?: Snippet;
+    native?: Snippet;
     article?: boolean;
     fallback?: boolean;
     nativeId?: string;
@@ -346,6 +350,9 @@
       const insert = field?.previousElementSibling;
       if (insert?.matches('details.ui-block-insert')) inserts.set(card, insert);
     }
+    // The SSR preview has already laid out these words and cards. Preserve card references above,
+    // then let TipTap own the same host instead of appending a second copy of the document.
+    if (preview) host.replaceChildren();
     const instance = new Editor({
       element: host,
       injectCSS: false,
@@ -465,19 +472,28 @@
 
 <input type="hidden" {name} value={payload} />
 <div class="writing" class:active bind:this={frame}>
-  <WritingSheet hidden={!active}>
+  {#if native}
+    <details class="writing-native" data-native-article hidden={active} open={fallback}>
+      <summary>{t('admin.editor.native')}</summary>
+      {@render native()}
+    </details>
+  {/if}
+  <WritingSheet hidden={!active && !preview}>
     {#snippet toolbar()}
-      <div class="writing-actions" hidden={!active}>
-        <FormatBar {formatting} {locale} />
+      <div class="writing-actions" hidden={!active && !preview}>
+        <FormatBar {formatting} {locale} disabled={!active} />
       </div>
     {/snippet}
     <div
       bind:this={host}
       class="writing-surface"
-      hidden={!active}
+      hidden={!active && !preview}
       data-article-writer={article ? '' : undefined}
-    ></div>
+    >
+      {#if preview}<div class="ProseMirror" lang={contentLocale}>{@render preview()}</div>{/if}
+    </div>
   </WritingSheet>
+
   {#if active}<SelectionTools {formatting} {locale} {frame} id={nativeId ?? name} />{/if}
   {#if reason}<p role="alert">{reason}</p>{/if}
   {#each pending as card (card.id)}
@@ -590,6 +606,28 @@
   .writing {
     position: relative;
   }
+  /* The native opener occupies the real toolbar while its commands are unavailable. Opening
+     it is deliberate user input, never an automatic layout change. */
+  .writing-native:not([open]) > summary {
+    position: absolute;
+    inset-block-start: var(--space-1);
+    inset-inline: var(--space-2);
+    min-block-size: var(--tap);
+    z-index: 4;
+    scroll-margin-block-start: calc(var(--item-bar-block-size, 0px) + var(--space-2));
+    color: var(--color-link);
+    background: var(--color-surface-bg);
+    cursor: pointer;
+  }
+  .writing:has(.writing-native:not([hidden])) .writing-actions {
+    visibility: hidden;
+  }
+  .writing:has(.writing-native[open]:not([hidden])) :global(.ui-writing-sheet) {
+    display: none;
+  }
+  .writing-native[hidden] {
+    display: none;
+  }
   .writing-surface :global(.editor-pending-range) {
     color: var(--color-selected-fg);
     background: var(--color-selected-bg);
@@ -601,6 +639,9 @@
   }
   .writing-surface :global(.ProseMirror) {
     min-height: 10rem;
+    /* Chromium gives contenteditable after-white-space line breaking. Match ordinary SSR text,
+       or identical paragraphs wrap differently when the editor claims them. */
+    line-break: auto;
     white-space: break-spaces;
     overflow-wrap: anywhere;
     outline-offset: 0.25rem;
@@ -612,6 +653,12 @@
     font-style: italic;
     pointer-events: none;
     user-select: none;
+  }
+  .writing:not(.active) .writing-surface :global(.ProseMirror) {
+    white-space: normal;
+  }
+  .writing:not(.active) .writing-surface :global(.editor-prose p) {
+    white-space: break-spaces;
   }
   .writing-surface :global(.editor-prose) {
     margin-block: 1rem;

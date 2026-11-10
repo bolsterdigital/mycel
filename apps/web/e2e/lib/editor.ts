@@ -111,3 +111,22 @@ export async function linkTo(scope: Locator, n: number, url: string): Promise<vo
   await target.selectOption({ label: 'Het adres hieronder' });
   await scope.getByLabel('Adres (URL)').nth(n).fill(url);
 }
+
+/** Native fragment switches keep fields in the same form and expose browser validation errors. */
+export async function nativeTabNavigation(page: Page, titles: readonly string[]) {
+  const nav = page.getByRole('navigation', { name: 'Onderdelen van dit item' });
+  await page.locator('#title\\.nl').fill('Native tab input');
+  for (const name of titles) {
+    await nav.getByRole('link', { name, exact: true }).click();
+    await expect(page.getByRole('heading', { level: 2, name, exact: true })).toBeAttached();
+    const target = await nav.getByRole('link', { name, exact: true }).getAttribute('href');
+    await expect(page.locator(target!)).toBeVisible();
+  }
+  await nav.getByRole('link', { name: 'Inhoud', exact: true }).click();
+  await expect(page.locator('#title\\.nl')).toHaveValue('Native tab input');
+  await page.locator('#title\\.nl').fill('');
+  await nav.getByRole('link', { name: 'Zoeken en delen', exact: true }).click();
+  await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(page.locator('#title\\.nl')).toBeVisible();
+  await expect(page.locator('#title\\.nl')).toBeFocused();
+}
