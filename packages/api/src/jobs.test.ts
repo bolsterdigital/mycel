@@ -37,6 +37,7 @@ import {
   MemoryUnitOfWork,
   probeTenant,
   probeForm,
+  principal,
   FakeInputHasher,
   FakeSigner,
   memoryPlatform,
@@ -453,7 +454,7 @@ describe('connection intent job composition', () => {
   });
 });
 
-// brief #169 C: an ordinary request reaches every copy through the worker, with no script. The
+// An ordinary erasure request reaches every copy through the worker, with no script. The
 // fixture is a real signup (submission, outbox event) and its ingest (events, projection).
 describe.skipIf(skip)('erasure jobs against Postgres', () => {
   const operatorDb = createDb(operatorUrl);
@@ -479,11 +480,8 @@ describe.skipIf(skip)('erasure jobs against Postgres', () => {
     mail: { mailer: new MemoryMailer(), clock, sources: {} },
     tenantIds: async () => sweepTenants,
   });
-  const eraser = (tenantId: string, change: Partial<Principal> = {}): Principal => ({
-    ...systemPrincipal(tenantId, 'erasure-request'),
-    capabilities: ['supporters:erase', 'supporters:read'],
-    ...change,
-  });
+  const eraser = (tenantId: string, change: Partial<Principal> = {}): Principal =>
+    principal({ tenantId, capabilities: ['supporters:erase', 'supporters:read'], ...change });
 
   async function newTenant(name: string): Promise<string> {
     const id = (await testTenant(operatorDb, `${name}-${run}`)).id;
@@ -600,6 +598,46 @@ describe.skipIf(skip)('erasure jobs against Postgres', () => {
     await expect(
       invoker.run(useCases.getSupporterErasure, request, { supporterId: id })
     ).resolves.toMatchObject({ id, applied: true, secured: false });
+  });
+
+  it('serialises two requests for one supporter: one registration, one job, one created', async () => {
+    const tenant = await newTenant('erase-twice');
+    const id = await signup(tenant);
+    // Hold the address lock until both requests have read "not registered" and wait on it, so
+    // the second sees the first's registration only by reading again under the lock.
+    let release = () => {};
+    let held = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const holding = new Promise<void>((r) => (held = r));
+    const holder = uow.run(systemPrincipal(tenant, 'erasure-lock'), async (ctx) => {
+      await ctx.supporters.lock(address);
+      held();
+      await gate;
+    });
+    await holding;
+    const requests = [0, 1].map(() =>
+      invoker.run(useCases.eraseSupporter, eraser(tenant), { supporterId: id })
+    );
+    const waiting = async () =>
+      Number(
+        (
+          await sql<{ n: string }>`select count(*) as n from pg_locks
+            where locktype = 'advisory' and not granted`.execute(operatorDb)
+        ).rows[0]!.n
+      );
+    for (let i = 0; i < 100 && (await waiting()) < 2; i++)
+      await new Promise((r) => setTimeout(r, 50));
+    expect(await waiting()).toBeGreaterThanOrEqual(2);
+    release();
+    await holder;
+    const results = await Promise.all(requests);
+    expect(results.map((r) => r.created).sort()).toEqual([false, true]);
+    expect(await eraseJobs(tenant)).toHaveLength(1);
+    const registered = await asRole(operatorDb, 'mycel_app', async (trx) => {
+      await sql`select set_config('app.tenant_id', ${tenant}, true)`.execute(trx);
+      return (await sql`select 1 from erasures where supporter_id = ${id}`.execute(trx)).rows;
+    });
+    expect(registered).toHaveLength(1);
   });
 
   it('erases a request whose job ran out of attempts at the next daily erasures.apply', async () => {

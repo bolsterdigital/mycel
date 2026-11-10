@@ -1,4 +1,4 @@
--- The `erase` effect (brief #169 C; ADR 018 rule 5 and ADR 015 rule 7 as amended 2026-11-10):
+-- The `erase` effect (ADR 018 rule 5 and ADR 015 rule 7 as amended 2026-11-10):
 -- `supporter.erase` is a command whose effect cannot be undone, so it gets its own capability
 -- `supporters:erase` and its audit row says `erase`. The check of 0015 lists the effects the
 -- registry knows (registry.ts `UseCaseEffect`); without this the audit row of every erasure

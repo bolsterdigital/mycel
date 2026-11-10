@@ -316,7 +316,7 @@ describe('ctx.erasures in memory', () => {
     expect(copies(TENANT, 'ada@example.org')).toEqual(none);
   });
 
-  // The ordinary request (brief #169 C): through the registry, as every front calls it.
+  // The ordinary request: through the registry, as every front calls it.
   describe('supporter.erase', () => {
     const invoker = () => new Invoker(buildRegistry(), uow);
     const eraser = (change: Parameters<typeof principal>[0] = {}) =>

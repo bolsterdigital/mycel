@@ -1,4 +1,4 @@
-// The ordinary erasure request (ADR 019 rule 8 with ADR 032; brief #169 C). `supporter.erase`
+// The ordinary erasure request (ADR 019 rule 8 with ADR 032). `supporter.erase`
 // registers one supporter by id and plans a `supporter.erase` job in the same transaction: the
 // job exists if and only if the registration committed. The command never erases anything itself:
 // a front runs as mycel_app, which may register but not enter `mycel_erasure`, so applying stays
@@ -75,8 +75,11 @@ export const eraseSupporter = defineUseCase({
       const current = await ctx.supporters.getProjectionById(supporterId);
       if (!current || current.email !== before.email)
         throw new UseCaseError('conflict', 'the supporter changed while the request ran; retry');
-      await ctx.erasures.register(supporterId, current.email);
-      created = true;
+      // A concurrent request may have registered while this one waited for the lock.
+      if (!(await ctx.erasures.get(supporterId))) {
+        await ctx.erasures.register(supporterId, current.email);
+        created = true;
+      }
     }
     const view = (await erasureView(ctx, supporterId))!;
     if (!view.applied)
