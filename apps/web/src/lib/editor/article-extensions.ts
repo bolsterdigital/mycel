@@ -60,7 +60,12 @@ const Prose = Node.create({
   renderHTML({ HTMLAttributes }) {
     return [
       'section',
-      { 'data-mycel-prose': '', 'data-block-id': HTMLAttributes.blockId, class: 'editor-prose' },
+      {
+        id: `block-${HTMLAttributes.blockId}`,
+        'data-mycel-prose': '',
+        'data-block-id': HTMLAttributes.blockId,
+        class: 'editor-prose',
+      },
       0,
     ];
   },

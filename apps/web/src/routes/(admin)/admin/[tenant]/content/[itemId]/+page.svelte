@@ -496,7 +496,7 @@
   {@const refused = issues.some((x) => x.name.startsWith(prefix))}
   {@const shape = BLOCK_PRESENTATION[b.type]}
   <BlockCard
-    id="block-{b.id}"
+    id={article && b.type === 'rich-text' ? `native-block-${b.id}` : `block-${b.id}`}
     class="block"
     number={i + 1}
     type={t(`admin.block.type.${b.type}` as const)}

@@ -462,6 +462,7 @@ test.describe('article-writing', () => {
     const { revision } = await callApi(request, 'content.item.get', {
       itemId: edit.split('/').at(-1)!,
     });
+    await expect(page.locator(`#block-${revision.document.blocks[0].id}`)).toBeVisible();
     expect(revision.document.title.nl).toBe('Gewijzigde kop');
     expect(revision.document.blocks[0].props.content.nl.content[0].content[0].text).toBe(
       'Nieuwe tekst'

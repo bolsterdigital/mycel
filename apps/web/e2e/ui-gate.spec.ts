@@ -4,6 +4,7 @@
 // tenant shell that every admin route shares.
 // A flow spec gates only the state it makes itself.
 
+import { writeFile } from 'node:fs/promises';
 import {
   BLOCK_DEFINITIONS,
   BLOCK_TYPES,
@@ -348,10 +349,13 @@ test.describe('admin-ui', () => {
         )
       );
     const showWriter = () =>
-      page.locator('.writing').evaluate((element) => {
-        element.scrollIntoView({ block: 'start' });
-        window.scrollBy(0, -120);
-      });
+      page
+        .locator('.writing')
+        .first()
+        .evaluate((element) => {
+          element.scrollIntoView({ block: 'start' });
+          window.scrollBy(0, -120);
+        });
     // The admin language deliberately differs from the document's: hyphenation must inherit
     // the content locale before TipTap supplies lang, as well as after it.
     for (const locale of ['nl', 'en'])
@@ -371,16 +375,20 @@ test.describe('admin-ui', () => {
             await ready;
             await route.continue();
           });
-          await page.goto(`${edit}?locale=${locale}`, { waitUntil: 'commit' });
+          const query = new URLSearchParams({ locale, layoutSample: sample });
+          await page.goto(`${edit}?${query}`, { waitUntil: 'commit' });
           await expect(page.locator('#insert-end')).toBeAttached();
           await setTextSize(page, text);
+          const originalBeforeScroll = await page.evaluate(() => scrollY);
           await page.evaluate(async () => {
             await document.fonts.ready;
+            window.scrollTo({ top: 0, behavior: 'instant' });
             await new Promise((resolve) =>
               requestAnimationFrame(() => requestAnimationFrame(resolve))
             );
           });
           await expect(page.locator('.writing .writing-document')).toHaveAttribute('lang', locale);
+          const beforeScroll = await page.evaluate(() => scrollY);
           const before = await geometry();
           await layoutGate(page, `native article ${sample}`, '.ui-edit-page');
           await page.screenshot({ path: test.info().outputPath(`native-${sample}.png`) });
@@ -388,15 +396,36 @@ test.describe('admin-ui', () => {
             await showWriter();
             await page.screenshot({ path: test.info().outputPath(`native-writing-${sample}.png`) });
           }
+          await page.evaluate(() => window.scrollTo(0, 0));
           release();
           await expect(page.locator('.writing.active')).toBeVisible();
           await expect(page.locator('.ui-tabs')).toHaveAttribute('data-tabs', '');
           await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+          const originalAfterScroll = await page.evaluate(() => scrollY);
+          await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+          const afterScroll = await page.evaluate(() => scrollY);
           const after = await geometry();
-          await test.info().attach(`geometry-${sample}.json`, {
-            body: JSON.stringify({ before, after }, null, 2),
-            contentType: 'application/json',
-          });
+          const measurement = test.info().outputPath(`geometry-${sample}.json`);
+          await writeFile(
+            measurement,
+            JSON.stringify(
+              {
+                before,
+                after,
+                scroll: {
+                  originalBefore: originalBeforeScroll,
+                  originalAfter: originalAfterScroll,
+                  controlledBefore: beforeScroll,
+                  controlledAfter: afterScroll,
+                },
+              },
+              null,
+              2
+            )
+          );
+          await test
+            .info()
+            .attach(`geometry-${sample}`, { path: measurement, contentType: 'application/json' });
           await page.unroute('**/_app/immutable/**/*.js');
           // Independent rectangles prevent a shrinking writer and growing sidebar cancelling out.
           for (const [selector, rect] of Object.entries(before))

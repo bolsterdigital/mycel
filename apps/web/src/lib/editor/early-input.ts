@@ -35,7 +35,7 @@ export function earlyInput(id: string): Record<string, string | string[]> {
     ...values,
     $nativeArticle: form.querySelector('[data-native-article][open]') ? 'open' : '',
     $openBlocks: Array.from(form.querySelectorAll('details.block[open]')).map((block) =>
-      block.id.replace('block-', '')
+      block.id.replace(/^(?:native-)?block-/, '')
     ),
   };
 }

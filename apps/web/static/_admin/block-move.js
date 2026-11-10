@@ -6,7 +6,7 @@ if (form instanceof HTMLFormElement) {
   const status = form.querySelector('[data-block-move-status]');
   let gesture = null;
   const idOf = (element) =>
-    element.dataset.blockId ?? element.dataset.blockCard?.replace(/^block-/, '');
+    element.dataset.blockId ?? element.dataset.blockCard?.replace(/^(?:native-)?block-/, '');
   // The writer portals native cards inside its top-level nodes; prose has the same stable id.
   // Its hidden native cards must not become duplicate targets. Never inspect paragraph offsets.
   const targets = () =>

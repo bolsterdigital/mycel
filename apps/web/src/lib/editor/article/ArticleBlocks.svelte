@@ -39,6 +39,7 @@
     {#if prose}
       <section
         class="writing-prose-preview"
+        id="block-{block.id}"
         data-mycel-prose
         data-block-id={block.id}
         data-through={prose.attrs.showThrough?.text}

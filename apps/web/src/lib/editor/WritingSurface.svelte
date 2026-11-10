@@ -340,7 +340,10 @@
         host
           .closest('form')
           ?.querySelectorAll<HTMLElement>('details.block, .ui-block-card[id^="block-"]') ?? []
-      ).map((card) => [card.id.replace('block-', ''), card.closest('.ui-block-card') ?? card])
+      ).map((card) => [
+        card.id.replace(/^(?:native-)?block-/, ''),
+        card.closest('.ui-block-card') ?? card,
+      ])
     );
     // A card's "+" stands above it, in the fieldset's place: both move into the writer together,
     // or every "+" stays stacked under the text with nothing to say where it inserts.

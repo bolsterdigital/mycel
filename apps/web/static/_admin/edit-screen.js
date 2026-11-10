@@ -72,7 +72,7 @@ if (form instanceof HTMLFormElement) {
     // A prose card of the writer has no box, so its bottom never counts as in view.
     const card = cards.find((c) => c.getBoundingClientRect().bottom > innerHeight / 4);
     if (!card || (card === cards[0] && card.getBoundingClientRect().top > 0)) return '';
-    return card.dataset.blockCard.replace(/^block-/, '');
+    return card.dataset.blockCard.replace(/^(?:native-)?block-/, '');
   };
   form.addEventListener('submit', (event) => {
     submitting = true;
