@@ -806,6 +806,7 @@ export const en = {
   'admin.audit.op.site.image.update': 'Default image changed',
   'admin.audit.op.site.theme.update': 'House style changed',
   'admin.audit.op.supporter.email.update': 'Supporter e-mail address changed',
+  'admin.audit.op.supporter.erase': 'Supporter erasure requested',
   'admin.audit.op.tenant.export.create': 'Export started',
   'admin.audit.op.tenant.hostname.add': 'Domain added',
   'admin.audit.op.tenant.hostname.remove': 'Domain removed',

@@ -814,6 +814,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.site.image.update': 'Standaardbeeld gewijzigd',
   'admin.audit.op.site.theme.update': 'Huisstijl gewijzigd',
   'admin.audit.op.supporter.email.update': 'E-mailadres van supporter gewijzigd',
+  'admin.audit.op.supporter.erase': 'Wissen van supporter aangevraagd',
   'admin.audit.op.tenant.export.create': 'Export gestart',
   'admin.audit.op.tenant.hostname.add': 'Domein toegevoegd',
   'admin.audit.op.tenant.hostname.remove': 'Domein verwijderd',
