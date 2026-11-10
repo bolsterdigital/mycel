@@ -316,7 +316,11 @@ test.describe('article-writing', () => {
         await callApi<{
           revision: {
             document: {
-              blocks: { id: string; type: string; props: { text?: { nl?: string } } }[];
+              blocks: {
+                id: string;
+                type: string;
+                props: { text?: { nl?: string }; content?: Record<string, unknown> };
+              }[];
             };
           };
         }>(request, 'content.item.get', { itemId })
@@ -324,14 +328,15 @@ test.describe('article-writing', () => {
     const open = async (
       page: Page,
       request: APIRequestContext,
-      blocks: unknown[]
+      blocks: unknown[],
+      locales = ['nl']
     ): Promise<string> => {
       const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
         slug: `writer-gone-${test.info().project.name}-${test.info().title.length}-${Date.now()}`,
         document: {
           type: 'article',
           defaultLocale: 'nl',
-          locales: ['nl'],
+          locales,
           title: { nl: 'Leeg' },
           blocks,
         },
@@ -348,6 +353,55 @@ test.describe('article-writing', () => {
         field.dispatchEvent(new Event('input', { bubbles: true }));
       }, value);
     const save = (page: Page) => page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+
+    for (const action of ['erase all', 'type over first card', 'undo removal'] as const) {
+      test(`a visible card removal: ${action}`, async ({ page, request }) => {
+        const itemId = await open(
+          page,
+          request,
+          [
+            quote('Blijft alleen na ongedaan maken'),
+            {
+              ...prose,
+              props: { content: { nl: line('Wordt leeg'), en: line('English retained') } },
+            },
+          ],
+          ['nl', 'en']
+        );
+        await editorReady(page);
+        const surface = page.locator('.writing-surface .ProseMirror').first();
+        if (action === 'type over first card') {
+          // Focus the editor view without DOM focus changing its initial card selection to prose.
+          await surface.evaluate((node) => {
+            const editor = (node as HTMLElement & { editor: { view: { focus(): void } } }).editor;
+            editor.view.focus();
+          });
+          await page.keyboard.type('Nieuwe tekst');
+        } else {
+          await surface.focus();
+          await surface.press('ControlOrMeta+a');
+          await surface.press('Backspace');
+        }
+        if (action === 'undo removal') await surface.press('ControlOrMeta+z');
+        await expect(surface.locator('.editor-card')).toHaveCount(
+          action === 'undo removal' ? 1 : 0
+        );
+        await expectNoAxeViolations(page);
+        await save(page);
+        await expect(page).toHaveURL(/saved/);
+        await page.reload();
+        await editorReady(page);
+        const saved = await stored(request, itemId);
+        expect(saved.filter((block) => block.type === 'quote')).toHaveLength(
+          action === 'undo removal' ? 1 : 0
+        );
+        if (action === 'type over first card') await expect(surface).toContainText('Nieuwe tekst');
+        expect(saved.find((block) => block.type === 'rich-text')?.props.content?.en).toEqual(
+          line('English retained')
+        );
+        await expectNoAxeViolations(page);
+      });
+    }
 
     test('a refused insert keeps what was typed, and the next save stands', async ({
       page,
