@@ -9,6 +9,7 @@
 // No content uses media yet (#8b1 writes the usages), so the "in use" fixture goes in through the
 // repository as a block tree's save will, as mycel_app under the tenant's RLS.
 
+import { ui } from '../src/i18n/index.js';
 import { showEditorTab } from './lib/editor';
 import { expect, test, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
@@ -91,6 +92,9 @@ async function remove(page: Page, id: string, filename: string) {
 
 async function upload(page: Page, filename: string, buffer = png(400, 300)) {
   await page.getByRole('button', { name: 'Bestand uploaden', exact: true }).click();
+  await expect(page.locator('#media-upload')).toContainText(
+    ui('nl')('admin.media.filename.publicHint')
+  );
   await page.getByLabel('Bestanden (verplicht)', { exact: true }).setInputFiles({
     name: filename,
     mimeType: 'image/png',
@@ -105,6 +109,22 @@ async function upload(page: Page, filename: string, buffer = png(400, 300)) {
   const id = /\/media\/([0-9a-f-]{36})\/thumb$/.exec(src ?? '')?.[1];
   expect(id, `thumbnail src ${src}`).toBeTruthy();
   return { card, id: id! };
+}
+
+/** Upload through the real form so the fixture uses the same blob store as the server. */
+async function uploadPdf(page: Page, filename: string, hint: string) {
+  leftovers.names.push(filename);
+  await page.goto('/admin/probe/media');
+  await page.locator('[commandfor="media-upload"][command="show-modal"]').click();
+  const dialog = page.locator('#media-upload');
+  await expect(dialog).toContainText(hint);
+  await dialog.locator('input[name="file"]').setInputFiles({
+    name: filename,
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.7\n%%EOF'),
+  });
+  await dialog.locator('button[type="submit"]').click();
+  await openDetail(page, filename);
 }
 
 /**
@@ -536,6 +556,11 @@ test('the library takes several files at once and finds one by name or caption',
   await expect(page.getByRole('row', { name: new RegExp(names[1]!) })).toBeVisible();
   await page.goto(`/admin/probe/media?q=niets-${stamp}`);
   await expect(page.getByText(`Niets gevonden voor “niets-${stamp}”.`)).toBeVisible();
+
+  const filenameHint = ui('nl')('admin.media.filename.publicHint');
+  await uploadPdf(page, `jaarverslag-${stamp}.pdf`, filenameHint);
+  await expect(page.getByText(filenameHint, { exact: true })).toBeVisible();
+  await expectNoAxeViolations(page, { dark: true });
 
   for (const name of names) await remove(page, ids[name]!, name);
 });
@@ -1593,6 +1618,9 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
               .execute()
           );
         await setLocale(locale.startsWith('en') ? 'en' : 'nl');
+        const filenameHint = ui(locale.startsWith('en') ? 'en' : 'nl')(
+          'admin.media.filename.publicHint'
+        );
         const headers = forwarded();
         await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': locale });
         // The last with its chips and clear link, in the longest words of the filter bar.
@@ -1611,6 +1639,7 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
               exact: true,
             })
             .click();
+          await expect(page.locator('#media-upload')).toContainText(filenameHint);
           await layoutGate(page, 'upload dialog', '#media-upload');
           await expectNoAxeViolations(page);
           await page.keyboard.press('Escape');
@@ -1622,6 +1651,11 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
         await page.locator('[command="show-modal"]').click();
         await layoutGate(page, 'lightbox');
         await page.keyboard.press('Escape');
+        await uploadPdf(page, `public-${locale}-${Date.now()}.pdf`, filenameHint);
+        await setTextSize(page, text);
+        await expect(page.getByText(filenameHint, { exact: true })).toBeVisible();
+        await layoutGate(page, 'PDF detail');
+        await expectNoAxeViolations(page);
         // The bulk confirmation and result in this language, and the file back again.
         await page.goto(`/admin/probe/media/bulk?selected=${id}`);
         await setTextSize(page, text);

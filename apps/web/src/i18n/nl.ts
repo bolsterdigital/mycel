@@ -605,6 +605,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.media.upload.file': 'Bestand',
   'admin.media.upload.hint':
     "JPEG, PNG, WebP, AVIF, GIF, PDF of MP3, hooguit {max}. Foto's worden zonder metadata (zoals locatie) bewaard; een pdf of MP3 blijft zoals je hem uploadt, metadata inbegrepen. SVG wordt niet geaccepteerd.",
+  'admin.media.filename.publicHint':
+    'Bij een openbaar PDF-document blijft de oorspronkelijke bestandsnaam zichtbaar voor bezoekers, ook als de downloadlink een andere naam heeft. Kies vóór het uploaden een bestandsnaam die openbaar mag zijn.',
   'admin.media.upload.restricted': 'Afgeschermd: alleen lezers met toegang zien dit bestand',
   'admin.media.upload.submit': 'Uploaden',
   'admin.media.library': 'Bibliotheek',

@@ -140,6 +140,9 @@
 
   {#snippet meta()}
     <MetaList items={facts} />
+    {#if m.contentType === 'application/pdf'}
+      <p class="ui-hint">{t('admin.media.filename.publicHint')}</p>
+    {/if}
   {/snippet}
 
   <form method="post" action="?/update" aria-labelledby="media-edit">

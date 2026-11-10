@@ -599,6 +599,8 @@ export const en = {
   'admin.media.upload.file': 'File',
   'admin.media.upload.hint':
     'JPEG, PNG, WebP, AVIF, GIF, PDF or MP3, at most {max}. Photos are stored without their metadata (such as location); a PDF or MP3 is kept as uploaded, its metadata included. SVG is not accepted.',
+  'admin.media.filename.publicHint':
+    'For a public PDF document, visitors can still see the original filename, even if the download link has a different name. Before uploading, choose a filename that can be public.',
   'admin.media.upload.restricted': 'Restricted: only readers with access see this file',
   'admin.media.upload.submit': 'Upload',
   'admin.media.library': 'Library',

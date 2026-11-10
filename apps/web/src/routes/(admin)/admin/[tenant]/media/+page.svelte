@@ -188,7 +188,7 @@
             multiple
             locale={data.locale}
             accept="image/jpeg,image/png,image/webp,image/avif,image/gif,application/pdf,audio/mpeg"
-            hint={fill(t('admin.media.upload.hint'), { max: size(data.maxUploadBytes) })}
+            hint={`${fill(t('admin.media.upload.hint'), { max: size(data.maxUploadBytes) })} ${t('admin.media.filename.publicHint')}`}
             required
             preview
           />
@@ -210,7 +210,7 @@
     <UploadDropZone
       url="{base}/media/upload"
       locale={data.locale}
-      hint={fill(t('admin.media.upload.hint'), { max: size(data.maxUploadBytes) })}
+      hint={`${fill(t('admin.media.upload.hint'), { max: size(data.maxUploadBytes) })} ${t('admin.media.filename.publicHint')}`}
     />
   {/snippet}
 
