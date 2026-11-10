@@ -1,3 +1,7 @@
+import {
+  unavailableMailchimp,
+  type MailchimpDiscovery,
+} from '../../connections/mailchimp/ports.js';
 // `MemoryUnitOfWork`: a transaction context composed from one factory per port, over a
 // MemoryStore. Rejected: building the ports inline in `run` (it grew to one 700-line function
 // that every module edited, TODO #53).
@@ -20,7 +24,11 @@ import type { DnsResolver, PlatformConfig } from '../../tenants/ports.js';
 import { noopLogger } from '../../util/log.js';
 import { memoryAssist } from './assist.js';
 import { memoryAudit } from './audit.js';
-import { memoryConnectionIntents, memoryConnections } from './connections.js';
+import {
+  memoryConnectionIntents,
+  memoryConnections,
+  memoryMailchimpReceipts,
+} from './connections.js';
 import { memoryBulkPlans, memoryContent, memoryPresence, memorySite } from './content.js';
 import { memoryErasures } from './erasures.js';
 import {
@@ -56,6 +64,7 @@ export interface MemoryDeps {
   images?: ImageProcessor;
   delivery?: MediaDelivery;
   assistProviderLabel?: string | null;
+  mailchimpDiscovery?: MailchimpDiscovery;
 }
 
 export class MemoryUnitOfWork implements UnitOfWork {
@@ -70,9 +79,11 @@ export class MemoryUnitOfWork implements UnitOfWork {
   readonly delivery: MediaDelivery;
   readonly log: Logger;
   readonly inputHasher: InputHasher = new FakeInputHasher();
+  readonly mailchimpDiscovery: MailchimpDiscovery;
   readonly assistProviderLabel: string | null;
 
   constructor(deps: MemoryDeps = {}) {
+    this.mailchimpDiscovery = deps.mailchimpDiscovery ?? unavailableMailchimp;
     this.log = deps.log ?? noopLogger;
     this.store = deps.store ?? new MemoryStore();
     this.clock = deps.clock ?? new FakeClock();
@@ -112,6 +123,8 @@ export class MemoryUnitOfWork implements UnitOfWork {
         presence: memoryPresence(s),
         ...memorySite(s),
         assist: memoryAssist(s),
+        mailchimpReceipts: memoryMailchimpReceipts(s),
+        mailchimpDiscovery: this.mailchimpDiscovery,
         connections: memoryConnections(s, principal),
         connectionIntents: memoryConnectionIntents(s),
         assistProviderLabel: this.assistProviderLabel,

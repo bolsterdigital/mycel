@@ -47,6 +47,14 @@ async function resolveToken(ctx: TransactionContext, token: string, now: Date) {
   if (!payload || payload.tenantId !== ctx.principal.tenantId) return null;
   const submission = await ctx.submissions.findById(payload.submissionId);
   if (!submission || submission.list !== payload.list) return null;
+  if (
+    (await ctx.formFeeds.get()).value.feeds.some(
+      (f) => f.enabled && f.scope === submission.list && f.confirmationOwner === 'external'
+    )
+  )
+    return null;
+  if (submission.evaluation?.feedActions?.some((p) => p.feed.confirmationOwner === 'external'))
+    return null;
   // The form only names the e-mail field; what is confirmed comes from the submission.
   const form = submission.evaluation?.definition ?? (await ctx.forms.findById(submission.formId));
   if (

@@ -192,6 +192,17 @@ export const submitForm = defineUseCase({
         discardedFieldIds,
       },
     };
+    submission.evaluation!.feedActions = await pinFormFeeds(ctx, submission);
+    const configuredFeeds = (await ctx.formFeeds.get()).value.feeds;
+    const externalOwner = configuredFeeds.some(
+      (f) => f.enabled && f.scope === form.list && f.confirmationOwner === 'external'
+    );
+    if (
+      consent &&
+      externalOwner &&
+      !submission.evaluation!.feedActions.some((p) => p.feed.confirmationOwner === 'external')
+    )
+      return { status: 'rejected', reason: 'unavailable', message: 'forms.rejected.unavailable' };
     // ADR 015 rule 3: only a new address grows the supporter count. The projection exists only
     // after the outbox ingest, so the seat is reserved here and released by ingest
     // (`ctx.admissions`, TODO #16). The lock comes first and ingest takes the same lock before
@@ -212,7 +223,6 @@ export const submitForm = defineUseCase({
     )
       return reject('recipient-limited');
 
-    submission.evaluation!.feedActions = await pinFormFeeds(ctx, submission);
     const mailPlan = await planFormMail(ctx, submission, email);
     submission.evaluation!.mailActions = mailPlan.pins;
     if (mailPlan.confirmation && mailPlan.confirmationVersion)

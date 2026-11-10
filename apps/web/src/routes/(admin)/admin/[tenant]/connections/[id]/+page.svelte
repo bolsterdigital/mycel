@@ -158,6 +158,11 @@
                 {t(`admin.connections.delivery.${intent.state}` as const)}{intent.failure
                   ? ` · ${intent.failure}`
                   : ''}
+                {#if intent.providerStatus}<p>
+                    {t('admin.mailchimp.providerStatus')}: {t(
+                      `admin.mailchimp.status.${intent.providerStatus}` as const
+                    )}
+                  </p>{/if}
                 {#if intent.operatorAction === 'resolve'}
                   <p class="ui-hint">{t('admin.connections.unknown.help')}</p>
                 {/if}
@@ -241,12 +246,49 @@
             required
             value={c.consentScopes.join(', ')}
           />
+          {#if c.provider === 'mailchimp'}
+            <Field
+              id="edit-confirmation"
+              label={t('admin.mailchimp.confirmationOwner')}
+              locale={data.locale}
+            >
+              {#snippet control(a)}<select {...a} name="confirmationOwner">
+                  <option value="mycel" selected={c.consentAuthority === 'mycel'}>Mycel</option>
+                  <option value="external" selected={c.consentAuthority === 'external'}
+                    >Mailchimp</option
+                  >
+                </select>{/snippet}
+            </Field>
+          {/if}
+          <fieldset>
+            <legend>{t('admin.mailchimp.forms')}</legend>
+            {#each data.forms as f}<div class="ui-choice">
+                <input
+                  type="checkbox"
+                  id={`connection-form-${f.id}`}
+                  name="formIds"
+                  value={f.id}
+                  checked={c.formIds.includes(f.id)}
+                /><label for={`connection-form-${f.id}`}>{f.list} · {f.id}</label>
+              </div>{/each}
+          </fieldset>
           <Actions><Button>{t('admin.connections.save')}</Button></Actions>
         </Fieldset>
       </form>
     {/if}
   </section>
 
+  {#if c.provider === 'mailchimp'}
+    <section>
+      <h2>{t('admin.mailchimp.callback')}</h2>
+      <p>{t('admin.mailchimp.callbackHelp')}</p>
+      {#if data.callback}<p>
+          <code>{data.callback.url}</code>
+        </p>{/if}
+      <p>{t('admin.mailchimp.mappingHelp')}</p>
+      <p>{t('admin.mailchimp.copies')}</p>
+    </section>
+  {/if}
   <section aria-labelledby="secret-title">
     <h2 id="secret-title">{t('admin.connections.secret.title')}</h2>
     <p>
@@ -265,12 +307,20 @@
           name="secret"
           type="password"
           autocomplete="new-password"
-          label={t('admin.connections.secret')}
+          label={t(
+            c.provider === 'mailchimp' ? 'admin.mailchimp.apiKey' : 'admin.connections.secret'
+          )}
           locale={data.locale}
           required
         />
         <Actions>
-          <Button variant="secondary">{t('admin.connections.credential.replace')}</Button>
+          <Button variant="secondary"
+            >{t(
+              c.provider === 'mailchimp'
+                ? 'admin.mailchimp.replaceKey'
+                : 'admin.connections.credential.replace'
+            )}</Button
+          >
         </Actions>
       </form>
     {/if}

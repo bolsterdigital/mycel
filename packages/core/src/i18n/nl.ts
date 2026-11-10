@@ -28,6 +28,8 @@ export const nl: Partial<Messages> = {
   'forms.error.email.invalid': 'Vul een e-mailadres in zoals naam@voorbeeld.nl.',
   'forms.error.consent.required': 'Vink het vakje aan om te bevestigen dat je je wilt aanmelden.',
   'forms.error.unknown-field': 'Dit veld hoort niet bij het formulier.',
+  'forms.rejected.unavailable':
+    'Inschrijven is tijdelijk niet beschikbaar. Probeer het later opnieuw.',
   'forms.rejected.too-fast':
     'Dat ging erg snel. Controleer je gegevens en verstuur het formulier opnieuw.',
   'forms.rejected.closed': 'Deze site neemt op dit moment geen nieuwe inschrijvingen aan.',

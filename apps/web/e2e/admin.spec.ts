@@ -2174,3 +2174,16 @@ for (const locale of ['nl', 'en']) {
     });
   });
 }
+
+for (const locale of ['nl', 'en']) {
+  test.describe(`Mailchimp self-service ${locale}`, () => {
+    test.use({ locale });
+    test('configures an audience and transfers a real public form with one confirmation owner', async ({
+      page,
+      request,
+    }) => {
+      const { mailchimpFlow } = await import('./lib/connections/mailchimp');
+      await mailchimpFlow(page, request, locale);
+    });
+  });
+}

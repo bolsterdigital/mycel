@@ -1,3 +1,4 @@
+import { mailchimpTarget } from './mailchimp/destination.js';
 // Managed connection metadata and credentials are separate capabilities. Rejected: exposing
 // secrets through a general tenant settings document or accepting tenant ids from input.
 
@@ -124,6 +125,8 @@ export const createConnection = defineUseCase({
   output: view,
   examples: [{ input: { provider: 'webhook', ...exampleFields } }],
   async handler(ctx, input) {
+    if (input.provider === 'mailchimp' && !mailchimpTarget(input.destination))
+      throw new UseCaseError('invalid_input', 'Mailchimp audience destination required');
     if (input.provider === 'webhook' && input.destination === null)
       throw new UseCaseError('invalid_input', 'webhook destination required');
     if (input.destination !== null) await checkDestination(ctx.dns, input.destination);
@@ -152,6 +155,8 @@ export const updateConnection = defineUseCase({
     refuseFrozen(prior);
     const nextDestination =
       changes.destination === undefined ? prior.destination : changes.destination;
+    if (prior.provider === 'mailchimp' && !mailchimpTarget(nextDestination))
+      throw new UseCaseError('invalid_input', 'Mailchimp audience destination required');
     if (prior.provider === 'webhook' && nextDestination === null)
       throw new UseCaseError('invalid_input', 'webhook destination required');
     if (changes.destination) await checkDestination(ctx.dns, changes.destination);

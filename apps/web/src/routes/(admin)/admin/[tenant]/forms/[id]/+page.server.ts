@@ -127,7 +127,16 @@ export const actions: Actions = {
         connectionId: cId || null,
         connectionVersion: cId ? Number(text(data, 'connectionVersion')) : null,
         scope: text(data, 'scope'),
-        confirmationOwner: 'mycel' as const,
+        confirmationOwner:
+          text(data, 'confirmationOwner') === 'external'
+            ? ('external' as const)
+            : ('mycel' as const),
+        operation:
+          text(data, 'operation') === 'resubscribe'
+            ? ('resubscribe' as const)
+            : text(data, 'operation') === 'profile'
+              ? ('profile' as const)
+              : ('subscribe' as const),
         when: predicate(data, 'when'),
         mapping: text(data, 'mapping')
           .split('\n')

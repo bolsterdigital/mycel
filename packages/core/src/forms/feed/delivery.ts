@@ -1,3 +1,4 @@
+import { iso } from '../../util/date.js';
 // Confirmation events plan the existing durable connection intent. No second transport queue:
 // pinned ids deduplicate outbox redelivery, and preparation rereads consent and erasure.
 import type { Subscriber, TransactionContext, UnitOfWork } from '../../ports.js';
@@ -47,13 +48,13 @@ async function currentFeedAllowed(ctx: TransactionContext, pin: PinnedFormFeed) 
 export function formFeedSubscriber(uow: UnitOfWork): Subscriber {
   return {
     name: 'forms.feed',
-    types: ['consent.given'],
+    types: ['consent.given', 'newsletter.subscribed'],
     async handle(event) {
       const submissionId = event.props['submissionId'];
       if (typeof submissionId !== 'string') return;
       await uow.run(systemPrincipal(event.tenantId, 'forms.feed'), async (ctx) => {
         const sub = await ctx.submissions.findById(submissionId);
-        if (!sub?.confirmedAt || !sub.evaluation?.feedActions?.length) return;
+        if (!sub?.evaluation?.feedActions?.length) return;
         const emailField = sub.evaluation.definition.fields.find((f) => f.type === 'email');
         const email = emailField && sub.values[emailField.name];
         if (
@@ -65,13 +66,17 @@ export function formFeedSubscriber(uow: UnitOfWork): Subscriber {
         // Subscriber order is not a correctness dependency. Ingest is deterministic and idempotent.
         await ingest(ctx, await toSupporterEvent(event));
         const supporter = await ctx.supporters.getProjection(email);
-        if (
-          !supporter ||
-          !supporter.lists.includes(sub.list) ||
-          (await ctx.connectionIntents.erased(supporter.id))
-        )
-          return;
+        if (!supporter || (await ctx.connectionIntents.erased(supporter.id))) return;
         for (const pin of sub.evaluation.feedActions) {
+          if (
+            pin.feed.confirmationOwner === 'mycel' &&
+            (!sub.confirmedAt ||
+              event.type !== 'consent.given' ||
+              !supporter.lists.includes(sub.list))
+          )
+            continue;
+          if (pin.feed.confirmationOwner === 'external' && event.type !== 'newsletter.subscribed')
+            continue;
           if (!mapFeed(sub, pin.feed)) continue;
           await planConnectionIntent(
             ctx,
@@ -102,8 +107,9 @@ export const formFeedSource: ConnectionSource = {
     const sub = await ctx.submissions.findByFeedBusinessId(intent.businessId);
     const pin = sub?.evaluation?.feedActions?.find((p) => p.businessId === intent.businessId);
     if (
-      !sub?.confirmedAt ||
+      !sub ||
       !pin ||
+      (pin.feed.confirmationOwner === 'mycel' && !sub.confirmedAt) ||
       pin.version !== intent.mappingVersion ||
       pin.feed.connectionId !== intent.connectionId ||
       pin.feed.scope !== intent.scope ||
@@ -141,8 +147,10 @@ export const formFeedSource: ConnectionSource = {
           fields,
           consent: {
             scope: pin.feed.scope,
-            owner: 'mycel',
-            confirmedAt: sub.confirmedAt.toISOString(),
+            owner: pin.feed.confirmationOwner,
+            operation: pin.feed.operation ?? 'subscribe',
+            requestedAt: sub.createdAt.toISOString(),
+            confirmedAt: iso(sub.confirmedAt),
             textVersion: sub.consentTextVersion,
           },
         },

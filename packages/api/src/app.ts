@@ -1,3 +1,4 @@
+import { createMailchimpCallbackApp, type MailchimpCallbackDeps } from './mailchimp/callback.js';
 // HTTP front (ADR 001, ADR 009). Every registered use case is `POST /v1/<name>` with a JSON body
 // validated by the use case's own schema; a flat query is also `GET /v1/<name>?field=...` with a
 // weak ETag (`etag` in `http-shape.ts`). Errors are Problem Details (`problem.ts`) and the OpenAPI 3.1
@@ -59,6 +60,7 @@ import { createPlatformApp, type PlatformDeps } from './platform.js';
 import { problem } from './problem.js';
 
 export interface AppDeps {
+  mailchimp?: MailchimpCallbackDeps;
   invoker: Invoker;
   authenticate(authorization: string | undefined): Promise<Principal | null>;
   /** The platform API (TODO #16); absent without PLATFORM_API_TOKEN, and `/platform/*` is a 404. */
@@ -119,6 +121,7 @@ export function createApp({
   contentRead,
   observability,
   wellKnown,
+  mailchimp,
   trustProxy = false,
 }: AppDeps): Hono {
   const app = new Hono();
@@ -204,6 +207,7 @@ export function createApp({
       createPlatformApp({ ...platform, log: obs.log, errors: obs.errors, metrics: obs.metrics })
     );
   if (contentRead) app.route('/v1/sites', createContentReadApp(contentRead));
+  if (mailchimp) app.route('/hooks/mailchimp', createMailchimpCallbackApp(mailchimp));
 
   const principalOf = async (c: Context) => {
     const principal = await authenticate(c.req.header('authorization'));

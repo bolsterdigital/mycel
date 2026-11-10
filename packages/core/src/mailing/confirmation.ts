@@ -125,6 +125,14 @@ export function confirmationMailSource(deps: ConfirmationMailDeps): MailSource {
           const sub = await ctx.submissions.findById(p.submissionId);
           if (!sub || sub.confirmedAt || sub.evaluation?.version !== p.formVersion) return false;
           if (
+            (await ctx.formFeeds.get()).value.feeds.some(
+              (f) => f.enabled && f.scope === sub.list && f.confirmationOwner === 'external'
+            )
+          )
+            return false;
+          if (sub.evaluation?.feedActions?.some((p) => p.feed.confirmationOwner === 'external'))
+            return false;
+          if (
             p.confirmationVersion &&
             sub.evaluation?.confirmationMail?.version !== p.confirmationVersion
           )

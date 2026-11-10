@@ -132,3 +132,36 @@ export function memoryConnectionIntents(s: TenantStore): ConnectionIntents {
     erased: async (id) => s.erasures.has(id),
   };
 }
+
+export function memoryMailchimpReceipts(
+  s: TenantStore
+): import('../../connections/mailchimp/ports.js').MailchimpReceipts {
+  return {
+    forMember: async (connectionId, hash) =>
+      structuredClone(
+        [...s.mailchimpReceipts.values()]
+          .filter((r) => r.connectionId === connectionId && r.memberHash === hash)
+          .sort((a, b) => +b.requestedAt - +a.requestedAt)[0] ?? null
+      ),
+    get: async (id) => structuredClone(s.mailchimpReceipts.get(id) ?? null),
+    async insert(row) {
+      if (s.mailchimpReceipts.has(row.intentId)) return false;
+      s.mailchimpReceipts.set(row.intentId, structuredClone(row));
+      return true;
+    },
+    async retryable(id, value) {
+      const row = s.mailchimpReceipts.get(id);
+      if (row) s.mailchimpReceipts.set(id, { ...row, retryable: value });
+    },
+    async observe(id, status, at, confirmedAt) {
+      const row = s.mailchimpReceipts.get(id);
+      if (row)
+        s.mailchimpReceipts.set(id, {
+          ...row,
+          status,
+          observedAt: at,
+          confirmedAt: row.confirmedAt ?? confirmedAt,
+        });
+    },
+  };
+}

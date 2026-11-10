@@ -40,7 +40,8 @@ export async function feedGate(
   if (
     !c.formIds.includes(feed.formId) ||
     !c.consentScopes.includes(feed.scope) ||
-    c.consentAuthority !== 'mycel'
+    c.consentAuthority !== feed.confirmationOwner ||
+    (feed.confirmationOwner === 'external' && c.provider !== 'mailchimp')
   )
     return 'authorization';
   return null;

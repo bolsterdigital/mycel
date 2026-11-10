@@ -78,6 +78,11 @@ async function registeredAddresses(store: MemoryStore, tenantId: string): Promis
 async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock): Promise<number> {
   const s = store.for(tenantId);
   let changed = 0;
+  for (const [id, row] of s.mailchimpReceipts)
+    if (s.erasures.has(row.supporterId)) {
+      s.mailchimpReceipts.delete(id);
+      changed++;
+    }
   for (const row of s.connectionIntents.values())
     if (row.supporterId && s.erasures.has(row.supporterId)) {
       changed++;

@@ -284,13 +284,31 @@ try {
     if (!formsResponse.ok) throw new Error('Cannot resolve corpus form');
     const { forms } = await formsResponse.json();
     if (!forms.length) throw new Error('Corpus form missing');
+    const connectionsResponse = await fetch(`${process.env.E2E_API_URL}/v1/connection.list`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${process.env.MYCEL_API_KEY}`,
+        'content-type': 'application/json',
+      },
+      body: '{}',
+    });
+    if (!connectionsResponse.ok) throw new Error('Cannot resolve corpus Mailchimp connection');
+    const connections = (await connectionsResponse.json()).connections;
+    const mailchimp = connections.find(
+      (c) => c.provider === 'mailchimp' && c.purpose === 'Quality Mailchimp fixture'
+    );
+    if (!mailchimp) throw new Error('Corpus Mailchimp connection missing');
+
     for (const entry of corpus.admin.routes)
       entries.push({
         id: `${entry.name}-${locale}-${profile}-${cache}`,
         name: entry.name,
         url:
           origin +
-          entry.path.replace('{quality-article-id}', items[0].id).replace('{form-id}', forms[0].id),
+          entry.path
+            .replace('{quality-article-id}', items[0].id)
+            .replace('{form-id}', forms[0].id)
+            .replace('{mailchimp-id}', mailchimp.id),
         locale,
         indexable: false,
         title: '',

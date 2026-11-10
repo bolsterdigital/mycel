@@ -55,6 +55,26 @@ export const updateFormFeeds = defineUseCase({
   async handler(ctx, { baseVersion, value }) {
     if (value.feeds.some((f) => f.enabled) && !can(ctx.principal, 'content:publish'))
       throw new UseCaseError('forbidden', 'feed activation requires publishing permission');
+    for (const scope of new Set(value.feeds.filter((f) => f.enabled).map((f) => f.scope))) {
+      if (
+        new Set(
+          value.feeds.filter((f) => f.enabled && f.scope === scope).map((f) => f.confirmationOwner)
+        ).size > 1
+      )
+        throw new UseCaseError('invalid_input', 'one confirmation owner is required per scope');
+    }
+    for (const formId of new Set(value.feeds.map((f) => f.formId))) {
+      const owners = new Set(
+        value.feeds.filter((f) => f.formId === formId && f.enabled).map((f) => f.confirmationOwner)
+      );
+      if (
+        owners.size > 1 ||
+        value.feeds.filter(
+          (f) => f.formId === formId && f.enabled && f.confirmationOwner === 'external'
+        ).length > 1
+      )
+        throw new UseCaseError('invalid_input', 'one confirmation owner is required per form');
+    }
     for (const feed of [...value.feeds].sort((a, b) => a.formId.localeCompare(b.formId))) {
       const form = await ctx.forms.lock(feed.formId);
       if (!form) throw notFound('form');
@@ -67,7 +87,8 @@ export const updateFormFeeds = defineUseCase({
           c.version !== feed.connectionVersion ||
           !c.formIds.includes(form.id) ||
           !c.consentScopes.includes(feed.scope) ||
-          c.consentAuthority !== 'mycel'
+          c.consentAuthority !== feed.confirmationOwner ||
+          (feed.confirmationOwner === 'external' && c.provider !== 'mailchimp')
         )
           throw new UseCaseError('invalid_input', 'connection does not authorize this feed');
       } else if (feed.enabled || feed.connectionVersion !== null)

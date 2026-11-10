@@ -27,6 +27,7 @@ export const en = {
     'Enter an e-mail address in the right format, like name@example.org.',
   'forms.error.consent.required': 'Tick the box to confirm that you want to sign up.',
   'forms.error.unknown-field': 'This field is not part of the form.',
+  'forms.rejected.unavailable': 'Signup is temporarily unavailable. Please try again later.',
   'forms.rejected.too-fast':
     'That was very quick. Please check your details and send the form again.',
   'forms.rejected.rate-limited':

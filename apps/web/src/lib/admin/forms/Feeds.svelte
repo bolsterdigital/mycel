@@ -74,6 +74,30 @@
           value={feed?.scope ?? form.list}
           required
         />
+        <Field id="{id}-owner" label={t('admin.mailchimp.confirmationOwner')} {locale}>
+          {#snippet control(a)}<select {...a} name="confirmationOwner">
+              <option value="mycel" selected={feed?.confirmationOwner !== 'external'}>Mycel</option>
+              <option value="external" selected={feed?.confirmationOwner === 'external'}
+                >Mailchimp</option
+              >
+            </select>{/snippet}
+        </Field>
+        <Field id="{id}-operation" label={t('admin.mailchimp.operation')} {locale}>
+          {#snippet control(a)}<select {...a} name="operation">
+              <option
+                value="subscribe"
+                selected={!feed?.operation || feed.operation === 'subscribe'}
+                >{t('admin.mailchimp.subscribe')}</option
+              >
+              <option value="profile" selected={feed?.operation === 'profile'}
+                >{t('admin.mailchimp.profile')}</option
+              >
+              <option value="resubscribe" selected={feed?.operation === 'resubscribe'}
+                >{t('admin.mailchimp.resubscribe')}</option
+              >
+            </select>{/snippet}
+        </Field>
+        <p class="ui-hint">{t('admin.mailchimp.mappingHelp')}</p>
         <Field id="{id}-mapping" label={t('admin.forms.mapping')} {locale}
           >{#snippet control(a)}<textarea {...a} name="mapping" rows="4"
               >{feed?.mapping.map((m) => `${m.fieldId}=${m.target}`).join('\n') ??

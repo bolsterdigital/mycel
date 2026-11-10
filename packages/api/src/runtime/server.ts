@@ -8,6 +8,11 @@ import { createRuntime } from './compose.js';
 const runtime = createRuntime(undefined, { service: 'api' });
 const app = createApp({
   invoker: runtime.invoker,
+  mailchimp: {
+    signer: runtime.signer,
+    uow: runtime.uow,
+    access: (id) => runtime.identity.tenantAccess(id),
+  },
   authenticate: (h) => runtime.authenticateApiKey(h),
   platform: runtime.platformApi,
   contentRead: {

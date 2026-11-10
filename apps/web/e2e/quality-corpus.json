@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "fixtureVersion": "43a-v9",
+  "fixtureVersion": "43a-v10",
   "tenant": "probe",
   "themeProfiles": {
     "default": {
@@ -234,6 +234,18 @@
         "name": "form-editor",
         "path": "/admin/probe/forms/{form-id}",
         "state": "editing",
+        "indexable": false
+      },
+      {
+        "name": "connection-inventory",
+        "path": "/admin/probe/connections",
+        "state": "populated",
+        "indexable": false
+      },
+      {
+        "name": "mailchimp-connection",
+        "path": "/admin/probe/connections/{mailchimp-id}",
+        "state": "paused-reconnect",
         "indexable": false
       }
     ]

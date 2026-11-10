@@ -1,0 +1,11 @@
+{
+  "account_id": "synthetic-account",
+  "account_name": "Synthetic Mailchimp",
+  "email": "operator@example.org",
+  "first_name": "Synthetic",
+  "last_name": "Operator",
+  "username": "synthetic",
+  "role": "owner",
+  "total_subscribers": 0,
+  "_links": []
+}

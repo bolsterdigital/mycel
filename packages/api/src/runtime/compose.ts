@@ -1,3 +1,5 @@
+import { inspectMailchimp, createMailchimpRequester } from '../mailchimp/client.js';
+import { mailchimpTransport } from '../mailchimp/transport.js';
 // Composition root (docs/architecture/overview.md): the one place that turns configuration into
 // adapter instances and hands fronts an Invoker. The HTTP server, the MCP server and the web app
 // all call `createRuntime`, so no front wires adapters itself and none can wire them differently.
@@ -255,6 +257,7 @@ export function createRuntime(
       ? null
       : (config.ASSIST_PROVIDER_LABEL ?? assistModel?.describe().label ?? null);
   const dns = createDnsResolver();
+  const mailchimpRequest = createMailchimpRequester(config.MAILCHIMP_FIXTURE_ORIGIN);
   const uow = createUnitOfWork(appDb, {
     clock,
     ids: uuidv7Ids,
@@ -267,6 +270,7 @@ export function createRuntime(
     inputHasher,
     connectionCredentialKey: config.CONNECTION_CREDENTIAL_KEY,
     assistProviderLabel,
+    mailchimpDiscovery: { inspect: (key) => inspectMailchimp(key, mailchimpRequest) },
   });
   const tenants = createTenantDirectory(appDb);
   const identity = createIdentityStore(authDb, uuidv7Ids);
@@ -411,6 +415,8 @@ export function createRuntime(
         sources: mailSources,
         reconcileLagMs: confirmation.reconcileLagMs,
       };
+      const webhook = webhookTransport({ dns });
+      const mailchimp = mailchimpTransport({ uow, identity, clock, request: mailchimpRequest });
       const handlers = jobHandlers({
         uow,
         operatorDb,
@@ -432,7 +438,17 @@ export function createRuntime(
           log,
         },
         connections: {
-          transport: webhookTransport({ dns }),
+          transport: {
+            dispatch: (input) =>
+              input.connection.provider === 'mailchimp'
+                ? mailchimp.dispatch(input)
+                : webhook.dispatch(input),
+            reconcile: (input) =>
+              input.connection.provider === 'mailchimp'
+                ? mailchimp.reconcile!(input)
+                : Promise.resolve('unknown'),
+          },
+          mailchimpSync: mailchimp.sync,
           sources: { [SYNTHETIC_SOURCE]: syntheticSource, [FORM_FEED_SOURCE]: formFeedSource },
         },
       });

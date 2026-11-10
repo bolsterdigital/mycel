@@ -71,6 +71,7 @@ const run = (cmd, args, cwd = root, env = process.env) => {
 // ports, which forked the fixture operators below (TODO #27).
 const API_PORT = process.env.E2E_API_PORT ?? '8797';
 const OIDC_PORT = process.env.E2E_OIDC_PORT ?? '8798';
+const MAILCHIMP_PORT = process.env.E2E_MAILCHIMP_PORT ?? '8795';
 const WORKER_PORT = process.env.E2E_WORKER_PORT ?? '8796';
 const ISSUER = `http://127.0.0.1:${OIDC_PORT}`;
 for (const [name, port] of [
@@ -78,6 +79,7 @@ for (const [name, port] of [
   ['API process', API_PORT],
   ['mock IdP', OIDC_PORT],
   ['worker', WORKER_PORT],
+  ['Mailchimp fixture', MAILCHIMP_PORT],
 ]) {
   const free = await new Promise((resolve) => {
     const probe = createServer()
@@ -232,7 +234,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
     ids: uuidv7Ids,
     signer: new FakeSigner(),
     inputHasher: new FakeInputHasher(),
-    dns: new FakeDns(),
+    dns: new FakeDns({ 'us7.api.mailchimp.com': ['8.8.8.8'] }),
     platform: memoryPlatform,
     // The block fixtures below upload real images into the store the web server reads.
     media: {
@@ -258,6 +260,28 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   // asks for it in English and checks the draft never reaches the HTML (brief #8a, audit).
   const invoker = new Invoker(buildRegistry(), uow);
   const admin = systemPrincipal(probe.id, 'e2e');
+  if (
+    !(await invoker.run(useCases.listConnections, admin, {})).connections.some(
+      (c) => c.purpose === 'Quality Mailchimp fixture'
+    )
+  ) {
+    await invoker.run(useCases.createConnection, admin, {
+      provider: 'mailchimp',
+      accountRef: 'synthetic-account',
+      externalOwner: 'Synthetic organisation',
+      maintainer: 'Synthetic operator',
+      purpose: 'Quality Mailchimp fixture',
+      direction: 'outbound',
+      dataAuthority: 'external',
+      consentAuthority: 'external',
+      consentScopes: ['newsletter'],
+      formIds: [],
+      destination: 'https://us7.api.mailchimp.com/3.0/lists/synthetic',
+      contractVersion: 'v1',
+      adapterVersion: 'v1',
+    });
+  }
+
   const draftCheck = { type: 'page', slug: 'draft-check' };
   if (!(await invoker.run(useCases.listItems, admin, draftCheck)).items.length) {
     const { item, revision } = await invoker.run(useCases.createItem, admin, {
@@ -786,6 +810,7 @@ const env = {
   SITE_URL_MODE: 'hostnames',
   MAILER: 'console',
   MAIL_SPOOL_DIR: spool,
+  MAILCHIMP_FIXTURE_ORIGIN: `http://127.0.0.1:${MAILCHIMP_PORT}`,
   MYCEL_API_KEY: apiKey,
   OIDC_ISSUER: `http://127.0.0.1:${OIDC_PORT}`,
   OIDC_CLIENT_ID: 'mycel-e2e',
@@ -799,6 +824,11 @@ delete env.OIDC_CLIENT_SECRET;
 // the web server the same way). The spec process itself keeps it for its own fixtures.
 const { DATABASE_URL: _owner, ...frontEnv } = env;
 
+const mailchimpFixture = spawn('node', ['scripts/e2e/mailchimp-fixture.mjs'], {
+  cwd: root,
+  stdio: ['ignore', 'inherit', 'inherit'],
+  env: { ...env, MAILCHIMP_FIXTURE_PORT: MAILCHIMP_PORT },
+});
 const idp = spawn('node', ['scripts/e2e/mock-oidc.mjs'], {
   cwd: root,
   stdio: ['ignore', 'inherit', 'inherit'],
@@ -815,6 +845,7 @@ const worker = spawn('node', ['packages/api/dist/runtime/worker.js'], {
   env: { ...env, PORT: WORKER_PORT },
 });
 const stop = () => {
+  if (mailchimpFixture.exitCode === null) mailchimpFixture.kill('SIGTERM');
   if (api.exitCode === null) api.kill('SIGTERM');
   if (worker.exitCode === null) worker.kill('SIGTERM');
   if (idp.exitCode === null) idp.kill('SIGTERM');
@@ -841,6 +872,7 @@ async function waitFor(name, child, url) {
     await new Promise((r) => setTimeout(r, 250));
   }
 }
+await waitFor('Mailchimp fixture', mailchimpFixture, `${env.MAILCHIMP_FIXTURE_ORIGIN}/healthz`);
 await waitFor('API process', api, `${env.E2E_API_URL}/healthz`);
 await waitFor('worker', worker, `http://127.0.0.1:${WORKER_PORT}/healthz`);
 await waitFor('mock IdP', idp, `${env.OIDC_ISSUER}/.well-known/openid-configuration`);

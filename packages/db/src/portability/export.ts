@@ -53,6 +53,7 @@ export const TABLES = {
   site_settings: 'export',
   connections: 'export',
   connection_intents: 'operational',
+  mailchimp_receipts: 'operational',
   connection_attempts: 'operational',
   // Credentials are encrypted but still installation-bound secrets; an import reconnects.
   connection_credentials: 'operational',

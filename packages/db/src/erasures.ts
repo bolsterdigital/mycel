@@ -108,6 +108,10 @@ async function eraseRows(trx: Trx, tenantId: string): Promise<number> {
     .execute();
   if (!registered.length) return 0;
   const ids = registered.map((r) => r.supporter_id);
+  const receiptChanges = await trx
+    .deleteFrom('mailchimp_receipts')
+    .where('supporter_id', 'in', ids)
+    .executeTakeFirst();
   // No address or provider payload is stored. Detach the pseudonymous supporter reference while
   // retaining honest external uncertainty; an erasure never claims the provider deleted a copy.
   // Core `erasedIntentState` as one statement.
@@ -144,7 +148,7 @@ async function eraseRows(trx: Trx, tenantId: string): Promise<number> {
     )
     .map((row) => row.id);
 
-  let changed = Number(intentChanges.numAffectedRows ?? 0n);
+  let changed = Number(intentChanges.numAffectedRows ?? 0n) + Number(receiptChanges.numDeletedRows);
   const count = (r: { numAffectedRows?: bigint }) => (changed += Number(r.numAffectedRows ?? 0n));
 
   count(

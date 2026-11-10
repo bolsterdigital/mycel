@@ -160,11 +160,14 @@ export const actions: Actions = {
         values,
       });
 
-    return fail(result.reason === 'rate-limited' ? 429 : 400, {
-      formId,
-      errors: [],
-      message: translate(locale, result.message),
-      values,
-    });
+    return fail(
+      result.reason === 'unavailable' ? 503 : result.reason === 'rate-limited' ? 429 : 400,
+      {
+        formId,
+        errors: [],
+        message: translate(locale, result.message),
+        values,
+      }
+    );
   },
 };

@@ -39,6 +39,46 @@ const copy = {
 } as const;
 
 export const actions: Actions = {
+  inspect: (event) =>
+    act(event, 'inspect', copy, async (principal, data) => ({
+      action: 'inspect',
+      account: await runtime().invoker.run(useCases.inspectMailchimpAccount, principal, {
+        secret: text(data, 'secret'),
+      }),
+    })),
+  mailchimp: (event) =>
+    act(event, 'mailchimp', copy, async (principal, data) => {
+      const run = runtime().invoker;
+      const secret = text(data, 'secret');
+      const account = await run.run(useCases.inspectMailchimpAccount, principal, { secret });
+      const audience = account.audiences.find((a) => a.id === text(data, 'audience'));
+      if (!audience)
+        return { action: 'mailchimp', error: 'admin.connections.error.invalid' as const };
+      const connection = await run.run(useCases.createConnection, principal, {
+        provider: 'mailchimp',
+        accountRef: account.accountId,
+        externalOwner: text(data, 'externalOwner'),
+        maintainer: text(data, 'maintainer'),
+        purpose: text(data, 'purpose'),
+        direction: 'outbound',
+        dataAuthority: 'external',
+        consentAuthority: text(data, 'confirmationOwner') === 'external' ? 'external' : 'mycel',
+        consentScopes: text(data, 'consentScopes')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+        formIds: [],
+        destination: `https://${account.server}.api.mailchimp.com/3.0/lists/${audience.id}`,
+        contractVersion: 'v1',
+        adapterVersion: 'v1',
+      });
+      await run.run(useCases.replaceConnectionCredential, principal, {
+        id: connection.id,
+        baseVersion: connection.version,
+        secret,
+      });
+      redirect(303, `/admin/${event.params.tenant}/connections/${connection.id}?created=1`);
+    }),
   create: (event) =>
     act(event, 'create', copy, async (principal, data) => {
       const connection = await runtime().invoker.run(useCases.createConnection, principal, {

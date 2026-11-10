@@ -4,10 +4,7 @@
 import type { TransactionContext } from '../ports.js';
 import type { ConnectionAttempt, ConnectionFailure, ConnectionIntent } from './intents.js';
 
-// A value exists here only once a transport implements it (TODO #49): the first real provider
-// (#40 PR 2) adds itself together with its adapter and tests. Rejected: accepting `mailchimp`
-// and inbound directions in the schema ahead of any code that could serve them.
-export const CONNECTION_PROVIDERS = ['webhook'] as const;
+export const CONNECTION_PROVIDERS = ['webhook', 'mailchimp'] as const;
 export type ConnectionProvider = (typeof CONNECTION_PROVIDERS)[number];
 export type ConnectionState = 'active' | 'paused' | 'disconnected';
 export const CONNECTION_DIRECTIONS = ['outbound'] as const;
@@ -20,6 +17,7 @@ export type ConnectionDirection = (typeof CONNECTION_DIRECTIONS)[number];
  */
 export const PROVIDER_RECONCILES: Readonly<Record<ConnectionProvider, boolean>> = {
   webhook: false,
+  mailchimp: true,
 };
 export type ConnectionAuthority = 'mycel' | 'external';
 
@@ -155,5 +153,15 @@ export interface ConnectionTransport {
   reconcile?(input: {
     tenantId: string;
     intent: Readonly<ConnectionIntent>;
+    connection: Readonly<ConnectionRecord>;
+    credential: string;
+    payload: Readonly<Record<string, unknown>>;
   }): Promise<'succeeded' | 'absent' | 'unknown'>;
+}
+
+declare module '../ports.js' {
+  interface TransactionContext {
+    mailchimpReceipts: import('./mailchimp/ports.js').MailchimpReceipts;
+    mailchimpDiscovery: import('./mailchimp/ports.js').MailchimpDiscovery;
+  }
 }
