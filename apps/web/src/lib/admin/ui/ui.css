@@ -2249,39 +2249,6 @@
     max-inline-size: 100%;
     overflow-wrap: break-word;
   }
-  .ui-writing-sheet {
-    container-type: inline-size;
-    display: grid;
-    min-width: 0;
-    border: var(--border-width) solid var(--color-border);
-    border-radius: var(--radius);
-  }
-  .ui-writing-sheet[hidden] {
-    display: none;
-  }
-  .ui-writing-sheet-toolbar {
-    padding: var(--space-1) var(--space-2);
-    border-block-end: var(--border-width) solid var(--color-border);
-  }
-  .ui-writing-sheet-content {
-    container-type: inline-size;
-    min-width: 0;
-    min-block-size: 10rem;
-    padding: var(--space-2);
-    color: var(--color-surface-fg);
-    background: var(--color-surface-bg);
-    border-radius: 0 0 var(--radius) var(--radius);
-  }
-
-  @container (max-width: 24rem) {
-    /* A sheet can be inside a block body and a fieldset. Neither its words nor its toolbar
-       add another inline inset to those groups when their available width is narrow. */
-    .ui-writing-sheet-toolbar,
-    .ui-writing-sheet-content {
-      padding-inline: 0;
-    }
-  }
-
   .ui-detail-footer {
     margin-block-start: var(--space-3);
     border-block-start: var(--border-width) solid var(--color-border);

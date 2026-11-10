@@ -52,6 +52,8 @@
     WritingSheet,
   } from '#lib/admin/ui/index.js';
   import { BLOCK_ICONS } from '#lib/admin/block-presentation.js';
+  import FormatBar from '#lib/editor/FormatBar.svelte';
+  import { Formatting } from '#lib/editor/formatting.svelte.js';
   import { INSERTABLE_BLOCK_TYPES } from '@mycel/core';
   import { formatWhen } from '#lib/admin/format.js';
   import { fill, ui } from '../../../../../i18n/index.js';
@@ -63,6 +65,11 @@
   const base = $derived(`/admin/${data.tenant.slug}`);
   const here = $derived(`${base}/_ui`);
   const sample = '/_admin/ui-sample.svg';
+  /** The formatting bar at rest: no text to act on, so nothing is on and history is empty. */
+  const sampleFormatting = new Formatting(
+    () => false,
+    () => ''
+  );
   const size = (n: number) =>
     new Intl.NumberFormat(data.locale, {
       style: 'unit',
@@ -793,10 +800,7 @@
     <p>{t('admin.ui.catalogue.writingSheet.intro')}</p>
     <WritingSheet>
       {#snippet toolbar()}
-        <Actions>
-          <Button type="button" variant="secondary">{t('admin.editor.bold')}</Button>
-          <Button type="button" variant="secondary">{t('admin.editor.italic')}</Button>
-        </Actions>
+        <FormatBar formatting={sampleFormatting} locale={data.locale} />
       {/snippet}
       <p>{t('admin.ui.catalogue.form.titleHint')}</p>
       <BlockImage

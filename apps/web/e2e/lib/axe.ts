@@ -35,15 +35,81 @@ export async function expectNoAxeViolations(
   for (const colorScheme of dark ? (['light', 'dark'] as const) : [null]) {
     if (colorScheme) await page.emulateMedia({ colorScheme });
     const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
+    const remeasured = await remeasureTargets(
+      page,
+      violations
+        .filter((v) => v.id === 'target-size')
+        .flatMap((v) => v.nodes.map((n) => n.target.join(' ')))
+    );
     expect(
-      violations.map(
-        (v) =>
-          `${colorScheme ? `${colorScheme}: ` : ''}${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`
-      ),
+      violations
+        .map((v) => ({
+          id: v.id,
+          targets: v.nodes
+            .map((n) => n.target.join(' '))
+            .filter((target) => v.id !== 'target-size' || !remeasured.includes(target)),
+        }))
+        .filter((v) => v.targets.length)
+        .map((v) => `${colorScheme ? `${colorScheme}: ` : ''}${v.id}: ${v.targets.join(', ')}`),
       label
     ).toEqual([]);
   }
   if (dark) await page.emulateMedia({ colorScheme: 'light' });
+}
+
+/**
+ * A sticky bar can leave only a slice of a full-sized target visible. Never infer an axe
+ * exemption from overlapping rectangles: fixed backgrounds overlap controls too. Instead,
+ * scroll each reported target into view and run the same rule again. Only a target axe now
+ * accepts can be cleared. Keep all other original violations and restore every scroll container.
+ * Rejected: disabling target-size, or accepting geometry without a second axe measurement.
+ */
+async function remeasureTargets(page: Page, targets: string[]): Promise<string[]> {
+  if (!targets.length) return [];
+  const scrolls = await page.evaluateHandle(() =>
+    [...document.querySelectorAll('*')].map((element) => ({
+      element,
+      left: element.scrollLeft,
+      top: element.scrollTop,
+    }))
+  );
+  const accepted: string[] = [];
+  try {
+    for (const target of targets) {
+      const control = page.locator(target);
+      // A small control must still fail even if scrolling changes its neighbours' visibility.
+      const box = await control.boundingBox();
+      if (!box || box.width < 24 || box.height < 24) continue;
+      await control.evaluate((element) =>
+        element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
+      );
+      const exposed = await control.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        return (
+          box.top >= 0 &&
+          box.left >= 0 &&
+          box.bottom <= innerHeight &&
+          box.right <= innerWidth &&
+          [
+            [box.left + box.width / 4, box.top + box.height / 4],
+            [box.right - box.width / 4, box.bottom - box.height / 4],
+            [box.left + box.width / 2, box.top + box.height / 2],
+          ].every(([x, y]) => element.contains(document.elementFromPoint(x!, y!)))
+        );
+      });
+      if (!exposed) continue;
+      const { passes } = await new AxeBuilder({ page }).withRules(['target-size']).analyze();
+      if (passes.some((v) => v.nodes.some((node) => node.target.join(' ') === target)))
+        accepted.push(target);
+    }
+  } finally {
+    await scrolls.evaluate((positions) => {
+      for (const { element, left, top } of positions)
+        element.scrollTo({ left, top, behavior: 'instant' });
+    });
+    await scrolls.dispose();
+  }
+  return accepted;
 }
 
 /**

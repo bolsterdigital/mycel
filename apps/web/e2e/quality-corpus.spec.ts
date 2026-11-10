@@ -559,3 +559,53 @@ test('native semantics catches redundant roles and recreated simple controls', a
     nonnativeControls: [],
   });
 });
+
+test('axe remeasures a scroll-obscured target without exempting undersized controls', async ({
+  page,
+}) => {
+  onlyA11y('the shared axe gate needs JavaScript');
+  let body = `<div id="backdrop"></div><main><h1>Targets</h1>
+    <button id="small-a" aria-label="First"></button>
+    <button id="small-b" aria-label="Second"></button></main>`;
+  let css = `body{margin:0;background:white;color:black}
+    #backdrop{position:fixed;inset:0;z-index:-1;pointer-events:none}
+    button{position:absolute;top:100px;width:10px;height:10px;padding:0;border:0}
+    #small-a{left:100px}#small-b{left:111px}`;
+  await page.route('http://axe-fixture.test/', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: `<!doctype html><html lang="en"><title>Targets</title><style>${css}</style>${body}</html>`,
+    })
+  );
+  await page.goto('http://axe-fixture.test/');
+  const raw = () => new AxeBuilder({ page }).withTags(WCAG).analyze();
+  expect((await raw()).violations.map((v) => v.id)).toContain('target-size');
+  await expect(expectNoAxeViolations(page)).rejects.toThrow('target-size');
+  // The same genuine defect without the background must receive the same verdict.
+  await page.locator('#backdrop').evaluate((element) => element.remove());
+  await expect(expectNoAxeViolations(page)).rejects.toThrow('target-size');
+
+  css = `body{margin:0;background:white;color:black}
+    .bar{position:sticky;top:0;height:60px;background:white;z-index:2}
+    .bar button{width:44px;height:44px;margin:26px 8px}
+    main{padding-top:500px;height:2000px}
+    #target{width:44px;height:44px;margin:0 0 0 8px}`;
+  body = `<div class="bar"><button>Top</button></div>
+    <main><h1>Targets</h1><button id="target">Go</button></main>`;
+  await page.goto('http://axe-fixture.test/');
+  const y = await page
+    .locator('#target')
+    .evaluate((element) => element.getBoundingClientRect().top + scrollY);
+  await page.evaluate((top) => scrollTo(0, top - 39), y);
+  const before = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
+  expect((await raw()).violations.flatMap((v) => v.nodes.map((n) => n.target.join(' ')))).toContain(
+    '#target'
+  );
+  await expectNoAxeViolations(page);
+  expect(await page.evaluate(() => ({ x: scrollX, y: scrollY }))).toEqual(before);
+  // Other rules retain the original verdict even when target-size can be remeasured.
+  await page.locator('#target').evaluate((element) => element.removeAttribute('id'));
+  await page.locator('main button').evaluate((element) => (element.textContent = ''));
+  await expect(expectNoAxeViolations(page)).rejects.toThrow('button-name');
+  expect(await page.evaluate(() => ({ x: scrollX, y: scrollY }))).toEqual(before);
+});
