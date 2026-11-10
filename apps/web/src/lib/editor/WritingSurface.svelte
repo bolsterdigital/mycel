@@ -344,7 +344,14 @@
     });
     let initial = content;
     try {
-      if (value) initial = JSON.parse(value);
+      if (value) {
+        initial = JSON.parse(value);
+        // A refused form post returns the same payload. Keep its visible removals on the next edit.
+        const removed = (initial as ArticleEditorDocument).removedCardIds;
+        removedCardIds = Array.isArray(removed)
+          ? removed.filter((id) => typeof id === 'string')
+          : [];
+      }
     } catch {
       return;
     }
@@ -371,11 +378,12 @@
     // The SSR preview has already laid out these words and cards. Preserve card references above,
     // then let TipTap own the same host instead of appending a second copy of the document.
     if (preview) host.replaceChildren();
-    const baseCardIds = new Set(
-      ((initial as ArticleEditorDocument).content ?? [])
+    const baseCardIds = new Set([
+      ...removedCardIds,
+      ...((initial as ArticleEditorDocument).content ?? [])
         .filter((node) => node.type === 'mycelCard')
-        .map((node) => node.attrs.blockId)
-    );
+        .map((node) => node.attrs.blockId),
+    ]);
     const instance = new Editor({
       element: host,
       injectCSS: false,
