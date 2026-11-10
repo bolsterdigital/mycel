@@ -24,6 +24,7 @@ describe('admin navigation data (#114)', () => {
     const all = [
       'Team',
       'Domains',
+      'Forms',
       'Connections',
       'API access',
       'AI assistance',
@@ -63,7 +64,8 @@ describe('admin navigation data (#114)', () => {
 
   it('leaves out what a member may not open, and an entry with nothing left', () => {
     const author = at(`${base}/content`, ['content:read', 'content:write', 'media:read']);
-    expect(author.map((e) => e.id)).toEqual(['settings']);
+    expect(author.map((e) => e.id)).toEqual(['manage', 'settings']);
+    expect(labels(author[0])).toEqual(['Forms']);
     const reader = at(`${base}/content`, ['content:read']);
     expect(reader).toEqual([]);
     const linked = at(`${base}/connections`, ['connections:read']);

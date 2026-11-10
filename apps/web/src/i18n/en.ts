@@ -2,6 +2,8 @@
 // mail) live in @mycel/core's catalogs; content (labels, consent text) lives on the documents.
 
 export const en = {
+  'admin.audit.op.form.create': 'Form created',
+  'admin.audit.op.form.update': 'Form updated',
   'admin.forms.option.signup': 'Newsletter signup',
   'admin.forms.option.contact': 'Contact',
   'admin.forms.option.petition': 'Petition',

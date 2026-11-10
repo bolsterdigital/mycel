@@ -19,8 +19,15 @@ describe('form authoring', () => {
       invoker.run(useCases.createForm, publicWriter, { kind: 'contact' })
     ).rejects.toMatchObject({ code: 'forbidden' });
     const author: Principal = { ...admin, capabilities: ['content:write'] };
+    for (const kind of ['contact', 'rsvp'] as const)
+      expect((await invoker.run(useCases.createForm, author, { kind })).kind).toBe(kind);
+    for (const kind of ['signup', 'petition'] as const)
+      await expect(invoker.run(useCases.createForm, author, { kind })).rejects.toMatchObject({
+        code: 'forbidden',
+      });
+    const { form, version } = await invoker.run(useCases.getForm, admin, { id });
     await expect(
-      invoker.run(useCases.createForm, author, { kind: 'contact' })
+      invoker.run(useCases.updateForm, author, { baseVersion: version, value: form })
     ).rejects.toMatchObject({ code: 'forbidden' });
     const created = await invoker.run(useCases.createForm, admin, { kind: 'signup' });
     expect(created.fields.map((f) => f.id)).toEqual(['email', 'consent']);

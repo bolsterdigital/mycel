@@ -16,11 +16,11 @@ export function matches(predicate, values) {
   return predicate.op === 'equals' ? equal : !equal;
 }
 export function enhance(form) {
-  const fields = JSON.parse(form.dataset.conditions);
+  const fields = JSON.parse(form.getAttribute('data-conditions'));
   function update() {
     const values = Object.create(null);
     for (const field of fields) {
-      const control = form.elements.namedItem(field.name);
+      const control = form.querySelector(`[name="${field.name}"]`);
       if (!control) continue;
       const active = !field.activeWhen || matches(field.activeWhen, values);
       const required =

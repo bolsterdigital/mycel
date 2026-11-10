@@ -27,12 +27,13 @@ export const createForm = defineUseCase({
   kind: 'command',
   requires: 'content:write',
   consumes: null,
-  description: 'Create a valid live form with publishing permission; never create send actions.',
+  description:
+    'Create an unplaced form; signup and petition creation also require publishing permission. Never create send actions.',
   input: z.object({ kind: z.enum(['signup', 'contact', 'petition', 'rsvp']) }).strict(),
   output: FormDefinition,
   examples: [{ input: { kind: 'contact' } }],
   async handler(ctx, { kind }) {
-    if (!can(ctx.principal, 'content:publish'))
+    if (['signup', 'petition'].includes(kind) && !can(ctx.principal, 'content:publish'))
       throw new UseCaseError('forbidden', 'publishing permission required');
     const form = parseFormDefinition({
       id: ctx.ids.next(),
@@ -106,8 +107,6 @@ export const updateForm = defineUseCase({
     },
   ],
   async handler(ctx, { baseVersion, value }) {
-    if (!can(ctx.principal, 'content:publish'))
-      throw new UseCaseError('forbidden', 'publishing permission required');
     const base = await ctx.forms.lock(value.id);
     if (!base) throw notFound('form');
     const version = await hashInput(ctx.inputHasher, {
@@ -116,6 +115,8 @@ export const updateForm = defineUseCase({
       form: base,
     });
     if (version !== baseVersion) throw new UseCaseError('conflict', 'form version changed');
+    if (!can(ctx.principal, 'content:publish'))
+      throw new UseCaseError('forbidden', 'publishing permission required');
     const parsed = parseFormDefinition(value);
     const mail = (await ctx.formMail.get()).value;
     const config = mail.forms.find((f) => f.formId === value.id);

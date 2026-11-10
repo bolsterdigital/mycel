@@ -1,6 +1,8 @@
 import type { UiKey } from './en.js';
 
 export const nl: Partial<Record<UiKey, string>> = {
+  'admin.audit.op.form.create': 'Formulier aangemaakt',
+  'admin.audit.op.form.update': 'Formulier bijgewerkt',
   'admin.forms.option.signup': 'Nieuwsbriefaanmelding',
   'admin.forms.option.contact': 'Contact',
   'admin.forms.option.petition': 'Petitie',
