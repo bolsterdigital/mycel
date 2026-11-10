@@ -2,9 +2,7 @@
    native invalid-field fallback together; rejected: late JavaScript-only panel hiding. */
 @layer tokens, base, components;
 @layer components {
-  /* Tabs: without a script every section stands below the other with its heading; tabs.js
-     (#66 PR 3) unhides the tablist, marks the panels and sets `data-tabs`. A panel's heading then
-     repeats its tab, so it steps out of sight and stays a heading to navigate by. */
+  /* Native links and enhanced tabs share one strip; headings stay in the accessibility outline. */
   .ui-tabs-list {
     display: flex;
     flex-wrap: wrap;

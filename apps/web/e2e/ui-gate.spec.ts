@@ -414,6 +414,11 @@ test.describe('admin-ui', () => {
           })
         )
       );
+    const showWriter = () =>
+      page.locator('.writing').evaluate((element) => {
+        element.scrollIntoView({ block: 'start' });
+        window.scrollBy(0, -120);
+      });
     // The admin language deliberately differs from the document's: hyphenation must inherit
     // the content locale before TipTap supplies lang, as well as after it.
     for (const locale of ['nl', 'en'])
@@ -446,6 +451,10 @@ test.describe('admin-ui', () => {
           const before = await geometry();
           await layoutGate(page, `native article ${sample}`, '.ui-edit-page');
           await page.screenshot({ path: test.info().outputPath(`native-${sample}.png`) });
+          if (text === '200%') {
+            await showWriter();
+            await page.screenshot({ path: test.info().outputPath(`native-writing-${sample}.png`) });
+          }
           release();
           await expect(page.locator('.writing.active')).toBeVisible();
           await expect(page.locator('.ui-tabs')).toHaveAttribute('data-tabs', '');
@@ -467,6 +476,12 @@ test.describe('admin-ui', () => {
                 .toBeLessThan(10);
           await layoutGate(page, `enhanced article ${sample}`, '.ui-edit-page');
           await page.screenshot({ path: test.info().outputPath(`enhanced-${sample}.png`) });
+          if (text === '200%') {
+            await showWriter();
+            await page.screenshot({
+              path: test.info().outputPath(`enhanced-writing-${sample}.png`),
+            });
+          }
           if (text === '100%') await expectNoAxeViolations(page);
         }
   });
