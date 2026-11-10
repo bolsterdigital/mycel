@@ -260,12 +260,11 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   // asks for it in English and checks the draft never reaches the HTML (brief #8a, audit).
   const invoker = new Invoker(buildRegistry(), uow);
   const admin = systemPrincipal(probe.id, 'e2e');
-  if (
-    !(await invoker.run(useCases.listConnections, admin, {})).connections.some(
-      (c) => c.purpose === 'Quality Mailchimp fixture'
-    )
-  ) {
-    await invoker.run(useCases.createConnection, admin, {
+  let qualityMailchimp = (await invoker.run(useCases.listConnections, admin, {})).connections.find(
+    (c) => c.purpose === 'Quality Mailchimp fixture'
+  );
+  if (!qualityMailchimp) {
+    qualityMailchimp = await invoker.run(useCases.createConnection, admin, {
       provider: 'mailchimp',
       accountRef: 'synthetic-account',
       externalOwner: 'Synthetic organisation',
@@ -281,7 +280,9 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
       adapterVersion: 'v1',
     });
   }
-
+  // The quality runner's API key deliberately has no connection permission. Pass only the
+  // already-authorised synthetic fixture id, rather than broadening that key or prewarming UI.
+  process.env.E2E_MAILCHIMP_CONNECTION_ID = qualityMailchimp.id;
   const draftCheck = { type: 'page', slug: 'draft-check' };
   if (!(await invoker.run(useCases.listItems, admin, draftCheck)).items.length) {
     const { item, revision } = await invoker.run(useCases.createItem, admin, {
