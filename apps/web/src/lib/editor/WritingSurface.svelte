@@ -486,7 +486,7 @@
       aria-hidden={active ? 'true' : undefined}
       open={fallback}
     >
-      <summary><Icon name="chevron-down" />{t('admin.editor.editFields')}</summary>
+      <summary><Icon name="chevron-down" /><span>{t('admin.editor.editFields')}</span></summary>
       {@render native()}
     </details>
   {/if}
@@ -642,9 +642,17 @@
     color: var(--color-link);
     font: inherit;
     font-weight: 600;
-    white-space: nowrap;
+    white-space: normal;
+    hyphens: manual;
     list-style: none;
     cursor: pointer;
+  }
+  .writing-native > summary :global(svg) {
+    flex-shrink: 0;
+  }
+  .writing-native > summary span {
+    min-inline-size: 0;
+    overflow-wrap: normal;
   }
   .writing-native > summary::-webkit-details-marker {
     display: none;

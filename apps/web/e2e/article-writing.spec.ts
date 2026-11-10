@@ -1605,7 +1605,7 @@ test.describe('article-writing', () => {
     await tool('Vet').focus();
     await page.keyboard.press('ArrowRight');
     await expect(tool('Cursief')).toBeFocused();
-    await expect(bar.locator('.format-tip')).toHaveText(/^Cursief \((Ctrl\+|⌘)I\)$/);
+    await expect(bar.locator(':scope > .format-tip')).toHaveText(/^Cursief \((Ctrl\+|⌘)I\)$/);
     await page.screenshot({ path: test.info().outputPath('formatting-bar-1280.png') });
     await expect(tool('Ongedaan maken')).toBeEnabled();
     await expectNoAxeViolations(page);

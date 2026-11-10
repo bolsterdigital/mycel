@@ -326,12 +326,13 @@ test.describe('admin-ui', () => {
     request,
   }) => {
     onlyA11y('measures the native document before its enhancement');
-    const edit = await longArticle(request);
     const geometry = (page: Page) =>
       page.evaluate(() =>
         Object.fromEntries(
           [
             'html',
+            '.ui-item-bar',
+            '[data-presence]',
             '.ui-edit-main',
             '.ui-edit-side',
             '.ui-tabs',
@@ -358,6 +359,10 @@ test.describe('admin-ui', () => {
     // The admin language deliberately differs from the document's: hyphenation must inherit
     // the content locale before TipTap supplies lang, as well as after it.
     for (const locale of ['nl', 'en']) {
+      // Each browser owns its article: a closed context's presence remains alive for 70s
+      // (ADR 029), and a new context is correctly shown as a second tab of the same editor.
+      // That live collaboration notice is not a change of the editor's hydration geometry.
+      const edit = await longArticle(request);
       const adminLocale = locale === 'nl' ? 'en' : 'nl';
       const context = await browser.newContext({ locale: adminLocale, viewport: NARROW });
       try {
@@ -396,6 +401,7 @@ test.describe('admin-ui', () => {
               locale
             );
             const beforeScroll = await page.evaluate(() => scrollY);
+            await expect(page.locator('[data-presence]')).toBeEmpty();
             const before = await geometry(page);
             await layoutGate(page, `native article ${sample}`, '.ui-edit-page');
             await page.screenshot({ path: test.info().outputPath(`native-${sample}.png`) });
@@ -406,13 +412,18 @@ test.describe('admin-ui', () => {
               });
             }
             await page.evaluate(() => window.scrollTo(0, 0));
+            const beat = page.waitForResponse(
+              (r) => r.url().endsWith('/presence') && r.request().method() === 'POST'
+            );
             release();
+            expect((await beat).ok()).toBe(true);
             await expect(page.locator('.writing.active')).toBeVisible();
             await expect(page.locator('.ui-tabs')).toHaveAttribute('data-tabs', '');
             await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
             const originalAfterScroll = await page.evaluate(() => scrollY);
             await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
             const afterScroll = await page.evaluate(() => scrollY);
+            await expect(page.locator('[data-presence]')).toBeEmpty();
             const after = await geometry(page);
             const measurement = test.info().outputPath(`geometry-${sample}.json`);
             await writeFile(

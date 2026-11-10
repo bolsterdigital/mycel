@@ -40,7 +40,6 @@
     /** Undefined for a command that is no toggle (undo, redo). */
     pressed?: boolean;
     disabled?: boolean;
-    styleAlternative?: Snippet;
     run: (byKeyboard: boolean) => void;
   }
   const groups = $derived<Tool[][]>([
