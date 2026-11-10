@@ -111,6 +111,22 @@ async function upload(page: Page, filename: string, buffer = png(400, 300)) {
   return { card, id: id! };
 }
 
+/** Upload through the real form so the fixture uses the same blob store as the server. */
+async function uploadPdf(page: Page, filename: string, hint: string) {
+  leftovers.names.push(filename);
+  await page.goto('/admin/probe/media');
+  await page.locator('[commandfor="media-upload"][command="show-modal"]').click();
+  const dialog = page.locator('#media-upload');
+  await expect(dialog).toContainText(hint);
+  await dialog.locator('input[name="file"]').setInputFiles({
+    name: filename,
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.7\n%%EOF'),
+  });
+  await dialog.locator('button[type="submit"]').click();
+  await openDetail(page, filename);
+}
+
 /**
  * What a test leaves in probe: pages it made and images it uploaded (by id, or by filename for an
  * upload the picker made). Cleared after each test, pass or fail: there is no content
@@ -541,23 +557,9 @@ test('the library takes several files at once and finds one by name or caption',
   await page.goto(`/admin/probe/media?q=niets-${stamp}`);
   await expect(page.getByText(`Niets gevonden voor “niets-${stamp}”.`)).toBeVisible();
 
-  await page.goto('/admin/probe/media');
-  await page.getByRole('button', { name: 'Bestand uploaden', exact: true }).click();
-  const pdfName = `jaarverslag-${stamp}.pdf`;
-  leftovers.names.push(pdfName);
-  await expect(page.locator('#media-upload')).toContainText(
-    ui('nl')('admin.media.filename.publicHint')
-  );
-  await page.getByLabel('Bestanden (verplicht)', { exact: true }).setInputFiles({
-    name: pdfName,
-    mimeType: 'application/pdf',
-    buffer: Buffer.from('%PDF-1.7\n%%EOF'),
-  });
-  await page.getByRole('button', { name: 'Uploaden', exact: true }).click();
-  await openDetail(page, pdfName);
-  await expect(
-    page.getByText(ui('nl')('admin.media.filename.publicHint'), { exact: true })
-  ).toBeVisible();
+  const filenameHint = ui('nl')('admin.media.filename.publicHint');
+  await uploadPdf(page, `jaarverslag-${stamp}.pdf`, filenameHint);
+  await expect(page.getByText(filenameHint, { exact: true })).toBeVisible();
   await expectNoAxeViolations(page, { dark: true });
 
   for (const name of names) await remove(page, ids[name]!, name);
@@ -1649,15 +1651,7 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
         await page.locator('[command="show-modal"]').click();
         await layoutGate(page, 'lightbox');
         await page.keyboard.press('Escape');
-        const pdf = await withInvoker((invoker) =>
-          invoker.run(useCases.uploadMedia, principal, {
-            filename: `public-${Date.now()}.pdf`,
-            contentType: 'application/pdf',
-            bytes: Buffer.from('%PDF-1.7\n%%EOF').toString('base64'),
-          })
-        );
-        leftovers.media.push(pdf.id);
-        await page.goto(`/admin/probe/media/${pdf.id}`);
+        await uploadPdf(page, `public-${locale}-${Date.now()}.pdf`, filenameHint);
         await setTextSize(page, text);
         await expect(page.getByText(filenameHint, { exact: true })).toBeVisible();
         await layoutGate(page, 'PDF detail');
