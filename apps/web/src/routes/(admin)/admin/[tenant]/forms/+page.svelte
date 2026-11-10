@@ -1,5 +1,6 @@
 <!-- A native inventory keeps form authoring available without the interactive content editor. -->
 <script lang="ts">
+  import { formDefinitionName } from '@mycel/core';
   import { Actions, Button, Field, Notice, PageHeader } from '#lib/admin/ui/index.js';
   import { ui, refusalCopy } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -20,7 +21,9 @@
   <ul>
     {#each data.forms as f}<li>
         <a href="/admin/{data.tenant.slug}/forms/{f.id}"
-          >{f.list} ({t(`admin.forms.option.${f.kind}` as const)}) · {f.id}</a
+          >{formDefinitionName(f, data.locale, data.tenant.defaultLocale)} ({t(
+            `admin.forms.option.${f.kind}` as const
+          )}) · {f.id}</a
         >
       </li>{/each}
   </ul>

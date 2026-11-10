@@ -53,4 +53,27 @@ describe('native form authoring input', () => {
     expect(value.fields[0]?.name).toBe('new_email');
     expect(FormDefinition.safeParse(value).success).toBe(true);
   });
+  it('edits definition names without losing unoffered locales or configuration', () => {
+    const form = {
+      ...conditionalProbeForm('01900000-0000-7000-8000-00000000f000'),
+      name: { de: 'Kontakt', en: 'Old' },
+    };
+    const value = updateDefinition(
+      data({
+        command: 'settings',
+        kind: form.kind,
+        list: form.list,
+        consentTextVersion: form.consentTextVersion,
+        'name.nl': 'Contact',
+        'name.en': 'Contact us',
+        'submitLabel.en': form.submitLabel.en!,
+        'thankYou.en': form.thankYou.en!,
+      }),
+      form
+    );
+    expect(value.name).toEqual({ de: 'Kontakt', nl: 'Contact', en: 'Contact us' });
+    expect(value.fields).toEqual(form.fields);
+    expect(value.id).toBe(form.id);
+    expect(value.minFillSeconds).toBe(form.minFillSeconds);
+  });
 });

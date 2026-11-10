@@ -99,15 +99,17 @@ export function updateDefinition(data: FormData, form: FormDefinition): FormDefi
     const target = index + (command === 'up' ? -1 : 1);
     if (index < 0 || target < 0 || target >= fields.length) return invalid();
     [fields[index], fields[target]] = [fields[target]!, fields[index]!];
-  } else if (command === 'settings')
+  } else if (command === 'settings') {
+    const name = localizedInput(data, 'name', form.name);
     return {
       ...form,
+      name: Object.keys(name).length ? name : undefined,
       kind: text(data, 'kind') as FormDefinition['kind'],
       list: text(data, 'list'),
       consentTextVersion: text(data, 'consentTextVersion'),
       submitLabel: localizedInput(data, 'submitLabel', form.submitLabel),
       thankYou: localizedInput(data, 'thankYou', form.thankYou),
     };
-  else return invalid();
+  } else return invalid();
   return { ...form, fields };
 }

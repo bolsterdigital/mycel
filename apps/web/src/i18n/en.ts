@@ -30,6 +30,7 @@ export const en = {
   'admin.forms.remove': 'Remove',
   'admin.forms.up': 'Move up',
   'admin.forms.down': 'Move down',
+  'admin.forms.definitionName': 'Form name',
   'admin.forms.settings': 'Form settings',
   'admin.forms.fields': 'Fields',
   'admin.forms.field': 'Field',

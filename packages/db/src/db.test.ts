@@ -327,7 +327,7 @@ describe.skipIf(skip)('postgres adapter', () => {
     const edit = (label: string) =>
       invoker.run(useCases.updateForm, principal, {
         baseVersion: version,
-        value: { ...form, submitLabel: { nl: label, en: label } },
+        value: { ...form, name: { nl: label, en: label, de: 'Kontakt' } },
       });
     const outcomes = await Promise.allSettled([edit('First'), edit('Second')]);
     expect(outcomes.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
@@ -335,6 +335,11 @@ describe.skipIf(skip)('postgres adapter', () => {
       status: 'rejected',
       reason: { code: 'conflict' },
     });
+    const saved = await invoker.run(useCases.getFormForAuthoring, principal, { id });
+    expect(['First', 'Second']).toContain(saved.form.name?.en);
+    expect(saved.form.name?.de).toBe('Kontakt');
+    expect(saved.form.fields).toEqual(form.fields);
+    expect(saved.version).not.toBe(version);
     expect(
       (await invoker.run(useCases.listForms, systemPrincipal(tenantB, 'test'), {})).forms.some(
         (f) => f.id === id

@@ -4,6 +4,8 @@ How a visitor's signup becomes a stored submission, a confirmation mail and a su
 
 ## The definition
 
+The optional `name` is localised editorial metadata (1 to 200 trimmed characters per locale), separate from the list consent scope and visitor copy. Authoring displays `formDefinitionName`: requested locale, tenant default, any available name, then the legacy list slug. Missing names are not synthesised into definitions, preserving existing fingerprints and historical submission pins. A rename participates in the existing whole-definition save fingerprint and live-save publishing permission. The existing JSON definition column and archive round trip retain names without a migration.
+
 `FormDefinition` (`forms/model.ts`) supports signup, contact, petition and RSVP forms. Fields have stable ids, typed values and bounded conditions for activity and requiredness. Every form has one always-active required e-mail field; a signup also has a consent field. The server evaluates conditions over validated active values, discards or rejects inactive input according to the definition, and retains the exact definition and decisions in the submission. Labels, the submit label and the thank-you text are localised maps (`localized()`, see [i18n.md](i18n.md)).
 
 | Field                | Content                                                                                                                 |

@@ -22,6 +22,13 @@
       name="command"
       value="settings"
     />
+    <CopyFields
+      prefix="name"
+      id="definition-name"
+      label={t('admin.forms.definitionName')}
+      {locale}
+      value={form.name}
+    />
     <Field id="kind" label={t('admin.forms.kind')} {locale}
       >{#snippet control(a)}<select {...a} name="kind"
           >{#each ['signup', 'contact', 'petition', 'rsvp'] as kind}<option

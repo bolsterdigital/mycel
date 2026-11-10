@@ -1,5 +1,6 @@
 // Authoring regressions cover capability separation, stale saves and immutable accepted history.
 import { beforeEach, describe, it, expect } from 'vitest';
+import { FormDefinition, formDefinitionName } from './model.js';
 import { Invoker } from '../invoke.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { systemPrincipal, anonymousPrincipal, type Principal } from '../principal.js';
@@ -40,9 +41,20 @@ describe('form authoring', () => {
     });
     expect(accepted.status).toBe('accepted');
     const original = await invoker.run(useCases.getForm, admin, { id });
+    expect(original.form.name).toBeUndefined();
+    expect(formDefinitionName(original.form, 'nl')).toBe(original.form.list);
     const value = structuredClone(original.form);
-    value.fields[0]!.label.en = 'Changed';
+    value.name = { nl: 'Nieuwsbrief', en: 'Newsletter', de: 'Nachrichten' };
     await invoker.run(useCases.updateForm, admin, { baseVersion: original.version, value });
+    const latest = await invoker.run(useCases.getFormForAuthoring, admin, { id });
+    expect(latest.version).not.toBe(original.version);
+    expect(latest.form.name).toEqual(value.name);
+    expect(latest.form.fields).toEqual(original.form.fields);
+    expect((await invoker.run(useCases.listForms, admin, {})).forms[0]?.name).toEqual(value.name);
+    expect(formDefinitionName(latest.form, 'fr', 'nl')).toBe('Nieuwsbrief');
+    expect(formDefinitionName(latest.form, 'en')).toBe('Newsletter');
+    expect(FormDefinition.safeParse({ ...value, name: {} }).success).toBe(false);
+    expect(FormDefinition.safeParse({ ...value, name: { en: ' ' } }).success).toBe(false);
     await expect(
       invoker.run(useCases.updateForm, admin, {
         baseVersion: original.version,
@@ -51,6 +63,8 @@ describe('form authoring', () => {
     ).rejects.toMatchObject({ code: 'conflict' });
     if (accepted.status !== 'accepted') throw new Error('fixture');
     const stored = await uow.run(admin, (c) => c.submissions.findById(accepted.submissionId));
+    expect(stored?.evaluation?.definition.name).toBeUndefined();
+    expect(stored?.evaluation?.version).toBe(original.version);
     expect(stored?.evaluation?.definition.fields[0]?.label.en).toBe(
       original.form.fields[0]?.label.en
     );
