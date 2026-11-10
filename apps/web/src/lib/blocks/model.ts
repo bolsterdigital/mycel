@@ -59,7 +59,7 @@ export interface RenderImage {
   srcset: string;
   avifSrcset: string;
   caption: string | null;
-  credit: MediaCredit | null;
+  credit: (MediaCredit & { photographerHref?: string | null }) | null;
   /** The focal point quantised to steps of 10 % (0..10), rendered as classes under the CSP. */
   focal: { x: number; y: number };
   /** The widest public WebP variant, which the lightbox opens; null without a variant. */

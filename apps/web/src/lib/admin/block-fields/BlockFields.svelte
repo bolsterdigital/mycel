@@ -23,7 +23,7 @@
   import { BLOCK_DEFINITIONS, type BlockField, type BlockType } from '@mycel/core';
   import RowCard from './RowCard.svelte';
   import TargetPicker from './TargetPicker.svelte';
-  import { Button, Checkbox, Field, Fieldset, Icon, MediaPicker } from '../ui/index.js';
+  import { Button, Checkbox, Choices, Field, Fieldset, Icon, MediaPicker } from '../ui/index.js';
   import type { MediaChoice } from '../media-choice.js';
   import { fill, ui, type UiKey } from '../../../i18n/index.js';
 
@@ -293,6 +293,19 @@
     />
   {:else if f.kind === 'reference' && f.to === 'item'}
     {@render select(name, label(f.key), references?.items ?? items, t('admin.block.none'))}
+  {:else if f.kind === 'reference' && f.key === 'photographerPersonId'}
+    <Choices
+      id={id(name)}
+      {name}
+      legend={label(f.key)}
+      {locale}
+      searchable
+      selected={[v(name)]}
+      options={[
+        { value: '', label: t('admin.block.none') },
+        ...(references?.people ?? people).map((p) => ({ value: p.id, label: p.label })),
+      ]}
+    />
   {:else if f.kind === 'reference' && (f.to === 'person' || f.to === 'person_group')}
     {@render select(
       name,

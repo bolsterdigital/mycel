@@ -239,7 +239,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
       naming: blockNaming(b, work, doc.defaultLocale, options.media),
       summary: summaryOf(b, read),
       preview: previewOf(b, read, options),
-      image: imageRestOf(b, read, options.media, doc.locales),
+      image: imageRestOf(b, read, options.media, doc.locales, options.people),
       text: textRestOf(b, read, blockPrefix(b.id), forms),
       duplicable: !SINGLE.has(b.type),
       // The other locales a text block has, to translate the shown one from (AI help).

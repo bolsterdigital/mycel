@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { sql, type Kysely } from 'kysely';
-import { systemPrincipal, useCases, type BlobStore, type Invoker } from '@mycel/core';
+import { EXAMPLE_PNG, systemPrincipal, useCases, type BlobStore, type Invoker } from '@mycel/core';
 import { createTenant } from '../platform.js';
 import { uuidv7 } from '../infra/ids.js';
 import type { Database } from '../infra/schema.js';
@@ -97,6 +97,12 @@ export async function seedGroupedPerson(
     publicEmail: 'public@example.org',
     role: { nl: 'Redacteur' },
     pagePolicy: 'never',
+  });
+  await invoker.run(useCases.uploadMedia, admin, {
+    filename: 'credit.png',
+    contentType: 'image/png',
+    bytes: EXAMPLE_PNG,
+    credit: { work: null, photographer: 'Fallback', photographerPersonId: person.id },
   });
   await invoker.run(useCases.createPersonGroup, admin, {
     name: { nl: 'Redactie' },

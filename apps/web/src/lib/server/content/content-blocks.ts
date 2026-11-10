@@ -554,7 +554,8 @@ export function imageRestOf(
   block: Block,
   locale: string,
   media: readonly MediaChoice[],
-  locales: readonly string[] = []
+  locales: readonly string[] = [],
+  people: readonly Option[] = []
 ): ImageRest | null {
   // A legacy hero shows its picture, not its caption or credit: the page does not set them there.
   const onPage = block.type === 'image';
@@ -584,7 +585,12 @@ export function imageRestOf(
   const own = p.caption?.[locale];
   const inherited = asset?.card?.caption[locale] ?? '';
   const caption = own !== undefined ? own : inherited;
-  const credit = p.credit ?? asset?.card?.credit ?? null;
+  const storedCredit = p.credit ?? asset?.card?.credit ?? null;
+  const maker = storedCredit?.photographerPersonId
+    ? people.find((p) => p.id === storedCredit.photographerPersonId)
+    : null;
+  const credit =
+    storedCredit && maker ? { ...storedCredit, photographer: maker.label } : storedCredit;
   return {
     description,
     mediaId: p.mediaId,

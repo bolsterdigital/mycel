@@ -10,6 +10,12 @@ The media library of a site (PRs #15 and #16): one register of uploaded files pe
 
 Content refers to a **media id**, never to a URL. Mycel owns the record (id, checksum, sizes, editorial fields, usages, state) in the `media` table; the bytes live in a `BlobStore` under keys derived from the id. Three ports keep three concerns apart: `BlobStore` (storage), `ImageProcessor` (processing) and `MediaDelivery` (where a variant is served). Swapping a directory for a bucket, sharp for another library, or the site's own route for a CDN changes no content.
 
+## Image makers
+
+An optional `credit.photographerPersonId` links an asset or an image-use override to the tenant's people register. The stored `photographer` text remains an independent fallback. Rendering reads the current person name and uses the shared profile-availability decision for a link; an unavailable profile still supplies the credit name. Only name and an available profile slug enter that projection, never internal email or other contact fields. A missing person uses the credit's own free text. Names are not copied into stored assets or historical revisions.
+
+The media form and block override use the shared searchable native choices component, with a separate free-text fallback. Stored ids stay separate from visible names, including duplicate names. Old credits remain valid without the new field. Both credits travel unchanged in the existing JSON columns during tenant export/import; no table or migration is added.
+
 ## Use cases
 
 | Use case       | Kind    | Capability    | Notes                                                                                                                                                                                                                                                                                                                        |

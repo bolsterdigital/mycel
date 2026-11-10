@@ -14,6 +14,7 @@
 import { z } from 'zod';
 import { peopleGridDefinition } from './people/grid-block.js';
 import { localized } from '../i18n/locale.js';
+import { imageRefs } from './blocks/image-references.js';
 import { CREDIT_KINDS, MediaCredit } from '../media/model.js';
 import { RichTextDoc, isSafeHref, linkedItemIds } from './rich-text.js';
 import { EXAMPLE_IDS } from './blocks/example-ids.js';
@@ -70,7 +71,7 @@ export type BlockField =
       key: string;
       kind: 'reference';
       to: 'form' | 'item' | 'person' | 'person_group';
-      optional?: 'null';
+      optional?: 'null' | 'omit';
     }
   | { key: string; kind: 'choice'; options: readonly string[]; initial?: string; optional?: 'omit' }
   | { key: string; kind: 'boolean' }
@@ -201,6 +202,7 @@ const creditField: BlockField = {
       fields: [textField('title', { localized: false }), textField('maker', { localized: false })],
     },
     textField('photographer', { localized: false, optional: 'null' }),
+    { key: 'photographerPersonId', kind: 'reference', to: 'person', optional: 'omit' },
     { key: 'kind', kind: 'choice', options: CREDIT_KINDS, optional: 'omit' },
   ],
 };
@@ -387,7 +389,7 @@ export const BLOCK_DEFINITIONS = {
     fields: imageFieldsOf(IMAGE_LAYOUTS),
     variants: { layout: IMAGE_LAYOUTS },
     localized: (p) => imageFields([], p),
-    references: (p) => [{ type: 'media', refId: p.mediaId }],
+    references: (p) => imageRefs(p),
     examples: [
       { name: 'image-content', props: image },
       {
@@ -455,10 +457,7 @@ export const BLOCK_DEFINITIONS = {
       ...(p.image ? imageFields(['image'], p.image) : []),
       ...actionFields(p.actions),
     ],
-    references: (p) => [
-      ...(p.image ? [{ type: 'media' as const, refId: p.image.mediaId }] : []),
-      ...actionRefs(p.actions),
-    ],
+    references: (p) => [...(p.image ? imageRefs(p.image) : []), ...actionRefs(p.actions)],
     examples: [
       {
         name: 'hero-minimal',
@@ -733,7 +732,7 @@ export const BLOCK_DEFINITIONS = {
     ],
     variants: { variant: GALLERY_VARIANTS, width: WIDTHS },
     localized: (p) => p.images.flatMap((image, i) => imageFields(['images', i], image)),
-    references: (p) => p.images.map((image) => ({ type: 'media' as const, refId: image.mediaId })),
+    references: (p) => p.images.flatMap(imageRefs),
     examples: [
       {
         name: 'gallery-grid',

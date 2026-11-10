@@ -187,6 +187,26 @@
         selected={[creditKind(m.credit)]}
         options={CREDIT_KINDS.map((k) => ({ value: k, label: t(`admin.block.option.${k}`) }))}
       />
+      {#if data.people}
+        <Choices
+          id="photographer-person"
+          name="photographerPersonId"
+          legend={t('admin.block.field.photographerPersonId')}
+          locale={data.locale}
+          searchable
+          selected={[m.credit.photographerPersonId ?? '']}
+          options={[
+            { value: '', label: t('admin.block.none') },
+            ...data.people.map((person) => ({ value: person.id, label: person.name })),
+          ]}
+        />
+      {:else}
+        <input
+          type="hidden"
+          name="photographerPersonId"
+          value={m.credit.photographerPersonId ?? ''}
+        />
+      {/if}
       <Field
         id="photographer"
         name="photographer"

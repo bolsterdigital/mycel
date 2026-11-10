@@ -303,7 +303,11 @@ function reader(form: Posted, errors: FieldError[]): Read {
       case 'reference': {
         const value = form.get(name);
         if (value === null) return base;
-        return isEmpty(value) && field.optional === 'null' ? null : value;
+        return isEmpty(value) && field.optional === 'omit'
+          ? undefined
+          : isEmpty(value) && field.optional === 'null'
+            ? null
+            : value;
       }
       case 'media':
       case 'date':

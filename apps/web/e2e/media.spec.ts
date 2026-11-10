@@ -197,9 +197,27 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
   expect(variant.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
   expect((await request.get(`${SITE}/media/${id}/original.png`)).status()).toBe(404);
 
+  const makerName = `Credit maker ${randomUUID().slice(0, 8)}`;
+  const makerPrincipal = systemPrincipal(await tenantId(), 'e2e');
+  const maker = await withInvoker(async (invoker) => {
+    const person = await invoker.run(useCases.createPerson, makerPrincipal, {
+      slug: `credit-${randomUUID()}`,
+      name: makerName,
+      pagePolicy: 'never',
+    });
+    for (let n = 0; n < 8; n++)
+      await invoker.run(useCases.createPerson, makerPrincipal, {
+        slug: `credit-${randomUUID()}`,
+        name: `Other maker ${n}`,
+      });
+    return person;
+  });
+
   // Its own page: a preview from the admin's variant route and a lightbox without a script.
   await openDetail(page, filename);
-  expect(await page.locator('script:not([src="/_admin/nav.js"])').count()).toBe(0);
+  expect(
+    await page.locator('script:not([src="/_admin/nav.js"], [src="/_admin/choices.js"])').count()
+  ).toBe(0);
   const preview = page.getByRole('region', { name: 'Voorbeeld' });
   const src = await preview.locator('img').first().getAttribute('src');
   expect(src).toMatch(new RegExp(`^/admin/probe/media/${id}/variant/w\\d+\\.webp$`));
@@ -220,12 +238,30 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
   await expect(page.getByRole('radio', { name: 'Foto' })).toBeChecked();
   await page.getByRole('radio', { name: 'Illustratie' }).check();
   await page.getByLabel('Beeld door').fill('A. Fotograaf');
+  const makerChoices = page.getByRole('group', { name: 'Beeldmaker uit personen', exact: true });
+  if (isA11y()) await makerChoices.getByRole('searchbox').fill(makerName);
+  await makerChoices.getByRole('radio', { name: makerName, exact: true }).check();
+
   await page.getByLabel('Licentie').fill('CC BY 4.0');
   await page.locator('summary', { hasText: 'Focuspunt' }).click();
   await page.getByLabel('Horizontaal').fill('0.25');
   await page.getByRole('button', { name: 'Gegevens opslaan' }).click();
-  await expect(page.getByRole('status')).toContainText(`Gegevens van ${filename} opgeslagen`);
+  await expect(
+    page.getByRole('status').filter({ hasText: `Gegevens van ${filename}` })
+  ).toContainText(`Gegevens van ${filename} opgeslagen`);
   await expect(page.getByLabel('Beeld door')).toHaveValue('A. Fotograaf');
+  await expect(page.getByRole('radio', { name: makerName, exact: true })).toBeChecked();
+  await withInvoker(async (invoker) => {
+    const saved = await invoker.run(useCases.getMedia, makerPrincipal, { id });
+    expect(saved.credit.photographerPersonId).toBe(maker.id);
+  });
+  await page.setViewportSize(NARROW);
+  await setTextSize(page, '200%');
+  await layoutGate(page);
+  await page.screenshot({ path: test.info().outputPath('credit-320-200.png'), fullPage: true });
+  await page.reload();
+  await page.setViewportSize({ width: 1280, height: 900 });
+
   await expect(page.getByRole('radio', { name: 'Illustratie' })).toBeChecked();
   await expect(page.getByLabel('Maker van het werk')).toHaveValue('Buurtcomité');
   await page.locator('summary', { hasText: 'Focuspunt' }).click();

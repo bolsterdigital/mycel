@@ -1430,6 +1430,7 @@ export const en = {
   'admin.block.field.work': 'Work',
   'admin.block.field.title': 'Title',
   'admin.block.field.maker': 'Maker',
+  'admin.block.field.photographerPersonId': 'Image maker from people',
   'admin.block.field.photographer': 'Image by',
   'admin.block.field.kind': 'Kind of image',
   'admin.block.option.photo': 'Photo',

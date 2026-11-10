@@ -130,3 +130,5 @@ export * from './content/people/public.js';
 
 export * from './content/people/grid.js';
 export * from './content/people/grid-block.js';
+
+export * from './content/people/credit.js';

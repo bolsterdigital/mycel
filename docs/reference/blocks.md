@@ -48,19 +48,20 @@ Examples: `paywall`.
 
 Version 1.
 
-| Prop                  | Label                       | Kind                                                          | Presence                   |
-| --------------------- | --------------------------- | ------------------------------------------------------------- | -------------------------- |
-| `mediaId`             | Image                       | image (media id)                                              | required                   |
-| `decorative`          | Decorative (no description) | yes or no                                                     | required                   |
-| `alt`                 | Description (alt text)      | localised text                                                | optional (null when empty) |
-| `caption`             | Caption                     | localised caption: the file’s, none, or its own per locale    | optional                   |
-| `credit`              | Own credit for this use     | group                                                         | optional                   |
-| `credit.work`         | Work                        | group                                                         | optional (null when empty) |
-| `credit.work.title`   | Title                       | text                                                          | required                   |
-| `credit.work.maker`   | Maker                       | text                                                          | required                   |
-| `credit.photographer` | Image by                    | text                                                          | optional (null when empty) |
-| `credit.kind`         | Kind of image               | one of `photo`, `illustration`, `other`                       | optional                   |
-| `layout`              | Layout                      | one of `content`, `wide`, `full`, `float-left`, `float-right` | required                   |
+| Prop                          | Label                       | Kind                                                          | Presence                   |
+| ----------------------------- | --------------------------- | ------------------------------------------------------------- | -------------------------- |
+| `mediaId`                     | Image                       | image (media id)                                              | required                   |
+| `decorative`                  | Decorative (no description) | yes or no                                                     | required                   |
+| `alt`                         | Description (alt text)      | localised text                                                | optional (null when empty) |
+| `caption`                     | Caption                     | localised caption: the file’s, none, or its own per locale    | optional                   |
+| `credit`                      | Own credit for this use     | group                                                         | optional                   |
+| `credit.work`                 | Work                        | group                                                         | optional (null when empty) |
+| `credit.work.title`           | Title                       | text                                                          | required                   |
+| `credit.work.maker`           | Maker                       | text                                                          | required                   |
+| `credit.photographer`         | Image by                    | text                                                          | optional (null when empty) |
+| `credit.photographerPersonId` | Image maker from people     | person reference (id)                                         | optional                   |
+| `credit.kind`                 | Kind of image               | one of `photo`, `illustration`, `other`                       | optional                   |
+| `layout`                      | Layout                      | one of `content`, `wide`, `full`, `float-left`, `float-right` | required                   |
 
 Examples: `image-content`, `image-wide-caption-credit` (Caption and credit override the asset for this use), `image-full-decorative` (Decorative: no alt text, the renderer writes alt=""), `image-float-left`, `image-float-right`.
 
@@ -68,26 +69,27 @@ Examples: `image-content`, `image-wide-caption-credit` (Caption and credit overr
 
 Version 1.
 
-| Prop                        | Label                       | Kind                                                       | Presence                   |
-| --------------------------- | --------------------------- | ---------------------------------------------------------- | -------------------------- |
-| `variant`                   | Variant                     | one of `minimal`, `cover`, `split`                         | required                   |
-| `title`                     | Title                       | localised text                                             | required                   |
-| `body`                      | Body text                   | localised multi-line text                                  | optional                   |
-| `image`                     | Image                       | group                                                      | optional                   |
-| `image.mediaId`             | Image                       | image (media id)                                           | required                   |
-| `image.decorative`          | Decorative (no description) | yes or no                                                  | required                   |
-| `image.alt`                 | Description (alt text)      | localised text                                             | optional (null when empty) |
-| `image.caption`             | Caption                     | localised caption: the file’s, none, or its own per locale | optional                   |
-| `image.credit`              | Own credit for this use     | group                                                      | optional                   |
-| `image.credit.work`         | Work                        | group                                                      | optional (null when empty) |
-| `image.credit.work.title`   | Title                       | text                                                       | required                   |
-| `image.credit.work.maker`   | Maker                       | text                                                       | required                   |
-| `image.credit.photographer` | Image by                    | text                                                       | optional (null when empty) |
-| `image.credit.kind`         | Kind of image               | one of `photo`, `illustration`, `other`                    | optional                   |
-| `image.layout`              | Layout                      | one of `content`                                           | required                   |
-| `actions`                   | Buttons                     | 0–2 buttons: a localised label and an item or a URL        | required                   |
-| `width`                     | Width                       | one of `content`, `wide`, `full`                           | required                   |
-| `align`                     | Alignment                   | one of `start`, `center`, `end`                            | required                   |
+| Prop                                | Label                       | Kind                                                       | Presence                   |
+| ----------------------------------- | --------------------------- | ---------------------------------------------------------- | -------------------------- |
+| `variant`                           | Variant                     | one of `minimal`, `cover`, `split`                         | required                   |
+| `title`                             | Title                       | localised text                                             | required                   |
+| `body`                              | Body text                   | localised multi-line text                                  | optional                   |
+| `image`                             | Image                       | group                                                      | optional                   |
+| `image.mediaId`                     | Image                       | image (media id)                                           | required                   |
+| `image.decorative`                  | Decorative (no description) | yes or no                                                  | required                   |
+| `image.alt`                         | Description (alt text)      | localised text                                             | optional (null when empty) |
+| `image.caption`                     | Caption                     | localised caption: the file’s, none, or its own per locale | optional                   |
+| `image.credit`                      | Own credit for this use     | group                                                      | optional                   |
+| `image.credit.work`                 | Work                        | group                                                      | optional (null when empty) |
+| `image.credit.work.title`           | Title                       | text                                                       | required                   |
+| `image.credit.work.maker`           | Maker                       | text                                                       | required                   |
+| `image.credit.photographer`         | Image by                    | text                                                       | optional (null when empty) |
+| `image.credit.photographerPersonId` | Image maker from people     | person reference (id)                                      | optional                   |
+| `image.credit.kind`                 | Kind of image               | one of `photo`, `illustration`, `other`                    | optional                   |
+| `image.layout`                      | Layout                      | one of `content`                                           | required                   |
+| `actions`                           | Buttons                     | 0–2 buttons: a localised label and an item or a URL        | required                   |
+| `width`                             | Width                       | one of `content`, `wide`, `full`                           | required                   |
+| `align`                             | Alignment                   | one of `start`, `center`, `end`                            | required                   |
 
 Examples: `hero-minimal`, `hero-cover`, `hero-split-long-label`, `hero-minimal-content`.
 
@@ -156,21 +158,22 @@ Examples: `file-download-one`, `file-download-titled`.
 
 Version 1.
 
-| Prop                           | Label                       | Kind                                                       | Presence                   |
-| ------------------------------ | --------------------------- | ---------------------------------------------------------- | -------------------------- |
-| `images`                       | Image                       | list of 2–24                                               | required                   |
-| `images[].mediaId`             | Image                       | image (media id)                                           | required                   |
-| `images[].decorative`          | Decorative (no description) | yes or no                                                  | required                   |
-| `images[].alt`                 | Description (alt text)      | localised text                                             | optional (null when empty) |
-| `images[].caption`             | Caption                     | localised caption: the file’s, none, or its own per locale | optional                   |
-| `images[].credit`              | Own credit for this use     | group                                                      | optional                   |
-| `images[].credit.work`         | Work                        | group                                                      | optional (null when empty) |
-| `images[].credit.work.title`   | Title                       | text                                                       | required                   |
-| `images[].credit.work.maker`   | Maker                       | text                                                       | required                   |
-| `images[].credit.photographer` | Image by                    | text                                                       | optional (null when empty) |
-| `images[].credit.kind`         | Kind of image               | one of `photo`, `illustration`, `other`                    | optional                   |
-| `variant`                      | Variant                     | one of `grid`, `row`                                       | required                   |
-| `width`                        | Width                       | one of `content`, `wide`, `full`                           | required                   |
+| Prop                                   | Label                       | Kind                                                       | Presence                   |
+| -------------------------------------- | --------------------------- | ---------------------------------------------------------- | -------------------------- |
+| `images`                               | Image                       | list of 2–24                                               | required                   |
+| `images[].mediaId`                     | Image                       | image (media id)                                           | required                   |
+| `images[].decorative`                  | Decorative (no description) | yes or no                                                  | required                   |
+| `images[].alt`                         | Description (alt text)      | localised text                                             | optional (null when empty) |
+| `images[].caption`                     | Caption                     | localised caption: the file’s, none, or its own per locale | optional                   |
+| `images[].credit`                      | Own credit for this use     | group                                                      | optional                   |
+| `images[].credit.work`                 | Work                        | group                                                      | optional (null when empty) |
+| `images[].credit.work.title`           | Title                       | text                                                       | required                   |
+| `images[].credit.work.maker`           | Maker                       | text                                                       | required                   |
+| `images[].credit.photographer`         | Image by                    | text                                                       | optional (null when empty) |
+| `images[].credit.photographerPersonId` | Image maker from people     | person reference (id)                                      | optional                   |
+| `images[].credit.kind`                 | Kind of image               | one of `photo`, `illustration`, `other`                    | optional                   |
+| `variant`                              | Variant                     | one of `grid`, `row`                                       | required                   |
+| `width`                                | Width                       | one of `content`, `wide`, `full`                           | required                   |
 
 Examples: `gallery-grid`, `gallery-row-content`, `gallery-grid-full`.
 

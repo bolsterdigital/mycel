@@ -9,11 +9,12 @@ import {
   Invoker,
   anonymousPrincipal,
   buildRegistry,
+  blockReferences,
   systemPrincipal,
   useCases,
 } from '@mycel/core';
 import { MemoryUnitOfWork, probeForm } from '@mycel/core/testing';
-import { resolveDocument, runtimeSource } from './resolve.js';
+import { resolveDocument, resolveIntro, runtimeSource } from './resolve.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const FORM = '01900000-0000-7000-8000-00000000f0aa';
@@ -66,6 +67,100 @@ async function setup() {
 }
 
 describe('runtimeSource', () => {
+  it('reads current credit names, keeps per-use fallbacks, and links only enabled profiles', async () => {
+    const { source, upload, invoker } = await setup();
+    const admin = systemPrincipal(TENANT, 'test');
+    const person = await invoker.run(useCases.createPerson, admin, {
+      name: 'Maker',
+      slug: 'maker',
+      pagePolicy: 'always',
+      email: 'INTERNAL@example.org',
+    });
+    const asset = await upload();
+    await invoker.run(useCases.updateMedia, admin, {
+      id: asset.id,
+      credit: { work: null, photographer: 'Fallback', photographerPersonId: person.id },
+    });
+    const document = {
+      locale: 'en',
+      title: 'Credits',
+      blocks: [
+        {
+          id: 'credit',
+          type: 'image' as const,
+          version: 1 as const,
+          props: { mediaId: asset.id, decorative: true, alt: null, layout: 'wide' as const },
+        },
+      ],
+    };
+    const read = () => resolveDocument(source, document, { base: '/probe', fallbackLocale: 'nl' });
+    let model = await read();
+    const credit = (value: typeof model) => {
+      const block = value.blocks[0];
+      return block?.type === 'image' ? block.image?.credit : null;
+    };
+    expect(credit(model)).toMatchObject({
+      photographer: 'Maker',
+      photographerHref: '/en/people/maker',
+    });
+    expect(JSON.stringify(model)).not.toContain('INTERNAL');
+    const illustration = {
+      ...document.blocks[0]!,
+      id: 'illustration',
+      props: {
+        ...document.blocks[0]!.props,
+        credit: {
+          work: null,
+          photographer: 'Own fallback',
+          photographerPersonId: person.id,
+          kind: 'illustration' as const,
+        },
+      },
+    };
+    const overrideDoc = { ...document, blocks: [illustration] };
+    expect(blockReferences(overrideDoc.blocks).people).toEqual([person.id]);
+    const override = await resolveDocument(source, overrideDoc, { base: '', fallbackLocale: 'nl' });
+    expect(credit(override)).toMatchObject({ photographer: 'Maker', kind: 'illustration' });
+    const fallback = await resolveDocument(
+      { ...source, creditPerson: async () => null },
+      overrideDoc,
+      { base: '', fallbackLocale: 'nl' }
+    );
+    expect(credit(fallback)?.photographer).toBe('Own fallback');
+    expect(
+      (await resolveIntro(source, { lead: null, heroImageId: asset.id, heroAlt: null }, 'en')).hero
+        ?.credit?.photographerHref
+    ).toBe('/en/people/maker');
+
+    const { id, slug, createdAt, updatedAt, ...fields } = person;
+    await invoker.run(useCases.updatePerson, admin, {
+      personId: id,
+      baseUpdatedAt: updatedAt,
+      ...fields,
+      name: 'Renamed',
+      pagePolicy: 'never',
+    });
+    model = await read();
+    expect(credit(model)).toMatchObject({ photographer: 'Renamed', photographerHref: null });
+    expect((await source.media(asset.id))?.credit.photographer).toBe('Fallback');
+    expect(
+      (await resolveIntro(source, { lead: null, heroImageId: asset.id, heroAlt: null }, 'en')).hero
+        ?.credit
+    ).toMatchObject({ photographer: 'Renamed', photographerHref: null });
+    const missing = await resolveDocument({ ...source, creditPerson: async () => null }, document, {
+      base: '',
+      fallbackLocale: 'nl',
+    });
+    expect(credit(missing)?.photographer).toBe('Fallback');
+
+    await expect(
+      invoker.run(useCases.updateMedia, admin, {
+        id: asset.id,
+        credit: { work: null, photographer: null, photographerPersonId: FORM },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' });
+  });
+
   it('gives a public image its variants and hides a restricted or deleted one', async () => {
     const { source, upload, invoker } = await setup();
     const open = await upload();

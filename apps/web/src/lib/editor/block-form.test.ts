@@ -366,3 +366,20 @@ describe('block forms', () => {
     });
   });
 });
+
+// The same codec must preserve a selected person and an unshown locale in a credit override.
+it('round-trips a linked image maker without copying the current name', () => {
+  const fields = BLOCK_DEFINITIONS.image.fields;
+  const props = BLOCK_DEFINITIONS.image.props.parse({
+    mediaId: '01900000-0000-7000-8000-00000000d001',
+    decorative: false,
+    alt: { nl: 'Beeld', en: 'Image' },
+    credit: {
+      work: null,
+      photographer: 'Fallback',
+      photographerPersonId: '01900000-0000-7000-8000-00000000a001',
+    },
+  });
+  const values = formValues(fields, props, LOCALES);
+  expect(propsFromForm(fields, postedValues(values), props)).toEqual({ props, errors: [] });
+});
