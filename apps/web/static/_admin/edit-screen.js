@@ -147,9 +147,9 @@ if (form instanceof HTMLFormElement) {
     // A click on the words is a wish to write them: into the field they came from, else the first.
     const field = rest.querySelector('.ui-block-text')
       ? (sourceOf(target) ??
-        [...fold.querySelectorAll('.ProseMirror, input:not([type="hidden"]), textarea')].find(
-          shown
-        ))
+        [
+          ...fold.querySelectorAll('.ProseMirror, input:not([type="hidden"]), textarea, select'),
+        ].find(shown))
       : null;
     (field ?? fold.querySelector(':scope > summary'))?.focus();
   });
