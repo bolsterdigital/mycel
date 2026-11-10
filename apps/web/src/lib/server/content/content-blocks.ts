@@ -7,11 +7,12 @@
 //
 // The pickers list a bounded page (a hundred, newest first) plus whatever the block already
 // points at, like the author picker of A1, so opening and saving a form never drops a reference
-// beyond the first page. Forms have no list use case yet: a form reference is its id, typed.
+// beyond the first page. Form choices use the authoring registry in `forms/editor.ts`.
 // Rejected: loading every image and item of the site (unbounded), and a picker per field type in
 // the component (the options belong to the tenant, not to the block).
 
 import {
+  formDefinitionName,
   BLOCK_DEFINITIONS,
   FILE_DOWNLOAD_ROWS,
   GALLERY_ROWS,
@@ -343,6 +344,7 @@ export type TextRest =
       /** The reference was not looked up: this principal may not read form definitions. */
       unread?: true;
       form: {
+        name?: string;
         list: string;
         fields: readonly { type: FormDefinition['fields'][number]['type']; label: string }[];
         submit: string;
@@ -357,7 +359,8 @@ export function textRestOf(
   block: Block,
   locale: string,
   prefix: string,
-  forms: ReadonlyMap<string, FormDefinition | null> = new Map()
+  forms: ReadonlyMap<string, FormDefinition | null> = new Map(),
+  fallback = locale
 ): TextRest | null {
   const local = (v: unknown): string => anyLocale<string>(v, locale) ?? '';
   const field = (path: string) => `${prefix}p.${path}`;
@@ -518,6 +521,7 @@ export function textRestOf(
       ...(forms.has(block.props.formId) ? {} : { unread: true as const }),
       form: form
         ? {
+            name: formDefinitionName(form, locale, fallback),
             list: form.list,
             fields: form.fields.map((f) => ({ type: f.type, label: local(f.label) })),
             submit: local(form.submitLabel),

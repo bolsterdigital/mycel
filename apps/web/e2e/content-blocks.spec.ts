@@ -6,6 +6,7 @@ import { BLOCK_TYPES, UseCaseError, systemPrincipal, useCases } from '@mycel/cor
 import { conditionalProbeForm } from '@mycel/core/testing';
 import { type APIRequestContext, type Locator, type Page, expect } from '@playwright/test';
 import { test } from './lib/evidence/page';
+import { exerciseFormPicker } from './lib/blocks/forms';
 import { expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
@@ -897,6 +898,7 @@ test.describe('content-blocks', () => {
     request,
   }) => {
     onlyA11y();
+    const alternative = await callApi(request, 'form.create', { kind: 'contact' });
     const { hosts, video, form } = await videoAndFormAtRest(page, request);
     await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
     const url = page.url();
@@ -906,16 +908,17 @@ test.describe('content-blocks', () => {
       if (r.method() === 'POST') posts.push(r.url());
     });
     await form.locator('.ui-block-text-action').click();
-    const id = card(page, 12).getByLabel('Formulier-id');
+    const id = card(page, 12).getByLabel('Formulier', { exact: true });
     await expect(id).toBeFocused();
     expect(page.url()).toBe(url);
     expect(posts).toEqual([]);
-    // The screen cannot look a new reference up, so it says so instead of showing the old form.
+    // The name follows the native choice; a notice keeps the old inert field preview explicit.
     const changed = form.locator('.ui-block-text-changed');
     await expect(changed).toBeHidden();
-    await id.fill('01a17235-f9c5-7c70-908a-7103f7f10566');
+    await id.selectOption(alternative.id);
     await page.keyboard.press('Escape');
     await expect(changed).toBeVisible();
+    await expect(form.locator('.ui-block-text-kind')).toHaveText(alternative.list);
     // A video follows its title and host when it closes.
     await video.locator('.ui-block-text-title').click();
     const fold = card(page, 11);
@@ -2052,3 +2055,15 @@ test.describe('block cards', () => {
     await expect(page.locator('#block-new').getByRole('heading')).toHaveText('Nieuw blok: Citaat');
   });
 });
+
+for (const locale of ['nl', 'en']) {
+  test.describe(`form picker UI ${locale}`, () => {
+    test.use({ locale: locale === 'nl' ? 'nl-NL' : 'en-GB' });
+    test(`form block picker preserves references and draft in ${locale}`, async ({
+      page,
+      request,
+    }) => {
+      await exerciseFormPicker(page, request, locale);
+    });
+  });
+}
