@@ -197,6 +197,11 @@ export class MemoryStore {
   readonly bulkLocks = new Map<string, Promise<void>>();
   readonly tenants = new Map<string, TenantStore>();
   readonly outbox: DomainEvent[] = [];
+  /**
+   * Ids of the events the outbox table would still hold: `drain` empties `outbox`, where
+   * Postgres keeps a processed row until retention. A test deletes an id to play retention.
+   */
+  readonly keptEvents = new Set<string>();
   readonly operators = new Map<string, OperatorRow>();
   /** Every tenant's and the platform's jobs, like the `jobs` table. */
   readonly jobs: JobRecord[] = [];

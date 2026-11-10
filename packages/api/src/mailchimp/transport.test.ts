@@ -545,6 +545,56 @@ describe('Mailchimp real form feed', () => {
     await transport.sync(TENANT, intent!.id);
     expect((await uow.run(admin, (ctx) => ctx.supporters.getProjection(email)))!.lists).toEqual([]);
   });
+  it('a provider withdrawal still reaches local consent after the submission passed its retention term', async () => {
+    await configure();
+    const { intent, submissionId } = await submit();
+    await dispatch(intent!);
+    const lists = async () =>
+      (await uow.run(admin, (ctx) => ctx.supporters.getProjection(email)))!.lists;
+    expect((await uow.run(admin, (ctx) => ctx.connectionIntents.get(intent!.id)))!.state).toBe(
+      'succeeded'
+    );
+    expect(await lists()).toEqual(['newsletter']);
+    // Twenty-five months on, retention has deleted the submission (`applyRetention`).
+    clock.advance(25 * 31 * 24 * 3600_000);
+    uow.store.for(TENANT).submissions.delete(submissionId);
+    // Still subscribed at the provider: the hourly comparison goes on and changes nothing.
+    expect(await transport.sync(TENANT, intent!.id)).toBe(true);
+    expect(await lists()).toEqual(['newsletter']);
+    member = { ...member!, status: 'unsubscribed', last_changed: clock.now().toISOString() };
+    expect(await transport.sync(TENANT, intent!.id)).toBe(true);
+    expect(await lists()).toEqual([]);
+    expect((await uow.run(admin, (ctx) => ctx.mailchimpReceipts.get(intent!.id)))!.status).toBe(
+      'unsubscribed'
+    );
+    // A later subscribed status at the provider grants nothing without the submission.
+    member = { ...member!, status: 'subscribed', last_changed: clock.now().toISOString() };
+    expect(await transport.sync(TENANT, intent!.id)).toBe(true);
+    expect(await lists()).toEqual([]);
+  });
+  it.each(['email', 'erasure'] as const)(
+    'without the submission, a withdrawal is not applied after %s moved the address away',
+    async (change) => {
+      await configure();
+      const { intent, submissionId } = await submit();
+      await dispatch(intent!);
+      uow.store.for(TENANT).submissions.delete(submissionId);
+      if (change === 'email')
+        await invoker.run(useCases.changeSupporterEmail, admin, {
+          supporterId: intent!.supporterId!,
+          newEmail: 'changed@example.org',
+          reason: 'Synthetic verified request',
+        });
+      else await uow.run(admin, (ctx) => ctx.erasures.register(intent!.supporterId!, email));
+      member = { ...member!, status: 'unsubscribed', last_changed: clock.now().toISOString() };
+      expect(await transport.sync(TENANT, intent!.id)).toBe(false);
+      if (change === 'email')
+        expect(
+          (await uow.run(admin, (ctx) => ctx.supporters.getProjection('changed@example.org')))!
+            .lists
+        ).toEqual(['newsletter']);
+    }
+  );
 });
 
 describe('Mailchimp account discovery', () => {

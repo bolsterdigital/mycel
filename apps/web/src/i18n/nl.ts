@@ -101,6 +101,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.forms.unknown': 'Onbekend: eerst reconciliëren',
   'admin.forms.in_flight': 'Bezig',
   'admin.forms.abandoned': 'Gestopt',
+  'admin.forms.expired': 'Afleverregistratie niet meer bewaard',
   'admin.forms.attempts': 'Pogingen',
   'admin.forms.saved': 'Opgeslagen.',
   'admin.forms.conflict': 'Dit formulier is gewijzigd. Herlaad en controleer je wijzigingen.',

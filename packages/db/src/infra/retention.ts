@@ -11,6 +11,13 @@
 //     while a connection intent that is `pending` or `unknown` was planned from it
 //     (`formFeedSource.prepare` rereads it). Without it those effects fail closed (no mail, no
 //     dispatch), but their outcome at the provider would stay unknown for good.
+//   * a submission that opened or joined a readmitted lifecycle (ADR 032) stays while any
+//     connection intent was planned from it: after an erasure, supporter ingest accepts a
+//     provider withdrawal for that address only with its submission as evidence (rule 3), so
+//     without it an unsubscribe at the provider could never reach local consent. Every other
+//     fed submission goes at its term; the comparison then works from the receipt
+//     (`applyMailchimpObservation`). Narrow on purpose: only addresses that were erased and
+//     signed up again through a fed form.
 // A mail intent goes with its event: it holds a keyed digest of the recipient that the erasure
 // register finds through the event only, so an intent without its event would be a copy nothing
 // can erase any more.
@@ -88,7 +95,10 @@ async function submissionBatch(trx: Trx, before: Date, limit: number): Promise<n
         )
         and not exists (
           select 1 from connection_intents i
-          where i.state in ('pending', 'unknown')
+          where (
+              i.state in ('pending', 'unknown')
+              or s.evaluation->>'supporterLifecycleId' is not null
+            )
             and s.evaluation->'feedActions'
                 @> jsonb_build_array(jsonb_build_object('businessId', i.business_id::text))
         )

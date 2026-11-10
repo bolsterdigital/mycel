@@ -11,7 +11,8 @@
 --   * an outbox event that is not processed can never be deleted (a dead event waits for ops);
 --   * a mail intent goes only once its event is gone, never on its own;
 --   * a submission younger than 28 days, the shortest month, can never be deleted (the lowest
---     term a tenant may choose is one calendar month).
+--     term a tenant may choose is one calendar month);
+--   * an admission seat inside its seven-day window (`ADMISSION_WINDOW_MS`) can never be deleted.
 -- What may still need a row (an open reconcile job, an open connection intent) is decided by the
 -- statement in `packages/db/src/infra/retention.ts`; for that the role reads, and only reads,
 -- `jobs` and `connection_intents` of the tenant.
@@ -37,6 +38,10 @@ create policy retention_read on outbox for select to mycel_retention
   using (tenant_id = current_tenant_id());
 create policy retention_apply on outbox for delete to mycel_retention
   using (tenant_id = current_tenant_id() and processed_at is not null);
+-- The fronts may see whether an event of their tenant is still kept, and nothing of it: with the
+-- intent gone after its term, that is how `form.delivery.get` tells a delivery record past its
+-- term from mail that has not started (`EventBus.exists`). Type, props and state stay unreadable.
+grant select (id, tenant_id) on outbox to mycel_app;
 -- The retention scan: one tenant's processed events by age, outside `outbox_pending` (0003).
 create index outbox_processed on outbox (tenant_id, processed_at) where processed_at is not null;
 
@@ -67,7 +72,7 @@ grant select, delete on supporter_admissions to mycel_retention;
 create policy retention_read on supporter_admissions for select to mycel_retention
   using (tenant_id = current_tenant_id());
 create policy retention_apply on supporter_admissions for delete to mycel_retention
-  using (tenant_id = current_tenant_id());
+  using (tenant_id = current_tenant_id() and admitted_at < now() - interval '7 days');
 
 -- The tenant setting: a versioned document like `general` (0030). Null reads as the default (24
 -- months), so every existing tenant gets the decided term without a backfill.

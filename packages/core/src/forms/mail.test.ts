@@ -222,6 +222,26 @@ describe('form mail actions', () => {
       await invoker.run(useCases.replayFormMail, admin, { submissionId: id, eventId: event.id })
     ).toEqual({ scheduled: false });
   });
+  it('tells a delivery record past its retention term from mail that has not started', async () => {
+    const id = await submit();
+    const event = events()[0]!;
+    const state = async () =>
+      (await invoker.run(useCases.getFormMailStatus, admin, { submissionId: id })).actions[0]!
+        .state;
+    expect(await state()).toBe('pending');
+    await formMailSubscriber(deps()).handle(event);
+    expect(await state()).toBe('sent');
+    // What `retention.apply` does after 30 days: the event and its intent go, the submission
+    // stays for its own, longer term.
+    uow.store.keptEvents.delete(event.id);
+    uow.store.for(TENANT).mailSends.clear();
+    expect(await state()).toBe('expired');
+    const jobs = uow.store.jobs.length;
+    expect(
+      await invoker.run(useCases.replayFormMail, admin, { submissionId: id, eventId: event.id })
+    ).toEqual({ scheduled: false });
+    expect(uow.store.jobs).toHaveLength(jobs);
+  });
   it('pins confirmation copy and retains the mandatory confirmation URL after template and form edits', async () => {
     await submit('signup@example.org', { contact_only: false, consent: true });
     const event = uow.store.outbox.find((e) => e.type === 'newsletter.subscribed')!;

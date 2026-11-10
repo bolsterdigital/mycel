@@ -73,9 +73,16 @@ describe.skipIf(skip)('retention', () => {
     asRole(operatorDb, 'mycel_worker', (trx) =>
       sql`update jobs set done_at = now() where id = ${id}`.execute(trx)
     );
-  async function submission(tenantId: string, createdAt: Date, businessId?: string) {
+  async function submission(
+    tenantId: string,
+    createdAt: Date,
+    businessId?: string,
+    supporterLifecycleId?: string
+  ) {
     const id = uuidv7();
-    const evaluation = businessId ? JSON.stringify({ feedActions: [{ businessId }] }) : null;
+    const evaluation = businessId
+      ? JSON.stringify({ feedActions: [{ businessId }], supporterLifecycleId })
+      : null;
     await inTenant(tenantId, (trx) =>
       sql`insert into form_submissions
             (id, tenant_id, form_id, "values", locale, created_at, list, consent_text_version,
@@ -115,6 +122,12 @@ describe.skipIf(skip)('retention', () => {
     );
     return hash;
   }
+  const hashes = async (tenantId: string) =>
+    (
+      await inTenant(tenantId, (trx) =>
+        sql<{ email_hash: string }>`select email_hash from supporter_admissions`.execute(trx)
+      )
+    ).rows.map((r) => r.email_hash);
   /** Which of `ids` still exist in `table`, read as the worker or under the tenant. */
   async function left(table: 'outbox' | 'form_submissions', tenantId: string, ids: string[]) {
     const { rows } = await inTenant(tenantId, async (trx) => {
@@ -250,6 +263,18 @@ describe.skipIf(skip)('retention', () => {
     expect(await left('form_submissions', a, [undelivered, uncertain, feeding])).toEqual([]);
   });
 
+  it('keeps the submission of a readmitted lifecycle while a settled intent was planned from it', async () => {
+    // ADR 032 rule 3: after an erasure a provider withdrawal is accepted only with its
+    // submission. Every other fed submission goes at its term (`fed` in the test above).
+    const old = ms(cutoffs.submissionsBefore, -DAY);
+    const settled = await connectionIntent(a, 'succeeded');
+    const readmitted = await submission(a, old, settled.businessId, uuidv7());
+    const unfed = await submission(a, old, uuidv7(), uuidv7());
+
+    expect(await applyRetention(operatorDb, a, cutoffs)).toMatchObject({ submissions: 1 });
+    expect(await left('form_submissions', a, [readmitted, unfed])).toEqual([readmitted]);
+  });
+
   it('works through a backlog in batches and finds nothing the second time', async () => {
     const old = ms(cutoffs.submissionsBefore, -DAY);
     const subs = [];
@@ -277,12 +302,6 @@ describe.skipIf(skip)('retention', () => {
     const live = await seat(a, ms(now, -ADMISSION_WINDOW_MS + DAY));
     const other = await seat(b, ms(now, -ADMISSION_WINDOW_MS - DAY));
     expect(await applyRetention(operatorDb, a, cutoffs)).toMatchObject({ admissions: 1 });
-    const hashes = async (tenantId: string) =>
-      (
-        await inTenant(tenantId, (trx) =>
-          sql<{ email_hash: string }>`select email_hash from supporter_admissions`.execute(trx)
-        )
-      ).rows.map((r) => r.email_hash);
     expect(await hashes(a)).toContain(live);
     expect(await hashes(a)).not.toContain(expired);
     expect(await hashes(b)).toContain(other);
@@ -306,6 +325,11 @@ describe.skipIf(skip)('retention', () => {
       return [events, intents, others].map((r) => Number(r.numAffectedRows ?? 0n));
     });
     expect(direct).toEqual([0, 0, 0]);
+    // A seat inside its window stays under a cut-off that asks for every seat.
+    const live = await seat(a, ms(now, -DAY));
+    const early = { ...cutoffs, admissionsThrough: ms(now, DAY) };
+    expect(await applyRetention(operatorDb, a, early)).toMatchObject({ admissions: 0 });
+    expect(await hashes(a)).toContain(live);
   });
 
   it('gives mycel_retention tenant-bound policies only, no update anywhere and no way in for the fronts', async () => {

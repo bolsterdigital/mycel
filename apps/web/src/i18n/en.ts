@@ -102,6 +102,7 @@ export const en = {
   'admin.forms.unknown': 'Unknown: reconcile before retry',
   'admin.forms.in_flight': 'In progress',
   'admin.forms.abandoned': 'Stopped',
+  'admin.forms.expired': 'Delivery record no longer kept',
   'admin.forms.attempts': 'Attempts',
   'admin.forms.saved': 'Saved.',
   'admin.forms.conflict': 'This form changed. Reload and review your changes.',

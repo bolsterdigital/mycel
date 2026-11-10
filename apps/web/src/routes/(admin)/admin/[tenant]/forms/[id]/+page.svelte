@@ -128,11 +128,12 @@
             <article>
               <h3>{action.actionId}</h3>
               <p>
-                {t(`admin.forms.${action.state}` as const)} · {t('admin.forms.attempts')}: {action.attempts}
+                {t(`admin.forms.${action.state}` as const)}{#if action.state !== 'expired'}
+                  · {t('admin.forms.attempts')}: {action.attempts}{/if}
               </p>
               {#if action.lastError}<p>{action.lastError}</p>{/if}
               <p>{action.version}</p>
-              {#if allowed('mailing:send') && action.state !== 'sent' && action.state !== 'abandoned'}
+              {#if allowed('mailing:send') && !['sent', 'abandoned', 'expired'].includes(action.state)}
                 <form method="post" action="?/replay">
                   <input type="hidden" name="submissionId" value={submission.id} /><input
                     type="hidden"

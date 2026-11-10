@@ -130,7 +130,9 @@ export const getFormMailStatus = defineUseCase({
         actionId: z.string(),
         version: z.string(),
         eventId: z.string().guid(),
-        state: z.enum(['pending', 'in_flight', 'unknown', 'sent', 'abandoned']),
+        // `expired`: the delivery record passed its retention term (the intent goes with its
+        // outbox event after 30 days, the submission lives longer), not work that never began.
+        state: z.enum(['pending', 'in_flight', 'unknown', 'sent', 'abandoned', 'expired']),
         attempts: z.number(),
         lastError: z.string().nullable(),
       })
@@ -144,15 +146,17 @@ export const getFormMailStatus = defineUseCase({
       actions: await Promise.all(
         (submission.evaluation?.mailActions ?? []).map(async (pin) => {
           const row = await ctx.mailSends.get(intentKey(FORM_MAIL_SUBSCRIBER, pin.eventId));
-          const state: 'sent' | 'abandoned' | 'in_flight' | 'unknown' | 'pending' = row?.sentAt
-            ? 'sent'
+          const state = row?.sentAt
+            ? ('sent' as const)
             : row?.abandonedAt
-              ? 'abandoned'
+              ? ('abandoned' as const)
               : row?.claimedUntil && row.claimedUntil > ctx.clock.now()
-                ? 'in_flight'
+                ? ('in_flight' as const)
                 : row?.attemptedAt
-                  ? 'unknown'
-                  : 'pending';
+                  ? ('unknown' as const)
+                  : row || (await ctx.events.exists(pin.eventId))
+                    ? ('pending' as const)
+                    : ('expired' as const);
           return {
             actionId: pin.actionId,
             version: pin.version,
@@ -172,7 +176,7 @@ export const replayFormMail = defineUseCase({
   requires: 'mailing:send',
   effect: 'send',
   description:
-    'Schedule reconciliation of an existing pinned action; never reset an unknown or abandoned intent.',
+    'Schedule reconciliation of an existing pinned action; never reset an unknown or abandoned intent, and schedule nothing once the delivery record passed its retention term.',
   input: z.object({ submissionId: z.string().guid(), eventId: z.string().guid() }).strict(),
   output: z.object({ scheduled: z.boolean() }),
   examples: [{ input: { submissionId: exampleId(1), eventId: exampleId(2) } }],
@@ -183,6 +187,9 @@ export const replayFormMail = defineUseCase({
     const key = intentKey(FORM_MAIL_SUBSCRIBER, eventId);
     const row = await ctx.mailSends.get(key);
     if (row?.sentAt || row?.abandonedAt) return { scheduled: false };
+    // Past its term the event is gone and the job could only fail (`mailReconcileJob` rebuilds
+    // the message from it): nothing to reconcile, so no job.
+    if (!(await ctx.events.exists(eventId))) return { scheduled: false };
     await ctx.jobs.enqueue({
       type: 'mail.reconcile',
       key: jobKey('mail.reconcile', key),

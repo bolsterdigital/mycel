@@ -116,7 +116,9 @@ export class MemoryUnitOfWork implements UnitOfWork {
             if (event.tenantId !== tenantId)
               throw new Error('event tenant differs from principal tenant');
             store.outbox.push(event);
+            store.keptEvents.add(event.id);
           },
+          exists: async (id) => store.keptEvents.has(id),
         },
         content: memoryContent(s),
         bulkPlans: memoryBulkPlans(s, bulkLock.lock),
