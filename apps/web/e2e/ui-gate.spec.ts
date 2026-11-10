@@ -822,6 +822,7 @@ test.describe('admin-shell', () => {
       'Probe',
       'Team',
       'Domains',
+      'Forms',
       'Connections',
       'API access',
       'AI assistance',
@@ -861,9 +862,8 @@ test.describe('admin-shell', () => {
     await expect(nav.getByRole('link', { name: 'Pages' })).not.toHaveAttribute('aria-current');
   });
 
-  // #114: a member without an administrator's capabilities sees no Manage and no empty group,
-  // and the Manage page refuses them rather than listing nothing.
-  test('an author sees no Manage, and the Manage page refuses them', async ({ page }) => {
+  // Authors get form authoring without inheriting team, mail or connection administration.
+  test('an author gets only Forms under Manage and Team still refuses them', async ({ page }) => {
     const author = 'shell-author@probe.test';
     await withInvoker(async (invoker) => {
       try {
@@ -885,7 +885,13 @@ test.describe('admin-shell', () => {
         .locator('.ui-navgroup')
         .evaluateAll((groups) => groups.filter((g) => !g.querySelector('a')).length)
     ).toBe(0);
-    const refused = await page.goto('/admin/probe/beheer');
+    const overview = await page.goto('/admin/probe/beheer');
+    expect(overview?.status()).toBe(200);
+    await expect(page.getByRole('main').getByRole('link')).toHaveText(['Probe', 'Forms']);
+    await page.getByRole('main').getByRole('link', { name: 'Forms', exact: true }).click();
+    await page.locator('main a[href*="/forms/"]').first().click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Forms' })).toBeVisible();
+    const refused = await page.goto('/admin/probe/leden');
     expect(refused?.status()).toBe(403);
   });
 

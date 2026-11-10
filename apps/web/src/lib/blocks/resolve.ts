@@ -21,6 +21,7 @@
 import { personPath } from '../public/person-path.js';
 import { formatBytes } from '../admin/format.js';
 import {
+  fieldPattern,
   type FormDefinition,
   type PublicPersonCard,
   resolvePeopleGrid,
@@ -653,6 +654,11 @@ function toRenderForm(
     submitLabel: text(form.submitLabel),
     thankYou: text(form.thankYou),
     fields: form.fields.map((f) => ({
+      id: f.id ?? f.name,
+      pattern: fieldPattern(f.type),
+      baseRequired: f.required,
+      activeWhen: f.activeWhen,
+      requiredWhen: f.requiredWhen,
       name: f.name,
       type: f.type,
       label: text(f.label),

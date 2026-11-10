@@ -43,8 +43,8 @@ export const updateFormMailSettings = defineUseCase({
   async handler(ctx, { baseVersion, value }) {
     if (value.forms.some((f) => f.enabled) && !can(ctx.principal, 'content:publish'))
       throw new UseCaseError('forbidden', 'forms.mail.publish.forbidden');
-    for (const config of value.forms) {
-      const form = await ctx.forms.findById(config.formId);
+    for (const config of [...value.forms].sort((a, b) => a.formId.localeCompare(b.formId))) {
+      const form = await ctx.forms.lock(config.formId);
       if (!form) throw notFound('form');
       for (const action of config.actions) {
         if (!validMailPredicate(form, action))

@@ -273,11 +273,24 @@ try {
     await page.waitForURL(`${origin}/admin/probe/content`);
     cookie = (await context.cookies()).find((c) => c.name === 'mycel_session');
     if (!cookie) throw new Error('Mock login did not issue a session');
+    const formsResponse = await fetch(`${process.env.E2E_API_URL}/v1/form.list`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${process.env.MYCEL_API_KEY}`,
+        'content-type': 'application/json',
+      },
+      body: '{}',
+    });
+    if (!formsResponse.ok) throw new Error('Cannot resolve corpus form');
+    const { forms } = await formsResponse.json();
+    if (!forms.length) throw new Error('Corpus form missing');
     for (const entry of corpus.admin.routes)
       entries.push({
         id: `${entry.name}-${locale}-${profile}-${cache}`,
         name: entry.name,
-        url: origin + entry.path.replace('{quality-article-id}', items[0].id),
+        url:
+          origin +
+          entry.path.replace('{quality-article-id}', items[0].id).replace('{form-id}', forms[0].id),
         locale,
         indexable: false,
         title: '',

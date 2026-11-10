@@ -4,11 +4,15 @@ import type { FormMailState, FormMailSettings } from './mail-model.js';
 import type { FormDefinition, Submission } from './model.js';
 
 export interface FormRepository {
+  list(): Promise<FormDefinition[]>;
+  lock(id: string): Promise<FormDefinition | null>;
+  save(base: FormDefinition, value: FormDefinition): Promise<boolean>;
   findById(id: string): Promise<FormDefinition | null>;
   insert(form: FormDefinition): Promise<void>;
 }
 
 export interface SubmissionRepository {
+  list(formId: string): Promise<Submission[]>;
   insert(submission: Submission): Promise<void>;
   findById(id: string): Promise<Submission | null>;
   findByFeedBusinessId(id: string): Promise<Submission | null>;

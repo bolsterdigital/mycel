@@ -4,6 +4,11 @@
 import type { Messages } from './en.js';
 
 export const nl: Partial<Messages> = {
+  'forms.default.signupThanks': 'Bedankt! Controleer je mailbox en bevestig je inschrijving.',
+  'forms.default.submit': 'Versturen',
+  'forms.default.thankYou': 'Bedankt',
+  'forms.default.email': 'E-mailadres',
+  'forms.default.consent': 'Aanmelden voor nieuws',
   'assist.error.ai-not-entitled': 'AI-hulp is niet beschikbaar voor deze site.',
   'assist.error.ai-disabled': 'Een beheerder moet AI-hulp eerst aanzetten.',
   'assist.error.consent-required': 'Toestemming voor de ingestelde verwerker is nodig.',

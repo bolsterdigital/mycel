@@ -38,11 +38,17 @@
 <svelte:head>
   <!-- Solves the proof-of-work challenge in `data-proof` into `_proof`; one module per page,
        however many forms. Without it the form still posts, on the stricter route. -->
-  {#if !preview}<script type="module" src="/_form/proof.js"></script>{/if}
+  {#if !preview}<script type="module" src="/_form/proof.js"></script>
+    {#if def.conditionalHelp}<script type="module" src="/_form/conditions.js"></script>{/if}{/if}
 </svelte:head>
 
 <div class="block form form-{variant} width-{width}">
-  <form method="post" class="signup" data-proof={JSON.stringify(def.proof)}>
+  <form
+    method="post"
+    class="signup"
+    data-proof={JSON.stringify(def.proof)}
+    data-conditions={def.conditionalHelp ? JSON.stringify(def.fields) : undefined}
+  >
     {#if preview}
       <p class="muted">{preview}</p>
       <fieldset disabled class="preview">{@render body()}</fieldset>
@@ -97,7 +103,7 @@
     {#if field.type === 'hidden'}
       <input type="hidden" name={field.name} value={field.value ?? ''} />
     {:else if field.type === 'consent' || field.type === 'checkbox'}
-      <div class="field check">
+      <div class="field check" data-form-field>
         {#if error}<p class="error" id="{id}-error">{error}</p>{/if}
         <input
           {id}
@@ -112,7 +118,7 @@
         {#if field.help}<p id="{id}-help">{field.help}</p>{/if}
       </div>
     {:else}
-      <div class="field">
+      <div class="field" data-form-field>
         <label for={id}>{field.label}</label>
         {#if field.help}<p id="{id}-help">{field.help}</p>{/if}
         {#if error}<p class="error" id="{id}-error">{error}</p>{/if}
@@ -170,7 +176,7 @@
             min={field.min}
             max={field.max}
             step={field.type === 'amount' ? '0.01' : field.type === 'number' ? 'any' : undefined}
-            maxlength={field.maxLength}
+            maxlength={field.maxLength ?? (field.type === 'text' ? 4000 : undefined)}
             aria-invalid={error ? 'true' : undefined}
             aria-describedby={describedBy}
             value={textValue(field.name)}

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "fixtureVersion": "43a-v8",
+  "fixtureVersion": "43a-v9",
   "tenant": "probe",
   "themeProfiles": {
     "default": {
@@ -222,6 +222,18 @@
         "name": "person-group-form",
         "path": "/admin/probe/people/groups/new",
         "state": "creating",
+        "indexable": false
+      },
+      {
+        "name": "form-inventory",
+        "path": "/admin/probe/forms",
+        "state": "populated",
+        "indexable": false
+      },
+      {
+        "name": "form-editor",
+        "path": "/admin/probe/forms/{form-id}",
+        "state": "editing",
         "indexable": false
       }
     ]

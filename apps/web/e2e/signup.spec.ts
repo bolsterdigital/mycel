@@ -11,16 +11,19 @@ import { forwarded } from './lib/login';
 import { NARROW, layoutGate, setTextSize } from './lib/layout';
 
 /**
- * A form page ships exactly one script, the proof-of-work module from its own origin (brief
- * form-intake § D2.3); nothing inline, nothing from elsewhere.
+ * A form page ships proof of work, plus conditional display only when its definition needs it.
+ * Both are exact self-hosted modules: nothing inline, nothing from elsewhere.
  */
-async function expectOnlyProofScript(page: Page) {
+async function expectFormScripts(page: Page) {
   const scripts = await page
     .locator('script')
     .evaluateAll((all: HTMLScriptElement[]) =>
       all.map((s) => ({ src: s.getAttribute('src'), type: s.getAttribute('type'), inline: s.text }))
     );
-  expect(scripts).toEqual([{ src: '/_form/proof.js', type: 'module', inline: '' }]);
+  const expected = [{ src: '/_form/proof.js', type: 'module', inline: '' }];
+  if (await page.locator('form[data-conditions]').count())
+    expected.push({ src: '/_form/conditions.js', type: 'module', inline: '' });
+  expect(scripts).toEqual(expected);
 }
 
 // Playwright derives Accept-Language from `locale`; the random client address gives each run a
@@ -41,7 +44,7 @@ test('signup page renders from blocks without JavaScript and passes axe', async 
   await expect(
     page.getByRole('heading', { level: 2, name: 'Meld je aan voor de nieuwsbrief' })
   ).toBeVisible();
-  await expectOnlyProofScript(page);
+  await expectFormScripts(page);
   // The seed keeps the footer credit on (ADR 015 rule 5): a plain link, nothing else.
   await expect(
     page.getByRole('contentinfo').getByRole('link', { name: 'Draait op Mycel' })
@@ -294,7 +297,7 @@ test('a public page has the security headers and a strict CSP, and only its own 
   for (const directive of STRICT_CSP) expect(csp).toContain(directive);
   expect(csp).toMatch(/script-src 'self'(;|$)/);
   expect(csp).not.toMatch(/unsafe-inline|unsafe-eval/);
-  await expectOnlyProofScript(page);
+  await expectFormScripts(page);
   // With JavaScript, the script ran under that policy (it fills the field) and reported nothing.
   if (isA11y())
     await expect(page.locator('input[name="_proof"]')).not.toHaveValue('', { timeout: 10_000 });
@@ -575,16 +578,27 @@ test('conditional fields validate natively and forged inactive consent creates n
   await page.getByLabel('E-mailadres', { exact: true }).fill(email);
   await page.getByLabel('Alleen een bericht sturen, geen nieuwsbrief').check();
   await page.getByLabel('Onderwerp', { exact: true }).selectOption('question');
-  // The native browser must not block an inactive required field. The server decides instead.
-  await expect(page.getByLabel('Je vraag', { exact: true })).not.toHaveAttribute('required');
-  await pastMinimumFillTime(page);
-  await page.getByRole('button', { name: 'Aanmelden', exact: true }).click();
-  await expect(page.locator('.error-summary')).toContainText('Dit veld is verplicht.');
-  await expectNoAxeViolations(page);
+  if (isA11y()) {
+    await expect(page.getByLabel('Je vraag', { exact: true })).toHaveAttribute('required', '');
+    await expect(page.locator('[name=consent]')).toBeDisabled();
+    await expect(page.locator('[name=consent]')).toBeHidden();
+  } else {
+    // Without enhancement the server enforces the conditional requirement after the native post.
+    await expect(page.getByLabel('Je vraag', { exact: true })).not.toHaveAttribute('required');
+    await pastMinimumFillTime(page);
+    await page.getByRole('button', { name: 'Aanmelden', exact: true }).click();
+    await expect(page.locator('.error-summary')).toContainText('Dit veld is verplicht.');
+    await expectNoAxeViolations(page);
+  }
   await page.getByLabel('Je vraag', { exact: true }).fill('Kan ik langskomen?');
   await page.getByLabel('Interesses', { exact: true }).selectOption(['local', 'events']);
   // A forged checkbox is present in the POST but inactive according to validated contact_only.
-  await page.getByLabel('Ja, ik wil de nieuwsbrief ontvangen.', { exact: false }).check();
+  if (isA11y())
+    await page.locator('[name=consent]').evaluate((input: HTMLInputElement) => {
+      input.disabled = false;
+      input.checked = true;
+    });
+  else await page.getByLabel('Ja, ik wil de nieuwsbrief ontvangen.', { exact: false }).check();
   await pastMinimumFillTime(page);
   await page.getByRole('button', { name: 'Aanmelden', exact: true }).click();
   await expect(page).toHaveURL(/signup\/thanks$/);

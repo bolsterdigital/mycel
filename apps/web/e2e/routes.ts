@@ -38,6 +38,7 @@ export const ADMIN_ROUTES: GateRoute[] = [
     within: 'main',
   })),
   { path: '/admin/probe/site?section=api', within: 'main', folds: true },
+  { path: '/admin/probe/forms', within: 'main' },
   { path: '/admin/probe/connections', within: 'main', folds: true },
   { path: '/admin/probe/export', within: 'main', folds: true },
   { path: '/admin/probe/status', within: 'main', folds: true },

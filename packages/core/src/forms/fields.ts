@@ -5,6 +5,19 @@ import { z } from 'zod';
 import { localized } from '../i18n/locale.js';
 import { EmailAddress } from '../util/email.js';
 
+const PHONE_PATTERN = /^\+?[\d\s().-]{3,40}$/;
+const NUMBER_PATTERN = /^[+-]?(?:\d+\.?\d*|\.\d+)$/;
+
+export function fieldPattern(type: string): string | undefined {
+  return type === 'email'
+    ? z.regexes.email.source
+    : type === 'phone'
+      ? PHONE_PATTERN.source
+      : ['number', 'amount'].includes(type)
+        ? NUMBER_PATTERN.source
+        : undefined;
+}
+
 const FieldId = z.string().regex(/^[a-z][a-z0-9_-]{0,63}$/);
 const Atom = z.discriminatedUnion('op', [
   z.object({
@@ -194,11 +207,7 @@ export function evaluateFields(fields: readonly FormField[], raw: Record<string,
       else error = 'forms.error.email.invalid';
     } else if (field.type === 'number' || field.type === 'amount') {
       const number =
-        typeof input === 'number'
-          ? input
-          : /^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(text)
-            ? Number(text)
-            : NaN;
+        typeof input === 'number' ? input : NUMBER_PATTERN.test(text) ? Number(text) : NaN;
       if (
         !Number.isFinite(number) ||
         (field.min !== undefined && number < field.min) ||
@@ -224,11 +233,7 @@ export function evaluateFields(fields: readonly FormField[], raw: Record<string,
         'maxLength' in field
           ? (field.maxLength ?? (field.type === 'textarea' ? 10000 : 4000))
           : 4000;
-      if (
-        !text ||
-        text.length > max ||
-        (field.type === 'phone' && !/^\+?[\d\s().-]{3,40}$/.test(text))
-      )
+      if (!text || text.length > max || (field.type === 'phone' && !PHONE_PATTERN.test(text)))
         error = 'forms.error.value';
       else value = text;
     }

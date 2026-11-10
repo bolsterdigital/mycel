@@ -12,6 +12,16 @@ import type { TenantStore } from './store.js';
 
 export function memoryForms(s: TenantStore): FormRepository {
   return {
+    lock: async (id) =>
+      structuredClone(s.forms.has(id) ? parseFormDefinition(s.forms.get(id)) : null),
+    list: async () => structuredClone([...s.forms.values()].map(parseFormDefinition)),
+    async save(base, value) {
+      const stored = s.forms.get(base.id);
+      if (!stored || JSON.stringify(parseFormDefinition(stored)) !== JSON.stringify(base))
+        return false;
+      s.forms.set(value.id, structuredClone(value));
+      return true;
+    },
     findById: async (id) =>
       structuredClone(s.forms.has(id) ? parseFormDefinition(s.forms.get(id)) : null),
     insert: async (form) => void s.forms.set(form.id, parseFormDefinition(form)),
@@ -20,6 +30,13 @@ export function memoryForms(s: TenantStore): FormRepository {
 
 export function memorySubmissions(s: TenantStore): SubmissionRepository {
   return {
+    list: async (formId) =>
+      structuredClone(
+        [...s.submissions.values()]
+          .filter((s) => s.formId === formId)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .slice(0, 100)
+      ),
     insert: async (sub) => void s.submissions.set(sub.id, structuredClone(sub)),
     // A copy, like a row from Postgres: a caller mutating it changes nothing stored.
     findById: async (id) => structuredClone(s.submissions.get(id) ?? null),

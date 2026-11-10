@@ -26,7 +26,7 @@ const worst = (values) =>
 export function sourceContract({ corpus, seed, matrixSource, workflow, lock }) {
   const manifest = JSON.parse(corpus);
   if (
-    !['43a-v3', '43a-v4', '43a-v5', '43a-v6', '43a-v7', '43a-v8'].includes(
+    !['43a-v3', '43a-v4', '43a-v5', '43a-v6', '43a-v7', '43a-v8', '43a-v9'].includes(
       manifest.fixtureVersion
     ) ||
     manifest.schemaVersion !== 1
@@ -61,7 +61,7 @@ export function sourceContract({ corpus, seed, matrixSource, workflow, lock }) {
 export function expectedShards(contract, event, selection) {
   if (
     contract.schemaVersion !== 1 ||
-    !['43a-v3', '43a-v4', '43a-v5', '43a-v6', '43a-v7', '43a-v8'].includes(
+    !['43a-v3', '43a-v4', '43a-v5', '43a-v6', '43a-v7', '43a-v8', '43a-v9'].includes(
       contract.fixtureVersion
     ) ||
     !hash(contract.fixtureHash)
@@ -333,7 +333,7 @@ export function consumeRun(run, load) {
         );
         const expectedPath = publicEntry?.locales[shard.locale].path ?? adminEntry?.path;
         const route = new URL(cell.route);
-        const pathParts = expectedPath?.split('{quality-article-id}');
+        const pathParts = expectedPath?.split(/\{(?:quality-article-id|form-id)\}/);
         if (
           route.origin !== 'https://localhost:4443' ||
           route.search ||
