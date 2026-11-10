@@ -1627,7 +1627,16 @@ test.describe('article-writing', () => {
     const bar = page.getByRole('toolbar', { name: 'Tekstopmaak' });
     const field = page.getByRole('group', { name: 'Link', exact: true });
     const address = field.getByLabel('Linkadres');
-    await writing.locator('p').first().selectText();
+    // ProseMirror reads a selection a moment later, and right after typing it writes its own
+    // back over one made here; the enabled button says the selection is the editor's.
+    const select = () =>
+      expect(async () => {
+        await writing.locator('p').first().selectText();
+        await expect(bar.getByRole('button', { name: 'Link', exact: true })).toBeEnabled({
+          timeout: 1000,
+        });
+      }).toPass();
+    await select();
     await page.keyboard.press('Control+k');
     await expect(address).toBeFocused();
     await expect(writing.locator('.editor-pending-range')).toHaveText('Oude tekst');
@@ -1652,7 +1661,7 @@ test.describe('article-writing', () => {
     await field.getByRole('button', { name: 'Link verwijderen' }).click();
     await expect(writing.locator('a')).toHaveCount(0);
     // Escape leaves the text as it was, the same words selected: typing replaces them.
-    await writing.locator('p').first().selectText();
+    await select();
     await page.keyboard.press('Control+k');
     await expect(address).toBeFocused();
     await page.keyboard.press('Escape');
@@ -1660,7 +1669,7 @@ test.describe('article-writing', () => {
     await expect(writing.locator('p').first()).toHaveText('Nieuwe tekst');
     await expect(page).toHaveURL(new RegExp(`${edit}$`));
     // The open field with its refusal, at the narrowest width and the largest text.
-    await writing.locator('p').first().selectText();
+    await select();
     await page.keyboard.press('Control+k');
     await address.fill('ftp://example.org');
     await page.keyboard.press('Enter');

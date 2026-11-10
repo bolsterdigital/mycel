@@ -35,15 +35,65 @@ export async function expectNoAxeViolations(
   for (const colorScheme of dark ? (['light', 'dark'] as const) : [null]) {
     if (colorScheme) await page.emulateMedia({ colorScheme });
     const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
+    const under = await underStayingBar(
+      page,
+      violations
+        .filter((v) => v.id === 'target-size')
+        .flatMap((v) => v.nodes.map((n) => n.target.join(' ')))
+    );
     expect(
-      violations.map(
-        (v) =>
-          `${colorScheme ? `${colorScheme}: ` : ''}${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`
-      ),
+      violations
+        .map((v) => ({
+          id: v.id,
+          targets: v.nodes
+            .map((n) => n.target.join(' '))
+            .filter((target) => v.id !== 'target-size' || !under.includes(target)),
+        }))
+        .filter((v) => v.targets.length)
+        .map((v) => `${colorScheme ? `${colorScheme}: ` : ''}${v.id}: ${v.targets.join(', ')}`),
       label
     ).toEqual([]);
   }
   if (dark) await page.emulateMedia({ colorScheme: 'light' });
+}
+
+/**
+ * Which of these targets are scrolled partly under a bar that stays in view (`position: sticky`
+ * or `fixed`, not an ancestor). Axe measures only the part still showing, against the bar's own
+ * buttons, and reports a `target-size` failure that is the scroll position's, not the control's:
+ * one scroll shows it whole, and focus never lands under a bar (`tabStops` in layout.ts).
+ * Only that rule and only those targets are set aside; every other target keeps its verdict.
+ * Rejected: scrolling to the top before every analysis, which hides what a page looks like in
+ * the state a test made.
+ */
+function underStayingBar(page: Page, targets: string[]): Promise<string[]> {
+  if (!targets.length) return Promise.resolve([]);
+  return page.evaluate((selectors) => {
+    const bars = [...document.querySelectorAll<HTMLElement>('body *')].filter((el) => {
+      const position = getComputedStyle(el).position;
+      return (position === 'sticky' || position === 'fixed') && el.getClientRects().length > 0;
+    });
+    return selectors.filter((selector) => {
+      let target: Element | null = null;
+      try {
+        target = document.querySelector(selector);
+      } catch {
+        return false;
+      }
+      if (!target) return false;
+      const box = target.getBoundingClientRect();
+      return bars.some((bar) => {
+        if (bar.contains(target)) return false;
+        const over = bar.getBoundingClientRect();
+        return (
+          box.left < over.right &&
+          box.right > over.left &&
+          box.top < over.bottom &&
+          box.bottom > over.top
+        );
+      });
+    });
+  }, targets);
 }
 
 /**

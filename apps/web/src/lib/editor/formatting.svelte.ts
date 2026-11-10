@@ -187,6 +187,7 @@ export class Formatting {
       return false;
     }
     this.#close();
+    this.#back(editor);
     editor
       .chain()
       .focus()
@@ -201,6 +202,7 @@ export class Formatting {
     const draft = this.link;
     if (!editor || !draft) return;
     this.#close();
+    this.#back(editor);
     editor
       .chain()
       .focus()
@@ -215,12 +217,19 @@ export class Formatting {
     const draft = this.link;
     if (!editor || !draft) return;
     this.#close();
+    this.#back(editor);
     editor.chain().focus().setTextSelection({ from: draft.from, to: draft.to }).run();
   }
 
   /** Close without a change and without taking focus: the writer went somewhere else. */
   closeLink() {
     this.#close();
+  }
+
+  // TipTap's `focus` waits for the next frame; a key pressed right after Enter or Escape would
+  // go to the field that is closing and be lost. The view takes focus at once.
+  #back(editor: Editor) {
+    editor.view.focus();
   }
 
   #close() {
