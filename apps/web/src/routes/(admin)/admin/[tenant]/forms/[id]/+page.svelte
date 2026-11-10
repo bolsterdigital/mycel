@@ -50,89 +50,94 @@
       locale={data.locale}
       editable={allowed('connections:configure')}
     />{/if}
-  <section>
-    <h2>{t('admin.forms.preview')}</h2>
-    <p>{t('admin.forms.rehearsal')}</p>
-    <form method="post" action="?/preview" class="ui-fields">
-      <Field id="sample-locale" label={t('admin.forms.locale')} locale={data.locale}
-        >{#snippet control(a)}<select {...a} name="locale"
-            >{#each Object.keys(definition.thankYou) as locale}<option value={locale}
-                >{locale}</option
-              >{/each}</select
-          >{/snippet}</Field
-      >
-      {#each definition.fields as f}
-        {#if ['checkbox', 'consent'].includes(f.type)}<Checkbox
-            id="sample-{f.name}"
-            name="sample.{f.name}"
-            label={f.name}
-          />
-        {:else if f.type === 'choice' || f.type === 'multiple-choice'}
-          <Field id="sample-{f.name}" label={f.name} locale={data.locale}
-            >{#snippet control(a)}<select
-                {...a}
-                name="sample.{f.name}"
-                multiple={f.type === 'multiple-choice'}
-                >{#each f.options as o}<option value={o.value}>{o.value}</option>{/each}</select
-              >{/snippet}</Field
-          >
-        {:else}<Field
-            id="sample-{f.name}"
-            name="sample.{f.name}"
-            label={f.name}
-            locale={data.locale}
-            value={f.type === 'hidden' ? f.value : ''}
-          />{/if}
-      {/each}
-      <Actions><Button>{t('admin.forms.preview')}</Button></Actions>
-    </form>
-    {#if preview?.mail}
-      {#if preview.mail.confirmation}{@render message(
-          'confirmation',
-          preview.mail.confirmation
-        )}{/if}
-      {#each preview.mail.actions as action}<article>
-          <h3>
-            {action.actionId}: {t(action.matches ? 'admin.forms.matches' : 'admin.forms.noMatch')}
-          </h3>
-          {@render message(action.actionId, action.copy)}
-        </article>{/each}
-    {/if}
-    {#each preview?.feeds ?? [] as feed}<p>
-        {feed.id}: {feed.failure ?? t(feed.matches ? 'admin.forms.matches' : 'admin.forms.noMatch')}
-      </p>{/each}
-  </section>
-  <section>
-    <h2>{t('admin.forms.status')}</h2>
-    {#if !data.submissions.length}<p>{t('admin.forms.empty')}</p>{/if}
-    {#each data.submissions as submission}
-      <details>
-        <summary
-          ><time datetime={submission.createdAt}>{submission.createdAt}</time> · {submission.id}</summary
+  {#if data.mail || (data.feeds && allowed('connections:configure'))}
+    <section>
+      <h2>{t('admin.forms.preview')}</h2>
+      <p>{t('admin.forms.rehearsal')}</p>
+      <form method="post" action="?/preview" class="ui-fields">
+        <Field id="sample-locale" label={t('admin.forms.locale')} locale={data.locale}
+          >{#snippet control(a)}<select {...a} name="locale"
+              >{#each Object.keys(definition.thankYou) as locale}<option value={locale}
+                  >{locale}</option
+                >{/each}</select
+            >{/snippet}</Field
         >
-        <p>{t(submission.confirmed ? 'admin.forms.confirmed' : 'admin.forms.unconfirmed')}</p>
-        {#each data.deliveries.find((d) => d.submissionId === submission.id)?.actions ?? [] as action}
-          <article>
-            <h3>{action.actionId}</h3>
-            <p>
-              {t(`admin.forms.${action.state}` as const)} · {t('admin.forms.attempts')}: {action.attempts}
-            </p>
-            {#if action.lastError}<p>{action.lastError}</p>{/if}
-            <p>{action.version}</p>
-            {#if allowed('mailing:send') && action.state !== 'sent' && action.state !== 'abandoned'}
-              <form method="post" action="?/replay">
-                <input type="hidden" name="submissionId" value={submission.id} /><input
-                  type="hidden"
-                  name="eventId"
-                  value={action.eventId}
-                /><Actions><Button>{t('admin.forms.replay')}</Button></Actions>
-              </form>
-            {/if}
-          </article>
+        {#each definition.fields as f}
+          {#if ['checkbox', 'consent'].includes(f.type)}<Checkbox
+              id="sample-{f.name}"
+              name="sample.{f.name}"
+              label={f.name}
+            />
+          {:else if f.type === 'choice' || f.type === 'multiple-choice'}
+            <Field id="sample-{f.name}" label={f.name} locale={data.locale}
+              >{#snippet control(a)}<select
+                  {...a}
+                  name="sample.{f.name}"
+                  multiple={f.type === 'multiple-choice'}
+                  >{#each f.options as o}<option value={o.value}>{o.value}</option>{/each}</select
+                >{/snippet}</Field
+            >
+          {:else}<Field
+              id="sample-{f.name}"
+              name="sample.{f.name}"
+              label={f.name}
+              locale={data.locale}
+              value={f.type === 'hidden' ? f.value : ''}
+            />{/if}
         {/each}
-      </details>
-    {/each}
-  </section>
+        <Actions><Button>{t('admin.forms.preview')}</Button></Actions>
+      </form>
+      {#if preview?.mail}
+        {#if preview.mail.confirmation}{@render message(
+            'confirmation',
+            preview.mail.confirmation
+          )}{/if}
+        {#each preview.mail.actions as action}<article>
+            <h3>
+              {action.actionId}: {t(action.matches ? 'admin.forms.matches' : 'admin.forms.noMatch')}
+            </h3>
+            {@render message(action.actionId, action.copy)}
+          </article>{/each}
+      {/if}
+      {#each preview?.feeds ?? [] as feed}<p>
+          {feed.id}: {feed.failure ??
+            t(feed.matches ? 'admin.forms.matches' : 'admin.forms.noMatch')}
+        </p>{/each}
+    </section>
+  {/if}
+  {#if allowed('supporters:read')}
+    <section>
+      <h2>{t('admin.forms.status')}</h2>
+      {#if !data.submissions.length}<p>{t('admin.forms.empty')}</p>{/if}
+      {#each data.submissions as submission}
+        <details>
+          <summary
+            ><time datetime={submission.createdAt}>{submission.createdAt}</time> · {submission.id}</summary
+          >
+          <p>{t(submission.confirmed ? 'admin.forms.confirmed' : 'admin.forms.unconfirmed')}</p>
+          {#each data.deliveries.find((d) => d.submissionId === submission.id)?.actions ?? [] as action}
+            <article>
+              <h3>{action.actionId}</h3>
+              <p>
+                {t(`admin.forms.${action.state}` as const)} · {t('admin.forms.attempts')}: {action.attempts}
+              </p>
+              {#if action.lastError}<p>{action.lastError}</p>{/if}
+              <p>{action.version}</p>
+              {#if allowed('mailing:send') && action.state !== 'sent' && action.state !== 'abandoned'}
+                <form method="post" action="?/replay">
+                  <input type="hidden" name="submissionId" value={submission.id} /><input
+                    type="hidden"
+                    name="eventId"
+                    value={action.eventId}
+                  /><Actions><Button>{t('admin.forms.replay')}</Button></Actions>
+                </form>
+              {/if}
+            </article>
+          {/each}
+        </details>
+      {/each}
+    </section>
+  {/if}
 </main>
 {#snippet message(
   id: string,
