@@ -2161,10 +2161,14 @@ test('people management preserves edits and adds an author inline', async ({ pag
   await exercisePeople(page, request);
 });
 
-for (const locale of ['nl', 'en'])
-  test(`form block picker preserves references and draft in ${locale}`, async ({
-    page,
-    request,
-  }) => {
-    await exerciseFormPicker(page, request, locale);
+for (const locale of ['nl', 'en']) {
+  test.describe(`form picker UI ${locale}`, () => {
+    test.use({ locale: locale === 'nl' ? 'nl-NL' : 'en-GB' });
+    test(`form block picker preserves references and draft in ${locale}`, async ({
+      page,
+      request,
+    }) => {
+      await exerciseFormPicker(page, request, locale);
+    });
   });
+}

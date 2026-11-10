@@ -42,6 +42,7 @@ export async function exerciseFormPicker(page: Page, request: APIRequestContext,
   const edit = `/admin/probe/content/${item.id}?locale=${locale}`;
   await login(page, edit, undefined, { 'accept-language': locale });
   await editorReady(page);
+  await expect(page.locator('html')).toHaveAttribute('lang', locale);
   await page.locator('[name="title.' + locale + '"]').fill('Other draft title');
   for (const id of ['f', 's']) {
     const fold = page.locator(`#block-${id}`);
