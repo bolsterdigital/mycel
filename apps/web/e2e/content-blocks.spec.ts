@@ -897,9 +897,9 @@ test.describe('content-blocks', () => {
     request,
   }) => {
     onlyA11y();
+    const alternative = await callApi(request, 'form.create', { kind: 'contact' });
     const { hosts, video, form } = await videoAndFormAtRest(page, request);
     await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    const alternative = await callApi(request, 'form.create', { kind: 'contact' });
     const url = page.url();
     // A click on the preview's button goes to the block's first field: no post, no navigation.
     const posts: string[] = [];
