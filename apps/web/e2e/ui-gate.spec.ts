@@ -290,6 +290,49 @@ test.describe('admin-ui', () => {
     if (isA11y()) await expectNoAxeViolations(page);
   });
 
+  for (const locale of ADMIN_LOCALES)
+    test.describe(`catalogue navigation in rail state, ${locale}`, () => {
+      test.use({ locale });
+      for (const width of [1280, NARROW.width])
+        test(`keeps labels and keyboard disclosure at ${width}px`, async ({ page }) => {
+          onlyA11y('the rail is enabled by its collapse script');
+          await open(page);
+          await page.getByRole('button', { name: /Collapse menu|Menu inklappen/ }).click();
+          await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
+          await page.setViewportSize({ width, height: NARROW.height });
+          if (width === NARROW.width) await setTextSize(page, '200%');
+          const navigation = page.locator('section[aria-labelledby="ui-navigation"]');
+          const labels = navigation.locator('.ui-navgroup-label, a > span, summary > span');
+          expect(await labels.count()).toBeGreaterThan(5);
+          for (const label of await labels.all()) {
+            await expect(label).toBeVisible();
+            expect(
+              await label.evaluate((node) => {
+                const style = getComputedStyle(node);
+                return style.clipPath === 'none' && node.getBoundingClientRect().width > 1;
+              })
+            ).toBe(true);
+          }
+          const disclosure = navigation.locator('.ui-navgroup-disclosure').last();
+          const summary = disclosure.locator('summary');
+          const submenu = disclosure.locator('.ui-navgroup-sub');
+          await expect(submenu).toBeHidden();
+          await summary.focus();
+          await expect(summary).toBeFocused();
+          await page.keyboard.press('Enter');
+          await expect(submenu).toBeVisible();
+          await page.keyboard.press('Tab');
+          await expect(submenu.getByRole('link').first()).toBeFocused();
+          await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
+          await layoutGate(
+            page,
+            `catalogue navigation ${locale} ${width}`,
+            'section[aria-labelledby="ui-navigation"]'
+          );
+          await expectNoAxeViolations(page);
+        });
+    });
+
   test('without JavaScript the menu has no collapse button and stays whole', async ({ page }) => {
     test.skip(isA11y(), 'the no-js project proves the menu without its script');
     await open(page);
