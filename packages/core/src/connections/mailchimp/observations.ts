@@ -14,9 +14,25 @@ export async function applyMailchimpObservation(
   const receipt = await ctx.mailchimpReceipts.get(intent.id);
   const sub = await ctx.submissions.findByFeedBusinessId(intent.businessId);
   const pin = sub?.evaluation?.feedActions?.find((p) => p.businessId === intent.businessId);
-  if (!receipt || !sub || !pin || !intent.supporterId) return;
+  if (
+    !receipt ||
+    !sub ||
+    !pin ||
+    !intent.supporterId ||
+    receipt.supporterId !== intent.supporterId ||
+    receipt.connectionId !== intent.connectionId
+  )
+    return;
+  const emailField = sub.evaluation!.definition.fields.find((f) => f.type === 'email');
+  const email = emailField && sub.values[emailField.name];
+  if (typeof email !== 'string') return;
+  // The receipt's member belongs to the submitted address. Hold that address through ingest,
+  // then reread: an address change during provider I/O must not suppress the new address.
+  // This identity check is independent of marketing authorization, so withdrawals still apply.
+  await ctx.supporters.lock(email);
   const supporter = await ctx.supporters.getProjectionById(intent.supporterId);
-  if (!supporter || (await ctx.connectionIntents.erased(supporter.id))) return;
+  if (!supporter || supporter.email !== email || (await ctx.connectionIntents.erased(supporter.id)))
+    return;
   const now = ctx.clock.now();
   const suppressed = ['unsubscribed', 'cleaned', 'archived', 'absent'].includes(observation.status);
   const external = pin.feed.confirmationOwner === 'external';

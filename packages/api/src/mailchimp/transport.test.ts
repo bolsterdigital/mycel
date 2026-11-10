@@ -456,6 +456,63 @@ describe('Mailchimp real form feed', () => {
       })
     ).rejects.toMatchObject({ code: 'invalid_input' });
   });
+  it.each(['unsubscribed', 'cleaned', 'archived', 'absent'] as const)(
+    'a delayed old-address %s observation must not suppress the changed address',
+    async (status) => {
+      await configure();
+      const { intent } = await submit();
+      await dispatch(intent!);
+      clock.advance(2000);
+      member = { ...member!, status: 'unsubscribed', last_changed: clock.now().toISOString() };
+      if (status === 'absent') member = null;
+      else member = { ...member!, status };
+      const receipt = await uow.run(admin, (ctx) => ctx.mailchimpReceipts.get(intent!.id));
+      const delayed = mailchimpTransport({
+        uow,
+        clock,
+        identity: { tenantAccess: async () => DEFAULT_ACCESS },
+        request: async (input) => {
+          const result = await request(input);
+          await invoker.run(useCases.changeSupporterEmail, admin, {
+            supporterId: intent!.supporterId!,
+            newEmail: 'changed@example.org',
+            reason: 'Synthetic verified request during provider read',
+          });
+          expect(
+            (await uow.run(admin, (ctx) => ctx.supporters.getProjectionById(intent!.supporterId!)))!
+              .lists
+          ).toEqual(['newsletter']);
+          return result;
+        },
+      });
+      await delayed.sync(TENANT, intent!.id);
+      const projection = await uow.run(admin, (ctx) =>
+        ctx.supporters.getProjectionById(intent!.supporterId!)
+      );
+      expect(projection!.email).toBe('changed@example.org');
+      expect(projection!.lists).toEqual(['newsletter']);
+      expect(await uow.run(admin, (ctx) => ctx.mailchimpReceipts.get(intent!.id))).toEqual(receipt);
+      expect(writes).toHaveLength(1);
+    }
+  );
+  it('records provider suppression without local marketing consent', async () => {
+    await configure('external');
+    const { intent, submissionId } = await submit(false);
+    await dispatch(intent!);
+    expect((await uow.run(admin, (ctx) => ctx.supporters.getProjection(email)))!.lists).toEqual([]);
+    clock.advance(2000);
+    member = { ...member!, status: 'unsubscribed', last_changed: clock.now().toISOString() };
+    await transport.sync(TENANT, intent!.id);
+    expect(await uow.run(admin, (ctx) => ctx.mailchimpReceipts.get(intent!.id))).toMatchObject({
+      status: 'unsubscribed',
+      observedAt: clock.now(),
+      confirmedAt: null,
+    });
+    expect(
+      (await uow.run(admin, (ctx) => ctx.submissions.findById(submissionId)))!.confirmedAt
+    ).toBeNull();
+    expect(writes).toHaveLength(1);
+  });
   it('incoming changes queue only an authenticated read and periodic comparison suppresses locally', async () => {
     await configure();
     const { intent } = await submit();
@@ -476,6 +533,14 @@ describe('Mailchimp real form feed', () => {
       uow.store.jobs.filter((j) => j.key === `connections.mailchimp.sync:${intent!.id}`)
     ).toHaveLength(1);
     clock.advance(2000);
+    const state = await uow.run(admin, (ctx) => ctx.formFeeds.get());
+    await invoker.run(useCases.updateFormFeeds, admin, {
+      baseVersion: state.version,
+      value: { feeds: [{ ...feed, enabled: false }] },
+    });
+    expect(await uow.run(admin, (ctx) => formFeedSource.prepare(ctx, intent!))).toMatchObject({
+      ready: false,
+    });
     member = { ...member!, status: 'unsubscribed', last_changed: clock.now().toISOString() };
     await transport.sync(TENANT, intent!.id);
     expect((await uow.run(admin, (ctx) => ctx.supporters.getProjection(email)))!.lists).toEqual([]);
