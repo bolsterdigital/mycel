@@ -19,7 +19,9 @@
     >{/if}
   <ul>
     {#each data.forms as f}<li>
-        <a href="/admin/{data.tenant.slug}/forms/{f.id}">{f.list} ({f.kind}) · {f.id}</a>
+        <a href="/admin/{data.tenant.slug}/forms/{f.id}"
+          >{f.list} ({t(`admin.forms.option.${f.kind}` as const)}) · {f.id}</a
+        >
       </li>{/each}
   </ul>
   <form method="post" action="?/create" class="ui-fields">
