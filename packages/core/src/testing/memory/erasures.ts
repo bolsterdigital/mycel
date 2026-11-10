@@ -64,6 +64,10 @@ export function memoryErasures(store: MemoryStore, principal: Principal, clock: 
         actor: structuredClone(principal.actor),
       });
     },
+    async get(supporterId) {
+      const e = s.erasures.get(supporterId);
+      return e ? { registeredAt: e.erasedAt, secured: s.erasureBackups.has(supporterId) } : null;
+    },
     apply: async () => (s.erasures.size ? applyErasures(store, tenantId, clock) : 0),
     async status() {
       let oldest: Date | null = null;

@@ -135,6 +135,8 @@ export interface Erasures {
   /** No registered address is usable without its current explicit lifecycle evidence. */
   allows(email: string, lifecycleId?: string): Promise<boolean>;
   register(supporterId: string, email: string): Promise<void>;
+  /** One supporter's registration and whether a backup holds it; null when it has none. */
+  get(supporterId: string): Promise<ErasureRegistration | null>;
   apply(): Promise<number>;
   /**
    * How many registrations this tenant has and how many a backup holds (TODO #29B, 0021). A
@@ -143,6 +145,12 @@ export interface Erasures {
    * Only the backup writes `secured` (docker/backup/backup.sh, after `restic backup`).
    */
   status(): Promise<ErasureStatus>;
+}
+
+export interface ErasureRegistration {
+  registeredAt: Date;
+  /** A restic snapshot of this installation holds the registration (0021). */
+  secured: boolean;
 }
 
 export interface ErasureStatus {

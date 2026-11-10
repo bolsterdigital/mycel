@@ -18,13 +18,15 @@ export type UseCaseKind = 'query' | 'command';
  * The `effect` check of `audit_log` (migration 0015) mirrors this list: a new effect needs a
  * migration before any command carries it, or its audit row is refused.
  */
-export type UseCaseEffect = 'publish' | 'send' | 'export' | 'refund';
+export type UseCaseEffect = 'publish' | 'send' | 'export' | 'refund' | 'erase';
 
 export const EFFECT_CAPABILITY: Record<UseCaseEffect, Capability> = {
   publish: 'content:publish',
   send: 'mailing:send',
   export: 'supporters:export',
   refund: 'money:refund',
+  /** ADR 019 rule 8 with ADR 032: an erasure cannot be undone (migration 0047). */
+  erase: 'supporters:erase',
 };
 
 /** A valid input with an optional note; the conformance suites run every front against it. */

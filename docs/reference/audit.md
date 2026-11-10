@@ -16,7 +16,7 @@ Who did what on a site, and how it ended (PR #19). Every command, over HTTP, MCP
 | `actor_kind`  | `operator`, `api-key`, `agent`, `system`, `anonymous` or `platform`                                                                          |
 | `actor_id`    | operator id, API key id, the agent's key id, the job name, null for an anonymous visitor; `platform`: token fingerprint, `cli` or `seed`     |
 | `operation`   | the use-case name (`media.upload`) or `platform.tenant.create`, `platform.tenant.import`, `platform.set_entitlements`, `platform.set_status` |
-| `effect`      | the command's ADR 018 effect (`publish`, `send`, `export`, `refund`), when it has one                                                        |
+| `effect`      | the command's ADR 018 effect (`publish`, `send`, `export`, `refund`, `erase`), when it has one                                               |
 | `input_hash`  | HMAC-SHA256 of the canonical input, hex (below)                                                                                              |
 | `result`      | `ok`, a use-case error code (`forbidden`, `invalid_input`, `suspended`, `limit_exceeded`, `not_found`, `conflict`) or `error`                |
 | `request_id`  | the request id of the front's log context, so a row leads to its log lines                                                                   |

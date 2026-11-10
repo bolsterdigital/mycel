@@ -15,8 +15,17 @@ import {
 
 const NAME = /^[a-z]+(\.[a-z][a-z_]*)+$/;
 
-/** Last name segments that publish, send, export or refund, and so must declare an `effect`. */
-const EFFECT_VERBS = ['publish', 'unpublish', 'schedule', 'unschedule', 'send', 'export', 'refund'];
+/** Last name segments that publish, send, export, refund or erase: they must declare an `effect`. */
+const EFFECT_VERBS = [
+  'publish',
+  'unpublish',
+  'schedule',
+  'unschedule',
+  'send',
+  'export',
+  'refund',
+  'erase',
+];
 
 /** Last name segments that make something new, and so must say which limit they consume. */
 const GROWTH_VERBS = ['create', 'duplicate', 'invite', 'add', 'submit', 'upload'];

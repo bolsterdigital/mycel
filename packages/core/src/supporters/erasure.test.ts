@@ -17,6 +17,8 @@ import {
   secureErasures,
   TENANT,
   adminOf,
+  expectCode,
+  principal,
 } from '../testing/index.js';
 import { sendOnce } from '../mailing/send-attempts.js';
 import { confirmationMailSubscriber } from '../mailing/confirmation.js';
@@ -312,6 +314,112 @@ describe('ctx.erasures in memory', () => {
     await uow.run(adminOf(), (ctx) => ctx.erasures.register(id, 'ada@example.org'));
     await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
     expect(copies(TENANT, 'ada@example.org')).toEqual(none);
+  });
+
+  // The ordinary request (brief #169 C): through the registry, as every front calls it.
+  describe('supporter.erase', () => {
+    const invoker = () => new Invoker(buildRegistry(), uow);
+    const eraser = (change: Parameters<typeof principal>[0] = {}) =>
+      principal({ capabilities: ['supporters:erase', 'supporters:read'], ...change });
+    const supporterId = async () =>
+      (await uow.run(adminOf(), (ctx) => ctx.supporters.getProjection('ada@example.org')))!.id;
+    const eraseJobs = () => uow.store.jobs.filter((j) => j.type === 'supporter.erase');
+
+    it('registers and plans the worker in one step, with no address in output, audit or job', async () => {
+      const id = await supporterId();
+      const result = await invoker().run(useCases.eraseSupporter, eraser(), { supporterId: id });
+      expect(result).toEqual({
+        id,
+        registeredAt: uow.clock.now().toISOString(),
+        applied: false,
+        secured: false,
+        created: true,
+      });
+      expect(eraseJobs()).toMatchObject([
+        { tenantId: TENANT, key: `supporter.erase:${id}`, payload: { supporterId: id } },
+      ]);
+      const audit = uow.store.for(TENANT).audit.filter((a) => a.operation === 'supporter.erase');
+      expect(audit).toMatchObject([{ effect: 'erase', result: 'ok', subjectId: id }]);
+      expect(JSON.stringify([result, audit, eraseJobs()])).not.toContain('ada@example.org');
+      // Registering is not erasing: every copy is still there until the worker applies.
+      expect(copies(TENANT, 'ada@example.org').submissions).toBe(1);
+    });
+
+    it('reads back as applied once the worker ran, and a repeat plans nothing new', async () => {
+      const id = await supporterId();
+      await invoker().run(useCases.eraseSupporter, eraser(), { supporterId: id });
+      // What the `supporter.erase` handler does on the operator connection.
+      await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+      expect(copies(TENANT, 'ada@example.org')).toEqual(none);
+      const status = await invoker().run(useCases.getSupporterErasure, eraser(), {
+        supporterId: id,
+      });
+      expect(status).toMatchObject({ id, applied: true, secured: false });
+      secureErasures(uow.store, TENANT, 'ef'.repeat(32), uow.clock.now());
+      const again = await invoker().run(useCases.eraseSupporter, eraser(), { supporterId: id });
+      expect(again).toMatchObject({ applied: true, secured: true, created: false });
+      expect(eraseJobs()).toHaveLength(1);
+      expect(uow.store.for(TENANT).erasures.size).toBe(1);
+      expect(copies(OTHER, 'ada@example.org').supporters).toBe(1);
+    });
+
+    it('refuses without supporters:erase, and an unknown or other tenant id is not found', async () => {
+      const id = await supporterId();
+      await expectCode(
+        invoker().run(useCases.eraseSupporter, principal({ capabilities: ['supporters:write'] }), {
+          supporterId: id,
+        }),
+        'forbidden'
+      );
+      await expectCode(
+        invoker().run(useCases.eraseSupporter, eraser(), { supporterId: uow.ids.next() }),
+        'not_found'
+      );
+      await expectCode(
+        invoker().run(useCases.eraseSupporter, eraser({ tenantId: OTHER }), { supporterId: id }),
+        'not_found'
+      );
+      await expectCode(
+        invoker().run(useCases.getSupporterErasure, eraser(), { supporterId: id }),
+        'not_found'
+      );
+      expect(uow.store.for(TENANT).erasures.size + uow.store.for(OTHER).erasures.size).toBe(0);
+      expect(eraseJobs()).toHaveLength(0);
+    });
+
+    it('is accepted while the site is suspended; an ordinary write is not', async () => {
+      const id = await supporterId();
+      const suspended = eraser({ tenantStatus: 'suspended' });
+      await expect(
+        invoker().run(useCases.eraseSupporter, suspended, { supporterId: id })
+      ).resolves.toMatchObject({ created: true });
+      await expectCode(
+        invoker().run(
+          useCases.changeSupporterEmail,
+          { ...suspended, capabilities: ['supporters:write'] },
+          { supporterId: id, newEmail: 'new@example.org', reason: 'test' }
+        ),
+        'suspended'
+      );
+    });
+
+    it('erases a readmitted lifecycle as its own request', async () => {
+      const old = await supporterId();
+      await invoker().run(useCases.eraseSupporter, eraser(), { supporterId: old });
+      await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+      (uow.clock as FakeClock).advance(86_400_001);
+      await signup(TENANT, 'ada@example.org');
+      const next = await supporterId();
+      expect(next).not.toBe(old);
+      const result = await invoker().run(useCases.eraseSupporter, eraser(), { supporterId: next });
+      expect(result).toMatchObject({ id: next, created: true, applied: false });
+      expect(eraseJobs().map((j) => j.key)).toEqual([
+        `supporter.erase:${old}`,
+        `supporter.erase:${next}`,
+      ]);
+      await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+      expect(copies(TENANT, 'ada@example.org')).toEqual(none);
+    });
   });
 });
 

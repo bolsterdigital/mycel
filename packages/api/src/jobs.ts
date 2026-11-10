@@ -42,6 +42,7 @@ import {
   DEFAULT_EXPORT_RETENTION_DAYS,
 } from '@mycel/core';
 import {
+  applyErasures,
   createDb,
   createEventPartitions,
   deleteExpiredAudit,
@@ -75,6 +76,7 @@ export const RECURRING_JOBS: readonly RecurringJob[] = [
   { type: 'audit.retention', cadence: 'daily' },
   { type: 'assist.retention', cadence: 'daily' },
   { type: 'tenant.export.expire', cadence: 'daily' },
+  { type: 'erasures.apply', cadence: 'daily' },
 ];
 
 /**
@@ -160,6 +162,19 @@ export function expireAllExports(
     (id) => expireExports(operatorDb, blobs, id, now),
     errors
   );
+}
+
+/**
+ * `erasures.apply`: every tenant's register, each in its own transaction on the operator
+ * connection (`applyErasures` enters mycel_erasure for that tenant only). A tenant without
+ * registrations costs one indexed read.
+ */
+export function applyAllErasures(
+  operatorDb: ReturnType<typeof createDb>,
+  tenantIds: () => Promise<string[]>,
+  errors?: ErrorReporter
+): Promise<number> {
+  return forEachTenant('erasures.apply', tenantIds, (id) => applyErasures(operatorDb, id), errors);
 }
 
 /** What the export jobs need: the store the archives go to and the version in the manifest. */
@@ -348,6 +363,22 @@ export function jobHandlers({
     },
     'tenant.export.expire': platformJob('tenant.export.expire', () =>
       expireAllExports(operatorDb, exportConfig().blobs, tenantIds, mail.clock.now(), errors)
+    ),
+    // Not a `tenantJob`: applying needs the operator connection, which may enter mycel_erasure
+    // (0019); a unit of work runs as mycel_app and is refused. Only the job's own tenant, from
+    // the row, never from the payload. Runs whatever the tenant's status (ADR 015 rule 7 as
+    // amended 2026-11-10): it publishes and sends nothing. A failure is retried by the worker;
+    // the daily `erasures.apply` picks up whatever exhausted its attempts.
+    'supporter.erase': async (job) => {
+      if (job.tenantId === null)
+        throw new Error('supporter.erase is a tenant job but has no tenant');
+      parseJobPayload('supporter.erase', job.payload);
+      await applyErasures(operatorDb, job.tenantId);
+      // Archives the apply expired lose their file now, not at the next daily expire.
+      if (exports) await expireExports(operatorDb, exports.blobs, job.tenantId, mail.clock.now());
+    },
+    'erasures.apply': platformJob('erasures.apply', () =>
+      applyAllErasures(operatorDb, tenantIds, errors)
     ),
   } satisfies Record<JobType, JobHandler>;
 }

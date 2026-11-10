@@ -1,9 +1,11 @@
 // The handler registry over in-memory ports: a tenant job runs in its tenant's unit of work as a
 // system principal with the tenant's current status, a platform job never runs with a tenant,
 // and every job type has a handler.
-// The platform handlers' SQL is proven in packages/db/src/operations/jobs.test.ts.
+// The platform handlers' SQL is proven in packages/db/src/operations/jobs.test.ts. The erasure
+// jobs are proven against Postgres at the end of this file: they need the operator connection.
 
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { sql } from 'kysely';
 import {
   Invoker,
   JobPayloads,
@@ -22,6 +24,8 @@ import {
   type Mailer,
   type Principal,
   MEDIA_TRASH_RETENTION_MS,
+  DEFAULT_ACCESS,
+  supporterIngestSubscriber,
 } from '@mycel/core';
 import {
   FakeClock,
@@ -32,13 +36,36 @@ import {
   MemoryTenants,
   MemoryUnitOfWork,
   probeTenant,
+  probeForm,
+  FakeInputHasher,
+  FakeSigner,
+  memoryPlatform,
+  runSuffix,
+  testPlatformActor,
   TENANT,
 } from '@mycel/core/testing';
-import type { createDb } from '@mycel/db';
+import {
+  createDb,
+  createUnitOfWork,
+  readOutboxEvent,
+  runJobs,
+  setStatus,
+  uuidv7,
+  uuidv7Ids,
+} from '@mycel/db';
+import {
+  asRole,
+  closeTenantWork,
+  migrateSchema,
+  requireDatabase,
+  testTenant,
+} from '@mycel/db/testing';
 import { RECURRING_JOBS, jobHandlers, tenantJob } from './jobs.js';
 
 // The platform handlers are not called here; the registry only needs the connection's shape.
 const operatorDb = {} as ReturnType<typeof createDb>;
+
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
 const job = (over: Partial<JobRecord>): JobRecord => ({
   id: 'j',
@@ -77,10 +104,25 @@ describe('job handlers', () => {
       /tenant job/
     );
     await expect(handlers['hostnames.reverify']!(job({ payload: {} }))).rejects.toThrow();
+    // An erasure job names no address and is bound to the tenant on its row.
+    const erase = { type: 'supporter.erase', key: 'supporter.erase:x' };
+    await expect(
+      handlers['supporter.erase']!(
+        job({ ...erase, tenantId: null, payload: { supporterId: TENANT } })
+      )
+    ).rejects.toThrow(/tenant job/);
+    await expect(
+      handlers['supporter.erase']!(job({ ...erase, payload: { email: 'a@example.org' } }))
+    ).rejects.toThrow();
   });
 
   it('refuses a platform job that carries a tenant', async () => {
-    for (const type of ['events.partitions', 'rate_limits.sweep', 'media.orphans'])
+    for (const type of [
+      'events.partitions',
+      'rate_limits.sweep',
+      'media.orphans',
+      'erasures.apply',
+    ])
       await expect(handlers[type]!(job({ type, payload: {} }))).rejects.toThrow(/platform job/);
   });
 
@@ -408,5 +450,188 @@ describe('connection intent job composition', () => {
         })
       )
     ).toEqual({});
+  });
+});
+
+// brief #169 C: an ordinary request reaches every copy through the worker, with no script. The
+// fixture is a real signup (submission, outbox event) and its ingest (events, projection).
+describe.skipIf(skip)('erasure jobs against Postgres', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
+  const clock = { now: () => new Date() };
+  const uow = createUnitOfWork(appDb, {
+    clock,
+    ids: uuidv7Ids,
+    signer: new FakeSigner(),
+    inputHasher: new FakeInputHasher(),
+    dns: new FakeDns(),
+    platform: memoryPlatform,
+  });
+  const invoker = new Invoker(buildRegistry(), uow);
+  const run = runSuffix();
+  const address = `erase-job-${run}@example.org`;
+  const tenants: string[] = [];
+  let sweepTenants: string[] = [];
+  const handlers = jobHandlers({
+    uow,
+    operatorDb,
+    identity: { tenantAccess: async () => DEFAULT_ACCESS },
+    mail: { mailer: new MemoryMailer(), clock, sources: {} },
+    tenantIds: async () => sweepTenants,
+  });
+  const eraser = (tenantId: string, change: Partial<Principal> = {}): Principal => ({
+    ...systemPrincipal(tenantId, 'erasure-request'),
+    capabilities: ['supporters:erase', 'supporters:read'],
+    ...change,
+  });
+
+  async function newTenant(name: string): Promise<string> {
+    const id = (await testTenant(operatorDb, `${name}-${run}`)).id;
+    tenants.push(id);
+    return id;
+  }
+
+  /** A signup and its ingest; returns the supporter id. */
+  async function signup(tenantId: string): Promise<string> {
+    const admin = systemPrincipal(tenantId, 'erasure-job-test');
+    const formId = uuidv7();
+    await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
+    const submitted = await invoker.run(useCases.submitForm, admin, {
+      formId,
+      values: { email: address, consent: true },
+      locale: 'nl',
+    });
+    if (submitted.status !== 'accepted') throw new Error(`signup ${submitted.status}`);
+    const ids = await asRole(operatorDb, 'mycel_worker', async (trx) =>
+      (
+        await sql<{ id: string }>`select id from outbox where tenant_id = ${tenantId}
+          and type = 'newsletter.subscribed'`.execute(trx)
+      ).rows.map((r) => r.id)
+    );
+    for (const id of ids)
+      await supporterIngestSubscriber(uow).handle((await readOutboxEvent(operatorDb, id))!);
+    // Delivered by hand; a worker of another checkout on this database must not act on them.
+    await closeTenantWork(operatorDb, [tenantId]);
+    return (await uow.run(admin, (ctx) => ctx.supporters.getProjection(address)))!.id;
+  }
+
+  /** Rows of the tenant that still carry the address, per table, read as mycel_app. */
+  async function copies(tenantId: string): Promise<Record<string, number>> {
+    return asRole(operatorDb, 'mycel_app', async (trx) => {
+      await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+      const count = async (table: string) =>
+        Number(
+          (
+            await sql<{ n: string }>`select count(*) as n from ${sql.table(table)} t
+              where t::text ilike ${'%' + address + '%'}`.execute(trx)
+          ).rows[0]!.n
+        );
+      return {
+        events: await count('events'),
+        supporters: await count('supporters'),
+        form_submissions: await count('form_submissions'),
+      };
+    });
+  }
+  const none = { events: 0, supporters: 0, form_submissions: 0 };
+
+  /** The open `supporter.erase` jobs of a tenant, as the worker sees them. */
+  const eraseJobs = (tenantId: string) =>
+    asRole(
+      operatorDb,
+      'mycel_worker',
+      async (trx) =>
+        (
+          await sql<{
+            key: string;
+            payload: unknown;
+            attempts: number;
+          }>`select key, payload, attempts
+          from jobs where tenant_id = ${tenantId} and type = 'supporter.erase'
+          and done_at is null`.execute(trx)
+        ).rows
+    );
+
+  beforeAll(async () => {
+    await migrateSchema(operatorUrl);
+  });
+
+  afterAll(async () => {
+    await closeTenantWork(operatorDb, tenants);
+    await operatorDb.destroy();
+    await appDb.destroy();
+  });
+
+  it('erases every copy of a suspended site through the worker, and nothing of another site', async () => {
+    const suspended = await newTenant('erase-job');
+    const other = await newTenant('erase-job-other');
+    const id = await signup(suspended);
+    await signup(other);
+    await setStatus(operatorDb, suspended, 'suspended', testPlatformActor);
+    expect(await copies(suspended)).not.toEqual(none);
+
+    const request = eraser(suspended, { tenantStatus: 'suspended' });
+    const result = await invoker.run(useCases.eraseSupporter, request, { supporterId: id });
+    expect(result).toMatchObject({ id, created: true, applied: false, secured: false });
+    // The front registered and planned; it erased nothing (it cannot enter mycel_erasure).
+    expect(await copies(suspended)).not.toEqual(none);
+    const planned = await eraseJobs(suspended);
+    expect(planned).toEqual([
+      { key: `supporter.erase:${id}`, payload: { supporterId: id }, attempts: 0 },
+    ]);
+    // Migration 0047: the audit row with effect `erase` is accepted, and names no address.
+    const audit = await asRole(operatorDb, 'mycel_app', async (trx) => {
+      await sql`select set_config('app.tenant_id', ${suspended}, true)`.execute(trx);
+      return (
+        await sql<{ row: string }>`select a::text as row from audit_log a
+          where operation = 'supporter.erase' and effect = 'erase'`.execute(trx)
+      ).rows;
+    });
+    expect(audit).toHaveLength(1);
+    expect(audit[0]!.row).not.toContain(address);
+
+    const ran = await runJobs(operatorDb, handlers, {
+      tenantId: suspended,
+      types: ['supporter.erase'],
+    });
+    expect(ran).toMatchObject({ claimed: 1, completed: 1, failed: 0 });
+    expect(await copies(suspended)).toEqual(none);
+    expect(await copies(other)).not.toEqual(none);
+    await expect(
+      invoker.run(useCases.getSupporterErasure, request, { supporterId: id })
+    ).resolves.toMatchObject({ id, applied: true, secured: false });
+  });
+
+  it('erases a request whose job ran out of attempts at the next daily erasures.apply', async () => {
+    const tenant = await newTenant('erase-sweep');
+    const id = await signup(tenant);
+    await invoker.run(useCases.eraseSupporter, eraser(tenant), { supporterId: id });
+    // The job is spent: the worker no longer claims it, and nothing else would.
+    await asRole(operatorDb, 'mycel_worker', (trx) =>
+      sql`update jobs set attempts = max_attempts, failed_at = now(), last_error = 'lost'
+        where tenant_id = ${tenant} and type = 'supporter.erase'`.execute(trx)
+    );
+    expect(
+      await runJobs(operatorDb, handlers, { tenantId: tenant, types: ['supporter.erase'] })
+    ).toMatchObject({ claimed: 0 });
+    expect(await copies(tenant)).not.toEqual(none);
+
+    sweepTenants = [tenant];
+    await handlers['erasures.apply']!({
+      id: uuidv7(),
+      tenantId: null,
+      type: 'erasures.apply',
+      key: `erasures.apply:${run}`,
+      runAt: clock.now(),
+      payload: {},
+      attempts: 1,
+      maxAttempts: 10,
+      claimedAt: clock.now(),
+      doneAt: null,
+      lastError: null,
+      createdAt: clock.now(),
+      failedAt: null,
+    });
+    expect(await copies(tenant)).toEqual(none);
   });
 });

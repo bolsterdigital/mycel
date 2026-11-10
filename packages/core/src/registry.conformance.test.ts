@@ -290,6 +290,16 @@ describe('registry rules catch violations', () => {
       /must declare an effect/,
     ],
     [
+      'supporter.erase without an effect',
+      { name: 'supporter.erase', requires: 'supporters:erase' as const },
+      /must declare an effect/,
+    ],
+    [
+      'an erasure under supporters:write',
+      { name: 'supporter.erase', effect: 'erase' as const, requires: 'supporters:write' as const },
+      /requires supporters:erase, not supporters:write/,
+    ],
+    [
       'a query with an effect',
       { kind: 'query' as const, effect: 'export' as const, requires: 'supporters:export' as const },
       /a query cannot have effect/,

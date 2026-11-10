@@ -3,6 +3,7 @@
 - **Status**: accepted
 - **Date**: 2026-10-21
 - **Builds on**: ADR 006 (open core boundary is the repository boundary)
+- **Rule 7 amended**: 2026-11-10 (brief #169 C). A suspended tenant also accepts erasure requests (`supporter.erase`, effect `erase`): an erasure is owed to the person whose data it is, not a service to the tenant, and it publishes, sends and grows nothing. The worker applies registered erasures whatever the tenant's status. The original wording is retained below.
 - **Amended**: 2026-10-21 by ADR 017 (`sites.max` removed) and rule 7 below (over-limit, suspension and leaving); 2026-10-22 by PR #12 (`custom_domains.max` added to rule 2); 2026-10-22 by PR #12 (rule 4: the platform role)
 
 ## Context

@@ -126,6 +126,7 @@ import { closeJob, getOpsStatus, retryJob } from './ops/service.js';
 import { getAttentionSummary, listAttention, updateAttentionSeenAt } from './attention/service.js';
 import { UseCaseRegistry, type UseCase } from './registry.js';
 import { changeSupporterEmail, getSupporter } from './supporters/service.js';
+import { eraseSupporter, getSupporterErasure } from './supporters/erase.js';
 import { checkThemeUseCase } from './theme/service.js';
 import { getBrandAsset, putBrandAsset, removeBrandAsset } from './theme/assets.js';
 import {
@@ -239,6 +240,8 @@ export const useCases = {
   previewConfirmation,
   getSupporter,
   changeSupporterEmail,
+  eraseSupporter,
+  getSupporterErasure,
   listMembers,
   inviteMember,
   updateMember,
