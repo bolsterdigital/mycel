@@ -12,7 +12,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { probeForm, runSuffix } from '@mycel/core/testing';
 import { uuidv7 } from './index.js';
 import { requireDatabase, migrateSchema } from './testing.js';
@@ -24,23 +24,34 @@ const MIGRATION = fileURLToPath(
 );
 
 describe.skipIf(skip)('migration 0020 backfill', () => {
-  const client = new pg.Client({ connectionString: operatorUrl });
   let backfill = '';
-  const run = runSuffix();
+  // Each test owns its connections. A timed-out async body can still run its finally block;
+  // sharing a client lets that cleanup race with the next test's transaction.
+  const test = it.extend<{ replay: { client: pg.Client; holder: pg.Client; run: string } }>({
+    replay: async ({}, use) => {
+      const client = new pg.Client({ connectionString: operatorUrl });
+      const holder = new pg.Client({ connectionString: operatorUrl });
+      try {
+        await client.connect();
+        await holder.connect();
+        await use({ client, holder, run: runSuffix() });
+      } finally {
+        // Closing the test-owned sessions rolls back any transaction left by a timeout.
+        await Promise.all([client.end(), holder.end()]);
+      }
+    },
+  });
 
   beforeAll(async () => {
     await migrateSchema(operatorUrl);
     const text = await readFile(MIGRATION, 'utf8');
     backfill = text.slice(text.indexOf('-- backfill:begin'), text.indexOf('-- backfill:end'));
     expect(backfill).toContain('update form_submissions');
-    await client.connect();
   });
-
-  afterAll(() => client.end());
 
   // Role membership locks precede table locks in every migration replay fixture. Holding
   // forms while waiting for mycel_app can deadlock with another fixture inserting a form.
-  async function prepare(tenants: { id: string; key: string }[]) {
+  async function prepare(client: pg.Client, run: string, tenants: { id: string; key: string }[]) {
     await client.query('begin');
     try {
       const role = `snapshot_app_${run}`;
@@ -68,16 +79,17 @@ describe.skipIf(skip)('migration 0020 backfill', () => {
     }
   }
 
-  it('waits for role membership before locking forms during a concurrent fixture', async () => {
-    const holder = new pg.Client({ connectionString: operatorUrl });
-    await holder.connect();
+  test('waits for role membership before locking forms during a concurrent fixture', async ({
+    replay,
+  }) => {
+    const { client, holder, run } = replay;
     const { rows } = await client.query<{ pid: number }>('select pg_backend_pid() as pid');
     const pid = rows[0]!.pid;
     let preparing: Promise<string | Error> | undefined;
     try {
       await holder.query('begin');
       await holder.query(`create role snapshot_holder_${run} nologin in role mycel_app`);
-      preparing = prepare([]).catch((error: Error) => error);
+      preparing = prepare(client, run, []).catch((error: Error) => error);
       // Synchronise on the actual role wait, not a sleep that can miss the interleaving.
       await expect
         .poll(async () => {
@@ -98,18 +110,20 @@ describe.skipIf(skip)('migration 0020 backfill', () => {
       await holder.query('rollback');
       if (preparing) await preparing;
       await client.query('rollback');
-      await holder.end();
     }
   });
 
-  it('fills every submission from its own form, for two tenants, and forces RLS again', async () => {
+  test('fills every submission from its own form, for two tenants, and forces RLS again', async ({
+    replay,
+  }) => {
+    const { client, run } = replay;
     const tenants = ['a', 'b'].map((key) => ({
       key,
       id: uuidv7(),
       form: { ...probeForm(uuidv7()), list: `list-${key}`, consentTextVersion: `text-${key}` },
       submissions: [uuidv7(), uuidv7()],
     }));
-    const role = await prepare(tenants);
+    const role = await prepare(client, run, tenants);
     try {
       await client.query(`set local role ${role}`);
       for (const t of tenants) {
