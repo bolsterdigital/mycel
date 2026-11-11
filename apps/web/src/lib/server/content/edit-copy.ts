@@ -50,6 +50,7 @@ export const ISSUES: Record<string, UiKey> = {
   'content.seo.canonical.invalid': 'admin.content.error.canonical',
   'content.tag.invalid': 'admin.content.error.tag',
   'content.access.marker-needs-one-paywall': 'admin.content.error.marker',
+  'content.access.paywall-without-marker': 'admin.content.error.paywallWithoutMarker',
   'content.access.teaser-too-long': 'admin.content.error.teaserTooLong',
   'content.access.tier-ids-required': 'admin.content.error.tier',
   'content.image.alt-required': 'admin.block.issue.altRequired',

@@ -1358,6 +1358,8 @@ export const en = {
     'A tag has only letters and digits, with single spaces or hyphens between words.',
   'admin.content.error.marker':
     '"Everything above the paywall block" needs exactly one paywall block at the top level.',
+  'admin.content.error.paywallWithoutMarker':
+    'This item has a paywall block, and that only works with "Everything above the paywall block". Choose that teaser.',
   'admin.content.error.teaserTooLong': 'More blocks are visible to everyone than the item has.',
   'admin.content.error.tier': 'A paid tier needs a tier; that is not available yet.',
   'admin.content.publication.title': 'Publication',

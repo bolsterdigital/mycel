@@ -88,6 +88,7 @@ test.describe('content-admin', () => {
     `a1-${what}-${test.info().project.name}-${randomUUID()}`.toLowerCase();
 
   const showTab = showEditorTab;
+  const save = (page: Page) => page.getByRole('button', { name: 'Opslaan' }).click();
 
   test('new content opens a draft immediately and chooses a pattern in the empty column', async ({
     page,
@@ -170,7 +171,7 @@ test.describe('content-admin', () => {
       await page.locator('summary', { hasText: 'Zoeken en delen' }).click();
     }
     await page.getByLabel('Titel in zoekresultaten').fill('De buurt');
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await save(page);
     await expect(page).toHaveURL(`${edit}?saved`);
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
     await expect(page.locator('#title\\.nl')).toHaveValue('Over onze buurt');
@@ -279,7 +280,7 @@ test.describe('content-admin', () => {
     await page.reload();
     await expect(page.getByRole('tabpanel', { name: 'Zoeken en delen' })).toBeVisible();
     await list.getByRole('tab', { name: 'Inhoud' }).click();
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await save(page);
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
     await expectNoAxeViolations(page);
 
@@ -287,7 +288,7 @@ test.describe('content-admin', () => {
     // so its panel shows first.
     await page.locator('#title\\.nl').fill('');
     await list.getByRole('tab', { name: 'Zoeken en delen' }).click();
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await save(page);
     await expect(page.getByRole('tabpanel', { name: 'Inhoud' })).toBeVisible();
     await expect(page.locator('#title\\.nl')).toBeFocused();
     await page.locator('#title\\.nl').fill('Tabbladen');
@@ -297,7 +298,7 @@ test.describe('content-admin', () => {
     await list.getByRole('tab', { name: 'Zoeken en delen' }).click();
     await page.locator('[name="canonical"]').fill('geen url');
     await list.getByRole('tab', { name: 'Inhoud' }).click();
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await save(page);
     const summary = page.getByRole('alert');
     const link = summary.getByRole('link', {
       name: 'Canoniek adres (optioneel, begint met https://)',
@@ -460,7 +461,7 @@ test.describe('content-admin', () => {
     await side.locator('details', { hasText: 'Adres wijzigen' }).locator('summary').click();
     const moved = slugFor('conflict-moved');
     await side.getByLabel('Slug').fill(moved);
-    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
+    await reloadsEditor(page, () => save(page));
     await expect(page).toHaveURL(/\?saved&merged=[0-9a-f-]{36}$/);
     await expect(page.getByRole('status')).toContainText('samen met wat');
     expect((await stored()).title).toEqual({ nl: 'Mijn versie', en: 'Agent title' });
@@ -468,7 +469,7 @@ test.describe('content-admin', () => {
 
     await agent({ nl: 'Hun versie' });
     await page.locator('#title\\.nl').fill('Weer mijn versie');
-    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
+    await reloadsEditor(page, () => save(page));
     const alert = page.getByRole('alert');
     await expect(alert).toContainText('Iemand anders heeft dit item intussen opgeslagen');
     await expect(alert.getByRole('radio')).toHaveCount(2);
@@ -484,7 +485,7 @@ test.describe('content-admin', () => {
     }
     await setTextSize(page, '100%');
     await alert.getByRole('radio', { name: 'Hun versie gebruiken: Hun versie' }).check();
-    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
+    await reloadsEditor(page, () => save(page));
     await expect(page).toHaveURL(`${edit}?saved`);
     expect((await stored()).title).toEqual({ nl: 'Hun versie', en: 'Agent title' });
   });
@@ -516,7 +517,7 @@ test.describe('content-admin', () => {
 
     // Tab A saves a title: it merges with B's save, and keeps B's address.
     await page.locator('#title\\.nl').fill('Nieuwe titel');
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await save(page);
     await expect(page).toHaveURL(/\?saved&merged=[0-9a-f-]{36}$/);
     await expect(page.locator('#title\\.nl')).toHaveValue('Nieuwe titel');
     await expect(side).toContainText(`/${moved}`);
@@ -798,7 +799,7 @@ test.describe('content-admin', () => {
     await expect(page.getByLabel('Ver Weg')).toBeChecked();
     await expect(page.getByLabel('Rubriek')).toHaveValue(oldSection.id);
     await page.locator('#title\\.nl').fill('Alleen de titel');
-    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
+    await reloadsEditor(page, () => save(page));
     await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
     expect(await saved()).toMatchObject({ authorIds, sectionId: oldSection.id });
 
@@ -813,7 +814,7 @@ test.describe('content-admin', () => {
       baseRevisionId: revision.id,
       document: { ...revision.document, title: { nl: 'Andere titel' } },
     });
-    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
+    await reloadsEditor(page, () => save(page));
     await expect(page.getByRole('alert')).toContainText(
       'Iemand anders heeft dit item intussen opgeslagen'
     );
@@ -827,7 +828,7 @@ test.describe('content-admin', () => {
     // are not in the latest document, and the section/old author are outside the directory page.
     await showTab(page, 'Zoeken en delen');
     await page.locator('[name="canonical"]').fill('not-a-url');
-    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
+    await reloadsEditor(page, () => save(page));
     await expect(page.getByRole('alert')).toBeVisible();
     await expect(page.getByRole('alert')).not.toContainText(
       'Iemand anders heeft dit item intussen opgeslagen'
@@ -838,7 +839,7 @@ test.describe('content-admin', () => {
     await expect(page.locator('#title\\.nl')).toHaveValue('Mijn artikel bij conflict');
     await showTab(page, 'Zoeken en delen');
     await page.locator('[name="canonical"]').fill('');
-    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
+    await reloadsEditor(page, () => save(page));
     await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
     expect(await saved()).toMatchObject({
       title: { nl: 'Mijn artikel bij conflict' },
@@ -850,7 +851,7 @@ test.describe('content-admin', () => {
     await page.getByLabel(`Eerste ${run}`).uncheck();
     await page.getByLabel(`Nieuw ${run}`).check();
     await page.getByLabel('Rubriek').selectOption({ label: 'Geen rubriek' });
-    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
+    await reloadsEditor(page, () => save(page));
     await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
     const after = await saved();
     expect(after.authorIds).toEqual([second.id, old.id, fresh.id]);
@@ -931,7 +932,7 @@ test.describe('content-admin', () => {
     await layoutGate(page, 'author list', '#authors');
     await authors.screenshot({ path: test.info().outputPath('authors-320-200.png') });
 
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await save(page);
     await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
     const { revision } = await callApi<{ revision: { document: { authorIds: string[] } } }>(
       request,
@@ -1067,7 +1068,7 @@ test.describe('content-admin', () => {
     // A new revision: the site keeps the old title until it is published.
     await closePublication(page);
     await page.locator('#title\\.nl').fill('Buurtfeest verplaatst');
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await save(page);
     await expect(page).toHaveURL(`${edit}?saved`);
     await openPublication(page);
     await expect(card(page, 'nl')).toContainText('Gepubliceerd, sindsdien gewijzigd');
@@ -1265,7 +1266,7 @@ test.describe('content-admin', () => {
     await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
     const edit = new URL(page.url()).pathname;
     await page.locator('#lead\\.nl').fill('Een korte kern.');
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await save(page);
     await expect(page).toHaveURL(`${edit}?saved`);
 
     await page.goto(`${edit}?locale=en`);
@@ -1290,7 +1291,7 @@ test.describe('content-admin', () => {
     await expect(page.locator('#lead\\.en')).toHaveValue('Een korte kern.');
     await closePublication(page);
     await page.locator('#title\\.en').fill('Start from Dutch');
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await save(page);
     await page.goto(`${edit}?locale=nl`);
     await expect(page.locator('#title\\.nl')).toHaveValue(title);
     await expect(page.locator('#lead\\.nl')).toHaveValue('Een korte kern.');
@@ -1322,7 +1323,7 @@ test.describe('content-admin', () => {
     // Edited after planning: the pin stays on the old revision until the editor moves it.
     await closePublication(page);
     await page.locator('#title\\.nl').fill('Op vrijdagochtend');
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await save(page);
     await expect(page).toHaveURL(`${edit}?saved`);
     await openPublication(page);
     await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00');
@@ -1397,7 +1398,7 @@ test.describe('content-admin', () => {
         await page.goto(edit);
         await closePublication(page);
         await page.locator('#title\\.nl').fill(`Updated ${label}`);
-        await page.getByRole('button', { name: 'Opslaan' }).click();
+        await save(page);
         const newRevisionId = await page.locator('input[name="baseRevisionId"]').inputValue();
         expect(newRevisionId).not.toBe(oldRevisionId);
         await openPublication(page);
@@ -1454,6 +1455,19 @@ test.describe('content-admin', () => {
     });
     expect(before).toBe(true);
     await expectNoAxeViolations(page);
+    // Another teaser beside the paywall is refused at the teaser choice, and nothing is stored.
+    await closePublication(page);
+    const teaser = page.locator('#teaser');
+    await teaser.selectOption('lead', { force: true });
+    await save(page);
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText('Dit item heeft een betaalmuurblok, en dat werkt alleen');
+    await alert.getByRole('link', { name: 'Wat alle anderen zien' }).click();
+    await expect(teaser).toBeFocused();
+    await expect(teaser).toHaveAttribute('aria-invalid', 'true');
+    await expectNoAxeViolations(page);
+    const now = await callApi(request, 'content.item.get', { itemId });
+    expect(now.revision.document.access).toEqual({ level: 'members', teaser: 'marker' });
   });
 
   test('a legacy hero moves into the header, or says why not (ADR 025, MY-110 B4)', async ({
