@@ -18,6 +18,7 @@ import {
   formDocument,
   blockIssueField,
   blockIssues,
+  blockRefusalIssues,
   documentFieldIssues,
   formFieldOf,
   blockPrefix,
@@ -233,6 +234,21 @@ describe('the one edit form', () => {
     expect(documentFieldIssues(e)).toEqual([
       { name: 'teaser', message: 'content.access.marker-needs-one-paywall' },
     ]);
+  });
+
+  it('names a refused block operation on the document, or on the block as a whole', () => {
+    const refusal = (path: string, message: string) =>
+      blockRefusalIssues(new UseCaseError('invalid_input', 'bad', [{ path, message }]));
+    expect(refusal('access.teaser', 'content.access.marker-needs-one-paywall')).toEqual([
+      { name: 'teaser', copy: 'admin.content.error.marker' },
+    ]);
+    // A join of text in different locales has no field: the summary names it without a link.
+    expect(refusal('blockId', 'content.blocks.merge-ambiguous')).toEqual([
+      { name: '', copy: 'admin.block.issue.mergeAmbiguous' },
+    ]);
+    // A key without copy of its own keeps the general sentence, as does any other refusal.
+    expect(refusal('blockId', 'content.blocks.unknown')).toEqual([]);
+    expect(blockRefusalIssues(new UseCaseError('conflict', 'later', []))).toEqual([]);
   });
 
   it('points a refusal of a whole localised field at the control on screen', () => {

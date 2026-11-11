@@ -141,6 +141,43 @@ export async function article(request: APIRequestContext) {
   return `/admin/probe/content/${item.id}`;
 }
 
+/**
+ * An article whose quote stands between a text block in nl and en and one in nl only: removing or
+ * moving the quote would join text of different locales, which core refuses. `blocks` reads the
+ * stored block list back.
+ */
+export async function articleWithAmbiguousJoin(request: APIRequestContext) {
+  const doc = (text: string) => ({
+    type: 'doc',
+    content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+  });
+  const prose = (content: object) => ({ type: 'rich-text', version: 1, props: { content } });
+  const quote = { text: { nl: 'Ertussen' }, attribution: { name: 'Bron' } };
+  const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+    slug: `join-${test.info().project.name}-${crypto.randomUUID()}`,
+    document: {
+      type: 'article',
+      defaultLocale: 'nl',
+      locales: ['nl', 'en'],
+      title: { nl: 'Samenvoegen' },
+      blocks: [
+        prose({ nl: doc('Boven'), en: doc('Above') }),
+        { type: 'quote', version: 1, props: quote },
+        prose({ nl: doc('Onder') }),
+      ],
+    },
+  });
+  const blocks = async () =>
+    (
+      await callApi<{ revision: { document: { blocks: { id: string }[] } } }>(
+        request,
+        'content.item.get',
+        { itemId: item.id }
+      )
+    ).revision.document.blocks;
+  return { edit: `/admin/probe/content/${item.id}`, blocks };
+}
+
 /** Long formatted article and a native card, shared by the editor's initial-layout proof. */
 export async function longArticle(request: APIRequestContext): Promise<string> {
   const paragraphs = Array.from({ length: 24 }, (_, i) => ({

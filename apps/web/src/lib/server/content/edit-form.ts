@@ -40,6 +40,8 @@ import {
 import { addButtonLists } from '#lib/admin/block-presentation.js';
 import { fromArticleEditor } from '#lib/editor/article-document.js';
 import { documentFrom, type FormValues } from './content-admin.js';
+import { operationIssues, type FieldIssue } from './content-blocks.js';
+import { ISSUES } from './edit-copy.js';
 
 /** The name prefix of a stored block's fields. */
 export const blockPrefix = (id: string): string => `b.${id}.`;
@@ -327,6 +329,21 @@ export function documentFieldIssues(e: UseCaseError): { name: string; message: s
       return { name: DOCUMENT_FIELDS.find(([re]) => re.test(path))?.[1] ?? '', message: i.message };
     })
     .filter((i) => i.name);
+}
+
+/**
+ * The issues of a refused block operation as the summary lists them. The reason can sit on the
+ * document, not the block (the only paywall of a marker teaser cannot go), or on the operation
+ * itself (a removal or move that would join text of different locales). With neither, the message
+ * has to stand alone, so it is not the sentence that ends in a colon.
+ */
+export function blockRefusalIssues(e: UseCaseError): FieldIssue[] {
+  if (e.code !== 'invalid_input') return [];
+  const onFields = documentFieldIssues(e).map((i) => ({
+    name: i.name,
+    copy: ISSUES[i.message] ?? 'admin.block.error.invalid',
+  }));
+  return onFields.length ? onFields : operationIssues(e);
 }
 
 /**
