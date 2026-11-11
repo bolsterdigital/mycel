@@ -16,6 +16,7 @@
 
 import {
   BLOCK_DEFINITIONS,
+  BlockOperationError,
   cleanBlockName,
   GALLERY_ROWS,
   INSERTABLE_BLOCK_TYPES,
@@ -357,6 +358,14 @@ export function blockIssueField(
   return `${name}.rows` in values ? { name: field, list: name } : { name: field };
 }
 
+/** Core's refusal to join two text blocks whose locales or names differ. */
+const MERGE_AMBIGUOUS = 'content.blocks.merge-ambiguous';
+
+/** A refusal of the form's input: a Markdown or editor issue, or core's ambiguous join. */
+export type FormError = Omit<FieldError, 'message'> & {
+  message: FieldError['message'] | typeof MERGE_AMBIGUOUS;
+};
+
 /**
  * The document one post of the edit form makes on top of `base`: the document's fields
  * (`documentFrom`) and every block's (`blocksFrom`), with `editing` the one locale the form shows
@@ -370,7 +379,7 @@ export function formDocument(
   today: string,
   editing?: string | null,
   skip?: string
-): { document: ContentDocumentInput; blocks: Block[]; errors: FieldError[] } {
+): { document: ContentDocumentInput; blocks: Block[]; errors: FormError[] } {
   const doc = documentFrom(base, values, today, editing);
   let kept = doc.blocks as Block[];
   const article = post.get('articleEditor');
@@ -382,11 +391,19 @@ export function formDocument(
         today,
         editing
       ).blocks as Block[];
-    } catch {
+    } catch (e) {
+      // A removal that would join two text blocks of different locales or names is refused by
+      // core (`normalizeBlocks` does not guess translations) and says so; any other editor
+      // failure keeps the general sentence. Rejected: passing every core issue through, which
+      // would surface keys of a malformed payload nobody can act on.
+      const message: FormError['message'] =
+        e instanceof BlockOperationError && e.issue === MERGE_AMBIGUOUS
+          ? MERGE_AMBIGUOUS
+          : 'editor.markdown.invalid';
       return {
         document: doc,
         blocks: kept,
-        errors: [{ name: 'articleEditor', message: 'editor.markdown.invalid', line: 1 }],
+        errors: [{ name: 'articleEditor', message, line: 1 }],
       };
     }
   }

@@ -403,6 +403,60 @@ test.describe('article-writing', () => {
       });
     }
 
+    // Wiping the card between text blocks of different locales would join them and mix up
+    // their translations; core refuses, and the refusal says why and what to do. Nothing is saved.
+    test('a card removal that would join text of different locales is refused in words', async ({
+      page,
+      request,
+    }) => {
+      const itemId = await open(
+        page,
+        request,
+        [
+          {
+            ...prose,
+            props: { content: { nl: line('Boven'), en: line('Above') } },
+          },
+          quote('Ertussen'),
+          { ...prose, props: { content: { nl: line('Onder') } } },
+        ],
+        ['nl', 'en']
+      );
+      const before = await stored(request, itemId);
+      await editorReady(page);
+      const surface = page.locator('.writing-surface .ProseMirror').first();
+      // Select the card itself (a node selection), then wipe it from the keyboard.
+      await surface.evaluate((node) => {
+        const editor = (
+          node as HTMLElement & {
+            editor: {
+              state: {
+                doc: { forEach(f: (n: { type: { name: string } }, p: number) => void): void };
+              };
+              commands: { setNodeSelection(p: number): boolean };
+              view: { focus(): void };
+            };
+          }
+        ).editor;
+        let at = -1;
+        editor.state.doc.forEach((child, pos) => {
+          if (child.type.name === 'mycelCard') at = pos;
+        });
+        editor.commands.setNodeSelection(at);
+        editor.view.focus();
+      });
+      await surface.press('Backspace');
+      await expect(surface.locator('.editor-card')).toHaveCount(0);
+      await save(page);
+      const alert = page.getByRole('alert');
+      await expect(alert).toContainText(
+        'dit zou twee tekstblokken samenvoegen die niet dezelfde talen of bloknamen hebben'
+      );
+      await expect(alert).not.toContainText('de tekst past niet in wat een tekstblok mag bevatten');
+      expect(await stored(request, itemId)).toEqual(before);
+      await expectNoAxeViolations(page);
+    });
+
     test('a refused insert keeps what was typed, and the next save stands', async ({
       page,
       request,

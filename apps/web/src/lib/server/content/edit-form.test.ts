@@ -13,6 +13,7 @@ import {
   type BlockField,
 } from '@mycel/core';
 import { formValues, postedValues } from '#lib/editor/block-form.js';
+import { issueCopy } from './content-blocks.js';
 import {
   formDocument,
   blockIssueField,
@@ -395,4 +396,72 @@ it('saves explicit writer card removal, accepts undo and refuses unannounced car
   expect(parse([]).errors).toEqual([
     { name: 'articleEditor', message: 'editor.markdown.invalid', line: 1 },
   ]);
+});
+
+// Removing a card between text blocks whose locales or names differ is refused with copy of
+// its own; any other editor failure, such as a card that silently went missing, keeps the general
+// sentence.
+it('refuses an ambiguous text join with its own issue and nothing else with it', () => {
+  const quote = blocks.find((block) => block.type === 'quote')!;
+  const prose = (id: string, locales: string[], name?: Record<string, string>) =>
+    Block.parse({
+      id,
+      type: 'rich-text',
+      version: BLOCK_DEFINITIONS['rich-text'].version,
+      ...(name ? { name } : {}),
+      props: {
+        content: Object.fromEntries(
+          locales.map((l) => [
+            l,
+            { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: l }] }] },
+          ])
+        ),
+      },
+    });
+  const save = (list: Block[], removedCardIds?: string[]) => {
+    const base = ContentDocument.parse({
+      type: 'article',
+      defaultLocale: 'nl',
+      locales: ['nl', 'en'],
+      title: { nl: 'Artikel' },
+      blocks: list,
+    });
+    const content = list
+      .filter((block) => !(removedCardIds ?? [quote.id]).includes(block.id))
+      .map((block) =>
+        block.type === 'rich-text'
+          ? {
+              type: 'mycelProse',
+              attrs: { blockId: block.id },
+              content: [{ type: 'paragraph', content: [{ type: 'text', text: 'nl' }] }],
+            }
+          : { type: 'mycelCard', attrs: { blockId: block.id } }
+      );
+    const post = new FormData();
+    post.set('articleEditor', JSON.stringify({ type: 'doc', content, removedCardIds }));
+    for (const [name, value] of Object.entries(formOf([quote]))) post.set(name, value);
+    return formDocument(
+      base,
+      { 'title.nl': 'Artikel' },
+      postedValues(Object.fromEntries(post.entries()) as Record<string, string>),
+      '2026-11-11',
+      'nl'
+    );
+  };
+  const refused = [{ name: 'articleEditor', message: 'content.blocks.merge-ambiguous', line: 1 }];
+  // Different locales.
+  const locales = [prose('a', ['nl', 'en']), quote, prose('b', ['nl'])];
+  expect(save(locales, [quote.id]).errors).toEqual(refused);
+  expect(issueCopy('content.blocks.merge-ambiguous')).toBe('admin.block.issue.mergeAmbiguous');
+  // Different names in one locale.
+  const names = [prose('a', ['nl'], { nl: 'Intro' }), quote, prose('b', ['nl'], { nl: 'Slot' })];
+  expect(save(names, [quote.id]).errors).toEqual(refused);
+  // The same card dropped without announcing its removal stays the general refusal.
+  expect(save(locales).errors).toEqual([
+    { name: 'articleEditor', message: 'editor.markdown.invalid', line: 1 },
+  ]);
+  // Text blocks that agree join as before.
+  const joined = save([prose('a', ['nl']), quote, prose('b', ['nl'])], [quote.id]);
+  expect(joined.errors).toEqual([]);
+  expect(joined.blocks.map((block) => block.id)).toEqual(['a']);
 });

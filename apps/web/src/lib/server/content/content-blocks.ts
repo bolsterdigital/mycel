@@ -633,6 +633,7 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.reference.media-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.media-not-image': 'admin.content.issue.mediaNotImage',
   'content.blocks.adjacent-rich-text': 'admin.block.issue.adjacentText',
+  'content.blocks.merge-ambiguous': 'admin.block.issue.mergeAmbiguous',
   'content.blocks.too-many': 'admin.block.issue.tooMany',
   'content.cards.too-few': 'admin.block.issue.tooFewCards',
   'content.cards.too-many': 'admin.block.issue.tooManyCards',

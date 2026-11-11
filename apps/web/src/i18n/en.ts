@@ -1519,6 +1519,8 @@ export const en = {
     'give an address that starts with https://, http://, mailto: or /',
   'admin.block.issue.videoId': 'this is not a video id of that provider',
   'admin.block.issue.adjacentText': 'two text blocks cannot stand next to each other',
+  'admin.block.issue.mergeAmbiguous':
+    'this would join two text blocks that do not have the same languages or block names, and their translations would get mixed up; first make the languages and names of both text blocks the same',
   'admin.block.issue.tooMany': 'an item has at most 200 blocks',
   'admin.block.issue.tooFewCards': 'fill in at least two cards',
   'admin.block.issue.tooManyCards': 'a row has at most four cards',
