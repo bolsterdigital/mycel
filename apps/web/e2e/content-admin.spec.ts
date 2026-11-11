@@ -1454,6 +1454,11 @@ test.describe('content-admin', () => {
     });
     expect(before).toBe(true);
     await expectNoAxeViolations(page);
+    // Opening the publication card is read-only: the access stays what the API set.
+    const { revision: after } = await callApi<{
+      revision: { document: { access: unknown } };
+    }>(request, 'content.item.get', { itemId });
+    expect(after.document.access).toEqual({ level: 'members', teaser: 'marker' });
   });
 
   test('a legacy hero moves into the header, or says why not (ADR 025, MY-110 B4)', async ({
