@@ -1535,6 +1535,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.block.issue.unsafeLink': 'geef een adres dat begint met https://, http://, mailto: of /',
   'admin.block.issue.videoId': 'dit is geen video-id van die dienst',
   'admin.block.issue.adjacentText': 'twee tekstblokken kunnen niet naast elkaar staan',
+  'admin.block.issue.mergeAmbiguous':
+    'dit zou twee tekstblokken samenvoegen die niet dezelfde talen of bloknamen hebben, en dan raken vertalingen door elkaar; maak eerst de talen en namen van beide tekstblokken gelijk',
   'admin.block.issue.tooMany': 'een item heeft hoogstens 200 blokken',
   'admin.block.issue.tooFewCards': 'vul minstens twee kaarten in',
   'admin.block.issue.tooManyCards': 'een rij heeft hoogstens vier kaarten',

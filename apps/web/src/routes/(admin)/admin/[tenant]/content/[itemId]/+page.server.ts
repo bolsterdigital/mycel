@@ -91,6 +91,7 @@ import {
   NEW_BLOCK,
   blockFormValues,
   blockIssues,
+  blockRefusalIssues,
   documentFieldIssues,
   blockIssueField,
   blockPrefix,
@@ -738,19 +739,16 @@ async function blockTry(saved: Committed, itemId: string, run: () => Promise<voi
     return null;
   } catch (e) {
     const refusal = refusalOf(e);
-    // The reason can sit on the document, not the block: the only paywall of a marker teaser cannot
-    // go. Without a named field the message has to stand alone, so it is not the sentence that
-    // ends in a colon.
-    const onFields = refusal.code === 'invalid_input' ? documentFieldIssues(refusal) : [];
+    const issues = blockRefusalIssues(refusal);
     const { status, body } = failureOf(refusal, 'block', {
       conflict: 'admin.content.conflict.title',
-      invalid: onFields.length ? 'admin.block.error.invalid' : 'admin.content.error.invalid',
+      invalid: issues.length ? 'admin.block.error.invalid' : 'admin.content.error.invalid',
     });
     const conflict =
       refusal.code === 'conflict' ? await changesSince(principal, itemId, revisionId, zone) : null;
     return fail(status, {
       ...body,
-      fieldIssues: onFields.map((i) => ({ name: i.name, copy: ISSUES[i.message] ?? body.error })),
+      fieldIssues: issues,
       conflict: conflict?.view ?? null,
     });
   }

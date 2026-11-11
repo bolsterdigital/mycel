@@ -13,8 +13,17 @@ import { NARROW, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
 import { closePublication, openPublication } from './lib/publication';
 import { isA11y, onlyA11y } from './lib/project';
-import { article, callApi, requireApi } from './lib/api';
-import { block, blockPage, card, editorReady, more, newPage, reloadsEditor } from './lib/editor';
+import { article, articleWithAmbiguousJoin, callApi, requireApi } from './lib/api';
+import {
+  block,
+  blockPage,
+  card,
+  editorReady,
+  more,
+  newPage,
+  reloadsEditor,
+  wipeFirstCard,
+} from './lib/editor';
 
 // The enhanced article view and native block forms save the same core document. The browser
 // proof covers explicit saving, axe and the action layout at 320 CSS px with 200% text; the no-JS
@@ -490,6 +499,48 @@ test.describe('article-writing', () => {
         expect((await stored(request, itemId)).map((x) => x.props.text?.nl)).toEqual(after);
       });
   });
+
+  // Removing or moving the card between text blocks of different locales would join them and mix
+  // up their translations. Core refuses; the writer's save and the card's own buttons (with or
+  // without JavaScript) say why, as an issue on the block as a whole, and nothing is saved.
+  for (const action of ['writer', 'remove', 'move'] as const)
+    test(`${action}: a card whose removal would join text of different locales is refused in words`, async ({
+      page,
+      request,
+    }) => {
+      test.skip(action === 'writer' && !isA11y(), 'the writer needs JavaScript');
+      const { edit, blocks } = await articleWithAmbiguousJoin(request);
+      const before = await blocks();
+      const quoteId = before[1]!.id;
+      await login(page, edit);
+      if (isA11y())
+        await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+      if (action === 'writer') {
+        await editorReady(page);
+        await wipeFirstCard(page);
+        await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+      } else
+        await page
+          .locator(
+            action === 'remove'
+              ? `button[name="remove"][value="${quoteId}"]`
+              : `button[name="move"][value="${quoteId}:down"]`
+          )
+          .evaluate((button) => (button as HTMLButtonElement).click());
+      const alert = page.getByRole('alert');
+      await expect(alert).toContainText(
+        'dit zou twee tekstblokken samenvoegen die niet dezelfde talen of bloknamen hebben'
+      );
+      await expect(alert).not.toContainText('Controleer de velden');
+      await expect(alert).not.toContainText('de tekst past niet in wat een tekstblok mag bevatten');
+      // The issue is about the block as a whole: no link into a field that is not there.
+      if (action !== 'writer') {
+        await expect(alert).toContainText('Het blok kon niet worden opgeslagen:');
+        await expect(alert.locator('li a')).toHaveCount(0);
+      }
+      expect(await blocks()).toEqual(before);
+      if (isA11y()) await expectNoAxeViolations(page);
+    });
 
   test('article prose and title save together, while the native form and other locale remain lossless', async ({
     page,

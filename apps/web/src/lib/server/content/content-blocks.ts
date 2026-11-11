@@ -633,6 +633,7 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.reference.media-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.media-not-image': 'admin.content.issue.mediaNotImage',
   'content.blocks.adjacent-rich-text': 'admin.block.issue.adjacentText',
+  'content.blocks.merge-ambiguous': 'admin.block.issue.mergeAmbiguous',
   'content.blocks.too-many': 'admin.block.issue.tooMany',
   'content.cards.too-few': 'admin.block.issue.tooFewCards',
   'content.cards.too-many': 'admin.block.issue.tooManyCards',
@@ -670,3 +671,16 @@ export function fieldIssues(e: UseCaseError, index: number): FieldIssue[] {
     return { name: prefix ? `p${i.path.slice(prefix.length)}` : '', copy: issueCopy(i.message) };
   });
 }
+
+/**
+ * Core's refusal of a block operation itself, such as a removal or move that would join two text
+ * blocks of different locales or names: issues on the block as a whole (empty name, as in
+ * `fieldIssues`), so a summary names the reason without a link. Only keys with copy of their own.
+ * Rejected: `issueCopy`, whose fallback turns an unknown key into a vague issue under a sentence
+ * that ends in a colon; such a refusal keeps the general sentence instead.
+ */
+export const operationIssues = (e: UseCaseError): FieldIssue[] =>
+  e.issues.flatMap((i) => {
+    const copy = ISSUE_COPY[i.message];
+    return copy ? [{ name: '', copy }] : [];
+  });

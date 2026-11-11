@@ -16,6 +16,7 @@
 
 import {
   BLOCK_DEFINITIONS,
+  BlockOperationError,
   cleanBlockName,
   GALLERY_ROWS,
   INSERTABLE_BLOCK_TYPES,
@@ -39,6 +40,8 @@ import {
 import { addButtonLists } from '#lib/admin/block-presentation.js';
 import { fromArticleEditor } from '#lib/editor/article-document.js';
 import { documentFrom, type FormValues } from './content-admin.js';
+import { operationIssues, type FieldIssue } from './content-blocks.js';
+import { ISSUES } from './edit-copy.js';
 
 /** The name prefix of a stored block's fields. */
 export const blockPrefix = (id: string): string => `b.${id}.`;
@@ -329,6 +332,21 @@ export function documentFieldIssues(e: UseCaseError): { name: string; message: s
 }
 
 /**
+ * The issues of a refused block operation as the summary lists them. The reason can sit on the
+ * document, not the block (the only paywall of a marker teaser cannot go), or on the operation
+ * itself (a removal or move that would join text of different locales). With neither, the message
+ * has to stand alone, so it is not the sentence that ends in a colon.
+ */
+export function blockRefusalIssues(e: UseCaseError): FieldIssue[] {
+  if (e.code !== 'invalid_input') return [];
+  const onFields = documentFieldIssues(e).map((i) => ({
+    name: i.name,
+    copy: ISSUES[i.message] ?? 'admin.block.error.invalid',
+  }));
+  return onFields.length ? onFields : operationIssues(e);
+}
+
+/**
  * The control a block issue points at. Core refuses a localised field as a whole when none of its
  * locales has words (`b.<id>.p.text`), but the form only has a control per locale: without this
  * the summary's link leads nowhere and the field is not marked. The first locale the form carried
@@ -357,6 +375,14 @@ export function blockIssueField(
   return `${name}.rows` in values ? { name: field, list: name } : { name: field };
 }
 
+/** Core's refusal to join two text blocks whose locales or names differ. */
+const MERGE_AMBIGUOUS = 'content.blocks.merge-ambiguous';
+
+/** A refusal of the form's input: a Markdown or editor issue, or core's ambiguous join. */
+export type FormError = Omit<FieldError, 'message'> & {
+  message: FieldError['message'] | typeof MERGE_AMBIGUOUS;
+};
+
 /**
  * The document one post of the edit form makes on top of `base`: the document's fields
  * (`documentFrom`) and every block's (`blocksFrom`), with `editing` the one locale the form shows
@@ -370,7 +396,7 @@ export function formDocument(
   today: string,
   editing?: string | null,
   skip?: string
-): { document: ContentDocumentInput; blocks: Block[]; errors: FieldError[] } {
+): { document: ContentDocumentInput; blocks: Block[]; errors: FormError[] } {
   const doc = documentFrom(base, values, today, editing);
   let kept = doc.blocks as Block[];
   const article = post.get('articleEditor');
@@ -382,11 +408,19 @@ export function formDocument(
         today,
         editing
       ).blocks as Block[];
-    } catch {
+    } catch (e) {
+      // A removal that would join two text blocks of different locales or names is refused by
+      // core (`normalizeBlocks` does not guess translations) and says so; any other editor
+      // failure keeps the general sentence. Rejected: passing every core issue through, which
+      // would surface keys of a malformed payload nobody can act on.
+      const message: FormError['message'] =
+        e instanceof BlockOperationError && e.issue === MERGE_AMBIGUOUS
+          ? MERGE_AMBIGUOUS
+          : 'editor.markdown.invalid';
       return {
         document: doc,
         blocks: kept,
-        errors: [{ name: 'articleEditor', message: 'editor.markdown.invalid', line: 1 }],
+        errors: [{ name: 'articleEditor', message, line: 1 }],
       };
     }
   }

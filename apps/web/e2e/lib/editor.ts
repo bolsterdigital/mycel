@@ -138,3 +138,30 @@ export async function showEditorTab(page: Page, name: string): Promise<void> {
   if (isA11y()) await page.getByRole('tab', { name, exact: true }).click();
   else await page.locator('.ui-tabs-list').getByRole('link', { name, exact: true }).click();
 }
+
+/**
+ * In the writer, select the first card itself (a node selection) and wipe it from the keyboard,
+ * as someone who clicked the card's edge and pressed Backspace. Rejected: clicking the edge,
+ * which lands in the card's fields as often as on the card.
+ */
+export async function wipeFirstCard(page: Page): Promise<void> {
+  const surface = page.locator('.writing-surface .ProseMirror').first();
+  await surface.evaluate((node) => {
+    type Doc = { forEach(f: (n: { type: { name: string } }, p: number) => void): void };
+    const { editor } = node as HTMLElement & {
+      editor: {
+        state: { doc: Doc };
+        commands: { setNodeSelection(p: number): boolean };
+        view: { focus(): void };
+      };
+    };
+    let at = -1;
+    editor.state.doc.forEach((child, pos) => {
+      if (child.type.name === 'mycelCard' && at < 0) at = pos;
+    });
+    editor.commands.setNodeSelection(at);
+    editor.view.focus();
+  });
+  await surface.press('Backspace');
+  await expect(surface.locator('.editor-card')).toHaveCount(0);
+}
