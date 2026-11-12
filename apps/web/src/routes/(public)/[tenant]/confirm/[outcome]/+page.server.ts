@@ -5,9 +5,10 @@
 import { ui } from '../../../../../i18n/index.js';
 import {
   CONFIRM_HEADERS,
-  OUTCOME_COPY,
   answerLocale,
+  confirmCopy,
   outcomeOf,
+  purposeOf,
 } from '#lib/server/public/confirm.js';
 import { requireSite } from '#lib/server/site.js';
 import type { PageServerLoad } from './$types';
@@ -21,6 +22,6 @@ export const load: PageServerLoad = async ({ params, url, request, locals, setHe
   const locale = answerLocale(site, request, url.searchParams.get('locale'));
   locals.lang = locale;
   const t = ui(locale);
-  const copy = OUTCOME_COPY[outcome];
+  const copy = confirmCopy(outcome, purposeOf(url.searchParams.get('purpose')));
   return { title: t(copy.title), body: t(copy.body) };
 };

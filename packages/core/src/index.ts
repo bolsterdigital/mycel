@@ -8,6 +8,7 @@ export * from './connections/rules.js';
 export * from './campaigns/model.js';
 export * from './campaigns/ports.js';
 export * from './campaigns/service.js';
+export * from './campaigns/compose.js';
 export * from './assist/ports.js';
 export * from './assist/model.js';
 export * from './assist/service.js';

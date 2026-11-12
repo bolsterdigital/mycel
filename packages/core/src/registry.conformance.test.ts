@@ -235,6 +235,25 @@ describe('use cases outside the allowlist refuse anonymous principals', () => {
   );
 });
 
+// The registry gate itself, apart from any handler: `alsoRequires` is all of them, never any.
+// The API and MCP conformance show the same per front, but a real handler may refuse on its own.
+describe('alsoRequires: the gate wants every capability', () => {
+  const registry = buildRegistry();
+  const both = {
+    ...registry.list().find((u) => u.requires === 'content:write' && !u.actors)!,
+    alsoRequires: ['forms:write'],
+  } as UseCase;
+  const member = (capabilities: Capability[]) =>
+    principal({ actor: { kind: 'api-key', keyId: 'gate' }, capabilities });
+  it.each([[[]], [['content:write']], [['forms:write']]] as Capability[][][])(
+    'refuses %j',
+    (capabilities) => expect(registry.authorize(both, member(capabilities))).toBe(false)
+  );
+  it('admits both', () => {
+    expect(registry.authorize(both, member(['content:write', 'forms:write']))).toBe(true);
+  });
+});
+
 // The rules above pass vacuously unless each one is shown to catch a violation.
 describe('registry rules catch violations', () => {
   const base: UseCase = {

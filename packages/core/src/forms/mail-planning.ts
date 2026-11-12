@@ -34,14 +34,17 @@ export async function planFormMail(ctx: TransactionContext, submission: Submissi
   // A campaign's submission is always confirmed (ADR 033 rule 7), with or without consent, and
   // by Mycel even when a provider owns the consent: the link then confirms only the signature.
   const participates = !!submission.evaluation?.campaignId;
-  const needsConfirmation =
-    participates ||
-    (['signup', 'petition'].includes(form.kind) &&
-      form.fields.some((f) => f.type === 'consent' && submission.values[f.name] === true));
+  const consented =
+    ['signup', 'petition'].includes(form.kind) &&
+    form.fields.some((f) => f.type === 'consent' && submission.values[f.name] === true);
+  const needsConfirmation = participates || consented;
+  // The form's own confirmation copy is written for a subscription. It goes only with the link
+  // that confirms one: Mycel-owned, ticked consent. A link that confirms only a signature (no
+  // tick, or a provider confirming the consent) keeps the built-in participation copy, so it never
+  // asks someone who did not subscribe to confirm a subscription (B2 review R1).
   const confirmation =
-    needsConfirmation &&
-    (participates ||
-      !submission.evaluation?.feedActions?.some((p) => p.feed.confirmationOwner === 'external')) &&
+    consented &&
+    !submission.evaluation?.feedActions?.some((p) => p.feed.confirmationOwner === 'external') &&
     config.confirmation
       ? resolveFormMail(
           settings,

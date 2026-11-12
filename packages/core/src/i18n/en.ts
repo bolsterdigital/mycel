@@ -2,6 +2,7 @@
 // Other catalogs are `Partial` and fall back to this one key by key.
 
 export const en = {
+  'forms.default.petitionThanks': 'Thank you! Check your inbox and confirm your signature.',
   'forms.default.signupThanks': 'Thank you! Check your inbox and confirm your subscription.',
   'forms.default.submit': 'Send',
   'forms.default.thankYou': 'Thank you',

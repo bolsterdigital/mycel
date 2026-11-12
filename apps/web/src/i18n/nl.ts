@@ -774,6 +774,78 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.campaign.close': 'Campagne gesloten voor deelname',
   'admin.audit.op.campaign.archive': 'Campagne gearchiveerd',
   'admin.audit.op.campaign.participation.withdraw': 'Deelname aan campagne ingetrokken',
+  'admin.audit.op.campaign.landing.create': 'Campagne gestart met pagina en formulier',
+  'admin.campaign.title': 'Campagnes',
+  'admin.campaign.new': 'Nieuwe campagne',
+  'admin.campaign.intro':
+    'Petities en inschrijfacties, elk met een eigen pagina. Die pagina schrijf en publiceer je zoals elke andere; deelname openen is een aparte stap.',
+  'admin.campaign.archivedList': 'Gearchiveerde campagnes',
+  'admin.campaign.empty': 'Nog geen campagnes',
+  'admin.campaign.emptyArchived': 'Geen gearchiveerde campagnes',
+  'admin.campaign.empty.body':
+    'Start een petitie of een inschrijfactie: die krijgt een eigen pagina met het formulier erop.',
+  'admin.campaign.showActive': 'Actieve campagnes',
+  'admin.campaign.showArchived': 'Gearchiveerde campagnes',
+  'admin.campaign.column.title': 'Titel',
+  'admin.campaign.column.kind': 'Soort',
+  'admin.campaign.column.state': 'Deelname',
+  'admin.campaign.column.page': 'Pagina',
+  'admin.campaign.column.count': 'Deelnemers',
+  'admin.campaign.landingTrashed': 'Pagina in de prullenbak',
+  'admin.campaign.kind.petition': 'Petitie',
+  'admin.campaign.kind.signup': 'Inschrijfactie',
+  'admin.campaign.kind.fundraiser': 'Fondsenwerving',
+  'admin.campaign.kind.hint':
+    'Een petitie telt handtekeningen; een inschrijfactie telt aanmeldingen, met de inschrijving in dezelfde stap.',
+  'admin.campaign.state.draft': 'Nog niet geopend',
+  'admin.campaign.state.open': 'Open',
+  'admin.campaign.state.closed': 'Gesloten',
+  'admin.campaign.page.published': 'Gepubliceerd ({locales})',
+  'admin.campaign.page.draft': 'Niet gepubliceerd',
+  'admin.campaign.count.ofTarget': '{count} van {target}',
+  'admin.campaign.new.intro':
+    'Mycel maakt een conceptpagina met het formulier erop. Er wordt nog niets gepubliceerd of geopend.',
+  'admin.campaign.new.submit': 'Campagne starten',
+  'admin.campaign.field.target': 'Doel',
+  'admin.campaign.field.target.hint':
+    'Het aantal deelnemers waar je naartoe werkt. Laat leeg voor geen doel.',
+  'admin.campaign.field.opensAt': 'Opent op',
+  'admin.campaign.field.closesAt': 'Sluit op',
+  'admin.campaign.field.counterVisible': 'Toon de teller op de site',
+  'admin.campaign.error.title': 'Geef de campagne een titel in de hoofdtaal van de site.',
+  'admin.campaign.error.create': 'De campagne kon niet starten. Kijk de titel en het adres na.',
+  'admin.campaign.outcome.created':
+    'Campagne gestart. Schrijf de pagina, publiceer haar en open hier daarna de deelname.',
+  'admin.campaign.outcome.saved': 'Campagne opgeslagen.',
+  'admin.campaign.outcome.opened':
+    'Deelname is open. Ze telt alleen zolang de pagina gepubliceerd is.',
+  'admin.campaign.outcome.closed':
+    'Deelname is gesloten. De pagina blijft gepubliceerd en toont het resultaat.',
+  'admin.campaign.error.conflict':
+    'Iemand anders heeft deze campagne intussen gewijzigd. Er is niets opgeslagen; dit is de huidige stand.',
+  'admin.campaign.error.forbidden':
+    'Dat mag je niet. Openen, sluiten en de data verzetten vragen publicatierechten.',
+  'admin.campaign.error.formRequired':
+    'Deze campagne heeft geen formulier, dus de deelname kan niet open.',
+  'admin.campaign.error.formKind':
+    'Het formulier van deze campagne is van een andere soort en kan niet gebruikt worden.',
+  'admin.campaign.error.window': 'Het sluitmoment moet na het openingsmoment liggen.',
+  'admin.campaign.error.goal': 'Het doel moet een heel getal boven nul zijn.',
+  'admin.campaign.error.archived': 'Deze campagne is gearchiveerd en kan niet meer veranderen.',
+  'admin.campaign.error.invalid': 'Kijk de data en het doel na: een ervan klopt niet.',
+  'admin.campaign.archivedHint': 'Gearchiveerd: deelname is definitief gesloten.',
+  'admin.campaign.stateHint.draft':
+    'Nog niemand kan meedoen, ook niet als de pagina gepubliceerd is.',
+  'admin.campaign.stateHint.open':
+    'Mensen kunnen meedoen zolang de pagina gepubliceerd is en binnen de data.',
+  'admin.campaign.stateHint.closed': 'Niemand kan meedoen; de pagina toont het resultaat.',
+  'admin.campaign.windowNeedsPublish':
+    'Alleen iemand met publicatierechten kan deze data wijzigen.',
+  'admin.campaign.openNeedsPublish':
+    'Alleen iemand met publicatierechten kan de deelname openen of sluiten.',
+  'admin.campaign.action.save': 'Campagne opslaan',
+  'admin.campaign.action.open': 'Deelname openen',
+  'admin.campaign.action.close': 'Deelname sluiten',
   'admin.audit.op.content.person_group.create': 'Personengroep toegevoegd',
   'admin.audit.op.content.person_group.update': 'Personengroep gewijzigd',
   'admin.audit.op.content.author.create': 'Auteur toegevoegd',
@@ -925,6 +997,15 @@ export const nl: Partial<Record<UiKey, string>> = {
   'confirm.pending.body':
     'Nog één stap: bevestig met de knop hieronder. Heb je je niet aangemeld? Dan hoef je niets te doen.',
   'confirm.pending.button': 'Bevestig mijn inschrijving',
+  'confirm.participation.pending.title': 'Bevestig je deelname',
+  'confirm.participation.pending.body':
+    'Nog één stap: bevestig met de knop hieronder, dan telt je deelname mee. Deze bevestiging geldt alleen voor je deelname. Heb je niet meegedaan? Dan hoef je niets te doen.',
+  'confirm.participation.pending.button': 'Bevestig mijn deelname',
+  'confirm.participation.ok.title': 'Deelname bevestigd',
+  'confirm.participation.ok.body': 'Bedankt, je deelname telt mee.',
+  'confirm.participation.already.title': 'Al bevestigd',
+  'confirm.participation.already.body':
+    'Je deelname was al eerder bevestigd en telt mee. Je hoeft niets meer te doen.',
   // Content admin (TODO #11 A1).
   'admin.content.back': 'Terug naar {site}',
   'admin.content.filter.page': 'Pagina’s',

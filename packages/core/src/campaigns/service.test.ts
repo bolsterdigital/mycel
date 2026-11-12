@@ -411,7 +411,7 @@ describe('a campaign (ADR 033)', () => {
     expect((await invoker.run(useCases.listCampaigns, admin, {})).campaigns).toEqual([]);
     expect(
       (await invoker.run(useCases.listCampaigns, admin, { archived: true })).campaigns
-    ).toEqual([archived]);
+    ).toEqual([{ ...archived, landing: expect.objectContaining({ slug: 'teken' }) }]);
     for (const useCase of [useCases.openCampaign, useCases.archiveCampaign])
       await expectCode(
         invoker.run(useCase, admin, { campaignId: c.id, baseUpdatedAt: archived.updatedAt }),

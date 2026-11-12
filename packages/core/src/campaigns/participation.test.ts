@@ -128,7 +128,11 @@ describe('campaign participation (ADR 033)', () => {
     expect(await t.drain()).toEqual([]);
     expect(await t.count()).toBe(0);
 
-    expect(await t.confirm(r.submissionId)).toEqual({ status: 'confirmed', locale: 'nl' });
+    expect(await t.confirm(r.submissionId)).toEqual({
+      status: 'confirmed',
+      locale: 'nl',
+      purpose: 'participation',
+    });
     const signed = await t.drain();
     expect(signed.map((e) => e.type)).toEqual(['petition.signed']);
     expect(signed[0]?.props).toMatchObject({ campaignId: t.campaign().id });

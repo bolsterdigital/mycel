@@ -11,7 +11,7 @@ import { forwarded, login } from './lib/login';
 import { NARROW, layoutGate, setTextSize } from './lib/layout';
 import { capabilitiesFor, systemPrincipal, UseCaseError, useCases } from '@mycel/core';
 import { testTenant } from '@mycel/db/testing';
-import { asOwner, withInvoker } from './lib/invoker';
+import { asOwner, tenantId, withInvoker } from './lib/invoker';
 
 /**
  * A form page ships proof of work, plus conditional display only when its definition needs it.
@@ -230,6 +230,109 @@ test('an English signup is confirmed in English, with every script blocked', asy
   await expect
     .poll(() => supporter(request, email), { timeout: 15_000 })
     .toMatchObject({ lists: ['newsletter'], pendingLists: [] });
+});
+
+// ADR 033: a petition from the campaigns screen to a counted, confirmed signature, with
+// participation separate from publication and the server deciding at submit time (rule 3).
+test('a petition: start, publish, open, sign and confirm, count one, close, stale tabs refuse', async ({
+  page,
+}) => {
+  await login(page, '/admin/probe/campaigns');
+  await page.getByRole('link', { name: 'Nieuwe campagne' }).first().click();
+  const project = test.info().project.name;
+  const slug = `petitie-${project}-${Date.now()}`;
+  await page.getByLabel('Titel (nl)').fill(`Red het park ${slug}`);
+  await page.getByLabel('Titel (en)').fill('Save the test park');
+  await page.getByLabel('Slug').fill(slug);
+  await page.getByLabel('Doel').fill('500');
+  await page.getByRole('button', { name: 'Campagne starten' }).click();
+  await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]+\?campaign=created#campaign$/);
+  const itemId = /content\/([0-9a-f-]+)/.exec(page.url())![1]!;
+  const panel = page.locator('#campaign');
+  await expect(panel.getByRole('heading', { name: 'Petitie' })).toBeVisible();
+  await expect(panel.getByText('Campagne gestart.')).toBeVisible();
+  await expect(panel.getByText('0 van 500')).toBeVisible();
+
+  // Publishing the page opens nothing (rule 2): the form refuses until participation opens.
+  const editor = systemPrincipal(await tenantId(), 'e2e-campaign');
+  await withInvoker(async (invoker) => {
+    const { item } = await invoker.run(useCases.getItem, editor, { itemId });
+    await invoker.run(useCases.publishItem, editor, {
+      itemId,
+      revisionId: item.latestRevisionId,
+      locale: 'nl',
+    });
+  });
+  const visitor = await page.context().newPage();
+  const sign = async (email: string) => {
+    await pastMinimumFillTime(visitor);
+    await visitor.getByLabel('E-mailadres').fill(email);
+    await visitor.getByRole('button', { name: 'Versturen' }).click();
+  };
+  await visitor.goto(`/probe/${slug}`);
+  await sign(`e2e-draft-${Date.now()}@example.org`);
+  await expect(
+    visitor.getByText('Deze campagne neemt op dit moment geen deelname aan.')
+  ).toBeVisible();
+
+  await page.goto(`/admin/probe/content/${itemId}`);
+  await panel.getByRole('button', { name: 'Deelname openen' }).click();
+  await expect(panel.getByText('Deelname is open.')).toBeVisible();
+  if (isA11y()) {
+    await expectNoAxeViolations(page, { label: 'campaign panel' });
+    await page.setViewportSize(NARROW);
+    for (const size of ['100%', '200%']) {
+      await setTextSize(page, size);
+      await layoutGate(page, `campaign panel at ${size}`, '#campaign');
+    }
+    await setTextSize(page, '16px');
+  }
+
+  // Signed without consent and without JavaScript in the no-js project: the thanks and the
+  // confirmation speak of taking part, never of a subscription (B2 review R1).
+  const email = `e2e-petition-${Date.now()}@example.org`;
+  await visitor.goto(`/probe/${slug}`);
+  await sign(email);
+  await expect(visitor.getByText('bevestig je handtekening')).toBeVisible();
+  const link = /https?:\/\/\S+\/confirm\?token=\S+/.exec((await waitForMail(email)).text)![0];
+  await visitor.goto(link);
+  await expect(
+    visitor.getByRole('heading', { level: 1, name: 'Bevestig je deelname' })
+  ).toBeVisible();
+  await visitor.getByRole('button', { name: 'Bevestig mijn deelname' }).click();
+  await expect(visitor).toHaveURL(/\/confirm\/confirmed\?locale=nl&purpose=participation$/);
+  await expect(
+    visitor.getByRole('heading', { level: 1, name: 'Deelname bevestigd' })
+  ).toBeVisible();
+
+  // The worker records the confirmed signature; the panel counts it.
+  await expect(async () => {
+    await page.goto(`/admin/probe/content/${itemId}`);
+    await expect(panel.getByText('1 van 500')).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+
+  // Two tabs from before the close: the public form and the panel on the old base.
+  await visitor.goto(`/probe/${slug}`);
+  const stale = await page.context().newPage();
+  await stale.goto(`/admin/probe/content/${itemId}`);
+  await panel.getByRole('button', { name: 'Deelname sluiten' }).click();
+  await expect(panel.getByText('Deelname is gesloten.')).toBeVisible();
+  await sign(`e2e-late-${Date.now()}@example.org`);
+  await expect(
+    visitor.getByText('Deze campagne neemt op dit moment geen deelname aan.')
+  ).toBeVisible();
+  await stale.locator('#campaign').getByRole('button', { name: 'Campagne opslaan' }).click();
+  await expect(stale).toHaveURL(/\?campaign=conflict#campaign$/);
+  await expect(
+    stale.getByText('Iemand anders heeft deze campagne intussen gewijzigd.')
+  ).toBeVisible();
+
+  // The list under Content shows it, published, closed, with its count.
+  await page.goto('/admin/probe/campaigns');
+  const row = page.getByRole('row', { name: new RegExp(`Red het park ${slug}`) });
+  await expect(row).toContainText('Gesloten');
+  await expect(row).toContainText('Gepubliceerd (nl)');
+  await expect(row).toContainText('1 van 500');
 });
 
 test.describe('in English', () => {

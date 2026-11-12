@@ -18,11 +18,19 @@ import { defineUseCase } from '../registry.js';
 import { verifyConfirmToken } from './confirmation.js';
 import './ports.js';
 
+/**
+ * What the link confirms, so the page can say it (B2 review R1): `participation` when it confirms
+ * only a campaign signature, `subscription` when it confirms Mycel-owned consent (with or without
+ * a signature). Absent when the token is invalid.
+ */
+const Purpose = z.enum(['subscription', 'participation']);
+
 export const ConfirmResult = z.object({
   /** `invalid` covers a forged, expired or foreign token, a list mismatch and a vanished submission. */
   status: z.enum(['confirmed', 'already_confirmed', 'invalid']),
   /** The locale of the signup, so the answer is in the language the person signed up in. */
   locale: z.string().optional(),
+  purpose: Purpose.optional(),
 });
 export type ConfirmResult = z.infer<typeof ConfirmResult>;
 
@@ -30,6 +38,7 @@ export const ConfirmPreview = z.object({
   status: z.enum(['pending', 'already_confirmed', 'invalid']),
   /** The locale of the signup; absent when the token is invalid. */
   locale: z.string().optional(),
+  purpose: Purpose.optional(),
 });
 export type ConfirmPreview = z.infer<typeof ConfirmPreview>;
 
@@ -72,7 +81,8 @@ async function resolveToken(ctx: TransactionContext, token: string, now: Date) {
   if (typeof email !== 'string' || !email) return null;
   await ctx.supporters.lock(email);
   if (!(await ctx.erasures.allows(email, submission.evaluation?.supporterLifecycleId))) return null;
-  return { submission, email, consent, campaignId, kind: form?.kind };
+  const purpose: z.infer<typeof Purpose> = consent ? 'subscription' : 'participation';
+  return { submission, email, consent, campaignId, kind: form?.kind, purpose };
 }
 
 export const previewConfirmation = defineUseCase({
@@ -92,11 +102,11 @@ export const previewConfirmation = defineUseCase({
   async handler(ctx, { token }): Promise<ConfirmPreview> {
     const found = await resolveToken(ctx, token, ctx.clock.now());
     if (!found) return { status: 'invalid' };
-    const { submission, consent, campaignId } = found;
+    const { submission, consent, campaignId, purpose } = found;
     const done =
       (!consent || !!submission.confirmedAt) &&
       (!campaignId || !!submission.participationConfirmedAt);
-    return { status: done ? 'already_confirmed' : 'pending', locale: submission.locale };
+    return { status: done ? 'already_confirmed' : 'pending', locale: submission.locale, purpose };
   },
 });
 
@@ -119,7 +129,7 @@ export const confirmSubscription = defineUseCase({
     const now = clock.now();
     const found = await resolveToken(ctx, token, now);
     if (!found) return { status: 'invalid' };
-    const { submission, email, consent, campaignId, kind } = found;
+    const { submission, email, consent, campaignId, kind, purpose } = found;
     const { locale } = submission;
 
     // Two facts, each with its own idempotency (ADR 033 rule 7): the signature and Mycel-owned
@@ -127,7 +137,7 @@ export const confirmSubscription = defineUseCase({
     // consent on its own clock, and neither confirmation may make the other a no-op.
     const signs = !!campaignId && (await ctx.submissions.confirmParticipation(submission.id, now));
     const consents = consent && (await ctx.submissions.confirm(submission.id, now));
-    if (!signs && !consents) return { status: 'already_confirmed', locale };
+    if (!signs && !consents) return { status: 'already_confirmed', locale, purpose };
 
     // ADR 033 rule 7: the confirmation makes the signature count. Ingest records it once the
     // supporter id exists; a signature is never consent, which follows below only when ticked.
@@ -150,7 +160,7 @@ export const confirmSubscription = defineUseCase({
         props: { ...signed },
       });
     }
-    if (!consents) return { status: 'confirmed', locale };
+    if (!consents) return { status: 'confirmed', locale, purpose };
 
     const props: ConsentGivenProps = {
       email,
@@ -170,6 +180,6 @@ export const confirmSubscription = defineUseCase({
       actor: principal.actor,
       props: { ...props },
     });
-    return { status: 'confirmed', locale };
+    return { status: 'confirmed', locale, purpose };
   },
 });

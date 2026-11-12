@@ -63,7 +63,11 @@ describe('mailing.opt_in.confirm', () => {
 
   it('confirms once and publishes consent.given with the submission as evidence', async () => {
     const t = await token();
-    expect(await confirm(t)).toEqual({ status: 'confirmed', locale: 'nl' });
+    expect(await confirm(t)).toEqual({
+      status: 'confirmed',
+      locale: 'nl',
+      purpose: 'subscription',
+    });
     expect(uow.store.outbox).toHaveLength(1);
     expect(uow.store.outbox[0]).toMatchObject({
       type: 'consent.given',
@@ -84,7 +88,11 @@ describe('mailing.opt_in.confirm', () => {
 
     // The second click, even with a freshly signed token, is an outcome without an event.
     clock.advance(1000);
-    expect(await confirm(await token())).toEqual({ status: 'already_confirmed', locale: 'nl' });
+    expect(await confirm(await token())).toEqual({
+      status: 'already_confirmed',
+      locale: 'nl',
+      purpose: 'subscription',
+    });
     expect(uow.store.outbox).toHaveLength(1);
   });
 
@@ -111,15 +119,19 @@ describe('mailing.opt_in.confirm', () => {
 
   it('previews without writing: pending, then already confirmed, never an event', async () => {
     const t = await token();
-    expect(await preview(t)).toEqual({ status: 'pending', locale: 'nl' });
-    expect(await preview(t)).toEqual({ status: 'pending', locale: 'nl' });
+    expect(await preview(t)).toEqual({ status: 'pending', locale: 'nl', purpose: 'subscription' });
+    expect(await preview(t)).toEqual({ status: 'pending', locale: 'nl', purpose: 'subscription' });
     expect((await stored())?.confirmedAt).toBeNull();
     expect(uow.store.outbox).toHaveLength(0);
 
     await confirm(t);
     uow.store.outbox.length = 0;
     const before = await stored();
-    expect(await preview(t)).toEqual({ status: 'already_confirmed', locale: 'nl' });
+    expect(await preview(t)).toEqual({
+      status: 'already_confirmed',
+      locale: 'nl',
+      purpose: 'subscription',
+    });
     expect(await stored()).toEqual(before);
     expect(uow.store.outbox).toHaveLength(0);
   });
@@ -145,7 +157,11 @@ describe('mailing.opt_in.confirm', () => {
     );
     // A token for the form's new list confirms nothing; the original link still works.
     expect(await confirm(await token({ list: 'campaign' }))).toEqual({ status: 'invalid' });
-    expect(await confirm(await token())).toEqual({ status: 'confirmed', locale: 'nl' });
+    expect(await confirm(await token())).toEqual({
+      status: 'confirmed',
+      locale: 'nl',
+      purpose: 'subscription',
+    });
     expect(uow.store.outbox).toHaveLength(1);
     expect(uow.store.outbox[0]?.props).toMatchObject({
       list: 'newsletter',
@@ -161,8 +177,12 @@ describe('mailing.opt_in.confirm', () => {
     });
     if (result.status !== 'accepted') throw new Error(result.status);
     const t = await token({ submissionId: result.submissionId });
-    expect(await preview(t)).toEqual({ status: 'pending', locale: 'en' });
-    expect(await confirm(t)).toEqual({ status: 'confirmed', locale: 'en' });
+    expect(await preview(t)).toEqual({ status: 'pending', locale: 'en', purpose: 'subscription' });
+    expect(await confirm(t)).toEqual({
+      status: 'confirmed',
+      locale: 'en',
+      purpose: 'subscription',
+    });
   });
 
   it('is the second step of the public flow: forms:write suffices, nothing less does', async () => {

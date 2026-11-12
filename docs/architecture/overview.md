@@ -50,7 +50,7 @@ Short map; the reasoning is in [`../adr/`](../adr/).
 
 **Adding a use case** takes three steps, and the rest follows:
 
-1. Write the function and its Zod `input` and `output` in `packages/core/src/<module>/service.ts` with `defineUseCase`: a dotted name that follows the naming rule below, a one-sentence `description`, the `requires` capability, an `effect` if it publishes, sends, exports or refunds (ADR 018 rule 5), and at least one entry in `examples`.
+1. Write the function and its Zod `input` and `output` in `packages/core/src/<module>/service.ts` with `defineUseCase`: a dotted name that follows the naming rule below, a one-sentence `description`, the `requires` capability (plus `alsoRequires` when one call does the work of several use cases and needs their capabilities too; `authorize` checks both, OpenAPI shows them as `x-mycel-requires` and `x-mycel-also-requires`), an `effect` if it publishes, sends, exports or refunds (ADR 018 rule 5), and at least one entry in `examples`.
 2. Add it to `useCases` in `packages/core/src/use-cases.ts`.
 3. Run `npm run verify`. `POST /v1/<name>` (plus `GET` for a flat query), the OpenAPI operation, the MCP tool (and resource, if it declares one) and the registry conformance suites in core, api and mcp now cover it; `checkRegistry` in `registry-rules.ts` says what is missing.
 

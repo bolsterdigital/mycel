@@ -199,13 +199,13 @@ describe('vertical probe in memory', () => {
       await invoker.run(useCases.previewConfirmation, visitor('ip-2'), {
         token: url.searchParams.get('token')!,
       })
-    ).toEqual({ status: 'pending', locale: 'en' });
+    ).toEqual({ status: 'pending', locale: 'en', purpose: 'subscription' });
     expect(uow.store.outbox).toEqual([]);
     const click = () =>
       invoker.run(useCases.confirmSubscription, visitor('ip-2'), {
         token: url.searchParams.get('token')!,
       });
-    expect(await click()).toEqual({ status: 'confirmed', locale: 'en' });
+    expect(await click()).toEqual({ status: 'confirmed', locale: 'en', purpose: 'subscription' });
     expect(uow.store.outbox.map((e) => e.type)).toEqual(['consent.given']);
     await uow.drain(subscribers);
     expect(
@@ -213,7 +213,11 @@ describe('vertical probe in memory', () => {
     ).toMatchObject({ lists: ['newsletter'], pendingLists: [] });
     expect(uow.store.for(TENANT).events.size).toBe(2);
 
-    expect(await click()).toEqual({ status: 'already_confirmed', locale: 'en' });
+    expect(await click()).toEqual({
+      status: 'already_confirmed',
+      locale: 'en',
+      purpose: 'subscription',
+    });
     expect(uow.store.outbox).toHaveLength(0);
     expect(mailer.sent).toHaveLength(1);
   });

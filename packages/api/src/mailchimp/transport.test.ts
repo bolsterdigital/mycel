@@ -870,7 +870,11 @@ describe('Mailchimp real form feed', () => {
       // The page behind Mycel's link still offers the signature.
       expect(await preview(submissionId)).toBe('pending');
       clock.advance(1000);
-      expect(await mycelLink(submissionId)).toEqual({ status: 'confirmed', locale: 'en' });
+      expect(await mycelLink(submissionId)).toEqual({
+        status: 'confirmed',
+        locale: 'en',
+        purpose: 'participation',
+      });
       expect(await drain()).toEqual(['form.submitted']);
       expect(await participants(campaignId)).toBe(1);
       const row = (await submission(submissionId))!;
@@ -884,7 +888,11 @@ describe('Mailchimp real form feed', () => {
     it("Mycel's link confirms the signature first, and the provider's consent still arrives", async () => {
       const campaignId = await campaignForm();
       const submissionId = await sign(true);
-      expect(await mycelLink(submissionId)).toEqual({ status: 'confirmed', locale: 'en' });
+      expect(await mycelLink(submissionId)).toEqual({
+        status: 'confirmed',
+        locale: 'en',
+        purpose: 'participation',
+      });
       // The signature only: no consent event, and consent stays unconfirmed for every reader.
       expect(await drain()).toEqual(['form.submitted']);
       expect(await participants(campaignId)).toBe(1);
@@ -909,7 +917,11 @@ describe('Mailchimp real form feed', () => {
       const campaignId = await campaignForm({ consentRequired: false });
       const submissionId = await sign(false);
       expect(await intentOf()).toBeUndefined();
-      expect(await mycelLink(submissionId)).toEqual({ status: 'confirmed', locale: 'en' });
+      expect(await mycelLink(submissionId)).toEqual({
+        status: 'confirmed',
+        locale: 'en',
+        purpose: 'participation',
+      });
       expect(await drain()).toEqual(['form.submitted']);
       expect(await participants(campaignId)).toBe(1);
       const row = (await submission(submissionId))!;

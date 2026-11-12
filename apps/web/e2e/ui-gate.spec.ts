@@ -895,6 +895,31 @@ test.describe('admin-shell', () => {
   test('site navigation persists through content, editor, media, settings and a second tenant', async ({
     page,
   }) => {
+    // Both halves of the editor's menu mark on purpose: a page that is no landing page keeps
+    // Pages, a campaign's landing page marks Campaigns (ADR 033). Made here, not taken from the
+    // list's first row: other specs add landing pages, which stay in the page list by design.
+    const stamp = `${test.info().project.name}-${Date.now()}`;
+    const { plainId, landingId } = await withInvoker(async (invoker) => {
+      const editor = systemPrincipal(await tenantId(), 'e2e-shell');
+      const plain = await invoker.run(useCases.createItem, editor, {
+        slug: `shell-page-${stamp}`,
+        document: {
+          type: 'page',
+          title: { nl: `Shellpagina ${stamp}`, en: `Shell page ${stamp}` },
+          defaultLocale: 'nl',
+          locales: ['nl', 'en'],
+          blocks: [],
+        },
+      });
+      const campaign = await invoker.run(useCases.composeCampaign, editor, {
+        kind: 'signup',
+        title: { nl: `Shellcampagne ${stamp}`, en: `Shell campaign ${stamp}` },
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        slug: `shell-campaign-${stamp}`,
+      });
+      return { plainId: plain.item.id, landingId: campaign.landingItemId };
+    });
     await login(page, '/admin/probe', email);
     await checkShell(page, 'Probe', 'Dashboard');
     await page
@@ -902,9 +927,15 @@ test.describe('admin-shell', () => {
       .getByRole('link', { name: 'Pages' })
       .click();
     await checkShell(page, 'Probe', 'Pages');
-    await expect(page.locator('#content-table tbody tr').first()).toBeVisible();
-    await page.locator('#content-table tbody th a').first().click();
+    const plainRow = page
+      .locator('#content-table tbody th a')
+      .filter({ hasText: new RegExp(`Shell(pagina| page) ${stamp}`) });
+    await expect(plainRow).toHaveCount(1);
+    await plainRow.click();
+    await expect(page).toHaveURL(new RegExp(`/content/${plainId}$`));
     await checkShell(page, 'Probe', 'Pages');
+    await page.goto(`/admin/probe/content/${landingId}`);
+    await checkShell(page, 'Probe', 'Campaigns');
     await page
       .getByRole('navigation', { name: 'Site navigation' })
       .getByRole('link', { name: 'Media' })
@@ -996,7 +1027,7 @@ test.describe('admin-shell', () => {
     ).toHaveAttribute('href', '/admin/probe/meldingen');
     const nav = page.getByRole('navigation', { name: 'Site navigation' });
     for (const [group, links] of [
-      ['Content', ['Pages', 'Articles', 'People']],
+      ['Content', ['Pages', 'Articles', 'Campaigns', 'People']],
       ['Library', ['Media']],
     ] as const)
       await expect(nav.getByRole('list', { name: group }).getByRole('link')).toHaveText([...links]);

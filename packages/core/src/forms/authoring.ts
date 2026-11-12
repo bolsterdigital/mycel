@@ -69,9 +69,12 @@ export const createForm = defineUseCase({
           l,
           t(
             l,
-            kind === 'signup' || kind === 'petition'
-              ? 'forms.default.signupThanks'
-              : 'forms.default.thankYou'
+            // A signature is not a subscription (ADR 033 rule 7), so its thanks says so.
+            kind === 'petition'
+              ? 'forms.default.petitionThanks'
+              : kind === 'signup'
+                ? 'forms.default.signupThanks'
+                : 'forms.default.thankYou'
           ),
         ])
       ),

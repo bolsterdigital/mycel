@@ -57,6 +57,7 @@ function operation(
     },
     'x-mycel-kind': useCase.kind,
     'x-mycel-requires': useCase.requires,
+    ...(useCase.alsoRequires?.length ? { 'x-mycel-also-requires': [...useCase.alsoRequires] } : {}),
     ...(useCase.effect ? { 'x-mycel-effect': useCase.effect } : {}),
   };
 }

@@ -4,8 +4,9 @@
 // an update that moves the window (rule 10). Participation itself (rules 3, 7, 8) is decided on
 // the submit path (`participationFor`) and recorded where the supporter id exists, at ingest of
 // the confirmed signature (`recordConfirmed`).
-// Rejected: a create that also makes the page and the form here, which would duplicate
-// `content.item.create` and `form.create`; the admin flow composes them.
+// `campaign.landing.create` (compose.ts) starts one from nothing: it runs `form.create`,
+// `content.item.create` and this create in one transaction. Rejected: making page and form inside
+// this create, which would duplicate those two use cases' rules.
 
 import { z } from 'zod';
 import { notFound, UseCaseError } from '../errors.js';
@@ -323,6 +324,13 @@ export const getCampaign = defineUseCase({
   },
 });
 
+/** What the admin list shows of the landing page: its title, slug and where it is published. */
+export const LandingSummary = z.object({
+  title: z.record(z.string(), z.string()),
+  slug: z.string(),
+  published: z.array(z.string()),
+});
+
 export const listCampaigns = defineUseCase({
   name: 'campaign.list',
   kind: 'query',
@@ -338,16 +346,45 @@ export const listCampaigns = defineUseCase({
     })
     .strict(),
   output: z.object({
-    campaigns: z.array(CampaignView),
+    campaigns: z.array(CampaignView.extend({ landing: LandingSummary.nullable() })),
     nextOffset: z.number().int().nullable(),
   }),
   examples: [{ input: {} }],
   async handler(ctx, { kind, archived, offset, limit }) {
     const rows = await ctx.campaigns.list({ kind, archived }, offset, limit + 1);
-    return {
-      campaigns: await views(ctx, rows.slice(0, limit)),
-      nextOffset: rows.length > limit ? offset + limit : null,
-    };
+    const page = await views(ctx, rows.slice(0, limit));
+    // One item read per row, at most a page: a site has tens of campaigns, not thousands, and the
+    // campaign row deliberately holds no copy to list from (ADR 033 rule 1). Null: trashed.
+    const campaigns = [];
+    for (const c of page) {
+      const item = await ctx.content.get(c.landingItemId);
+      campaigns.push({
+        ...c,
+        landing: item
+          ? {
+              title: item.title,
+              slug: item.slug,
+              published: item.publication.filter((p) => p.publishedRevisionId).map((p) => p.locale),
+            }
+          : null,
+      });
+    }
+    return { campaigns, nextOffset: rows.length > limit ? offset + limit : null };
+  },
+});
+
+export const getLandingCampaign = defineUseCase({
+  name: 'campaign.landing.get',
+  kind: 'query',
+  requires: 'content:read',
+  description:
+    'Read the campaign whose landing page this item is, archived or not, or null when the item is the landing page of none.',
+  input: z.object({ itemId: z.string().guid() }).strict(),
+  output: z.object({ campaign: CampaignView.nullable() }),
+  examples: [{ input: { itemId: exampleId(0x1) } }],
+  async handler(ctx, { itemId }) {
+    const campaign = await ctx.campaigns.byLandingItem(itemId);
+    return { campaign: campaign ? await view(ctx, campaign) : null };
   },
 });
 
