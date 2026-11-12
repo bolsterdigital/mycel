@@ -434,7 +434,7 @@ it('saves explicit writer card removal, accepts undo and refuses unannounced car
 
 // The writer saves the whole document: taking away the only paywall there brings the teaser along
 // by core's rule, also over the unchanged teaser field the screen posts; a teaser the editor
-// changed in the same post stands (#231).
+// changed in the same post stands.
 it('a writer save without the only paywall falls back from the marker teaser', () => {
   const paywall = blocks.find((block) => block.type === 'paywall')!;
   const base = ContentDocument.parse({

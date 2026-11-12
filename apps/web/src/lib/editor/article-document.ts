@@ -258,7 +258,7 @@ export function fromArticleEditor(
   if ([...byId.keys()].some((id) => !seen.has(id) && !removed.includes(id)))
     throw new EditorInputError('A block is missing');
   // Taking away or placing the only paywall moves the teaser with it, as the screen's own block
-  // action does (#231); the form may still state another teaser over this one.
+  // action does; the form may still state another teaser over this one.
   const kept = normalizeBlocks(blocks).blocks;
   return ContentDocument.parse({ ...base, access: teaserFollowing(base, kept), blocks: kept });
 }

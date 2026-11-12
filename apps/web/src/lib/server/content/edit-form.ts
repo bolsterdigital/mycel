@@ -447,7 +447,7 @@ export function formDocument(
 }
 
 /**
- * The access a post saves (#231). One save can take away or place the only paywall (the writer,
+ * The access a post saves. One save can take away or place the only paywall (the writer,
  * a new block form), so the teaser follows it by core's rule (`teaserFollowing`), as a block action
  * does; a teaser the editor changed in the same post is theirs and stands, refusal and all.
  * Rejected: following only in the writer's payload, which the posted teaser field then overwrote.

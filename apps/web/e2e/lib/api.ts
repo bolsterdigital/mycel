@@ -178,6 +178,41 @@ export async function articleWithAmbiguousJoin(request: APIRequestContext) {
   return { edit: `/admin/probe/content/${item.id}`, blocks };
 }
 
+/**
+ * A members article whose only paywall stands between two text blocks, with the marker teaser.
+ * `document` reads the stored blocks and access back.
+ */
+export async function articleWithPaywall(request: APIRequestContext) {
+  const prose = (text: string) => ({
+    type: 'rich-text',
+    version: 1,
+    props: {
+      content: {
+        nl: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] },
+      },
+    },
+  });
+  const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+    slug: `paywall-${test.info().project.name}-${crypto.randomUUID()}`,
+    document: {
+      type: 'article',
+      defaultLocale: 'nl',
+      locales: ['nl'],
+      title: { nl: 'Voor leden' },
+      lead: { nl: 'Wat iedereen leest.' },
+      access: { level: 'members', teaser: 'marker' },
+      blocks: [prose('Iedereen'), { type: 'paywall', version: 1, props: {} }, prose('Leden')],
+    },
+  });
+  const document = async () =>
+    (
+      await callApi<{
+        revision: { document: { access: { teaser: unknown }; blocks: { type: string }[] } };
+      }>(request, 'content.item.get', { itemId: item.id })
+    ).revision.document;
+  return { edit: `/admin/probe/content/${item.id}`, document };
+}
+
 /** Long formatted article and a native card, shared by the editor's initial-layout proof. */
 export async function longArticle(request: APIRequestContext): Promise<string> {
   const paragraphs = Array.from({ length: 24 }, (_, i) => ({

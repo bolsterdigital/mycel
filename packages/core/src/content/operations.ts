@@ -231,7 +231,7 @@ const paywalls = (blocks: readonly Block[]) =>
  * teaser is `marker` falls back to the default `lead`. Every other operation keeps the teaser.
  * Without this an editor could neither add nor remove a paywall on its own: each is refused until
  * the teaser changes, and the teaser cannot change first (`content.access.*`). Block operations
- * follow here; a front whose one save carries block edits (the article writer, #231) applies the
+ * follow here; a front whose one save carries block edits (the article writer) applies the
  * same rule to the document it sends when the editor left the teaser as it was, so screen, writer,
  * API and MCP agree. `content.item.update` itself follows nothing: its input states the teaser.
  * Rejected: a picker that only offers the paywall after the teaser was switched, which leaves

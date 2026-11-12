@@ -189,7 +189,7 @@ describe('article editor document', () => {
     expect(() => fromArticleEditor(base(prose), 'nl', after)).toThrow('missing');
   });
 
-  it('takes the teaser along when the only paywall is removed (#231)', () => {
+  it('takes the teaser along when the only paywall is removed', () => {
     const paywall = blocks.find((block) => block.type === 'paywall')!;
     const document = base(paywall);
     const after = { type: 'doc' as const, content: [], removedCardIds: [paywall.id] };

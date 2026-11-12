@@ -165,3 +165,20 @@ export async function wipeFirstCard(page: Page): Promise<void> {
   await surface.press('Backspace');
   await expect(surface.locator('.editor-card')).toHaveCount(0);
 }
+
+// ProseMirror reads the selection a moment later: a Backspace before that takes one letter, and
+// the block keeps its words. Rejected: select all, which takes the cards too.
+export async function emptyProse(page: Page) {
+  const surface = page.locator('.writing-surface .ProseMirror').first();
+  const prose = surface.locator('.editor-prose');
+  await expect(prose).toBeVisible();
+  await expect(async () => {
+    // Select text in the writing host, then address the key to that host. A page-wide
+    // Backspace can delete the last character of the textarea filled immediately before it.
+    await surface.focus();
+    await prose.locator('p').first().selectText();
+    await expect(surface).toBeFocused();
+    await surface.press('Backspace');
+    await expect(prose).toHaveText('', { timeout: 1000 });
+  }).toPass();
+}
