@@ -92,6 +92,10 @@ export const submitForm = defineUseCase({
     const now = clock.now();
     const form = await ctx.forms.findById(input.formId);
     if (!form) throw notFound('form', `the id "${input.formId}"`);
+    // A closed campaign refuses before the proof cooldown and rate-limit hits below, which the
+    // refusal's throw would otherwise roll back. Unlocked, so only an early answer: the read
+    // under the share lock further down decides (ADR 033 rule 3).
+    await participationFor(ctx, form, input.locale, now, { lock: false });
 
     // One log line per refusal with a fixed reason, never the address, IP hash or token (house
     // rule 7: fail visibly for us, silently for the bot); tenant and request id come from the
@@ -189,6 +193,7 @@ export const submitForm = defineUseCase({
       list: form.list,
       consentTextVersion: form.consentTextVersion,
       confirmedAt: null,
+      participationConfirmedAt: null,
       evaluation: {
         version,
         definition: form,
@@ -220,8 +225,9 @@ export const submitForm = defineUseCase({
     await ctx.admissions.lock();
     // ADR 033 rule 3: a campaign's form takes part only while the campaign accepts, decided here
     // under its share lock, whatever the page showed. After the supporter and admission locks,
-    // the order ingest and erasure take them in. A refusal throws and so also rolls back the rate
-    // limit hits above; the campaign state is public, so a probe learns nothing.
+    // the order ingest and erasure take them in. A campaign that closed since the early check
+    // throws here and so also rolls back the rate limit hits above; the campaign state is public,
+    // so a probe learns nothing.
     const campaign = await participationFor(ctx, form, input.locale, now);
     if (campaign) submission.evaluation!.campaignId = campaign.id;
     const joins = consent && ['signup', 'petition'].includes(form.kind);

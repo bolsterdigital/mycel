@@ -195,7 +195,8 @@ export const listFormSubmissions = defineUseCase({
       submissions: (await ctx.submissions.list(formId)).map((s) => ({
         id: s.id,
         createdAt: s.createdAt.toISOString(),
-        confirmed: !!s.confirmedAt,
+        // The address confirmed what it asked for: consent, a campaign signature, or both.
+        confirmed: !!s.confirmedAt || !!s.participationConfirmedAt,
         version: s.evaluation?.version ?? null,
       })),
     };

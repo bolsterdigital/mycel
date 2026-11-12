@@ -111,8 +111,16 @@ export interface Submission {
    */
   list: string;
   consentTextVersion: string;
-  /** When the double opt-in was confirmed with the button on the page; null until then. */
+  /**
+   * When the consent double opt-in was confirmed, by Mycel's link or an external owner; null
+   * until then. Confirmed consent only: feeds, observations and providers read it as such.
+   */
   confirmedAt: Date | null;
+  /**
+   * When the address confirmed its signature on a campaign's form (ADR 033 rule 7); null until
+   * then and on every other form. Optional so a submission built before 0052 still type-checks.
+   */
+  participationConfirmedAt?: Date | null;
   /** Null only on historical submissions made before versioned evaluation was introduced. */
   evaluation: {
     supporterLifecycleId?: string;

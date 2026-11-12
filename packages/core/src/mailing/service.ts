@@ -92,11 +92,11 @@ export const previewConfirmation = defineUseCase({
   async handler(ctx, { token }): Promise<ConfirmPreview> {
     const found = await resolveToken(ctx, token, ctx.clock.now());
     if (!found) return { status: 'invalid' };
-    const { submission } = found;
-    return {
-      status: submission.confirmedAt ? 'already_confirmed' : 'pending',
-      locale: submission.locale,
-    };
+    const { submission, consent, campaignId } = found;
+    const done =
+      (!consent || !!submission.confirmedAt) &&
+      (!campaignId || !!submission.participationConfirmedAt);
+    return { status: done ? 'already_confirmed' : 'pending', locale: submission.locale };
   },
 });
 
@@ -122,12 +122,16 @@ export const confirmSubscription = defineUseCase({
     const { submission, email, consent, campaignId, kind } = found;
     const { locale } = submission;
 
-    if (!(await ctx.submissions.confirm(submission.id, now)))
-      return { status: 'already_confirmed', locale };
+    // Two facts, each with its own idempotency (ADR 033 rule 7): the signature and Mycel-owned
+    // consent. One link may grant both; with an external consent owner the provider confirms
+    // consent on its own clock, and neither confirmation may make the other a no-op.
+    const signs = !!campaignId && (await ctx.submissions.confirmParticipation(submission.id, now));
+    const consents = consent && (await ctx.submissions.confirm(submission.id, now));
+    if (!signs && !consents) return { status: 'already_confirmed', locale };
 
     // ADR 033 rule 7: the confirmation makes the signature count. Ingest records it once the
     // supporter id exists; a signature is never consent, which follows below only when ticked.
-    if (campaignId) {
+    if (campaignId && signs) {
       const signed: ParticipationConfirmedProps = {
         email,
         formId: submission.formId,
@@ -146,7 +150,7 @@ export const confirmSubscription = defineUseCase({
         props: { ...signed },
       });
     }
-    if (!consent) return { status: 'confirmed', locale };
+    if (!consents) return { status: 'confirmed', locale };
 
     const props: ConsentGivenProps = {
       email,

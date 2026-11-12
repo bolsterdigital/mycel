@@ -356,15 +356,19 @@ export const listCampaigns = defineUseCase({
  * (ADR 033 rule 3). Throws `campaign.closed` when the campaign does not accept participation now:
  * not open, archived, outside its window, or its landing page not published and public in the
  * submitting locale. Re-read under a share lock inside the submission's transaction, so a stale
- * page, a reposted form or an old tab cannot add a submission after closing.
+ * page, a reposted form or an old tab cannot add a submission after closing. `lock: false` is the
+ * cheap early refusal before the spam and rate-limit writes; only the locked read decides.
  */
 export async function participationFor(
   ctx: TransactionContext,
   form: { id: string; kind: string },
   locale: string,
-  now: Date
+  now: Date,
+  { lock = true }: { lock?: boolean } = {}
 ): Promise<Campaign | null> {
-  const campaign = await ctx.campaigns.shareByForm(form.id);
+  const campaign = await (lock
+    ? ctx.campaigns.shareByForm(form.id)
+    : ctx.campaigns.byForm(form.id));
   if (!campaign) return null;
   const closed = () => refuse('conflict', 'formId', 'campaign.closed');
   if (FORM_KIND_OF[campaign.kind] !== form.kind || !acceptsNow(campaign, now)) throw closed();

@@ -1,4 +1,4 @@
-// Participation and the counter (ADR 033 rules 3, 7 and 8, #47 B2) over the memory adapter: the
+// Participation and the counter (ADR 033 rules 3, 7 and 8) over the memory adapter: the
 // submit path decides under the campaign, the confirmation makes a signature count, ingest records
 // it once per supporter, erasure moves it into the anonymous count. The Postgres side of the same
 // rows is `packages/db/src/campaigns/participation.test.ts`.
@@ -117,7 +117,7 @@ async function setup(kind: 'petition' | 'signup' = 'petition') {
   };
 }
 
-describe('campaign participation (ADR 033, #47 B2)', () => {
+describe('campaign participation (ADR 033)', () => {
   it('counts a confirmed signature once, and an unconfirmed one not at all', async () => {
     const t = await setup();
     await t.publish();

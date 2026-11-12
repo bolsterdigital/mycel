@@ -142,7 +142,10 @@ export function confirmationMailSource(deps: ConfirmationMailDeps): MailSource {
         systemPrincipal(event.tenantId, CONFIRMATION_SUBSCRIBER),
         async (ctx) => {
           const sub = await ctx.submissions.findById(p.submissionId);
-          if (!sub || sub.confirmedAt || sub.evaluation?.version !== p.formVersion) return false;
+          // Each mail waits on its own fact: the signature's link is still owed after an external
+          // owner confirmed consent, and the other way round.
+          const done = participation ? sub?.participationConfirmedAt : sub?.confirmedAt;
+          if (!sub || done || sub.evaluation?.version !== p.formVersion) return false;
           if (
             p.confirmationVersion &&
             sub.evaluation?.confirmationMail?.version !== p.confirmationVersion

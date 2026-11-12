@@ -14,6 +14,7 @@ import {
   ingest,
   runConnectionIntent,
   signConfirmToken,
+  supporterIngestSubscriber,
   systemPrincipal,
   useCases,
   queueMailchimpCallback,
@@ -755,6 +756,169 @@ describe('Mailchimp real form feed', () => {
         ).toEqual(['newsletter']);
     }
   );
+
+  // ADR 033 rule 7: on a campaign's form the signature and the consent are two confirmations with
+  // their own facts. The provider owns consent here, so it confirms on its own clock; Mycel's link
+  // confirms the signature only. Neither order may lose the other, and the signature time never
+  // travels to the provider as consent time.
+  describe('a campaign form with an external consent owner', () => {
+    let seen: Set<string>;
+    const campaignForm = async ({ consentRequired = true } = {}) => {
+      await configure('external');
+      if (!consentRequired) {
+        const form = probeForm(FORM);
+        await uow.run(admin, (ctx) =>
+          ctx.forms.insert({
+            ...form,
+            fields: form.fields.map((f) => (f.type === 'consent' ? { ...f, required: false } : f)),
+          })
+        );
+      }
+      const { item } = await invoker.run(useCases.createItem, admin, {
+        slug: 'join',
+        document: {
+          type: 'page',
+          defaultLocale: 'en',
+          locales: ['en'],
+          title: { en: 'Join' },
+          blocks: [],
+        } as never,
+      });
+      await invoker.run(useCases.publishItem, admin, {
+        itemId: item.id,
+        revisionId: item.latestRevisionId,
+        locale: 'en',
+      });
+      const created = await invoker.run(useCases.createCampaign, admin, {
+        kind: 'signup',
+        landingItemId: item.id,
+        formId: FORM,
+      });
+      const campaign = await invoker.run(useCases.openCampaign, admin, {
+        campaignId: created.id,
+        baseUpdatedAt: created.updatedAt,
+      });
+      seen = new Set();
+      return campaign.id;
+    };
+    /** Deliver new outbox events to feed and ingest, as the worker would after commit. */
+    const drain = async () => {
+      const fresh = uow.store.outbox.filter((e) => !seen.has(e.id));
+      for (const e of fresh) {
+        seen.add(e.id);
+        for (const sub of [formFeedSubscriber(uow), supporterIngestSubscriber(uow)])
+          if (sub.types.includes(e.type)) await sub.handle(e);
+      }
+      return fresh.map((e) => e.type);
+    };
+    const sign = async (consent: boolean) => {
+      const sub = await invoker.run(useCases.submitForm, admin, {
+        formId: FORM,
+        locale: 'en',
+        values: { email, consent },
+      });
+      if (sub.status !== 'accepted') throw new Error('fixture rejected');
+      await drain();
+      return sub.submissionId;
+    };
+    const token = (submissionId: string) =>
+      uow.run(admin, (ctx) =>
+        signConfirmToken(
+          ctx.signer,
+          { tenantId: TENANT, submissionId, list: 'newsletter' },
+          clock.now()
+        )
+      );
+    const mycelLink = async (submissionId: string) =>
+      invoker.run(useCases.confirmSubscription, admin, { token: await token(submissionId) });
+    const preview = async (submissionId: string) =>
+      (await invoker.run(useCases.previewConfirmation, admin, { token: await token(submissionId) }))
+        .status;
+    const providerConfirms = async (intent: ConnectionIntent) => {
+      clock.advance(2000);
+      member = {
+        ...member!,
+        status: 'subscribed',
+        timestamp_opt: clock.now().toISOString(),
+        last_changed: clock.now().toISOString(),
+      };
+      expect(await transport.sync(TENANT, intent.id)).toBe(true);
+      return clock.now();
+    };
+    const intentOf = async () =>
+      (await uow.run(
+        admin,
+        async (ctx) => (await ctx.connectionIntents.list(connectionId, 20))[0]
+      ))!;
+    const submission = (id: string) => uow.run(admin, (ctx) => ctx.submissions.findById(id));
+    const participants = async (campaignId: string) =>
+      (await invoker.run(useCases.getCampaign, admin, { campaignId })).participants;
+    const lists = async () =>
+      (await uow.run(admin, (ctx) => ctx.supporters.getProjection(email)))!.lists;
+
+    it('the provider confirms consent first, and the signature still counts', async () => {
+      const campaignId = await campaignForm();
+      const submissionId = await sign(true);
+      const intent = await intentOf();
+      await dispatch(intent);
+      expect(member!.status).toBe('pending');
+      const optAt = await providerConfirms(intent);
+      expect(await drain()).toEqual(['consent.given']);
+      expect(await lists()).toEqual(['newsletter']);
+      expect(await participants(campaignId)).toBe(0);
+
+      // The page behind Mycel's link still offers the signature.
+      expect(await preview(submissionId)).toBe('pending');
+      clock.advance(1000);
+      expect(await mycelLink(submissionId)).toEqual({ status: 'confirmed', locale: 'en' });
+      expect(await drain()).toEqual(['form.submitted']);
+      expect(await participants(campaignId)).toBe(1);
+      const row = (await submission(submissionId))!;
+      expect(row.confirmedAt).toEqual(optAt);
+      expect(row.participationConfirmedAt).toEqual(clock.now());
+      expect(await preview(submissionId)).toBe('already_confirmed');
+      expect(await mycelLink(submissionId)).toMatchObject({ status: 'already_confirmed' });
+      expect(await drain()).toEqual([]);
+    });
+
+    it("Mycel's link confirms the signature first, and the provider's consent still arrives", async () => {
+      const campaignId = await campaignForm();
+      const submissionId = await sign(true);
+      expect(await mycelLink(submissionId)).toEqual({ status: 'confirmed', locale: 'en' });
+      // The signature only: no consent event, and consent stays unconfirmed for every reader.
+      expect(await drain()).toEqual(['form.submitted']);
+      expect(await participants(campaignId)).toBe(1);
+      expect((await submission(submissionId))!.confirmedAt).toBeNull();
+
+      const intent = await intentOf();
+      await dispatch(intent);
+      // The signature time is not consent time: no opt-in timestamp goes to the provider.
+      expect(writes).toHaveLength(1);
+      expect(writes[0]!.body).not.toHaveProperty('timestamp_opt');
+      expect(member!.status).toBe('pending');
+      expect(await lists()).toEqual([]);
+
+      const optAt = await providerConfirms(intent);
+      expect(await drain()).toEqual(['consent.given']);
+      expect(await lists()).toEqual(['newsletter']);
+      expect((await submission(submissionId))!.confirmedAt).toEqual(optAt);
+      expect(await participants(campaignId)).toBe(1);
+    });
+
+    it('a signature without the box ticked confirms no consent', async () => {
+      const campaignId = await campaignForm({ consentRequired: false });
+      const submissionId = await sign(false);
+      expect(await intentOf()).toBeUndefined();
+      expect(await mycelLink(submissionId)).toEqual({ status: 'confirmed', locale: 'en' });
+      expect(await drain()).toEqual(['form.submitted']);
+      expect(await participants(campaignId)).toBe(1);
+      const row = (await submission(submissionId))!;
+      expect(row.confirmedAt).toBeNull();
+      expect(row.participationConfirmedAt).toEqual(clock.now());
+      expect(await lists()).toEqual([]);
+      expect(writes).toEqual([]);
+    });
+  });
 });
 
 describe('Mailchimp account discovery', () => {

@@ -1,4 +1,4 @@
-// Participation and the counter through Postgres (0049, 0051; ADR 033 rules 3, 7 and 8, #47 B2):
+// Participation and the counter through Postgres (0049, 0051, 0052; ADR 033 rules 3, 7 and 8):
 // the share lock and refusal on the submit path, the participation row written at ingest under
 // the app role, withdrawal and renewal on the same row, and the erasure moving rows into the
 // anonymous count. packages/core/src/campaigns/participation.test.ts holds every case in memory.
@@ -145,6 +145,12 @@ describe.skipIf(skip)('campaign participation through Postgres', () => {
     await confirm(r.submissionId);
     expect(await drain()).toEqual(['petition.signed']);
     expect(await count()).toBe(1);
+    // The signature's own fact under the app role (0052); consent stays unconfirmed.
+    const stored = await uow.run(systemPrincipal(tenant, 'test'), (ctx) =>
+      ctx.submissions.findById(r.submissionId)
+    );
+    expect(stored?.confirmedAt).toBeNull();
+    expect(stored?.participationConfirmedAt).toEqual(clock.now());
     expect(await confirm(r.submissionId)).toMatchObject({ status: 'already_confirmed' });
     expect(await drain()).toEqual([]);
     // A repost after the recipient limit: a new submission, still one participation.

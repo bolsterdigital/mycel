@@ -95,6 +95,7 @@ export function submissionRepository(trx: Trx, tenantId: string): SubmissionRepo
           ip_hash: s.ipHash,
           created_at: s.createdAt,
           confirmed_at: s.confirmedAt,
+          participation_confirmed_at: s.participationConfirmedAt ?? null,
           list: s.list,
           consent_text_version: s.consentTextVersion,
           evaluation: s.evaluation ? JSON.stringify(s.evaluation) : null,
@@ -117,6 +118,9 @@ export function submissionRepository(trx: Trx, tenantId: string): SubmissionRepo
         ipHash: row.ip_hash,
         createdAt: new Date(row.created_at),
         confirmedAt: row.confirmed_at ? new Date(row.confirmed_at) : null,
+        participationConfirmedAt: row.participation_confirmed_at
+          ? new Date(row.participation_confirmed_at)
+          : null,
         list: row.list,
         consentTextVersion: row.consent_text_version,
         evaluation: row.evaluation,
@@ -139,6 +143,17 @@ export function submissionRepository(trx: Trx, tenantId: string): SubmissionRepo
         .set({ confirmed_at: at })
         .where('id', '=', id)
         .where('confirmed_at', 'is', null)
+        .returning('id')
+        .executeTakeFirst();
+      return row !== undefined;
+    },
+    async confirmParticipation(id, at) {
+      // The same conditional update on the signature's own column (0052).
+      const row = await trx
+        .updateTable('form_submissions')
+        .set({ participation_confirmed_at: at })
+        .where('id', '=', id)
+        .where('participation_confirmed_at', 'is', null)
         .returning('id')
         .executeTakeFirst();
       return row !== undefined;

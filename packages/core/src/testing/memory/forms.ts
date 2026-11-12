@@ -52,6 +52,12 @@ export function memorySubmissions(s: TenantStore): SubmissionRepository {
       sub.confirmedAt = new Date(at);
       return true;
     },
+    async confirmParticipation(id, at) {
+      const sub = s.submissions.get(id);
+      if (!sub || sub.participationConfirmedAt) return false;
+      sub.participationConfirmedAt = new Date(at);
+      return true;
+    },
   };
 }
 

@@ -23,11 +23,11 @@ Conditions use equals, not-equals and present atoms, optionally grouped by bound
 
 `forms/ports.ts` adds form, submission, rate-limit and private action repositories to the transaction context:
 
-| Port                   | Methods                                                                                                                                                                     |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FormRepository`       | `findById`, `list`, `insert`, `save(base, value)`: compare-and-swap definition updates                                                                                      |
-| `SubmissionRepository` | `insert`, `findById`, `list(formId)`, `findByFeedBusinessId`, `confirm(id, at)`: one conditional update, true only for the call that set `confirmedAt`                      |
-| `RateLimiter`          | `hit(key, { max, windowSeconds })`: fixed-window counter; `cooldown(key, seconds)`: sliding window of one that records only a success, refused above `MAX_COOLDOWN_SECONDS` |
+| Port                   | Methods                                                                                                                                                                                                                                                                                              |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FormRepository`       | `findById`, `list`, `insert`, `save(base, value)`: compare-and-swap definition updates                                                                                                                                                                                                               |
+| `SubmissionRepository` | `insert`, `findById`, `list(formId)`, `findByFeedBusinessId`, `confirm(id, at)`: one conditional update, true only for the call that set `confirmedAt` (confirmed consent only); `confirmParticipation(id, at)`: the same for a campaign signature's own `participationConfirmedAt` (ADR 033 rule 7) |
+| `RateLimiter`          | `hit(key, { max, windowSeconds })`: fixed-window counter; `cooldown(key, seconds)`: sliding window of one that records only a success, refused above `MAX_COOLDOWN_SECONDS`                                                                                                                          |
 
 `FormFeedRepository` and `FormMailRepository` read and compare-and-swap private versioned configuration; mail settings also reserve the tenant mail budget.
 
