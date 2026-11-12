@@ -35,7 +35,7 @@ import { withTenant } from './index.js';
 import type { Database } from './infra/schema.js';
 import { lifecycleEvidence, lifecycleRepository, lockSupporter } from './supporters/lifecycle.js';
 import { advisoryLock, setRole } from './infra/roles.js';
-import { applyPersonErasures } from './person-erasures.js';
+import { applyPersonErasures } from './people/erasures.js';
 
 type Trx = Kysely<Database>;
 

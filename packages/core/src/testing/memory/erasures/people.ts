@@ -1,12 +1,16 @@
 // `ctx.personErasures` and the person phase of `ctx.erasures.apply()` over a MemoryStore: what
-// packages/db/src/person-erasures.ts does over Postgres (ADR 034). The scrub itself is core's
+// packages/db/src/people/erasures.ts does over Postgres (ADR 034). The scrub itself is core's
 // (content/people/erasure.ts); this file only finds the copies it applies to.
 
-import type { Clock } from '../../ports.js';
-import type { Principal } from '../../principal.js';
-import type { PersonErasureRepository } from '../../content/ports.js';
-import { scrubErasedChanges, scrubErasedCredits } from '../../content/people/erasure.js';
-import type { MemoryStore, TenantStore } from './store.js';
+import type { Clock } from '../../../ports.js';
+import type { Principal } from '../../../principal.js';
+import type { PersonErasureRepository } from '../../../content/ports.js';
+import {
+  canonicalPersonId,
+  scrubErasedChanges,
+  scrubErasedCredits,
+} from '../../../content/people/erasure.js';
+import type { MemoryStore, TenantStore } from '../store.js';
 
 export function memoryPersonErasures(
   s: TenantStore,
@@ -16,7 +20,7 @@ export function memoryPersonErasures(
   return {
     async register(personIds) {
       const added: string[] = [];
-      for (const id of personIds)
+      for (const id of personIds.map(canonicalPersonId))
         if (!s.personErasures.has(id)) {
           s.personErasures.set(id, {
             erasedAt: clock.now(),
@@ -29,10 +33,11 @@ export function memoryPersonErasures(
     // One unit of work runs at a time in memory, so there is nothing to wait for.
     async guard() {},
     async registered(ids) {
-      return new Set([...ids].filter((id) => s.personErasures.has(id)));
+      // Postgres compares `uuid` regardless of case and returns it lower case; so does this.
+      return new Set([...ids].map(canonicalPersonId).filter((id) => s.personErasures.has(id)));
     },
     async get(personId) {
-      const row = s.personErasures.get(personId);
+      const row = s.personErasures.get(canonicalPersonId(personId));
       return row ? { registeredAt: row.erasedAt } : null;
     },
   };
@@ -46,7 +51,7 @@ export function applyPersonErasures(store: MemoryStore, tenantId: string): numbe
   let changed = 0;
   for (const id of erased) if (s.authors.delete(id)) changed++;
   for (const group of s.personGroups.values()) {
-    const kept = group.personIds.filter((id) => !erased.has(id));
+    const kept = group.personIds.filter((id) => !erased.has(canonicalPersonId(id)));
     if (kept.length !== group.personIds.length) {
       changed += group.personIds.length - kept.length;
       group.personIds = kept;

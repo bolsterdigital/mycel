@@ -19,8 +19,8 @@ import {
   type PersonErasureRepository,
   type Principal,
 } from '@mycel/core';
-import type { Database } from './infra/schema.js';
-import { advisoryLock, advisoryLockShared } from './infra/roles.js';
+import type { Database } from '../infra/schema.js';
+import { advisoryLock, advisoryLockShared } from '../infra/roles.js';
 
 type Trx = Kysely<Database>;
 
@@ -85,7 +85,9 @@ export async function applyPersonErasures(trx: Trx): Promise<number> {
   );
   if (!ids.length) return 0;
   const erased = new Set(ids);
-  // A uuid has no LIKE wildcard, so each id is its own exact substring pattern.
+  // A uuid has no LIKE wildcard, so each id is its own exact substring pattern. ILIKE, because a
+  // stored copy may spell the id in upper case (the input accepts it, `uuid` compares regardless);
+  // core's scrub compares the same way (`canonicalPersonId`).
   const mentions = ids.map((id) => `%${id}%`);
   let changed = 0;
   const count = (r: { numAffectedRows?: bigint; numDeletedRows?: bigint }) =>
@@ -98,7 +100,7 @@ export async function applyPersonErasures(trx: Trx): Promise<number> {
 
   const revisions = await sql<{ id: string; document: unknown }>`
     select id, document from content_revisions
-    where document::text like any(${mentions}::text[])`.execute(trx);
+    where document::text ilike any(${mentions}::text[])`.execute(trx);
   for (const row of revisions.rows) {
     const document = scrubErasedCredits(row.document, erased);
     if (document !== row.document)
@@ -108,7 +110,7 @@ export async function applyPersonErasures(trx: Trx): Promise<number> {
       );
   }
   const patterns = await sql<{ id: string; blocks: unknown }>`
-    select id, blocks from patterns where blocks::text like any(${mentions}::text[])`.execute(trx);
+    select id, blocks from patterns where blocks::text ilike any(${mentions}::text[])`.execute(trx);
   for (const row of patterns.rows) {
     const blocks = scrubErasedCredits(row.blocks, erased);
     if (blocks !== row.blocks)
@@ -127,8 +129,8 @@ export async function applyPersonErasures(trx: Trx): Promise<number> {
     >;
   }>`
     select plan_id, ordinal, selection, preview from content_bulk_plan_items
-    where selection::text like any(${mentions}::text[])
-       or preview::text like any(${mentions}::text[])`.execute(trx);
+    where selection::text ilike any(${mentions}::text[])
+       or preview::text ilike any(${mentions}::text[])`.execute(trx);
   for (const row of slots.rows) {
     const selection = scrubErasedCredits(row.selection, erased);
     const candidate = scrubErasedCredits(row.preview.candidate, erased);
@@ -146,7 +148,7 @@ export async function applyPersonErasures(trx: Trx): Promise<number> {
       );
   }
   const media = await sql<{ id: string; credit: unknown }>`
-    select id, credit from media where credit::text like any(${mentions}::text[])`.execute(trx);
+    select id, credit from media where credit::text ilike any(${mentions}::text[])`.execute(trx);
   for (const row of media.rows) {
     const credit = scrubErasedCredits(row.credit, erased);
     if (credit !== row.credit)

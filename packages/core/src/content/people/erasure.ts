@@ -14,6 +14,18 @@ import '../ports.js';
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 
+/**
+ * A person id as the register holds it: lower case. The input schema accepts any case and Postgres
+ * compares `uuid` regardless of case, so a stored credit or `authorIds` entry may carry upper case;
+ * every comparison with the register goes through this. Rejected: normalising only new input (rows
+ * stored before still carry upper case and would escape the scrub).
+ */
+export const canonicalPersonId = (id: string): string => id.toLowerCase();
+
+/** Whether `id` is in `erased`, a set of canonical ids as `registered()` returns them. */
+const isErased = (erased: ReadonlySet<string>, id: unknown): boolean =>
+  typeof id === 'string' && erased.has(canonicalPersonId(id));
+
 /** Every `photographerPersonId` in a value, wherever a credit sits in it. */
 export function creditPersonIds(value: unknown, into = new Set<string>()): Set<string> {
   if (Array.isArray(value)) for (const v of value) creditPersonIds(v, into);
@@ -25,14 +37,12 @@ export function creditPersonIds(value: unknown, into = new Set<string>()): Set<s
 }
 
 const scrubsHere = (o: Record<string, unknown>, erased: ReadonlySet<string>) =>
-  typeof o['photographerPersonId'] === 'string' &&
-  erased.has(o['photographerPersonId']) &&
-  'photographer' in o &&
-  o['photographer'] !== null;
+  isErased(erased, o['photographerPersonId']) && 'photographer' in o && o['photographer'] !== null;
 
 /**
- * `value` with `photographer` set to null in every credit whose person id is in `erased`; the
- * same reference when nothing changed, so a caller can tell a no-op from a write.
+ * `value` with `photographer` set to null in every credit whose person id, in any case, is in
+ * `erased` (canonical ids); the same reference when nothing changed, so a caller can tell a no-op
+ * from a write.
  */
 export function scrubErasedCredits<T>(value: T, erased: ReadonlySet<string>): T {
   if (!erased.size) return value;
@@ -95,7 +105,7 @@ export function scrubErasedChanges(
         isObject(credit) ? credit['photographerPersonId'] : undefined,
         sibling?.before,
         sibling?.after,
-      ].some((id) => typeof id === 'string' && erased.has(id));
+      ].some((id) => isErased(erased, id));
       if (names && ((out.before ?? null) !== null || (out.after ?? null) !== null))
         out = {
           ...out,
@@ -126,8 +136,9 @@ export async function withoutErasedCredits<T>(ctx: TransactionContext, value: T)
  * erased (a known-absent reference); an id in neither register is unknown.
  */
 export async function knownPerson(ctx: TransactionContext, id: string): Promise<boolean> {
-  if (await ctx.authors.get(id)) return true;
-  return (await ctx.personErasures.registered([id])).has(id);
+  const canonical = canonicalPersonId(id);
+  if (await ctx.authors.get(canonical)) return true;
+  return (await ctx.personErasures.registered([canonical])).has(canonical);
 }
 
 /** The person ids a plan preview's credits name: in the candidate, in change values and ids. */

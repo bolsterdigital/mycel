@@ -2,8 +2,14 @@
 // on every write that stores a credit afterwards. The same person is author and photographer in
 // nl and en, in a current, a historical and a trashed revision, a pattern, a bulk plan and a
 // media item; a second person and another tenant stay as they were. The database conformance
-// (packages/db/src/person-erasures.conformance.test.ts) repeats apply, grants, export, restore and
+// (packages/db/src/people/erasures.conformance.test.ts) repeats apply, grants, export, restore and
 // the race against a concurrent registration over Postgres.
+//
+// A person id in upper case: the input accepts it and Postgres compares `uuid` regardless of case,
+// so the register, the scrub and the reference check (`knownPerson`) compare canonically in both
+// adapters. Memory's own author lookup stays exact (a new upload with an upper-case id is refused
+// here and accepted by Postgres); that is stricter, never a missed scrub, and the test below
+// proves the erasure path over memory as the conformance test does over Postgres.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Invoker } from '../../invoke.js';
@@ -56,6 +62,11 @@ describe('credit scrub (pure)', () => {
     // A credit without a person id names nobody the register knows (rule 6); work.maker stays.
     expect(out.blocks[2]).toBe(value.blocks[2]);
     expect(creditPersonIds(value)).toEqual(new Set([A, B]));
+    // The register is canonical (lower case); a stored id in upper case is the same person.
+    const upper = {
+      credit: { work: null, photographer: SAM, photographerPersonId: A.toUpperCase() },
+    };
+    expect(scrubErasedCredits(upper, new Set([A])).credit.photographer).toBeNull();
   });
 
   it('returns the same reference when nothing changes, and is repeatable', () => {
@@ -273,6 +284,49 @@ describe('content.person.erase in memory', () => {
     expect(uow.store.jobs.filter((j) => j.type === 'person.erase')).toHaveLength(1);
     // The slug is free again.
     await expect(person(admin, 'sam', 'Someone else')).resolves.toBeTruthy();
+  });
+
+  it('plans a job of its own for a second request while the first is still open', async () => {
+    // The ids sort as sam < kim; the second request repeats sam and adds kim.
+    await invoker.run(useCases.erasePeople, admin, { personIds: [sam] });
+    const second = await invoker.run(useCases.erasePeople, admin, { personIds: [sam, kim] });
+    expect(second.created).toEqual([kim]);
+    const jobs = uow.store.jobs.filter((j) => j.type === 'person.erase');
+    expect(jobs.map((j) => j.key)).toEqual([`person.erase:${sam}`, `person.erase:${kim}`]);
+    // A retry of the second request registers nothing and finds an open job, not a third.
+    await invoker.run(useCases.erasePeople, admin, { personIds: [sam, kim] });
+    expect(uow.store.jobs.filter((j) => j.type === 'person.erase')).toHaveLength(2);
+  });
+
+  it('erases an id stored in upper case and keeps the document savable', async () => {
+    const NAME = 'Ula Hoog';
+    // Sequential ids are hex: create people until one has letters, so upper case differs.
+    let ula = await person(admin, 'ula', NAME);
+    for (let n = 0; !/[a-f]/.test(ula); n++) ula = await person(admin, `ula-${n}`, NAME);
+    const UP = ula.toUpperCase();
+    const doc = () => article('Hoog', [image('u1', UP, NAME)], [UP]);
+    const created = await invoker.run(useCases.createItem, admin, {
+      slug: 'hoog',
+      document: doc(),
+    });
+    await invoker.run(useCases.updateMedia, admin, { id: photo, credit: credit(UP, NAME) });
+    const result = await invoker.run(useCases.erasePeople, admin, { personIds: [UP] });
+    expect(result).toMatchObject({ created: [ula], people: [{ personId: ula }] });
+    await apply();
+    expect(tenantJson()).not.toContain(`"photographer":"${NAME}"`);
+    expect(await apply()).toBe(0);
+    // A stale tab: the old base, the name beside the upper-case id; saved without the name.
+    const saved = await save(doc(), created.item.id, created.revision.id);
+    expect(saved.revision.document.blocks[0]).toMatchObject({
+      props: { credit: { photographer: null, photographerPersonId: UP } },
+    });
+    expect(saved.revision.document).toMatchObject({ authorIds: [UP] });
+    const media = await invoker.run(useCases.updateMedia, admin, {
+      id: photo,
+      credit: credit(UP, NAME),
+    });
+    expect(media.credit.photographer).toBeNull();
+    expect(tenantJson()).not.toContain(`"photographer":"${NAME}"`);
   });
 
   it('accepts the request while the tenant is suspended; an ordinary write is not', async () => {

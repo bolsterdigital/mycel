@@ -25,7 +25,7 @@ export {
 export { MemoryStore } from './memory/store.js';
 export { MemoryScheduler } from './memory/operations/jobs.js';
 export { MemoryBlobStore, memoryImageProcessor } from './memory/media.js';
-export { secureErasures } from './memory/erasures.js';
+export { secureErasures } from './memory/erasures/repository.js';
 export { memoryExportLifecycle } from './memory/operations/export-jobs.js';
 export { MemoryIdentityStore } from './memory/operators.js';
 export { MemorySiteDirectory } from './memory/tenants.js';

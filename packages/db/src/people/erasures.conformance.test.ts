@@ -23,9 +23,9 @@ import {
   pauseMedia,
   runSuffix,
 } from '@mycel/core/testing';
-import { applyErasures, createDb, createUnitOfWork, uuidv7Ids } from './index.js';
-import { asRole } from './infra/roles.js';
-import { migrateSchema, requireDatabase, testTenant } from './testing.js';
+import { applyErasures, createDb, createUnitOfWork, uuidv7Ids } from '../index.js';
+import { asRole } from '../infra/roles.js';
+import { migrateSchema, requireDatabase, testTenant } from '../testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
@@ -346,5 +346,45 @@ describe.skipIf(skip)('person erasure conformance', () => {
     await registering;
     await applyErasures(operatorDb, t.a);
     expect(await rowsOf(t.a)).not.toContain(`Late ${run}`);
+  });
+  it('erases an id stored in upper case and keeps the document savable', async () => {
+    // The input accepts a guid in any case and `uuid` compares regardless, so a stored copy can
+    // spell the id in upper case; the register holds it lower case.
+    const NAME = `Ula Hoog ${run}`;
+    const lower = await person(t.a, `ula-${run}`, NAME);
+    const upper = lower.toUpperCase();
+    const photo = (
+      await invoker.run(useCases.uploadMedia, admin(), {
+        filename: 'u.png',
+        contentType: 'image/png',
+        bytes: EXAMPLE_PNG,
+        credit: credit(upper, NAME),
+      })
+    ).id;
+    const doc = () => article('Hoog', [image('u1', upper, NAME)], [upper]);
+    const created = await invoker.run(useCases.createItem, admin(), {
+      slug: `upper-${run}`,
+      document: doc(),
+    });
+    expect(JSON.stringify(created.revision.document)).toContain(upper);
+    await invoker.run(useCases.erasePeople, admin(), { personIds: [upper] });
+    await applyErasures(operatorDb, t.a);
+    expect(await rowsOf(t.a)).not.toContain(NAME);
+    expect(await applyErasures(operatorDb, t.a)).toBe(0);
+    // A stale tab: the old base, the name beside the upper-case id; saved without the name.
+    const saved = await invoker.run(useCases.updateItem, admin(), {
+      itemId: created.item.id,
+      baseRevisionId: created.revision.id,
+      document: doc(),
+    });
+    expect(saved.revision.document.blocks[0]).toMatchObject({
+      props: { credit: { photographer: null, photographerPersonId: upper } },
+    });
+    const media = await invoker.run(useCases.updateMedia, admin(), {
+      id: photo,
+      credit: credit(upper, NAME),
+    });
+    expect(media.credit.photographer).toBeNull();
+    expect(await rowsOf(t.a)).not.toContain(NAME);
   });
 });

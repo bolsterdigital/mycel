@@ -7,10 +7,10 @@ import {
   protectsErasureCopy,
   admissionFor,
   allowsLifecycle,
-} from '../../supporters/lifecycle.js';
-import type { Principal } from '../../principal.js';
-import type { Clock, Erasures } from '../../ports.js';
-import { emailKey } from '../../supporters/email-key.js';
+} from '../../../supporters/lifecycle.js';
+import type { Principal } from '../../../principal.js';
+import type { Clock, Erasures } from '../../../ports.js';
+import { emailKey } from '../../../supporters/email-key.js';
 import {
   carriesErasedAddress,
   eraseOutboxProps,
@@ -19,10 +19,10 @@ import {
   expiresOnErasure,
   isTombstone,
   tombstoneEmail,
-} from '../../supporters/erasure.js';
-import { normalizeEmail } from '../../util/email.js';
-import type { MemoryStore } from './store.js';
-import { applyPersonErasures } from './person-erasures.js';
+} from '../../../supporters/erasure.js';
+import { normalizeEmail } from '../../../util/email.js';
+import type { MemoryStore } from '../store.js';
+import { applyPersonErasures } from './people.js';
 
 /**
  * The register is kept by supporter id and address hash; the addresses to erase are found from

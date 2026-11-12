@@ -290,7 +290,7 @@
   "packages/core/src/tenants/url.ts": 1,
   "packages/core/src/testing/export-lifecycle.ts": 1,
   "packages/core/src/testing/memory.ts": 2,
-  "packages/core/src/testing/memory/erasures.ts": 1,
+  "packages/core/src/testing/memory/erasures/repository.ts": 1,
   "packages/core/src/testing/memory/media.ts": 1,
   "packages/core/src/testing/memory/operations/export-jobs.ts": 1,
   "packages/core/src/testing/memory/operators.ts": 1,

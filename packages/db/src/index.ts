@@ -50,7 +50,7 @@ import {
   sectionRepository,
 } from './content.js';
 import { erasureRepository } from './erasures.js';
-import { personErasureRepository } from './person-erasures.js';
+import { personErasureRepository } from './people/erasures.js';
 import { tenantExportRepository } from './portability/tenant-exports.js';
 import { hostnameRepository } from './hostnames.js';
 import { enterTenant } from './infra/roles.js';

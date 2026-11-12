@@ -208,11 +208,11 @@ export interface PersonGroupRepository {
  * for supporters.
  */
 export interface PersonErasureRepository {
-  /** Appends the ids that are not yet registered; returns the ones it appended. */
+  /** Appends the canonical ids that are not yet registered; returns the ones it appended. */
   register(personIds: readonly string[]): Promise<string[]>;
   /** Shared lock against `register`, held until commit; take it before reading the register. */
   guard(): Promise<void>;
-  /** Which of `ids` are registered. */
+  /** Which of `ids` are registered, in any case; returns them canonical (`canonicalPersonId`). */
   registered(ids: Iterable<string>): Promise<Set<string>>;
   get(personId: string): Promise<{ registeredAt: Date } | null>;
 }

@@ -30,8 +30,8 @@ import {
   memoryMailchimpReceipts,
 } from './connections.js';
 import { memoryBulkPlans, memoryContent, memoryPresence, memorySite } from './content.js';
-import { memoryErasures } from './erasures.js';
-import { memoryPersonErasures } from './person-erasures.js';
+import { memoryErasures } from './erasures/repository.js';
+import { memoryPersonErasures } from './erasures/people.js';
 import { memoryCampaigns } from './campaigns.js';
 import {
   FakeClock,

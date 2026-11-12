@@ -105,7 +105,7 @@ const ACTOR: Copy = {
     does: 'the actor names an operator by id and address; no route removes an operator yet',
   },
 };
-/** A copy `content.person.erase` reaches through apply (ADR 034, person-erasures.ts). */
+/** A copy `content.person.erase` reaches through apply (ADR 034, people/erasures.ts). */
 const PEOPLE = (field: string, does: string): Copy => ({
   field,
   subject: 'person',

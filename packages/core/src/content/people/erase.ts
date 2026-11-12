@@ -21,6 +21,7 @@ import type { TransactionContext } from '../../ports.js';
 import { defineUseCase } from '../../registry.js';
 import { exampleId } from '../../util/ids.js';
 import '../ports.js';
+import { canonicalPersonId } from './erasure.js';
 
 /** What an erasure by person id does not reach; always reported (ADR 034 rule 6). */
 export const PERSON_NOT_ERASED = ['text-mentions', 'image-pixels'] as const;
@@ -64,7 +65,9 @@ export const erasePeople = defineUseCase({
     notErased: z.array(z.enum(PERSON_NOT_ERASED)),
   }),
   examples: [{ input: { personIds: [exampleId(1)] } }],
-  async handler(ctx, { personIds }) {
+  async handler(ctx, input) {
+    // The register holds canonical ids; `A` and `a` name the same person (erasure.ts).
+    const personIds = [...new Set(input.personIds.map(canonicalPersonId))];
     const before = await ctx.personErasures.registered(personIds);
     const unknown: string[] = [];
     for (const id of personIds)
@@ -76,9 +79,10 @@ export const erasePeople = defineUseCase({
     if (open.length)
       await ctx.jobs.enqueue({
         type: 'person.erase',
-        // One key per request: a registration is permanent, so its smallest open id is unique
-        // to the requests that still have work, and a retry of the same request finds its job.
-        key: jobKey('person.erase', [...open].sort()[0]!),
+        // One key per request: an id is registered once, so the smallest id this request
+        // registered belongs to no other request and a running apply of an earlier one cannot
+        // swallow it. A retry registers nothing and keys on its smallest open id, finding its job.
+        key: jobKey('person.erase', [...(created.length ? created : open)].sort()[0]!),
         runAt: ctx.clock.now(),
         payload: { personIds: open },
       });
