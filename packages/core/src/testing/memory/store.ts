@@ -77,6 +77,8 @@ export interface TenantStore {
   personGroups: Map<string, PersonGroup>;
   /** `campaigns` (0049), keyed by id. */
   campaigns: Map<string, Campaign>;
+  /** `campaign_participations` (0049), keyed by `<campaign id> <supporter id>`. */
+  participations: Map<string, import('../../campaigns/model.js').CampaignParticipation>;
   authors: Map<string, Author>;
   sections: Map<string, Section>;
   presence: Map<string, PresenceEntry>;
@@ -155,6 +157,7 @@ const emptyTenant = (): TenantStore => ({
   blockRefs: new Map(),
   personGroups: new Map(),
   campaigns: new Map(),
+  participations: new Map(),
   authors: new Map(),
   sections: new Map(),
   presence: new Map(),

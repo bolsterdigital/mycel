@@ -10,6 +10,7 @@ import { hashInput } from '../audit/model.js';
 import { FormDefinition, parseFormDefinition } from './model.js';
 import { validMailPredicate } from './mail-model.js';
 import { resolveFormMail } from './mail-templates.js';
+import '../campaigns/ports.js';
 import { validFeed } from './feed/rules.js';
 
 export const listForms = defineUseCase({
@@ -88,7 +89,9 @@ export const createForm = defineUseCase({
                 id: 'consent',
                 name: 'consent',
                 type: 'consent',
-                required: true,
+                // A signature is not mail consent (ADR 033 rule 7): a petition asks, a signup
+                // is the subscription itself and needs the tick.
+                required: kind === 'signup',
                 label: Object.fromEntries(
                   ['en', 'nl'].map((l) => [l, t(l, 'forms.default.consent')])
                 ),
@@ -139,6 +142,12 @@ export const updateForm = defineUseCase({
     if (version !== baseVersion) throw new UseCaseError('conflict', 'form version changed');
     if (!can(ctx.principal, 'content:publish'))
       throw new UseCaseError('forbidden', 'publishing permission required');
+    // ADR 033 rule 3: a campaign's form keeps the kind of its campaign. Read after the form's
+    // lock, which binding takes too, so a concurrent bind sees this kind or waits for it.
+    if (value.kind !== base.kind && (await ctx.campaigns.byForm(value.id)))
+      throw new UseCaseError('conflict', 'campaign.form.kind-locked', [
+        { path: 'value.kind', message: 'campaign.form.kind-locked' },
+      ]);
     const parsed = parseFormDefinition(value);
     const mail = (await ctx.formMail.get()).value;
     const config = mail.forms.find((f) => f.formId === value.id);

@@ -3,7 +3,7 @@
 // e-mail block renderer replaces `renderConfirmationMail` once templates are block documents.
 
 import type { ResolvedFormMail } from '../forms/mail-model.js';
-import type { NewsletterSubscribedProps } from '../forms/events.js';
+import { PARTICIPATION_REQUESTED, type NewsletterSubscribedProps } from '../forms/events.js';
 import { t } from '../i18n/index.js';
 import type { Clock, Signer, Subscriber, UnitOfWork } from '../ports.js';
 import { systemPrincipal } from '../principal.js';
@@ -64,20 +64,27 @@ export function renderConfirmationMail(input: {
   from: MailAddress;
   to: string;
   copy?: ResolvedFormMail;
+  /** A campaign participation confirms an address, not a subscription (ADR 033 rule 7). */
+  purpose?: 'subscription' | 'participation';
 }): MailMessage {
   const { locale, tenantName, confirmUrl } = input;
   const m = (key: Parameters<typeof t>[1]) => t(locale, key, { tenant: tenantName });
-  const intro = input.copy?.text ?? m('mail.confirm.intro');
-  const subject = input.copy?.subject ?? m('mail.confirm.subject');
+  const own = input.purpose === 'participation';
+  const intro =
+    input.copy?.text ?? m(own ? 'mail.confirm.participation.intro' : 'mail.confirm.intro');
+  const subject =
+    input.copy?.subject ?? m(own ? 'mail.confirm.participation.subject' : 'mail.confirm.subject');
+  const heading = m(own ? 'mail.confirm.participation.heading' : 'mail.confirm.heading');
+  const button = m(own ? 'mail.confirm.participation.button' : 'mail.confirm.button');
   const text = [intro, '', confirmUrl, '', m('mail.confirm.ignore')].join('\n');
   const url = escapeHtml(confirmUrl);
   const html = `<!doctype html>
 <html lang="${escapeHtml(locale)}">
-  <head><meta charset="utf-8"><title>${escapeHtml(m('mail.confirm.heading'))}</title></head>
+  <head><meta charset="utf-8"><title>${escapeHtml(heading)}</title></head>
   <body style="font-family:system-ui,sans-serif;line-height:1.5;color:#18181b;max-width:36rem;padding:1.5rem">
-    <h1 style="font-size:1.25rem">${escapeHtml(m('mail.confirm.heading'))}</h1>
+    <h1 style="font-size:1.25rem">${escapeHtml(heading)}</h1>
     <p>${escapeHtml(intro)}</p>
-    <p><a href="${url}" style="display:inline-block;background:#18181b;color:#fff;padding:.75rem 1.25rem;border-radius:.5rem;text-decoration:none">${escapeHtml(m('mail.confirm.button'))}</a></p>
+    <p><a href="${url}" style="display:inline-block;background:#18181b;color:#fff;padding:.75rem 1.25rem;border-radius:.5rem;text-decoration:none">${escapeHtml(button)}</a></p>
     <p style="font-size:.875rem;color:#52525b">${escapeHtml(m('mail.confirm.fallback'))}<br><a href="${url}" style="color:#52525b">${url}</a></p>
     <p style="font-size:.875rem;color:#52525b">${escapeHtml(m('mail.confirm.ignore'))}</p>
   </body>
@@ -109,13 +116,16 @@ export interface ConfirmationMailDeps {
 export const CONFIRMATION_SUBSCRIBER = 'mailing.confirmation';
 
 /**
- * The confirmation for a `newsletter.subscribed` event, or null when the signup needs none. Pure
+ * The confirmation for a `newsletter.subscribed` or `campaign.participation.requested` event, or
+ * null when the submission needs none. A participation confirms the address for a campaign and
+ * grants no list, so the external consent owner and list withdrawals do not stop it. Pure
  * apart from signing and reading the primary hostname, so the `mail.reconcile` job rebuilds the
  * same recipient and subject from the outbox event (the token is signed afresh).
  */
 export function confirmationMailSource(deps: ConfirmationMailDeps): MailSource {
   return async (event) => {
     const p = event.props as unknown as NewsletterSubscribedProps;
+    const participation = event.type === PARTICIPATION_REQUESTED;
     if (p.confirmed) return null;
     if (deps.access && (await deps.access(event.tenantId)).status === 'suspended') return null;
     if (
@@ -134,17 +144,18 @@ export function confirmationMailSource(deps: ConfirmationMailDeps): MailSource {
           const sub = await ctx.submissions.findById(p.submissionId);
           if (!sub || sub.confirmedAt || sub.evaluation?.version !== p.formVersion) return false;
           if (
+            p.confirmationVersion &&
+            sub.evaluation?.confirmationMail?.version !== p.confirmationVersion
+          )
+            return false;
+          if (participation) return !!sub.evaluation?.campaignId;
+          if (
             (await ctx.formFeeds.get()).value.feeds.some(
               (f) => f.enabled && f.scope === sub.list && f.confirmationOwner === 'external'
             )
           )
             return false;
           if (sub.evaluation?.feedActions?.some((p) => p.feed.confirmationOwner === 'external'))
-            return false;
-          if (
-            p.confirmationVersion &&
-            sub.evaluation?.confirmationMail?.version !== p.confirmationVersion
-          )
             return false;
           const projection = await ctx.supporters.getProjection(p.email);
           if (!projection) return true;
@@ -182,6 +193,7 @@ export function confirmationMailSource(deps: ConfirmationMailDeps): MailSource {
       from: deps.from,
       to: p.email,
       ...(p.confirmationCopy ? { copy: p.confirmationCopy } : {}),
+      purpose: participation ? 'participation' : 'subscription',
     });
   };
 }
@@ -191,7 +203,7 @@ export function confirmationMailSubscriber(deps: ConfirmationMailDeps): Subscrib
   const source = confirmationMailSource(deps);
   return {
     name: CONFIRMATION_SUBSCRIBER,
-    types: ['newsletter.subscribed'],
+    types: ['newsletter.subscribed', PARTICIPATION_REQUESTED],
     async handle(event) {
       const message = await source(event);
       if (message) await sendOnce(deps, event, CONFIRMATION_SUBSCRIBER, message);

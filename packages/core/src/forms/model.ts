@@ -116,6 +116,11 @@ export interface Submission {
   /** Null only on historical submissions made before versioned evaluation was introduced. */
   evaluation: {
     supporterLifecycleId?: string;
+    /**
+     * The campaign this submission takes part in (ADR 033 rule 3), decided inside the submission
+     * transaction; its confirmation records the participation.
+     */
+    campaignId?: string;
     confirmationMail?: { version: string; copy: import('./mail-model.js').ResolvedFormMail };
     feedActions?: import('./feed/model.js').PinnedFormFeed[];
     mailActions?: import('./mail-model.js').PinnedMailAction[];

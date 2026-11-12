@@ -5,7 +5,12 @@
 
 import { z } from 'zod';
 import { notFound, UseCaseError } from '../errors.js';
-import type { ConsentGivenProps, NewsletterSubscribedProps } from '../forms/events.js';
+import type {
+  ConsentGivenProps,
+  NewsletterSubscribedProps,
+  ParticipationConfirmedProps,
+} from '../forms/events.js';
+import { recordConfirmed } from '../campaigns/service.js';
 import { systemPrincipal } from '../principal.js';
 import type { DomainEvent, Subscriber, TransactionContext, UnitOfWork } from '../ports.js';
 import { defineUseCase } from '../registry.js';
@@ -72,6 +77,13 @@ export async function toSupporterEvent(event: DomainEvent): Promise<SupporterEve
       list: p.list,
       locale: p.locale,
       consent_text_version: p.consentTextVersion,
+    });
+  }
+  if (event.type === 'petition.signed' || event.type === 'form.submitted') {
+    const p = event.props as unknown as ParticipationConfirmedProps;
+    return envelope(p, `urn:mycel:form:${p.formId}`, {
+      campaign_id: p.campaignId,
+      locale: p.locale,
     });
   }
   throw new Error(`no supporter mapping for event type ${event.type}`);
@@ -143,6 +155,23 @@ export async function ingest(
     });
   }
   const appended = await appendAndFold(ctx, { ...event, supporter_id: id });
+  // ADR 033 rule 7: a confirmed signature becomes the campaign's participation here, where the
+  // supporter id exists, in the same transaction as its log entry. A replayed event is not
+  // appended twice and so records nothing twice.
+  const campaignId = event.props['campaign_id'];
+  if (
+    appended &&
+    typeof campaignId === 'string' &&
+    (event.type === 'petition.signed' || event.type === 'form.submitted') &&
+    event.source === SOURCE &&
+    event.source_ref.startsWith('submission:')
+  )
+    await recordConfirmed(ctx, {
+      campaignId,
+      supporterId: id,
+      submissionId: event.source_ref.slice('submission:'.length),
+      confirmedAt: event.occurred_at,
+    });
   // The projection exists now (or did already): the seat `form.submit` reserved is taken by it,
   // in this same transaction, so the address is never counted twice (TODO #16). Under the
   // admission lock, after the address lock (always in that order, so no deadlock): a submit
@@ -172,7 +201,7 @@ async function appendAndFold(
 export function supporterIngestSubscriber(uow: UnitOfWork): Subscriber {
   return {
     name: 'supporters.ingest',
-    types: ['newsletter.subscribed', 'consent.given'],
+    types: ['newsletter.subscribed', 'consent.given', 'petition.signed', 'form.submitted'],
     async handle(event) {
       const envelope = await toSupporterEvent(event);
       await uow.run(systemPrincipal(event.tenantId, 'supporters.ingest'), (ctx) =>

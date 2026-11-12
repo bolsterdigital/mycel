@@ -4,7 +4,7 @@
 // answers false instead of aborting the transaction. Rejected: the whole campaign as one jsonb
 // column, which would leave the keys and checks to the application alone.
 import { sql, type Kysely, type Selectable } from 'kysely';
-import { Campaign, type CampaignRepository } from '@mycel/core';
+import { Campaign, type CampaignParticipation, type CampaignRepository } from '@mycel/core';
 import type { Database } from '../infra/schema.js';
 import { toIso } from '../infra/dates.js';
 
@@ -53,6 +53,7 @@ export function campaignRepository(trx: Kysely<Database>, tenantId: string): Cam
     lock: (id) => one(rows().where('id', '=', id).forUpdate()),
     byLandingItem: (itemId) => one(rows().where('landing_item_id', '=', itemId)),
     byForm: (formId) => one(rows().where('form_id', '=', formId)),
+    shareByForm: (formId) => one(rows().where('form_id', '=', formId).forShare()),
     async list({ kind, archived }, offset, limit) {
       let q = rows().where(sql<boolean>`(archived_at is not null) = ${archived}`);
       if (kind) q = q.where('kind', '=', kind);
@@ -89,6 +90,60 @@ export function campaignRepository(trx: Kysely<Database>, tenantId: string): Cam
         .where('updated_at', '=', new Date(base))
         .executeTakeFirst();
       return result.numUpdatedRows === 1n;
+    },
+    // One statement: insert, or renew a withdrawn row; an active row stays as it is. `xmax = 0`
+    // tells an insert from an update without a second read.
+    async recordParticipation(p) {
+      const row = await sql<{ inserted: boolean }>`
+        insert into campaign_participations
+          (tenant_id, campaign_id, supporter_id, submission_id, confirmed_at)
+        values (${tenantId}, ${p.campaignId}, ${p.supporterId}, ${p.submissionId}, ${p.confirmedAt})
+        on conflict (tenant_id, campaign_id, supporter_id) do update
+          set submission_id = excluded.submission_id,
+              confirmed_at = excluded.confirmed_at,
+              withdrawn_at = null
+          where campaign_participations.withdrawn_at is not null
+        returning (xmax = 0) as inserted`.execute(trx);
+      const first = row.rows[0];
+      return !first ? 'unchanged' : first.inserted ? 'inserted' : 'renewed';
+    },
+    async withdrawParticipation(campaignId, supporterId, at) {
+      const result = await trx
+        .updateTable('campaign_participations')
+        .set({ withdrawn_at: at })
+        .where('campaign_id', '=', campaignId)
+        .where('supporter_id', '=', supporterId)
+        .where('withdrawn_at', 'is', null)
+        .executeTakeFirst();
+      return result.numUpdatedRows === 1n;
+    },
+    async participation(campaignId, supporterId): Promise<CampaignParticipation | null> {
+      const row = await trx
+        .selectFrom('campaign_participations')
+        .selectAll()
+        .where('campaign_id', '=', campaignId)
+        .where('supporter_id', '=', supporterId)
+        .executeTakeFirst();
+      return row
+        ? {
+            campaignId: row.campaign_id,
+            supporterId: row.supporter_id,
+            submissionId: row.submission_id,
+            confirmedAt: toIso(row.confirmed_at)!,
+            withdrawnAt: toIso(row.withdrawn_at),
+          }
+        : null;
+    },
+    async activeCounts(ids) {
+      if (!ids.length) return new Map();
+      const found = await trx
+        .selectFrom('campaign_participations')
+        .select(['campaign_id', sql<number>`count(*)::int`.as('n')])
+        .where('campaign_id', 'in', [...ids])
+        .where('withdrawn_at', 'is', null)
+        .groupBy('campaign_id')
+        .execute();
+      return new Map(found.map((r) => [r.campaign_id, r.n]));
     },
   };
 }

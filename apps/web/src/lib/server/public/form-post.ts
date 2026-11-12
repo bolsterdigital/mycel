@@ -21,6 +21,13 @@ export function failureFor(error: unknown, locale: string, requestId: string): F
     // The site takes no new signups (ADR 015 rules 3 and 7): no price, no host, just that.
     if (error.code === 'limit_exceeded' || error.code === 'suspended')
       return { status: 403, message: translate(locale, 'forms.rejected.closed'), report: 'none' };
+    // ADR 033 rule 3: a stale campaign page posted after closing. Expected, nothing to report.
+    if (error.code === 'conflict' && error.issues.some((i) => i.message === 'campaign.closed'))
+      return {
+        status: 403,
+        message: translate(locale, 'forms.rejected.campaign-closed'),
+        report: 'none',
+      };
     // Unknown or malformed formId: only a hand-crafted or stale post gets here.
     if (error.code === 'not_found' || error.code === 'invalid_input')
       return { status: 400, message: translate(locale, 'forms.error.malformed'), report: 'info' };

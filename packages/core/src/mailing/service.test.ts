@@ -221,6 +221,8 @@ describe('confirmationMailSubscriber', () => {
     expect(supporterIngestSubscriber(uow).types).toEqual([
       'newsletter.subscribed',
       'consent.given',
+      'petition.signed',
+      'form.submitted',
     ]);
   });
 });

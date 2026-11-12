@@ -13,6 +13,17 @@ describe('failureFor', () => {
       });
   });
 
+  it('says a closed campaign takes no participation, and reports nothing (ADR 033 rule 3)', () => {
+    const closed = new UseCaseError('conflict', 'campaign.closed', [
+      { path: 'formId', message: 'campaign.closed' },
+    ]);
+    expect(failureFor(closed, 'en', 'req-12345678')).toEqual({
+      status: 403,
+      message: 'This campaign is not accepting participation at the moment.',
+      report: 'none',
+    });
+  });
+
   it('asks for a reload on a hand-crafted post, with one info line', () => {
     for (const code of ['not_found', 'invalid_input'] as const) {
       const f = failureFor(new UseCaseError(code, 'no form with id "x"'), 'en', 'req-12345678');
