@@ -13,8 +13,8 @@
 // its own form and version, so a save there never overwrites the theme or the logo.
 // API access (#101) holds the site's API keys, moved from Members: rare, for administrators only,
 // so a subject here rather than a menu item of its own; its actions are those Members had.
-// How long submissions are kept (#227, `site.retention.*` from #169 E) is a section of General
-// for `tenant:admin` only, its own form and version: a shorter term deletes submissions, which is
+// How long submissions are kept (`site.retention.*`, docs/reference/jobs.md § Retention) is a
+// section of General for `tenant:admin` only, its own form and version: a shorter term deletes submissions, which is
 // not an editor's decision. Rejected: a subject of its own for one field, or the Forms screen,
 // which an editor with `forms:read` opens too.
 import {

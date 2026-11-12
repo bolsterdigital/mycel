@@ -11,7 +11,7 @@
      no sub-navigation of its own and only names its subject. The brand subject also picks the
      default image items inherit (#81-rest), and the theme whether articles open with a drop cap.
      API access (#101) is the site's API keys, moved from Members (lib/admin/ApiAccess.svelte).
-     General also holds, for `tenant:admin` only, how long form submissions are kept (#227). -->
+     General also holds, for `tenant:admin` only, how long form submissions are kept. -->
 <script lang="ts">
   import {
     DROP_CAPS,
@@ -209,7 +209,7 @@
       />
     </SettingsSection>
     {#if data.retention}
-      <!-- #227: only for `tenant:admin` (the load reads it for no one else); its own version,
+      <!-- Only for `tenant:admin` (the load reads it for no one else); its own version,
            so a save here never posts over the time zone. -->
       {@const retention = data.retention}
       <SettingsSection
