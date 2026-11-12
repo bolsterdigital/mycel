@@ -214,8 +214,11 @@ export async function pendingHashes(trx: Trx, tenantId: string): Promise<string[
     register.filter((r) => open.has(r.supporter_id)).map((r) => r.email_hash)
   );
   const registered = new Set(register.map((r) => r.email_hash));
-  const hashes = [...registered];
-  const { rows } = await sql<{ hash: string | null; v: string | null }>`
+  // Every distinct address-shaped value once, hashed by SQL where it can and returned as text
+  // where it cannot; the comparison with the register happens here. Rejected: comparing in SQL
+  // (`in (select unnest(...))`): on a freshly filled tenant the planner made that a nested loop
+  // that hashed every value once per registration (20 minutes for 30,000).
+  const { rows } = await sql<{ k: string | null; v: string | null }>`
     with copies as (
       select email as v from supporters where email not like ${TOMBSTONE_LIKE}
       union
@@ -226,13 +229,14 @@ export async function pendingHashes(trx: Trx, tenantId: string): Promise<string[
         where jsonb_typeof(f.values) = 'object' and jsonb_typeof(t.value) = 'string'
           and strpos(t.value #>> '{}', '@') > 0 and t.value #>> '{}' not like ${TOMBSTONE_LIKE}
     )
-    select k as hash, null as v
-      from (select ${sqlKey(tenantId, v)} as k from copies where ${plain(v)}) x
-      where k in (select unnest(${hashes}::text[]))
-    union
-    select null, v from copies where not ${plain(v)}`.execute(trx);
-  for (const r of rows) if (r.hash) pending.add(r.hash);
-  const others = rows.flatMap((r) => (r.v !== null ? [r.v] : []));
+    select case when ${plain(v)} then ${sqlKey(tenantId, v)} end as k,
+           case when ${plain(v)} then null else v end as v
+    from copies`.execute(trx);
+  const others: string[] = [];
+  for (const r of rows) {
+    if (r.k !== null && registered.has(r.k)) pending.add(r.k);
+    if (r.v !== null) others.push(r.v);
+  }
   // Submissions whose values are no object: core reads their entries the same way.
   const odd = await sql<{ values: unknown }>`
     select values from form_submissions where jsonb_typeof(values) <> 'object'`.execute(trx);
@@ -306,6 +310,8 @@ async function eraseRows(
   for (const a of addresses) keys.add(await emailKey(tenantId, a, 'erasure'));
   const keyList = [...keys];
   const v = (column: string) => sql.ref(column);
+  // Under the `or`, Postgres cannot turn the `in` into a join it might plan as a nested loop; it
+  // stays a subplan hashed once, with at most a batch's keys plus the ids' own addresses.
   const byAddress = (column: string) =>
     sql<boolean>`(not ${plain(v(column))} or ${sqlKey(tenantId, v(column))} in (select unnest(${keyList}::text[])))`;
   const seen = {
