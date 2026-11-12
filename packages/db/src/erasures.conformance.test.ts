@@ -41,6 +41,7 @@ import {
   uuidv7Ids,
 } from './index.js';
 import { asRole } from './infra/roles.js';
+import { pendingHashes, plain, sqlKey } from './erasures.js';
 import { STORAGE } from './portability/storage.js';
 import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 
@@ -528,6 +529,62 @@ describe.skipIf(skip)('erasure conformance', () => {
       }
     }
   );
+
+  // #225: SQL narrows the rows apply reads by hashing `plain` text itself; it must agree with core
+  // wherever it decides, and leave the rest to core.
+  it('hashes plain text in SQL exactly as core does, and nothing else', async () => {
+    const tenant = uuidv7();
+    const samples = [
+      'ann@example.org',
+      'ANN@Example.ORG',
+      'Contact Ann@Example.org, please!',
+      "o'brien+tag@x.y",
+      'a',
+      ' ann@example.org',
+      'ann@example.org\t',
+      ' ann@example.org',
+      'İN@example.org',
+      'ann@exämple.org',
+      '',
+    ];
+    const { rows } = await sql<{ v: string; plain: boolean; key: string }>`
+      select v, ${plain(sql.ref('v'))} as plain, ${sqlKey(tenant, sql.ref('v'))} as key
+      from unnest(${samples}::text[]) as v`.execute(operatorDb);
+    for (const row of rows) {
+      const core = await emailKey(tenant, row.v, 'erasure');
+      const ascii = /^[\x21-\x7e]([\x00-\x7f]*[\x21-\x7e])?$/.test(row.v);
+      expect([row.v, row.plain]).toEqual([row.v, ascii]);
+      if (row.plain) expect([row.v, row.key]).toEqual([row.v, core]);
+    }
+  });
+
+  it('applies in batches of separate transactions and then has nothing left to lock (#225)', async () => {
+    const tenant = (await testTenant(operatorDb, `erase-batches-${run}`)).id;
+    const admin = systemPrincipal(tenant, 'erasure-test');
+    try {
+      const addresses = [1, 2, 3, 4, 5].map((i) => `batch-${i}-${run}@example.org`);
+      for (const address of addresses) await signup(tenant, address, uow);
+      await closeTenantWork(operatorDb, [tenant]);
+      for (const address of addresses) {
+        const s = (await uow.run(admin, (ctx) => ctx.supporters.getProjection(address)))!;
+        await uow.run(admin, (ctx) => ctx.erasures.register(s.id, address));
+      }
+      const pending = () =>
+        asRole(operatorDb, 'mycel_erasure', async (trx) => {
+          await sql`select set_config('app.tenant_id', ${tenant}, true)`.execute(trx);
+          return pendingHashes(trx, tenant);
+        });
+      expect(await pending()).toHaveLength(5);
+      expect(await applyErasures(operatorDb, tenant, 2)).toBeGreaterThan(0);
+      const after = await rowsOf(tenant);
+      for (const address of addresses) expect(holding(after, address)).toEqual([]);
+      // Settled: the next run locks nothing and changes nothing.
+      expect(await pending()).toEqual([]);
+      expect(await applyErasures(operatorDb, tenant, 2)).toBe(0);
+    } finally {
+      await closeTenantWork(operatorDb, [tenant]);
+    }
+  });
 
   it('keeps registrations permanent: mycel_app cannot change or remove them', async () => {
     const attempt = (statement: ReturnType<typeof sql>) =>

@@ -3,19 +3,27 @@
 // (0021, written by the backup login only). `apply` enters `mycel_erasure` for the rest of
 // its statements, inside the caller's tenant transaction: that role may tombstone events and the
 // projection, delete submissions, mail intents, jobs and admission seats (0032), rewrite outbox
-// props and expire export archives (0022), each on the current tenant's rows only. Only the schema owner's login may enter it, so the worker and the CLI
-// apply and a front that tries gets a clear refusal.
+// props and expire export archives (0022), each on the current tenant's rows only. Only the
+// schema owner's login may enter it, so the worker and the CLI apply and a front that tries gets
+// a clear refusal.
 //
 // The addresses to erase are not stored anywhere: apply finds them from the register each time, in
 // the supporter's projection and events (by id) and in projections and submission values whose
 // hash is registered (a restore can bring back a submission whose supporter was never ingested).
 // They live in this process for the length of one call.
-// Rejected: a security-definer function (the owner sees no tenant row under forced RLS), and
-// matching every table by hash (one sha256 per row per call, where the id finds the same rows).
+//
+// Scale (#225): apply first asks which registrations still have such a copy (`pendingHashes`) and
+// locks and applies only those, `APPLY_BATCH` per transaction; a settled register costs one
+// read per table and no lock. SQL hashes the text it can hash exactly (`plain`) to narrow what
+// is read; core's `emailKey` decides on everything it reads.
+// Rejected: a security-definer function (the owner sees no tenant row under forced RLS); a
+// watermark of the previous run (a restore brings back old rows under old timestamps); and one
+// lock per registration in one transaction (the shared lock table ran out between 10,000 and
+// 15,000 registrations).
 
-import { sql, type Kysely } from 'kysely';
+import { sql, type Kysely, type RawBuilder } from 'kysely';
 import {
-  carriesErasedAddress,
+  erasedAddressMatcher,
   liveLifecycle,
   protectsErasureCopy,
   isTombstone,
@@ -77,27 +85,9 @@ export function erasureRepository(
     },
 
     async apply() {
-      try {
-        await setRole(trx, 'mycel_erasure');
-      } catch (e) {
-        throw new Error(
-          'erasures can only be applied on the operator connection (the worker or `mycel erasures apply`), ' +
-            `not as the fronts' login: ${(e as Error).message}`
-        );
-      }
-      const hashes = await trx
-        .selectFrom('erasures')
-        .select('email_hash')
-        .distinct()
-        .orderBy('email_hash')
-        .execute();
-      for (const { email_hash } of hashes)
-        await advisoryLock(trx, 'supporter', tenantId, email_hash);
-      const locked = new Set(hashes.map((r) => r.email_hash));
-      // ADR 034: the person phase runs in the same per-tenant run; the supporter phase is unchanged.
-      let changed = locked.size ? await eraseRows(trx, tenantId, locked) : 0;
-      changed += await applyPersonErasures(trx);
-      changed += await expireExports(trx, changed > 0, locked);
+      await enterErasure(trx);
+      const pending = await pendingHashes(trx, tenantId);
+      const changed = await applyHashes(trx, tenantId, pending, true);
       await setRole(trx, 'mycel_app');
       return changed;
     },
@@ -120,24 +110,141 @@ export function erasureRepository(
 }
 
 /**
+ * Registrations one transaction locks and applies at most (#225). Each holds one advisory lock
+ * until commit, from a lock table every session of the cluster shares; at 64 locks per connection
+ * slot a run of 15,000 failed with `out of shared memory`.
+ */
+export const APPLY_BATCH = 1000;
+
+async function enterErasure(trx: Trx): Promise<void> {
+  try {
+    await setRole(trx, 'mycel_erasure');
+  } catch (e) {
+    throw new Error(
+      'erasures can only be applied on the operator connection (the worker or `mycel erasures apply`), ' +
+        `not as the fronts' login: ${(e as Error).message}`
+    );
+  }
+}
+
+/**
+ * Lock the given registrations' addresses (sorted, as every other holder takes one) and apply
+ * them; the person phase once per run. Returns the rows changed.
+ */
+async function applyHashes(
+  trx: Trx,
+  tenantId: string,
+  hashes: readonly string[],
+  personPhase: boolean
+): Promise<number> {
+  for (const hash of hashes) await advisoryLock(trx, 'supporter', tenantId, hash);
+  // ADR 034: the person phase runs in the same per-tenant run; the supporter phase is unchanged.
+  let changed = hashes.length ? await eraseRows(trx, tenantId, new Set(hashes)) : 0;
+  if (personPhase) changed += await applyPersonErasures(trx);
+  changed += await expireExports(trx, changed > 0);
+  return changed;
+}
+
+/**
  * Core `expiresOnErasure` as one statement: every archive asked for before the newest
  * registration of either register, or every one when this apply changed anything. The file goes
  * after commit (`expireExports`, run by `mycel erasures apply` and daily by the worker); the row
  * keeps no trace of who.
  */
-async function expireExports(
-  trx: Trx,
-  changedRows: boolean,
-  lockedHashes: ReadonlySet<string>
-): Promise<number> {
+async function expireExports(trx: Trx, changedRows: boolean): Promise<number> {
   const r = await sql`
     update tenant_exports
     set status = 'expired', error = ${ERASURE_EXPORT_ERROR}, expires_at = now()
     where status = any(${[...ERASURE_EXPIRES_EXPORTS]}::text[])
       and (${changedRows} or requested_at < greatest(
-        (select max(erased_at) from erasures where email_hash = any(${[...lockedHashes]}::text[])),
+        (select max(erased_at) from erasures),
         (select max(erased_at) from person_erasures)))`.execute(trx);
   return Number(r.numAffectedRows ?? 0n);
+}
+
+const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+/**
+ * Core `normalizeEmail` (trim, then lower case) is the identity on text of ASCII characters that
+ * neither starts nor ends with a control character or space, apart from A-Z; SQL's own `lower`
+ * and `btrim` differ from JavaScript beyond that. Text outside this class goes to core instead.
+ */
+export const plain = (v: RawBuilder<unknown>) =>
+  sql`(octet_length(${v}) = char_length(${v}) and ascii(${v}) > 32 and ascii(right(${v}, 1)) > 32)`;
+
+/** Core `emailKey(tenantId, v, 'erasure')` in SQL, exact for `plain` text only. */
+export const sqlKey = (tenantId: string, v: RawBuilder<unknown>) =>
+  sql`encode(sha256(convert_to(${tenantId}::text || chr(10) || translate(${v}, ${UPPER}, ${UPPER.toLowerCase()}), 'UTF8')), 'hex')`;
+
+const TOMBSTONE_LIKE = `%@${ERASED_DOMAIN}`;
+
+/** The registrations' hashes whose next apply has something to change, sorted. */
+export async function pendingHashes(trx: Trx, tenantId: string): Promise<string[]> {
+  const v = sql.ref('v');
+  // By id: what eraseRows changes for a registered supporter id, unless it already did.
+  // By address: an untombstoned copy whose address is registered; that is where eraseRows finds
+  // the addresses whose other copies (outbox, jobs, submissions, seats) it then removes. Once none
+  // is left it cannot find them either, so a settled registration is skipped without changing
+  // what apply erases.
+  // Lookups by id go through each table's (tenant_id, supporter id) index with the ids as one
+  // array, so the plan does not hang on row estimates (a join planned as a nested loop on a fresh
+  // tenant read every row once per registration).
+  const register = await trx
+    .selectFrom('erasures')
+    .select(['supporter_id', 'email_hash'])
+    .execute();
+  if (!register.length) return [];
+  const ids = register.map((r) => r.supporter_id);
+  const byId = await sql<{ id: string }>`
+    select id from supporters where id = any(${ids}::uuid[])
+      and not (email = id::text || ${TOMB} and lists = '{}' and pending_lists = '{}')
+    union
+    select supporter_id from events where supporter_id = any(${ids}::uuid[])
+      and not (email = supporter_id::text || ${TOMB} and props = '{}'::jsonb)
+    union
+    select supporter_id from mailchimp_receipts where supporter_id = any(${ids}::uuid[])
+    union
+    select supporter_id from connection_intents where supporter_id = any(${ids}::uuid[])
+    union
+    select supporter_id from campaign_participations where supporter_id = any(${ids}::uuid[])`.execute(
+    trx
+  );
+  const open = new Set(byId.rows.map((r) => r.id));
+  const pending = new Set(
+    register.filter((r) => open.has(r.supporter_id)).map((r) => r.email_hash)
+  );
+  const registered = new Set(register.map((r) => r.email_hash));
+  const hashes = [...registered];
+  const { rows } = await sql<{ hash: string | null; v: string | null }>`
+    with copies as (
+      select email as v from supporters where email not like ${TOMBSTONE_LIKE}
+      union
+      select email from events where email not like ${TOMBSTONE_LIKE}
+      union
+      select t.value #>> '{}' from form_submissions f
+        cross join lateral jsonb_each(f.values) t
+        where jsonb_typeof(f.values) = 'object' and jsonb_typeof(t.value) = 'string'
+          and strpos(t.value #>> '{}', '@') > 0 and t.value #>> '{}' not like ${TOMBSTONE_LIKE}
+    )
+    select k as hash, null as v
+      from (select ${sqlKey(tenantId, v)} as k from copies where ${plain(v)}) x
+      where k in (select unnest(${hashes}::text[]))
+    union
+    select null, v from copies where not ${plain(v)}`.execute(trx);
+  for (const r of rows) if (r.hash) pending.add(r.hash);
+  const others = rows.flatMap((r) => (r.v !== null ? [r.v] : []));
+  // Submissions whose values are no object: core reads their entries the same way.
+  const odd = await sql<{ values: unknown }>`
+    select values from form_submissions where jsonb_typeof(values) <> 'object'`.execute(trx);
+  for (const row of odd.rows)
+    for (const value of Object.values(row.values ?? {}))
+      if (typeof value === 'string' && value.includes('@') && !isTombstone(value))
+        others.push(value);
+  for (const value of others) {
+    const hash = await emailKey(tenantId, value, 'erasure');
+    if (registered.has(hash)) pending.add(hash);
+  }
+  return [...pending].sort();
 }
 
 async function eraseRows(
@@ -148,18 +255,17 @@ async function eraseRows(
   const evidence = await lifecycleEvidence(trx);
   const registrations = evidence.registrations.filter((r) => lockedHashes.has(r.emailHash));
   const lifecycles = evidence.lifecycles;
-  const registered = registrations.map((r) => ({
-    supporter_id: r.supporterId,
-    email_hash: r.emailHash,
-  }));
+  // Against the whole register, as when every registration was locked: a lifecycle that a
+  // registration outside this batch ended protects nothing in it either.
   const live = new Map(
-    lifecycles.filter((l) => liveLifecycle(l, registrations)).map((l) => [l.id, l])
+    lifecycles.filter((l) => liveLifecycle(l, evidence.registrations)).map((l) => [l.id, l])
   );
-  if (!registered.length) return 0;
-  const ids = registered.map((r) => r.supporter_id);
+  if (!registrations.length) return 0;
+  const ids = new Set(registrations.map((r) => r.supporterId));
+  const idList = [...ids];
   const receiptChanges = await trx
     .deleteFrom('mailchimp_receipts')
-    .where('supporter_id', 'in', ids)
+    .where(sql<boolean>`supporter_id = any(${idList}::uuid[])`)
     .executeTakeFirst();
   // No address or provider payload is stored. Detach the pseudonymous supporter reference while
   // retaining honest external uncertainty; an erasure never claims the provider deleted a copy.
@@ -168,29 +274,72 @@ async function eraseRows(
     state = case when state = any(${[...ERASURE_KEEPS_INTENT_STATES]}::text[]) then state
                  else 'blocked' end,
     failure = 'erasure', lease_token = null, lease_until = null, revision = revision + 1
-    where supporter_id = any(${ids}::uuid[])`.execute(trx);
-  // Use core's normalisation and hash for restored data too. SQL lower/btrim differs from
-  // JavaScript for Unicode spaces and case mappings. These tenant-bound scans replace the old
-  // SQL substring scans; decoded JSON also avoids treating serialization escapes as delimiters.
-  const hashes = new Set(registered.map((r) => r.email_hash));
-  const supporters = await trx.selectFrom('supporters').select(['id', 'email']).execute();
-  const events = await trx.selectFrom('events').select(['id', 'supporter_id', 'email']).execute();
-  const submissions = await trx
-    .selectFrom('form_submissions')
-    .select(['id', 'values', 'evaluation'])
-    .execute();
+    where supporter_id = any(${idList}::uuid[])`.execute(trx);
+  // Use core's normalisation and hash for every address taken: SQL lower/btrim differs from
+  // JavaScript for Unicode spaces and case mappings, so SQL only narrows the rows read (`plain`,
+  // `sqlKey`) and core decides. Decoded JSON also avoids treating serialization escapes as
+  // delimiters.
+  const hashes = new Set(registrations.map((r) => r.emailHash));
   const addresses = new Set<string>();
   const consider = async (email: string, owner?: string | null) => {
     if (isTombstone(email)) return;
-    if (ids.includes(owner ?? '') || hashes.has(await emailKey(tenantId, email, 'erasure')))
+    if (ids.has(owner ?? '') || hashes.has(await emailKey(tenantId, email, 'erasure')))
       addresses.add(normalizeEmail(email));
   };
-  for (const row of supporters) await consider(row.email, row.id);
-  for (const row of events) await consider(row.email, row.supporter_id);
-  for (const row of submissions)
-    for (const value of Object.values(row.values))
+  // The registered ids' own rows first: an address they carry joins the set even when it is not
+  // the registered one, and every other row with that address goes as well.
+  const byId = {
+    supporters: await trx
+      .selectFrom('supporters')
+      .select(['id', 'email'])
+      .where(sql<boolean>`id = any(${idList}::uuid[])`)
+      .execute(),
+    events: await trx
+      .selectFrom('events')
+      .select(['id', 'supporter_id', 'email'])
+      .where(sql<boolean>`supporter_id = any(${idList}::uuid[])`)
+      .execute(),
+  };
+  for (const row of byId.supporters) await consider(row.email, row.id);
+  for (const row of byId.events) await consider(row.email, row.supporter_id);
+  const keys = new Set(hashes);
+  for (const a of addresses) keys.add(await emailKey(tenantId, a, 'erasure'));
+  const keyList = [...keys];
+  const v = (column: string) => sql.ref(column);
+  const byAddress = (column: string) =>
+    sql<boolean>`(not ${plain(v(column))} or ${sqlKey(tenantId, v(column))} in (select unnest(${keyList}::text[])))`;
+  const seen = {
+    supporters: new Set(byId.supporters.map((r) => r.id)),
+    events: new Set(byId.events.map((r) => r.id)),
+  };
+  const supporterMatches = (
+    await trx.selectFrom('supporters').select(['id', 'email']).where(byAddress('email')).execute()
+  ).filter((row) => !seen.supporters.has(row.id));
+  const eventMatches = (
+    await trx
+      .selectFrom('events')
+      .select(['id', 'supporter_id', 'email'])
+      .where(byAddress('email'))
+      .execute()
+  ).filter((row) => !seen.events.has(row.id));
+  for (const row of supporterMatches) await consider(row.email, row.id);
+  for (const row of eventMatches) await consider(row.email, row.supporter_id);
+  const supporters = [...byId.supporters, ...supporterMatches];
+  const events = [...byId.events, ...eventMatches];
+  const values = await sql<{ v: string }>`
+    select v from (
+      select t.value #>> '{}' as v from form_submissions f
+        cross join lateral jsonb_each(f.values) t
+        where jsonb_typeof(f.values) = 'object' and jsonb_typeof(t.value) = 'string'
+    ) x where strpos(v, '@') > 0 and ${byAddress('v')}`.execute(trx);
+  for (const { v: value } of values.rows) if (value.includes('@')) await consider(value);
+  const odd = await sql<{ values: unknown }>`
+    select values from form_submissions where jsonb_typeof(values) <> 'object'`.execute(trx);
+  for (const row of odd.rows)
+    for (const value of Object.values(row.values ?? {}))
       if (typeof value === 'string' && value.includes('@')) await consider(value);
-  const carries = (value: unknown) => carriesErasedAddress(value, addresses);
+
+  const carries = erasedAddressMatcher(addresses);
   const addressHashes = new Map(
     await Promise.all(
       [...addresses].map(async (a) => [a, await emailKey(tenantId, a, 'erasure')] as const)
@@ -200,15 +349,14 @@ async function eraseRows(
     protectsErasureCopy(value, provenance, live, addressHashes);
   const supporterIds = supporters
     .filter(
-      (row) =>
-        !live.has(row.id) && (ids.includes(row.id) || addresses.has(normalizeEmail(row.email)))
+      (row) => !live.has(row.id) && (ids.has(row.id) || addresses.has(normalizeEmail(row.email)))
     )
     .map((row) => row.id);
   const eventRowIds = events
     .filter(
       (row) =>
         !live.has(row.supporter_id ?? '') &&
-        (ids.includes(row.supporter_id ?? '') || addresses.has(normalizeEmail(row.email)))
+        (ids.has(row.supporter_id ?? '') || addresses.has(normalizeEmail(row.email)))
     )
     .map((row) => row.id);
 
@@ -249,11 +397,15 @@ async function eraseRows(
   changed += Number(participations.rows[0]?.deleted ?? 0);
   if (!addresses.size) return changed;
 
+  // Copies that carry an address anywhere, also inside free text: only rows whose JSON holds an
+  // `@` can (jsonb escapes no `@`). Outbox and jobs have no tenant index that mycel_erasure may
+  // use, so they are read here only, when there is something to erase, never on a settled run.
   // Mail intents and their reconcile jobs hang off the outbox event that carried the address;
   // find them before the scrub below takes the address out of that event.
   const outboxCandidates = (
     await sql<{ id: string; type: string; props: Record<string, unknown> }>`
-      select id, type, props from outbox`.execute(trx)
+      select id, type, props from outbox
+        where tenant_id = ${tenantId} and strpos(props::text, '@') > 0`.execute(trx)
   ).rows.filter((row) => carries(row.props));
   const outbox = [];
   for (const row of outboxCandidates) if (!proven(row.props, row.props)) outbox.push(row);
@@ -261,7 +413,10 @@ async function eraseRows(
   count(
     await sql`delete from mail_sends where event_id::text = any(${eventIds}::text[])`.execute(trx)
   );
-  const submissionIds = submissions
+  const submissions = await sql<{ id: string; values: unknown; evaluation: unknown }>`
+    select id, values, evaluation from form_submissions
+      where strpos(values::text, '@') > 0`.execute(trx);
+  const submissionIds = submissions.rows
     .filter((row) => carries(row.values) && !proven(row.values, row.evaluation))
     .map((row) => row.id);
   count(
@@ -269,12 +424,10 @@ async function eraseRows(
   );
   // A seat reserved for a signup that was never ingested, under core's admission key.
   // A rate-limit bucket stays: a hash that lives a day at most is no copy (ADR 019 rule 8).
+  const liveHashes = new Set([...live.values()].map((l) => l.emailHash));
   const seats: string[] = [];
-  for (const a of addresses) {
-    const hash = await emailKey(tenantId, a, 'erasure');
-    if (![...live.values()].some((l) => l.emailHash === hash))
-      seats.push(await emailKey(tenantId, a, 'admission'));
-  }
+  for (const [a, hash] of addressHashes)
+    if (!liveHashes.has(hash)) seats.push(await emailKey(tenantId, a, 'admission'));
   count(
     await sql`delete from supporter_admissions where email_hash = any(${seats}::text[])`.execute(
       trx
@@ -285,8 +438,13 @@ async function eraseRows(
       await sql`update outbox set props = ${JSON.stringify(eraseOutboxProps(e.type, e.props))}::jsonb
                 where id = ${e.id}`.execute(trx)
     );
-  const jobs = await trx.selectFrom('jobs').select(['id', 'payload', 'type']).execute();
-  const jobIds = jobs
+  const reconciles = new Set(eventIds);
+  const jobs = await sql<{ id: string; payload: unknown; type: string }>`
+    select id, payload, type from jobs
+      where tenant_id = ${tenantId} and (strpos(payload::text, '@') > 0 or type = 'mail.reconcile')`.execute(
+    trx
+  );
+  const jobIds = jobs.rows
     .filter(
       (row) =>
         carries(row.payload) ||
@@ -295,7 +453,7 @@ async function eraseRows(
           typeof row.payload === 'object' &&
           'eventId' in row.payload &&
           typeof row.payload.eventId === 'string' &&
-          eventIds.includes(row.payload.eventId))
+          reconciles.has(row.payload.eventId))
     )
     .map((row) => row.id);
   count(await sql`delete from jobs where id = any(${jobIds}::uuid[])`.execute(trx));
@@ -311,12 +469,35 @@ export function erasureStatus(operatorDb: Kysely<Database>, tenantId: string) {
 }
 
 /**
- * `mycel erasures apply`: apply the register of one tenant in its own transaction on the operator
- * connection, which may enter mycel_erasure. Returns the rows changed.
+ * `mycel erasures apply`: apply the register of one tenant on the operator connection, which may
+ * enter mycel_erasure. Returns the rows changed. The registrations with something left to change
+ * go in transactions of at most `APPLY_BATCH` (#225): each commits what it erased, and one that
+ * fails leaves the rest to the next run, which finds the same work from the register.
  */
-export function applyErasures(operatorDb: Kysely<Database>, tenantId: string): Promise<number> {
+export async function applyErasures(
+  operatorDb: Kysely<Database>,
+  tenantId: string,
+  batch = APPLY_BATCH
+): Promise<number> {
   const principal = systemPrincipal(tenantId, 'erasures');
-  return withTenant(operatorDb, principal, (trx) =>
-    erasureRepository(trx, tenantId, principal, { now: () => new Date() }).apply()
-  );
+  const run = <T>(fn: (trx: Trx) => Promise<T>) =>
+    withTenant(operatorDb, principal, async (trx) => {
+      await enterErasure(trx);
+      const result = await fn(trx);
+      await setRole(trx, 'mycel_app');
+      return result;
+    });
+  const first = await run(async (trx) => {
+    const pending = await pendingHashes(trx, tenantId);
+    return {
+      pending,
+      changed: await applyHashes(trx, tenantId, pending.slice(0, batch), true),
+    };
+  });
+  let changed = first.changed;
+  for (let i = batch; i < first.pending.length; i += batch) {
+    const hashes = first.pending.slice(i, i + batch);
+    changed += await run((trx) => applyHashes(trx, tenantId, hashes, false));
+  }
+  return changed;
 }

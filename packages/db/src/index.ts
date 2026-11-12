@@ -106,7 +106,7 @@ export {
   type Paged,
 } from './infra/recovery.js';
 export { deleteExpiredAudit } from './audit.js';
-export { applyErasures, erasureStatus } from './erasures.js';
+export { APPLY_BATCH, applyErasures, erasureStatus } from './erasures.js';
 export { expireExports, runExportJob, type ExportJobDeps } from './portability/tenant-exports.js';
 export {
   EXPORT_FORMAT,

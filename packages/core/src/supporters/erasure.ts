@@ -107,3 +107,40 @@ export function carriesErasedAddress(value: unknown, addresses: ReadonlySet<stri
       )
     : false;
 }
+
+/**
+ * `carriesErasedAddress` for many rows against one large set (TODO #225): the same answer, but a
+ * string is only compared with the addresses whose characters around their first `@` match the
+ * characters around one of its own. An occurrence of an address puts that `@` at the same place
+ * in the text, so no address that could match is skipped. Rejected: a regular expression over all
+ * addresses (the boundary rules above would have to be written twice).
+ */
+export function erasedAddressMatcher(addresses: ReadonlySet<string>): (value: unknown) => boolean {
+  const byAt = new Map<string, Set<string>>();
+  const always = new Set<string>();
+  for (const address of addresses) {
+    const at = address.indexOf('@');
+    if (at < 1 || at + 1 >= address.length) {
+      always.add(address);
+      continue;
+    }
+    const key = address.slice(at - 1, at + 2);
+    const bucket = byAt.get(key) ?? new Set<string>();
+    bucket.add(address);
+    byAt.set(key, bucket);
+  }
+  const matches = (value: unknown): boolean => {
+    if (typeof value === 'string') {
+      const text = normalizeEmail(value);
+      const candidates = new Set(always);
+      for (let at = text.indexOf('@'); at !== -1; at = text.indexOf('@', at + 1))
+        for (const address of byAt.get(text.slice(at - 1, at + 2)) ?? []) candidates.add(address);
+      return candidates.size > 0 && carriesErasedAddress(text, candidates);
+    }
+    if (Array.isArray(value)) return value.some(matches);
+    return value !== null && typeof value === 'object'
+      ? Object.entries(value).some(([key, entry]) => matches(key) || matches(entry))
+      : false;
+  };
+  return matches;
+}
