@@ -648,7 +648,7 @@ describe('Mailchimp real form feed', () => {
       const run = (event: SupporterEvent, evidence?: WithdrawalEvidence) =>
         uow.run(admin, (ctx) => ingest(ctx, event, evidence));
       const event = withdrawal(supporter.id, intent.id, 'a');
-      // No evidence, another intent's receipt, a hash of another address, a grant: all refused.
+      // No evidence, no such receipt, a hash of another address, a grant: all refused.
       expect(await run(event)).toBe(false);
       expect(await run(event, { ...proof, receiptIntentId: randomUUID() })).toBe(false);
       expect(await run(event, { ...proof, memberHash: () => 'other' })).toBe(false);
@@ -656,6 +656,68 @@ describe('Mailchimp real form feed', () => {
       expect(await lists()).toEqual(['newsletter']);
       expect(await run(event, proof)).toBe(true);
       expect(await lists()).toEqual([]);
+    });
+
+    describe('before the readmitted lifecycle has a projection', () => {
+      // Erasure registered but not applied, then the new signup admitted and not yet ingested:
+      // the first lifecycle's receipt and projection still exist, with the same member hash.
+      const admitted = async () => {
+        const first = await submit();
+        await dispatch(first.intent!);
+        await uow.run(admin, (ctx) => ctx.erasures.register(first.intent!.supporterId!, email));
+        clock.advance(86_400_001);
+        const again = await invoker.run(useCases.submitForm, admin, {
+          formId: FORM,
+          locale: 'en',
+          values: { email, consent: true },
+        });
+        if (again.status !== 'accepted') throw new Error('fixture rejected');
+        const [old, receipt, lifecycleId] = await uow.run(admin, async (ctx) => [
+          await ctx.supporters.getProjectionById(first.intent!.supporterId!),
+          (await ctx.mailchimpReceipts.get(first.intent!.id))!,
+          (await ctx.submissions.findById(again.submissionId))!.evaluation!.supporterLifecycleId!,
+        ]);
+        expect(old!.email).toBe(email);
+        expect(receipt.memberHash).toBe(mailchimpMemberHash(email));
+        expect(lifecycleId).not.toBe(receipt.supporterId);
+        expect(await uow.run(admin, (ctx) => ctx.erasures.allows(email, lifecycleId))).toBe(true);
+        expect(
+          await uow.run(admin, (ctx) => ctx.supporters.getProjectionById(lifecycleId))
+        ).toBeNull();
+        return { receipt, lifecycleId };
+      };
+      const refused = async (lifecycleId: string, receiptIntentId: string) => {
+        const proof = { receiptIntentId, memberHash: mailchimpMemberHash };
+        expect(
+          await uow.run(admin, (ctx) =>
+            ingest(ctx, withdrawal(lifecycleId, receiptIntentId, 'c'), proof)
+          )
+        ).toBe(false);
+        // Nothing was opened or retired on the strength of the receipt.
+        expect(
+          await uow.run(admin, (ctx) => ctx.supporters.getProjectionById(lifecycleId))
+        ).toBeNull();
+        expect(await lists()).toEqual(['newsletter']);
+      };
+
+      it('refuses an existing receipt of another lifecycle with the same member hash', async () => {
+        await configure();
+        const { receipt, lifecycleId } = await admitted();
+        await refused(lifecycleId, receipt.intentId);
+      });
+
+      it('refuses a receipt whose lifecycle has no projection holding the address', async () => {
+        await configure();
+        const { receipt, lifecycleId } = await admitted();
+        // A receipt row for the admitted lifecycle itself; only the projection is missing.
+        const intentId = randomUUID();
+        expect(
+          await uow.run(admin, (ctx) =>
+            ctx.mailchimpReceipts.insert({ ...receipt, intentId, supporterId: lifecycleId })
+          )
+        ).toBe(true);
+        await refused(lifecycleId, intentId);
+      });
     });
 
     it('refuses the receipt once its lifecycle is erased too', async () => {
