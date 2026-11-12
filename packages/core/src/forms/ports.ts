@@ -22,6 +22,12 @@ export interface SubmissionRepository {
    * conditional update is what makes `mailing.opt_in.confirm` idempotent (ADR 010 rule 5).
    */
   confirm(id: string, at: Date): Promise<boolean>;
+  /**
+   * Record that the address confirmed a campaign signature, once, in its own fact: true when this
+   * call set `participationConfirmedAt`. Never touches `confirmedAt`, so a signature and a consent
+   * confirmation of the same submission cannot turn each other into a no-op (ADR 033 rule 7).
+   */
+  confirmParticipation(id: string, at: Date): Promise<boolean>;
 }
 
 /**

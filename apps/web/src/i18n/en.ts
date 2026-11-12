@@ -765,6 +765,7 @@ export const en = {
   'admin.audit.op.campaign.open': 'Campaign opened for participation',
   'admin.audit.op.campaign.close': 'Campaign closed for participation',
   'admin.audit.op.campaign.archive': 'Campaign archived',
+  'admin.audit.op.campaign.participation.withdraw': 'Campaign participation withdrawn',
   'admin.audit.op.content.person_group.create': 'Person group added',
   'admin.audit.op.content.person_group.update': 'Person group changed',
   'admin.audit.op.content.author.create': 'Author added',

@@ -149,6 +149,14 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
       row.leaseUntil = null;
     }
   const ids = new Set(s.erasures.keys());
+  // ADR 033 rule 8, as 0049's apply: the rows go, the active ones join the anonymous count.
+  for (const [k, p] of s.participations)
+    if (ids.has(p.supporterId)) {
+      const campaign = s.campaigns.get(p.campaignId);
+      if (campaign && !p.withdrawnAt) campaign.erasedCount += 1;
+      s.participations.delete(k);
+      changed++;
+    }
   const registrations = [...s.erasures].map(([supporterId, r]) => ({ supporterId, ...r }));
   const live = new Map(
     [...s.supporterLifecycles.values()]

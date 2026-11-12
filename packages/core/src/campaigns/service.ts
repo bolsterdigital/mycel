@@ -1,8 +1,9 @@
 // Campaign use cases (ADR 033): create binds an existing page as the landing page and, optionally,
 // a form; update changes the campaign's own fields on a base (ADR 027); open, close and archive
 // change participation and therefore the public effect, so they need `content:publish`, as does
-// an update that moves the window (rule 10). Participation itself (rules 3, 7, 8) belongs to the
-// submit path.
+// an update that moves the window (rule 10). Participation itself (rules 3, 7, 8) is decided on
+// the submit path (`participationFor`) and recorded where the supporter id exists, at ingest of
+// the confirmed signature (`recordConfirmed`).
 // Rejected: a create that also makes the page and the form here, which would duplicate
 // `content.item.create` and `form.create`; the admin flow composes them.
 
@@ -16,8 +17,11 @@ import { MAX_PAGE_SIZE } from '../util/page-size.js';
 import { lockItem } from '../content/service.js';
 import type { ItemRecord } from '../content/ports.js';
 import {
+  acceptsNow,
   Campaign,
   CampaignFields,
+  CampaignView,
+  toView,
   CampaignGoal,
   CampaignKind,
   FORM_KIND_OF,
@@ -96,11 +100,19 @@ const nextStamp = (ctx: TransactionContext, base: string) =>
 
 const conflict = () => refuse('conflict', 'baseUpdatedAt', 'campaign.conflict');
 
+/** The reader's view of campaigns: the public total, never the erased count on its own. */
+async function views(ctx: TransactionContext, campaigns: Campaign[]): Promise<CampaignView[]> {
+  const active = await ctx.campaigns.activeCounts(campaigns.map((c) => c.id));
+  return campaigns.map((c) => toView(c, active.get(c.id) ?? 0));
+}
+const view = async (ctx: TransactionContext, campaign: Campaign) =>
+  (await views(ctx, [campaign]))[0]!;
+
 /** Write a changed campaign on the base the caller read, or refuse with the one conflict. */
 async function save(ctx: TransactionContext, campaign: Campaign, base: string) {
   const next = { ...campaign, updatedAt: nextStamp(ctx, base) };
   if (!(await ctx.campaigns.update(next, base))) throw conflict();
-  return next;
+  return view(ctx, next);
 }
 
 export const createCampaign = defineUseCase({
@@ -120,7 +132,7 @@ export const createCampaign = defineUseCase({
       window: ParticipationWindow.default({ opensAt: null, closesAt: null }),
     })
     .strict(),
-  output: Campaign,
+  output: CampaignView,
   examples: [{ input: { kind: 'petition', landingItemId: exampleId(0x1) } }],
   async handler(ctx, { kind, landingItemId, formId, goal, counterVisible, window }) {
     const item = await lockItem(ctx, landingItemId);
@@ -148,7 +160,7 @@ export const createCampaign = defineUseCase({
     };
     if (!(await ctx.campaigns.insert(campaign)))
       throw refuse('conflict', 'landingItemId', 'campaign.landing.bound');
-    return campaign;
+    return view(ctx, campaign);
   },
 });
 
@@ -159,7 +171,7 @@ export const updateCampaign = defineUseCase({
   description:
     'Change the form, goal, counter visibility or participation window of a campaign on the timestamp read by the caller; moving the window also requires publishing permission.',
   input: CampaignFields.extend({ campaignId: CampaignId, baseUpdatedAt: IsoDate }).strict(),
-  output: Campaign,
+  output: CampaignView,
   examples: [
     {
       input: {
@@ -207,7 +219,7 @@ export const openCampaign = defineUseCase({
   description:
     'Open participation. Publishing the landing page stays separate: a campaign accepts only while its page is published, inside its window.',
   input: StateChange,
-  output: Campaign,
+  output: CampaignView,
   examples: [{ input: { campaignId: exampleId(0xc1), baseUpdatedAt: '2026-11-12T09:00:00.000Z' } }],
   async handler(ctx, { campaignId, baseUpdatedAt }) {
     const current = await lockCampaign(ctx, campaignId);
@@ -216,8 +228,8 @@ export const openCampaign = defineUseCase({
     if (FORM_KIND_OF[current.kind] === null)
       throw refuse('conflict', 'campaignId', 'campaign.kind.not-available', { kind: current.kind });
     if (!current.formId) throw refuse('conflict', 'formId', 'campaign.form.required');
-    // Rule 3 at the moment it matters: `form.update` can still change a bound form's kind (its own
-    // guard follows with B2), so the form is read again under its lock before participation opens.
+    // Rule 3 at the moment it matters. `form.update` refuses to change a bound form's kind; this
+    // read under the form's lock is the backstop for a form bound before that guard existed.
     const form = await ctx.forms.lock(current.formId);
     if (!form) throw notFound('form');
     if (FORM_KIND_OF[current.kind] !== form.kind)
@@ -225,7 +237,7 @@ export const openCampaign = defineUseCase({
         kind: current.kind,
         formKind: form.kind,
       });
-    if (current.participation.state === 'open') return current;
+    if (current.participation.state === 'open') return view(ctx, current);
     return save(
       ctx,
       { ...current, participation: { ...current.participation, state: 'open' } },
@@ -242,13 +254,13 @@ export const closeCampaign = defineUseCase({
   description:
     'Close participation; the landing page stays as it is and shows the result without a form.',
   input: StateChange,
-  output: Campaign,
+  output: CampaignView,
   examples: [{ input: { campaignId: exampleId(0xc1), baseUpdatedAt: '2026-11-12T09:00:00.000Z' } }],
   async handler(ctx, { campaignId, baseUpdatedAt }) {
     const current = await lockCampaign(ctx, campaignId);
     if (Date.parse(current.updatedAt) !== Date.parse(baseUpdatedAt)) throw conflict();
     notArchived(current);
-    if (current.participation.state === 'closed') return current;
+    if (current.participation.state === 'closed') return view(ctx, current);
     return save(
       ctx,
       { ...current, participation: { ...current.participation, state: 'closed' } },
@@ -267,7 +279,7 @@ export const archiveCampaign = defineUseCase({
   description:
     'Archive a campaign: participation closes and it leaves card selection; refused while a published page or article shows a card for it, naming them. Nothing is deleted.',
   input: StateChange,
-  output: Campaign,
+  output: CampaignView,
   examples: [{ input: { campaignId: exampleId(0xc1), baseUpdatedAt: '2026-11-12T09:00:00.000Z' } }],
   async handler(ctx, { campaignId, baseUpdatedAt }) {
     const current = await lockCampaign(ctx, campaignId);
@@ -302,12 +314,12 @@ export const getCampaign = defineUseCase({
   requires: 'content:read',
   description: 'Read a campaign: kind, landing page, form, participation, goal and archive state.',
   input: z.object({ campaignId: CampaignId }).strict(),
-  output: Campaign,
+  output: CampaignView,
   examples: [{ input: { campaignId: exampleId(0xc1) } }],
   async handler(ctx, { campaignId }) {
     const campaign = await ctx.campaigns.get(campaignId);
     if (!campaign) throw notFound('campaign');
-    return campaign;
+    return view(ctx, campaign);
   },
 });
 
@@ -325,13 +337,79 @@ export const listCampaigns = defineUseCase({
       limit: z.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
     })
     .strict(),
-  output: z.object({ campaigns: z.array(Campaign), nextOffset: z.number().int().nullable() }),
+  output: z.object({
+    campaigns: z.array(CampaignView),
+    nextOffset: z.number().int().nullable(),
+  }),
   examples: [{ input: {} }],
   async handler(ctx, { kind, archived, offset, limit }) {
     const rows = await ctx.campaigns.list({ kind, archived }, offset, limit + 1);
     return {
-      campaigns: rows.slice(0, limit),
+      campaigns: await views(ctx, rows.slice(0, limit)),
       nextOffset: rows.length > limit ? offset + limit : null,
     };
+  },
+});
+
+/**
+ * The campaign a submission to `formId` takes part in, or null when the form is bound to none
+ * (ADR 033 rule 3). Throws `campaign.closed` when the campaign does not accept participation now:
+ * not open, archived, outside its window, or its landing page not published and public in the
+ * submitting locale. Re-read under a share lock inside the submission's transaction, so a stale
+ * page, a reposted form or an old tab cannot add a submission after closing. `lock: false` is the
+ * cheap early refusal before the spam and rate-limit writes; only the locked read decides.
+ */
+export async function participationFor(
+  ctx: TransactionContext,
+  form: { id: string; kind: string },
+  locale: string,
+  now: Date,
+  { lock = true }: { lock?: boolean } = {}
+): Promise<Campaign | null> {
+  const campaign = await (lock
+    ? ctx.campaigns.shareByForm(form.id)
+    : ctx.campaigns.byForm(form.id));
+  if (!campaign) return null;
+  const closed = () => refuse('conflict', 'formId', 'campaign.closed');
+  if (FORM_KIND_OF[campaign.kind] !== form.kind || !acceptsNow(campaign, now)) throw closed();
+  const landing = await ctx.content.get(campaign.landingItemId);
+  const published = landing?.publication.find((s) => s.locale === locale)?.publishedRevisionId;
+  if (!landing || !published) throw closed();
+  const revision = await ctx.content.revision(landing.id, published);
+  if (!revision || revision.document.access.level !== 'public') throw closed();
+  return campaign;
+}
+
+/**
+ * Record a confirmed signature once its supporter id exists, in the ingest transaction of the
+ * `petition.signed` or `form.submitted` event (ADR 033 rule 7). A campaign that is gone counts
+ * nothing; an archived or closed one still counts a signature submitted while it was open.
+ */
+export async function recordConfirmed(
+  ctx: TransactionContext,
+  p: { campaignId: string; supporterId: string; submissionId: string; confirmedAt: string }
+) {
+  if (!(await ctx.campaigns.get(p.campaignId))) return 'unchanged' as const;
+  return ctx.campaigns.recordParticipation(p);
+}
+
+export const withdrawParticipation = defineUseCase({
+  name: 'campaign.participation.withdraw',
+  kind: 'command',
+  requires: 'supporters:write',
+  description:
+    "Withdraw a supporter's signature or signup from a campaign at their request: it stops counting and the record of the confirmation stays; signing again restores it.",
+  input: z.object({ campaignId: CampaignId, supporterId: z.string().guid() }).strict(),
+  output: z.object({ withdrawn: z.boolean(), campaign: CampaignView }),
+  examples: [{ input: { campaignId: exampleId(0xc1), supporterId: exampleId(0x5) } }],
+  async handler(ctx, { campaignId, supporterId }) {
+    const campaign = await ctx.campaigns.get(campaignId);
+    if (!campaign) throw notFound('campaign');
+    const withdrawn = await ctx.campaigns.withdrawParticipation(
+      campaignId,
+      supporterId,
+      ctx.clock.now().toISOString()
+    );
+    return { withdrawn, campaign: await view(ctx, campaign) };
   },
 });

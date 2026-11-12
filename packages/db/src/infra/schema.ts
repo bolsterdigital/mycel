@@ -209,6 +209,7 @@ export interface Database {
     ip_hash: string | null;
     created_at: Timestamp;
     confirmed_at: Timestamp | null;
+    participation_confirmed_at: Timestamp | null;
     list: string;
     consent_text_version: string;
     evaluation: ColumnType<import('@mycel/core').Submission['evaluation'], string | null, never>;

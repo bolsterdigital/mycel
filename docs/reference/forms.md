@@ -23,11 +23,11 @@ Conditions use equals, not-equals and present atoms, optionally grouped by bound
 
 `forms/ports.ts` adds form, submission, rate-limit and private action repositories to the transaction context:
 
-| Port                   | Methods                                                                                                                                                                     |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FormRepository`       | `findById`, `list`, `insert`, `save(base, value)`: compare-and-swap definition updates                                                                                      |
-| `SubmissionRepository` | `insert`, `findById`, `list(formId)`, `findByFeedBusinessId`, `confirm(id, at)`: one conditional update, true only for the call that set `confirmedAt`                      |
-| `RateLimiter`          | `hit(key, { max, windowSeconds })`: fixed-window counter; `cooldown(key, seconds)`: sliding window of one that records only a success, refused above `MAX_COOLDOWN_SECONDS` |
+| Port                   | Methods                                                                                                                                                                                                                                                                                              |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FormRepository`       | `findById`, `list`, `insert`, `save(base, value)`: compare-and-swap definition updates                                                                                                                                                                                                               |
+| `SubmissionRepository` | `insert`, `findById`, `list(formId)`, `findByFeedBusinessId`, `confirm(id, at)`: one conditional update, true only for the call that set `confirmedAt` (confirmed consent only); `confirmParticipation(id, at)`: the same for a campaign signature's own `participationConfirmedAt` (ADR 033 rule 7) |
+| `RateLimiter`          | `hit(key, { max, windowSeconds })`: fixed-window counter; `cooldown(key, seconds)`: sliding window of one that records only a success, refused above `MAX_COOLDOWN_SECONDS`                                                                                                                          |
 
 `FormFeedRepository` and `FormMailRepository` read and compare-and-swap private versioned configuration; mail settings also reserve the tenant mail budget.
 
@@ -68,6 +68,10 @@ An accepted submission stores a `submissions` row (the only copy of the address,
 - `supporters.ingest` appends the event to the supporter's log, folds the projection and releases the reserved seat in the same transaction ([supporters.md](supporters.md)).
 
 Opening the link only reads (`mailing.opt_in.get`); the button on that page posts to `mailing.opt_in.confirm`, which calls `SubmissionRepository.confirm` and, for the first confirmation only, publishes `consent.given`. A link scanner therefore confirms nothing.
+
+## Campaign forms
+
+A form bound to a campaign ([ADR 033](../adr/033-campaign-identity-and-participation.md)) takes part only while its campaign accepts: `participationFor` (`campaigns/service.ts`) reads the campaign under a share lock inside the submission transaction, after the supporter and admission locks, and throws the conflict `campaign.closed` when the campaign is not open, archived, outside its window, or its landing page is not published and public in the submitting locale. The public front answers that with a 403 and `forms.rejected.campaign-closed`. An accepted submission records `evaluation.campaignId`, admits a lifecycle and reserves a seat like a consenting signup, and always needs a confirmation: with Mycel-owned consent the ordinary `newsletter.subscribed` link confirms both; otherwise (no tick, or an external consent owner) `form.submit` publishes `campaign.participation.requested`, whose mail confirms the address for the campaign and grants no list. The first confirmation publishes `petition.signed` (petition) or `form.submitted` (signup) with `campaignId`, and `consent.given` only for a ticked consent Mycel owns. Supporter ingest records the participation once per supporter (`campaign_participations`); the count is active rows plus the anonymous `erasedCount`. `campaign.participation.withdraw` (`supporters:write`) stops a participation counting; signing again renews the same row. A bound form's `kind` cannot change (`campaign.form.kind-locked`). A new petition's consent field is optional, because a signature is not mail consent.
 
 ## Retention
 

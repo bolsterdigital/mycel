@@ -76,6 +76,44 @@ export const Campaign = z.object({
 });
 export type Campaign = z.infer<typeof Campaign>;
 
+/**
+ * What a reader of a campaign sees (ADR 033 rule 8): the public total, active participations plus
+ * the anonymous erased ones, never `erasedCount` on its own. Review point 3 of PR #400: the split
+ * says how many people were erased from this campaign, which no `content:read` needs to know.
+ */
+export const CampaignView = Campaign.omit({ erasedCount: true }).extend({
+  participants: z.number().int().nonnegative(),
+});
+export type CampaignView = z.infer<typeof CampaignView>;
+
+export const toView = (campaign: Campaign, active: number): CampaignView => {
+  const { erasedCount, ...rest } = campaign;
+  return { ...rest, participants: active + erasedCount };
+};
+
+/**
+ * One confirmed participation per campaign and supporter (ADR 033 rule 7). `withdrawnAt` set means
+ * it no longer counts; signing again clears it.
+ */
+export interface CampaignParticipation {
+  campaignId: string;
+  supporterId: string;
+  submissionId: string;
+  confirmedAt: string;
+  withdrawnAt: string | null;
+}
+
+/**
+ * Whether a campaign accepts participation now (ADR 033 rule 2), apart from its landing page, which
+ * the caller checks: open, not archived and inside its window, evaluated at the moment of use.
+ */
+export function acceptsNow(campaign: Campaign, now: Date): boolean {
+  const { state, opensAt, closesAt } = campaign.participation;
+  if (state !== 'open' || campaign.archivedAt) return false;
+  if (opensAt && now.getTime() < Date.parse(opensAt)) return false;
+  return !(closesAt && now.getTime() >= Date.parse(closesAt));
+}
+
 /** What a write may change; kind and landing page are fixed at creation. */
 export const CampaignFields = z
   .object({

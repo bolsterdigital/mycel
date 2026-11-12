@@ -33,6 +33,7 @@ export const nl: Partial<Messages> = {
   'forms.rejected.too-fast':
     'Dat ging erg snel. Controleer je gegevens en verstuur het formulier opnieuw.',
   'forms.rejected.closed': 'Deze site neemt op dit moment geen nieuwe inschrijvingen aan.',
+  'forms.rejected.campaign-closed': 'Deze campagne neemt op dit moment geen deelname aan.',
   'forms.rejected.rate-limited': 'Te veel pogingen in korte tijd. Probeer het later opnieuw.',
   'forms.mail.template.missing': 'Het gekozen mailsjabloon bestaat niet meer.',
   'forms.mail.field.missing': 'Het sjabloon verwijst naar een veld dat niet meer bestaat.',
@@ -56,6 +57,11 @@ export const nl: Partial<Messages> = {
   'mail.confirm.intro':
     'Bedankt voor je inschrijving op de nieuwsbrief van {tenant}. Bevestig je inschrijving met de link hieronder. Doe je dat niet, dan ontvang je geen nieuwsbrief.',
   'mail.confirm.button': 'Inschrijving bevestigen',
+  'mail.confirm.participation.subject': 'Bevestig je deelname bij {tenant}',
+  'mail.confirm.participation.heading': 'Bevestig je deelname',
+  'mail.confirm.participation.intro':
+    'Bedankt voor je deelname aan de campagne van {tenant}. Bevestig je e-mailadres met de link hieronder; pas dan telt je deelname mee. Je schrijft je hiermee niet in voor een nieuwsbrief.',
+  'mail.confirm.participation.button': 'Deelname bevestigen',
   'mail.confirm.fallback': 'Werkt de knop niet? Kopieer deze link naar je browser:',
   'mail.confirm.ignore': 'Heb je je niet zelf ingeschreven? Dan kun je deze mail negeren.',
   'theme.color.invalid': 'Vul een kleur in als # met zes hexadecimale tekens, zoals #1f4f8f.',

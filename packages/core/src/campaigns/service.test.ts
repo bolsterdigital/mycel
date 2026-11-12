@@ -70,9 +70,11 @@ describe('a campaign (ADR 033)', () => {
       participation: { state: 'draft', opensAt: null, closesAt: null },
       goal: { target: 1000, milestones: [100, 500] },
       counterVisible: true,
-      erasedCount: 0,
+      participants: 0,
       archivedAt: null,
     });
+    // B1 review point 3: a reader gets the total, never the erased count on its own.
+    expect(created).not.toHaveProperty('erasedCount');
     expect(await invoker.run(useCases.getCampaign, admin, { campaignId: created.id })).toEqual(
       created
     );
@@ -255,16 +257,28 @@ describe('a campaign (ADR 033)', () => {
     );
   });
 
-  it('refuses to open when the bound form changed kind after binding (rule 3)', async () => {
-    const { invoker, admin, campaign } = setup();
+  it('keeps a bound form to its kind, and open still refuses a form that changed anyway (rule 3)', async () => {
+    const { invoker, admin, campaign, uow } = setup();
     const c = await campaign('van-soort');
     const { form, version } = await invoker.run(useCases.getFormForAuthoring, admin, {
       id: c.formId!,
     });
+    // B1 review point 1: `form.update` refuses the kind change of a bound form.
+    await expectCode(
+      invoker.run(useCases.updateForm, admin, {
+        baseVersion: version,
+        value: { ...form, kind: 'contact' },
+      }),
+      'conflict',
+      'campaign.form.kind-locked'
+    );
+    // Other edits of the bound form still save.
     await invoker.run(useCases.updateForm, admin, {
       baseVersion: version,
-      value: { ...form, kind: 'contact' },
+      value: { ...form, minFillSeconds: 4 },
     });
+    // A form changed before that guard existed: open is the backstop.
+    uow.store.for(TENANT).forms.set(form.id, { ...form, kind: 'contact' });
     const refused = await expectCode(
       invoker.run(useCases.openCampaign, admin, {
         campaignId: c.id,

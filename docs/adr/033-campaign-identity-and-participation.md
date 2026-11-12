@@ -31,7 +31,7 @@ Campaign sites need a petition, a signup action and later a fundraiser as recogn
 
 10. **Every surface uses the same operations and existing capabilities.** `campaign.create` and `campaign.update` (carrying `baseUpdatedAt`, ADR 027) require `content:write`, plus `forms:write` when they bind or create a form. Every operation that changes participation state or its window changes the public effect and requires `content:publish` as well, as ADR 030 rule 6 does for delete: `campaign.open`, `campaign.close`, `campaign.archive` (which closes participation, rule 9) and a `campaign.update` that changes `participation.opensAt` or `participation.closesAt` (moving `closesAt` into the past closes, moving it out reopens). The check compares the stored and the requested window inside the update transaction, so a write-only principal can edit everything else but gets a typed refusal for the window. Reading participants requires `supporters:read`; exporting them follows the supporter export capability; fundraiser money operations use the `donations:*` and `money:refund` capabilities. UI, HTTP and MCP call the same use cases (ADR 009). A reference to another tenant's campaign is refused on save like any unknown reference.
 
-11. **Export and import carry campaigns whole.** Campaigns, participations and `erasedCount` are exported with the tenant; import remaps campaign, page, form and media ids together and keeps references intact. Participations are personal data under the supporter export and erasure rules.
+11. **Export and import carry campaigns whole.** Campaigns, participations and `erasedCount` are exported with the tenant; import restores campaign, page, form, media and supporter ids as exported into the new tenant (only the tenant changes, like every other table), so the references between them stay intact. Participations are personal data under the supporter export and erasure rules.
 
 12. **Terminology.** In code, the API and the admin, a bare `campaign` is this entity, in the `campaigns` module. A mailing send is a mailing edition; the existing field `delivery.email.campaignId` (ADR 012 rule 5) keeps its name and refers to a mailing send. Events (dates, place, RSVP) stay their own domain; reusing the card's presentation for them later needs its own decision.
 
@@ -56,3 +56,7 @@ Campaign sites need a petition, a signup action and later a fundraiser as recogn
 - The form submit path gains the participation check of rule 3 and the participation write of rule 7; existing forms without a campaign behave as before.
 - The ordinary public page path resolves the campaign projection and folds it into the ETag; feeds, search, Markdown and `llms.txt` render a card as a link with title and lead only, never a form.
 - Building petitions and signups (with card, admin and the complete flow), and later the fundraiser, are separate deliveries. This decision builds nothing.
+
+## Amendments
+
+- **2026-11-12, rule 11 (#47 B2):** the first text said import "remaps" ids. The importer keeps every id as exported and rewrites only the tenant (`IMPORT_RULE` in `packages/db/src/portability/import.ts`, `as-exported` for `campaigns` and `campaign_participations`); the wording now says that. The decision itself, references intact across export and import, is unchanged.

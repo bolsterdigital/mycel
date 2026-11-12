@@ -46,6 +46,7 @@ import {
   listCampaigns,
   openCampaign,
   updateCampaign,
+  withdrawParticipation,
 } from './campaigns/service.js';
 import {
   createConnection,
@@ -237,6 +238,7 @@ export const useCases = {
   archiveCampaign,
   getCampaign,
   listCampaigns,
+  withdrawParticipation,
   createPersonGroup,
   updatePersonGroup,
   getPersonGroup,

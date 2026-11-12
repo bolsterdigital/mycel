@@ -6,7 +6,12 @@ import { notFound } from '../errors.js';
 import { withinLimit } from '../entitlements/guards.js';
 import { defineUseCase } from '../registry.js';
 import { emailKey } from '../supporters/email-key.js';
-import type { NewsletterSubscribedProps } from './events.js';
+import {
+  PARTICIPATION_REQUESTED,
+  type NewsletterSubscribedProps,
+  type ParticipationRequestedProps,
+} from './events.js';
+import { participationFor } from '../campaigns/service.js';
 import { FormDefinition, SubmitInput, SubmitResult, type FormField } from './model.js';
 import { ProofChallenge, checkProof, issueProofChallenge } from './proof.js';
 import {
@@ -67,7 +72,7 @@ export const submitForm = defineUseCase({
   name: 'form.submit',
   kind: 'command',
   description:
-    'Submit a signup form. Stores the submission and publishes newsletter.subscribed; returns accepted, invalid (field errors as i18n keys) or rejected (spam defence).',
+    'Submit a form. Stores the submission and, with consent, publishes newsletter.subscribed; a form bound to a campaign also needs that campaign open (else the error campaign.closed) and mails a confirmation that makes the signature count. Returns accepted, invalid (field errors as i18n keys) or rejected (spam defence).',
   requires: 'forms:write',
   consumes: 'supporters.max',
   input: SubmitInput,
@@ -87,6 +92,10 @@ export const submitForm = defineUseCase({
     const now = clock.now();
     const form = await ctx.forms.findById(input.formId);
     if (!form) throw notFound('form', `the id "${input.formId}"`);
+    // A closed campaign refuses before the proof cooldown and rate-limit hits below, which the
+    // refusal's throw would otherwise roll back. Unlocked, so only an early answer: the read
+    // under the share lock further down decides (ADR 033 rule 3).
+    await participationFor(ctx, form, input.locale, now, { lock: false });
 
     // One log line per refusal with a fixed reason, never the address, IP hash or token (house
     // rule 7: fail visibly for us, silently for the bot); tenant and request id come from the
@@ -184,6 +193,7 @@ export const submitForm = defineUseCase({
       list: form.list,
       consentTextVersion: form.consentTextVersion,
       confirmedAt: null,
+      participationConfirmedAt: null,
       evaluation: {
         version,
         definition: form,
@@ -197,6 +207,9 @@ export const submitForm = defineUseCase({
     const externalOwner = configuredFeeds.some(
       (f) => f.enabled && f.scope === form.list && f.confirmationOwner === 'external'
     );
+    const externalConsent =
+      externalOwner ||
+      !!submission.evaluation!.feedActions?.some((p) => p.feed.confirmationOwner === 'external');
     if (
       consent &&
       externalOwner &&
@@ -210,6 +223,14 @@ export const submitForm = defineUseCase({
     // a seat taken for the whole admission window.
     await ctx.supporters.lock(email);
     await ctx.admissions.lock();
+    // ADR 033 rule 3: a campaign's form takes part only while the campaign accepts, decided here
+    // under its share lock, whatever the page showed. After the supporter and admission locks,
+    // the order ingest and erasure take them in. A campaign that closed since the early check
+    // throws here and so also rolls back the rate limit hits above; the campaign state is public,
+    // so a probe learns nothing.
+    const campaign = await participationFor(ctx, form, input.locale, now);
+    if (campaign) submission.evaluation!.campaignId = campaign.id;
+    const joins = consent && ['signup', 'petition'].includes(form.kind);
 
     // Every signup causes a confirmation mail, so every signup passes the recipient cooldown.
     // After the tenant lock, which already serialises submissions; the adapter's own lock makes
@@ -224,7 +245,7 @@ export const submitForm = defineUseCase({
     )
       return reject('recipient-limited');
 
-    if (consent && ['signup', 'petition'].includes(form.kind)) {
+    if (joins || campaign) {
       const lifecycleId = await ctx.erasures.admit(email, submissionId, now);
       if (lifecycleId === null)
         return { status: 'rejected', reason: 'unavailable', message: 'forms.rejected.unavailable' };
@@ -247,8 +268,9 @@ export const submitForm = defineUseCase({
       });
 
     // A receipt is not marketing permission. Inactive or unchecked consent creates no signup,
-    // no admission seat and no confirmation mail, even if a browser forged its checkbox value.
-    if (!consent || !['signup', 'petition'].includes(form.kind)) {
+    // no admission seat and no confirmation mail, even if a browser forged its checkbox value;
+    // a campaign's form still mails the confirmation that makes the signature count, with no list.
+    if (!joins && !campaign) {
       await ctx.submissions.insert(submission);
       return { status: 'accepted', submissionId };
     }
@@ -261,6 +283,38 @@ export const submitForm = defineUseCase({
     }
 
     await ctx.submissions.insert(submission);
+
+    const confirmationProps = mailPlan.confirmation
+      ? {
+          confirmationCopy: mailPlan.confirmation,
+          confirmationVersion: mailPlan.confirmationVersion,
+        }
+      : {};
+    // The participation confirmation rides on the consent confirmation when Mycel owns that one;
+    // otherwise it gets its own link, which confirms the address for the campaign and nothing else.
+    if (campaign && !(joins && !externalConsent)) {
+      const requested: ParticipationRequestedProps = {
+        email,
+        supporterLifecycleId: submission.evaluation!.supporterLifecycleId,
+        list: form.list,
+        formId: form.id,
+        submissionId,
+        campaignId: campaign.id,
+        locale: input.locale,
+        pageUrl: input.pageUrl ?? null,
+        consentTextVersion: form.consentTextVersion,
+        confirmed: false,
+      };
+      await ctx.events.publish({
+        id: ctx.ids.next(),
+        type: PARTICIPATION_REQUESTED,
+        tenantId: principal.tenantId,
+        occurredAt: now,
+        actor: principal.actor,
+        props: { ...requested, formVersion: version, ...confirmationProps },
+      });
+    }
+    if (!joins) return { status: 'accepted', submissionId };
 
     const props: NewsletterSubscribedProps = {
       email,
@@ -282,12 +336,7 @@ export const submitForm = defineUseCase({
       props: {
         ...props,
         formVersion: version,
-        ...(mailPlan.confirmation
-          ? {
-              confirmationCopy: mailPlan.confirmation,
-              confirmationVersion: mailPlan.confirmationVersion,
-            }
-          : {}),
+        ...confirmationProps,
       },
     });
     return { status: 'accepted', submissionId };

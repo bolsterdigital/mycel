@@ -12,7 +12,7 @@
 // table, a second copy of what the submission row and the supporter log already hold.
 
 import { z } from 'zod';
-import type { ConsentGivenProps } from '../forms/events.js';
+import type { ConsentGivenProps, ParticipationConfirmedProps } from '../forms/events.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
 import { verifyConfirmToken } from './confirmation.js';
@@ -36,9 +36,12 @@ export type ConfirmPreview = z.infer<typeof ConfirmPreview>;
 const ConfirmInput = z.object({ token: z.string().min(1) });
 
 /**
- * The submission a token confirms, with its address, or null when the token is worth nothing:
- * forged or expired, for another tenant, for a submission that is gone, or for a list other than
- * the one on the submission. A list is never swapped for another (ADR 010 rule 6).
+ * The submission a token confirms, with its address and what the click grants, or null when the
+ * token is worth nothing: forged or expired, for another tenant, for a submission that is gone, or
+ * for a list other than the one on the submission. A list is never swapped for another (ADR 010
+ * rule 6). `consent` is Mycel's to confirm only with a ticked, active consent field and no external
+ * owner; a submission to a campaign's form is confirmed for the campaign either way (ADR 033 rule
+ * 7), and that grants no list.
  */
 async function resolveToken(ctx: TransactionContext, token: string, now: Date) {
   const payload = await verifyConfirmToken(ctx.signer, token, now);
@@ -47,32 +50,29 @@ async function resolveToken(ctx: TransactionContext, token: string, now: Date) {
   if (!payload || payload.tenantId !== ctx.principal.tenantId) return null;
   const submission = await ctx.submissions.findById(payload.submissionId);
   if (!submission || submission.list !== payload.list) return null;
-  if (
+  const external =
     (await ctx.formFeeds.get()).value.feeds.some(
       (f) => f.enabled && f.scope === submission.list && f.confirmationOwner === 'external'
-    )
-  )
-    return null;
-  if (submission.evaluation?.feedActions?.some((p) => p.feed.confirmationOwner === 'external'))
-    return null;
+    ) || !!submission.evaluation?.feedActions?.some((p) => p.feed.confirmationOwner === 'external');
   // The form only names the e-mail field; what is confirmed comes from the submission.
   const form = submission.evaluation?.definition ?? (await ctx.forms.findById(submission.formId));
-  if (
-    submission.evaluation &&
-    !form?.fields.some(
+  const ticked =
+    !submission.evaluation ||
+    !!form?.fields.some(
       (f) =>
         f.type === 'consent' &&
         submission.evaluation!.activeFieldIds.includes(f.id ?? f.name) &&
         submission.values[f.name] === true
-    )
-  )
-    return null;
+    );
+  const consent = ticked && !external;
+  const campaignId = submission.evaluation?.campaignId;
+  if (!consent && !campaignId) return null;
   const emailField = form?.fields.find((f) => f.type === 'email');
   const email = emailField ? submission.values[emailField.name] : undefined;
   if (typeof email !== 'string' || !email) return null;
   await ctx.supporters.lock(email);
   if (!(await ctx.erasures.allows(email, submission.evaluation?.supporterLifecycleId))) return null;
-  return { submission, email };
+  return { submission, email, consent, campaignId, kind: form?.kind };
 }
 
 export const previewConfirmation = defineUseCase({
@@ -92,11 +92,11 @@ export const previewConfirmation = defineUseCase({
   async handler(ctx, { token }): Promise<ConfirmPreview> {
     const found = await resolveToken(ctx, token, ctx.clock.now());
     if (!found) return { status: 'invalid' };
-    const { submission } = found;
-    return {
-      status: submission.confirmedAt ? 'already_confirmed' : 'pending',
-      locale: submission.locale,
-    };
+    const { submission, consent, campaignId } = found;
+    const done =
+      (!consent || !!submission.confirmedAt) &&
+      (!campaignId || !!submission.participationConfirmedAt);
+    return { status: done ? 'already_confirmed' : 'pending', locale: submission.locale };
   },
 });
 
@@ -104,7 +104,7 @@ export const confirmSubscription = defineUseCase({
   name: 'mailing.opt_in.confirm',
   kind: 'command',
   description:
-    'Confirm a double opt-in: records consent for the list of the submission once and publishes consent.given; a second confirmation or an invalid token is an outcome, not an error.',
+    'Confirm a double opt-in: records consent for the list of the submission once and publishes consent.given, and for a campaign form records the signature (petition.signed or form.submitted); a second confirmation or an invalid token is an outcome, not an error.',
   requires: 'forms:write',
   input: ConfirmInput,
   output: ConfirmResult,
@@ -119,11 +119,38 @@ export const confirmSubscription = defineUseCase({
     const now = clock.now();
     const found = await resolveToken(ctx, token, now);
     if (!found) return { status: 'invalid' };
-    const { submission, email } = found;
+    const { submission, email, consent, campaignId, kind } = found;
     const { locale } = submission;
 
-    if (!(await ctx.submissions.confirm(submission.id, now)))
-      return { status: 'already_confirmed', locale };
+    // Two facts, each with its own idempotency (ADR 033 rule 7): the signature and Mycel-owned
+    // consent. One link may grant both; with an external consent owner the provider confirms
+    // consent on its own clock, and neither confirmation may make the other a no-op.
+    const signs = !!campaignId && (await ctx.submissions.confirmParticipation(submission.id, now));
+    const consents = consent && (await ctx.submissions.confirm(submission.id, now));
+    if (!signs && !consents) return { status: 'already_confirmed', locale };
+
+    // ADR 033 rule 7: the confirmation makes the signature count. Ingest records it once the
+    // supporter id exists; a signature is never consent, which follows below only when ticked.
+    if (campaignId && signs) {
+      const signed: ParticipationConfirmedProps = {
+        email,
+        formId: submission.formId,
+        submissionId: submission.id,
+        campaignId,
+        locale,
+        confirmedAt: now.toISOString(),
+        supporterLifecycleId: submission.evaluation?.supporterLifecycleId,
+      };
+      await ctx.events.publish({
+        id: ctx.ids.next(),
+        type: kind === 'petition' ? 'petition.signed' : 'form.submitted',
+        tenantId: principal.tenantId,
+        occurredAt: now,
+        actor: principal.actor,
+        props: { ...signed },
+      });
+    }
+    if (!consents) return { status: 'confirmed', locale };
 
     const props: ConsentGivenProps = {
       email,

@@ -33,6 +33,7 @@ export const en = {
   'forms.rejected.rate-limited':
     'Too many attempts from you in a short time. Please try again later.',
   'forms.rejected.closed': 'This site is not taking new sign-ups at the moment.',
+  'forms.rejected.campaign-closed': 'This campaign is not accepting participation at the moment.',
   'forms.mail.template.missing': 'The selected mail template no longer exists.',
   'forms.mail.field.missing': 'The template refers to a field that no longer exists.',
   'forms.mail.copy.invalid': 'The resulting message is empty or too long.',
@@ -52,6 +53,11 @@ export const en = {
   'mail.confirm.intro':
     'Thank you for subscribing to the newsletter of {tenant}. Use the link below to confirm. If you do not, you will not receive the newsletter.',
   'mail.confirm.button': 'Confirm subscription',
+  'mail.confirm.participation.subject': 'Confirm your participation with {tenant}',
+  'mail.confirm.participation.heading': 'Confirm your participation',
+  'mail.confirm.participation.intro':
+    'Thank you for taking part in the campaign of {tenant}. Use the link below to confirm your e-mail address; only then does your participation count. This does not subscribe you to any mailing.',
+  'mail.confirm.participation.button': 'Confirm participation',
   'mail.confirm.fallback': 'Does the button not work? Copy this link into your browser:',
   'mail.confirm.ignore': 'Did not sign up yourself? Then you can ignore this e-mail.',
   'theme.color.invalid': 'Enter a colour as # followed by six hexadecimal digits, like #1f4f8f.',

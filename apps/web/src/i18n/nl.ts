@@ -773,6 +773,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.campaign.open': 'Campagne opengesteld voor deelname',
   'admin.audit.op.campaign.close': 'Campagne gesloten voor deelname',
   'admin.audit.op.campaign.archive': 'Campagne gearchiveerd',
+  'admin.audit.op.campaign.participation.withdraw': 'Deelname aan campagne ingetrokken',
   'admin.audit.op.content.person_group.create': 'Personengroep toegevoegd',
   'admin.audit.op.content.person_group.update': 'Personengroep gewijzigd',
   'admin.audit.op.content.author.create': 'Auteur toegevoegd',

@@ -22,7 +22,7 @@ A supporter is one person per tenant, identified by a normalised e-mail address 
 | `lifecycle_id`                        | optional server-owned readmission id (ADR 032); validated against the durable lifecycle and its submission (a provider withdrawal: or its receipt), never caller-selected |
 | `props`                               | type-specific extras                                                                                                                                                      |
 
-Today the `supporters.ingest` subscriber maps `newsletter.subscribed` and `consent.given` from forms. A signup and its confirmation share `source_ref` and differ in type, so both ids are deterministic and distinct.
+Today the `supporters.ingest` subscriber maps `newsletter.subscribed` and `consent.given` from forms, and `petition.signed` and `form.submitted` from a confirmed campaign submission (props `campaign_id`, `locale`); ingesting one of those records the campaign participation in the same transaction (ADR 033 rule 7, [forms.md](forms.md#campaign-forms)). A signup and its confirmation share `source_ref` and differ in type, so both ids are deterministic and distinct.
 
 ## Ingest
 

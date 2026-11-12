@@ -121,7 +121,7 @@ describe.skipIf(skip)('campaigns through Postgres', () => {
       campaignId: created.id,
       baseUpdatedAt: closed.updatedAt,
     });
-    expect(archived).toMatchObject({ participation: { state: 'closed' }, erasedCount: 0 });
+    expect(archived).toMatchObject({ participation: { state: 'closed' }, participants: 0 });
     expect(archived.archivedAt).not.toBeNull();
     const { campaigns } = await invoker.run(useCases.listCampaigns, admin, { archived: true });
     expect(campaigns.map((c) => c.id)).toContain(created.id);
@@ -154,7 +154,8 @@ describe.skipIf(skip)('campaigns through Postgres', () => {
       'content.delete.campaign-landing'
     );
     // The key is the backstop under the item lock: a second row on the same page is refused.
-    const twin = { ...c, id: uuidv7Ids.next(), formId: null };
+    const { participants: _participants, ...stored } = c;
+    const twin = { ...stored, erasedCount: 0, id: uuidv7Ids.next(), formId: null };
     expect(await uow.run(admin, (ctx) => ctx.campaigns.insert(twin))).toBe(false);
     const closed = await page(admin, 'leden', { level: 'members', teaser: { blocks: 0 } });
     await expectCode(

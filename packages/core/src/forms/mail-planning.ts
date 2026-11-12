@@ -31,12 +31,17 @@ export async function planFormMail(ctx: TransactionContext, submission: Submissi
   const pins: PinnedMailAction[] = [];
   const events: DomainEvent[] = [];
   if (!config) return { pins, events, confirmation: undefined, confirmationVersion: undefined };
+  // A campaign's submission is always confirmed (ADR 033 rule 7), with or without consent, and
+  // by Mycel even when a provider owns the consent: the link then confirms only the signature.
+  const participates = !!submission.evaluation?.campaignId;
   const needsConfirmation =
-    ['signup', 'petition'].includes(form.kind) &&
-    form.fields.some((f) => f.type === 'consent' && submission.values[f.name] === true);
+    participates ||
+    (['signup', 'petition'].includes(form.kind) &&
+      form.fields.some((f) => f.type === 'consent' && submission.values[f.name] === true));
   const confirmation =
     needsConfirmation &&
-    !submission.evaluation?.feedActions?.some((p) => p.feed.confirmationOwner === 'external') &&
+    (participates ||
+      !submission.evaluation?.feedActions?.some((p) => p.feed.confirmationOwner === 'external')) &&
     config.confirmation
       ? resolveFormMail(
           settings,
