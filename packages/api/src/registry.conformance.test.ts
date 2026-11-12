@@ -52,6 +52,12 @@ const post = (useCase: UseCase, body: string, auth?: string) =>
 const exactly = (useCase: UseCase) =>
   `Bearer ${useCase.actors?.includes('operator') ? 'operator-' : ''}caps:${requiredCapabilities(useCase).join(',')}`;
 
+/** Every non-empty proper subset of `all`; the empty one has its own case. */
+const properSubsets = <T>(all: readonly T[]): T[][] =>
+  Array.from({ length: 2 ** all.length - 2 }, (_, mask) =>
+    all.filter((_, i) => ((mask + 1) >> i) & 1)
+  );
+
 /** A body that fails every object schema: the wrong top-level type. */
 const SCHEMA_VIOLATION = '[]';
 
@@ -74,6 +80,18 @@ describe.each(useCases.map((u) => [u.name, u] as const))('HTTP conformance: %s',
   it('403 for a principal without the capability', async () => {
     await expectProblem(await post(useCase, example, 'Bearer caps:'), 403, 'forbidden');
   });
+
+  // A use case with `alsoRequires` needs all of them: holding some is still a refusal.
+  if (requiredCapabilities(useCase).length > 1)
+    it('403 for a principal with only part of the required capabilities', async () => {
+      const operator = useCase.actors?.includes('operator') ? 'operator-' : '';
+      for (const part of properSubsets(requiredCapabilities(useCase)))
+        await expectProblem(
+          await post(useCase, example, `Bearer ${operator}caps:${part.join(',')}`),
+          403,
+          'forbidden'
+        );
+    });
 
   it('400 Problem Details with issues for a schema violation and for a non-JSON body', async () => {
     for (const body of [SCHEMA_VIOLATION, '{not json']) {
