@@ -40,6 +40,7 @@ CI does not run `verify` as one command (`.github/workflows/verify.yml`). Job `c
 - **A tenant is one site; an organisation with several sites has several tenants; nothing is shared across tenants by default** (ADR 017).
 - **Scheduled publish pins a revision; saves carry `baseRevisionId`; a sent newsletter is an immutable edition; write, publish, send and export are separate capabilities; the teaser is explicit; access and caching apply to every representation; readiness is per locale** (ADR 018).
 - **A save on an older base is a three-way merge per field, locale and block id; only a value both changed is a conflict; a block operation on an older base is rebased when its block and place are unchanged; author and section updates carry `baseUpdatedAt`; a merge or rebase is recorded in the revision's provenance** (ADRs 026, 027).
+- **A campaign (petition, signup, later fundraiser) is a domain entity with one public landing `page` that owns all copy and publication; the campaign owns participation (open/closed, checked again at submit), a confirmed deduplicated participation per supporter and an aggregate counter; cards reference it live, never copy it** (ADR 033).
 - **Supporters have a stable id; the projection is a fold in `occurred_at` order under a per-supporter lock; time-dependent state is evaluated at read time; external effects get an intent row, a provider idempotency key and reconciliation before retry; reader activity has a retention setting; erasure covers every copy** (ADR 019).
 
 ## Layout

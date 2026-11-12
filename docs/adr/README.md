@@ -37,3 +37,4 @@ The contract the code is built against. How a decision gets here, and when one i
 | 030 | [Deleting content moves it to a trash](030-content-deletion-is-a-trash.md)                                                             | accepted |
 | 031 | [An author is a role of a person](031-people-register.md)                                                                              | accepted |
 | 032 | [Erasure ends a lifecycle; explicit readmission starts another](032-erasure-and-explicit-readmission.md)                               | accepted |
+| 033 | [A campaign is a participation entity with one landing page and referencing cards](033-campaign-identity-and-participation.md)         | accepted |
