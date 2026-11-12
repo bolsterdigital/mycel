@@ -36,6 +36,17 @@ export const INSERTABLE_BLOCK_TYPES: readonly BlockType[] = BLOCK_TYPES.filter(
   (type) => type !== 'hero'
 );
 
+/**
+ * The types this document can still take: `INSERTABLE_BLOCK_TYPES` without a second `paywall`,
+ * since the marker teaser takes exactly one and an insert of another is refused. One place for
+ * the rule, so a picker never offers what core refuses. Rejected: filtering in each front.
+ */
+export function insertableBlockTypes(blocks: readonly { type: string }[]): readonly BlockType[] {
+  return blocks.some((b) => b.type === 'paywall')
+    ? INSERTABLE_BLOCK_TYPES.filter((type) => type !== 'paywall')
+    : INSERTABLE_BLOCK_TYPES;
+}
+
 /** The props of one type as stored (defaults applied) and as a caller may send them. */
 export type BlockProps<K extends BlockType> = z.infer<Definitions[K]['props']>;
 export type BlockPropsInput<K extends BlockType> = z.input<Definitions[K]['props']>;
