@@ -61,6 +61,9 @@ export const ADMIN_ROUTES: GateRoute[] = [
     folds: true,
   },
   { path: '/admin/probe/content/new' },
+  // Campaigns under Content: the list (empty or not, whatever ran before) and the start.
+  { path: '/admin/probe/campaigns', within: 'main' },
+  { path: '/admin/probe/campaigns/new', within: 'main' },
   ...['overview', 'overview?view=list', 'detail', 'edit', 'settings', 'form', 'states'].map(
     (pattern) => ({ path: `/admin/probe/_ui/${pattern}`, folds: true })
   ),

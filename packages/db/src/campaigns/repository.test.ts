@@ -66,6 +66,25 @@ describe.skipIf(skip)('campaigns through Postgres', () => {
     await owner.destroy();
   });
 
+  it('composes form, page and campaign in one transaction', async () => {
+    const forms = async () =>
+      (await invoker.run(useCases.listForms, admin, {})).forms.map((f) => f.id);
+    const compose = (slug: string) =>
+      invoker.run(useCases.composeCampaign, admin, {
+        kind: 'petition',
+        title: { nl: 'Samen' },
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        slug,
+      });
+    const made = await compose('samen-tekenen');
+    const before = await forms();
+    expect(before).toContain(made.formId);
+    // The slug is taken after the form was made: the whole transaction rolls back.
+    await expectCode(compose('samen-tekenen'), 'conflict');
+    expect(await forms()).toEqual(before);
+  });
+
   it('creates, moves the window, opens, closes and archives on the stored row', async () => {
     const landing = await page(admin, 'teken');
     const form = await invoker.run(useCases.createForm, admin, { kind: 'petition' });

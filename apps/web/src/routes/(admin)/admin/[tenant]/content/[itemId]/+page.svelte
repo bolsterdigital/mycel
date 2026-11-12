@@ -4,6 +4,8 @@
 <script lang="ts">
   import ArticleBlocks from '#lib/editor/article/ArticleBlocks.svelte';
   import AuthorPicker from '#lib/admin/people/AuthorPicker.svelte';
+  import CampaignPanel from '#lib/admin/campaigns/CampaignPanel.svelte';
+  import EditorShortcuts from '#lib/editor/EditorShortcuts.svelte';
   import { onMount } from 'svelte';
   import { earlyInput } from '#lib/editor/early-input.js';
   import { editorFieldIssues, typedOver } from '#lib/editor/block-form.js';
@@ -1315,6 +1317,7 @@
   {/snippet}
 
   {#snippet aside()}
+    {#if data.campaign}<CampaignPanel {...data.campaign} locale={data.locale} />{/if}
     {#if mainPublication || others.length}
       <PublicationDrawer
         id="publication-panel"
@@ -1427,22 +1430,7 @@
         <a href="{base}/content/{data.item.id}/revisions">{t('admin.content.revisions')}</a>
       </p>
     </section>
-    {#if data.canWrite}
-      <!-- Every key here is the screen's script; without it the panel stays hidden. -->
-      <details class="ui-fold item-shortcuts" data-shortcuts>
-        <summary>{t('admin.content.keys.title')}</summary>
-        <dl>
-          <dt><kbd>Ctrl</kbd>+<kbd>S</kbd> / <kbd>⌘</kbd>+<kbd>S</kbd></dt>
-          <dd>{t('admin.content.keys.save')}</dd>
-          <dt><kbd>Esc</kbd></dt>
-          <dd>{t('admin.content.keys.escape')}</dd>
-          <dt><kbd>Enter</kbd></dt>
-          <dd>{t('admin.content.keys.search')}</dd>
-          <dt><kbd>?</kbd></dt>
-          <dd>{t('admin.content.keys.open')}</dd>
-        </dl>
-      </details>
-    {/if}
+    {#if data.canWrite}<EditorShortcuts locale={data.locale} />{/if}
   {/snippet}
 </EditPage>
 
@@ -1473,15 +1461,6 @@
   }
   .native-block[hidden] {
     display: none;
-  }
-  .item-shortcuts dl {
-    display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
-    gap: var(--space-1) var(--space-3);
-    margin: var(--space-2) 0 0;
-  }
-  .item-shortcuts dd {
-    margin: 0;
   }
   /* The notice's words and its "Undo" share a line while both fit, and wrap otherwise. */
   .item-undo {

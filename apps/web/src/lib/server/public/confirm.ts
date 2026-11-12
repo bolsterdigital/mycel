@@ -19,11 +19,42 @@ export const CONFIRM_HEADERS = { 'cache-control': NO_STORE, 'referrer-policy': '
 
 export type Outcome = ConfirmResult['status'];
 
-export const OUTCOME_COPY: Record<Outcome, { title: UiKey; body: UiKey }> = {
+/** What the link confirms; a link that confirms only a campaign signature says so (B2 review R1). */
+export type Purpose = NonNullable<ConfirmResult['purpose']>;
+
+type Copy = { title: UiKey; body: UiKey };
+
+const SUBSCRIPTION: Record<Outcome | 'pending', Copy> = {
+  pending: { title: 'confirm.pending.title', body: 'confirm.pending.body' },
   confirmed: { title: 'confirm.ok.title', body: 'confirm.ok.body' },
   already_confirmed: { title: 'confirm.already.title', body: 'confirm.already.body' },
   invalid: { title: 'confirm.invalid.title', body: 'confirm.invalid.body' },
 };
+
+const PARTICIPATION: Record<Outcome | 'pending', Copy> = {
+  pending: {
+    title: 'confirm.participation.pending.title',
+    body: 'confirm.participation.pending.body',
+  },
+  confirmed: { title: 'confirm.participation.ok.title', body: 'confirm.participation.ok.body' },
+  already_confirmed: {
+    title: 'confirm.participation.already.title',
+    body: 'confirm.participation.already.body',
+  },
+  invalid: SUBSCRIPTION.invalid,
+};
+
+/** The copy of a state of the flow, in the words of what the link confirms. */
+export const confirmCopy = (state: Outcome | 'pending', purpose: Purpose | undefined): Copy =>
+  (purpose === 'participation' ? PARTICIPATION : SUBSCRIPTION)[state];
+
+/** The button on the page with the token. */
+export const confirmButton = (purpose: Purpose | undefined): UiKey =>
+  purpose === 'participation' ? 'confirm.participation.pending.button' : 'confirm.pending.button';
+
+/** `?purpose=` of an outcome page; anything else reads as a subscription. */
+export const purposeOf = (value: string | null): Purpose | undefined =>
+  value === 'participation' ? 'participation' : undefined;
 
 /** The path segment of each outcome page; anything else under `confirm/` is a 404. */
 const SEGMENT: Record<Outcome, string> = {
@@ -40,9 +71,17 @@ export const outcomeOf = (segment: string): Outcome | undefined =>
  * in the language the person signed up in. Rejected: the locale as a path prefix
  * (`/en/confirm/...` would compete with the content route's grammar for one page).
  */
-export function outcomePath(site: Site, outcome: Outcome, locale: string | undefined): string {
+export function outcomePath(
+  site: Site,
+  outcome: Outcome,
+  locale: string | undefined,
+  purpose?: Purpose
+): string {
+  const query = new URLSearchParams();
+  if (locale) query.set('locale', locale);
+  if (purpose === 'participation') query.set('purpose', purpose);
   const path = sitePath(site, `/confirm/${SEGMENT[outcome]}`);
-  return locale ? `${path}?locale=${encodeURIComponent(locale)}` : path;
+  return query.size ? `${path}?${query}` : path;
 }
 
 /** The signup's locale when the site still has it, otherwise negotiated like any other page. */

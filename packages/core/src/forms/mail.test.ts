@@ -22,6 +22,8 @@ import { supporterIngestSubscriber } from '../supporters/service.js';
 import { rebuildProjection } from '../supporters/model.js';
 import { reconcileMail } from '../mailing/send-attempts.js';
 import type { FormMailSettings } from './mail-model.js';
+import { PARTICIPATION_REQUESTED } from './events.js';
+import { principal } from '../testing/index.js';
 const FORM = '01900000-0000-7000-8000-00000000f000';
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const admin = systemPrincipal(TENANT, 'form-mail-test');
@@ -384,6 +386,61 @@ describe('form mail actions', () => {
     expect(signup.props).not.toHaveProperty('confirmationCopy');
     expect(await formMailSource(deps())(erased)).toBeNull();
     expect(await formMailSource(deps())(original)).toBeNull();
+  });
+  it('keeps a signature waiting on its own confirmation after consent was confirmed elsewhere', async () => {
+    // B2 review: the participation link waits on the signature, not on consent; R1: a link that
+    // confirms only a signature uses the built-in participation copy, not the form's own
+    // subscription copy, which this form has configured.
+    const editor = principal({
+      capabilities: ['content:read', 'content:write', 'content:publish', 'forms:write'],
+    });
+    const campaign = await invoker.run(useCases.composeCampaign, editor, {
+      kind: 'petition',
+      title: { en: 'Sign' },
+      defaultLocale: 'en',
+      locales: ['en'],
+    });
+    const formId = campaign.formId!;
+    const { item } = await invoker.run(useCases.getItem, editor, {
+      itemId: campaign.landingItemId,
+    });
+    await invoker.run(useCases.publishItem, editor, {
+      itemId: item.id,
+      revisionId: item.latestRevisionId,
+      locale: 'en',
+    });
+    await invoker.run(useCases.openCampaign, editor, {
+      campaignId: campaign.id,
+      baseUpdatedAt: campaign.updatedAt,
+    });
+    const settings = probeFormMail(FORM);
+    settings.forms.push({ ...settings.forms[0]!, formId, actions: [] });
+    await configure(settings);
+    const signed = await invoker.run(useCases.submitForm, admin, {
+      formId,
+      locale: 'en',
+      values: { email: 'signer@example.org', consent: false },
+    });
+    if (signed.status !== 'accepted') throw new Error(JSON.stringify(signed));
+    const requested = uow.store.outbox.find((e) => e.type === PARTICIPATION_REQUESTED)!;
+    expect(requested.props['confirmationCopy']).toBeUndefined();
+    // Consent confirmed elsewhere: a provider, or another link, set the consent fact.
+    await uow.run(admin, (ctx) => ctx.submissions.confirm(signed.submissionId, clock.now()));
+    const source = confirmationMailSource({
+      ...deps(),
+      signer: uow.signer,
+      tenants: new MemoryTenants([probeTenant(TENANT)]),
+      platform: { platformOrigin: 'https://example.org', siteUrlMode: 'path' },
+    });
+    const message = await source(requested);
+    expect(message?.subject).toBe('Confirm your participation with Probe');
+    expect(message?.text).not.toContain('Please confirm.');
+    expect(message?.text).toContain('/confirm?token=');
+    // Its own fact set: the participation link has nothing left to send.
+    await uow.run(admin, (ctx) =>
+      ctx.submissions.confirmParticipation(signed.submissionId, clock.now())
+    );
+    expect(await source(requested)).toBeNull();
   });
   it('does not resolve an inapplicable confirmation template for a contact-only submission', async () => {
     const settings = probeFormMail(FORM);

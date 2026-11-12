@@ -766,6 +766,77 @@ export const en = {
   'admin.audit.op.campaign.close': 'Campaign closed for participation',
   'admin.audit.op.campaign.archive': 'Campaign archived',
   'admin.audit.op.campaign.participation.withdraw': 'Campaign participation withdrawn',
+  'admin.audit.op.campaign.landing.create': 'Campaign started with its page and form',
+  'admin.campaign.title': 'Campaigns',
+  'admin.campaign.new': 'New campaign',
+  'admin.campaign.intro':
+    'Petitions and signups, each with its own page. Write and publish the page as any other; opening participation is a separate step.',
+  'admin.campaign.archivedList': 'Archived campaigns',
+  'admin.campaign.empty': 'No campaigns yet',
+  'admin.campaign.emptyArchived': 'No archived campaigns',
+  'admin.campaign.empty.body':
+    'Start a petition or a signup: it gets its own page with the form on it.',
+  'admin.campaign.showActive': 'Active campaigns',
+  'admin.campaign.showArchived': 'Archived campaigns',
+  'admin.campaign.column.title': 'Title',
+  'admin.campaign.column.kind': 'Kind',
+  'admin.campaign.column.state': 'Participation',
+  'admin.campaign.column.page': 'Page',
+  'admin.campaign.column.count': 'Participants',
+  'admin.campaign.landingTrashed': 'Page in the trash',
+  'admin.campaign.kind.petition': 'Petition',
+  'admin.campaign.kind.signup': 'Signup',
+  'admin.campaign.kind.fundraiser': 'Fundraiser',
+  'admin.campaign.kind.hint':
+    'A petition counts signatures; a signup counts people who join, with the subscription in the same step.',
+  'admin.campaign.state.draft': 'Not opened yet',
+  'admin.campaign.state.open': 'Open',
+  'admin.campaign.state.closed': 'Closed',
+  'admin.campaign.page.published': 'Published ({locales})',
+  'admin.campaign.page.draft': 'Not published',
+  'admin.campaign.count.ofTarget': '{count} of {target}',
+  'admin.campaign.new.intro':
+    'Mycel makes a draft page with the form on it. Nothing is published or opened yet.',
+  'admin.campaign.new.submit': 'Start campaign',
+  'admin.campaign.field.target': 'Goal',
+  'admin.campaign.field.target.hint':
+    'The number of participants you aim for. Leave it empty for no goal.',
+  'admin.campaign.field.opensAt': 'Opens at',
+  'admin.campaign.field.closesAt': 'Closes at',
+  'admin.campaign.field.counterVisible': 'Show the count on the site',
+  'admin.campaign.error.title': 'Give the campaign a title in the main language of the site.',
+  'admin.campaign.error.create':
+    'The campaign could not be started. Check the title and the address.',
+  'admin.campaign.outcome.created':
+    'Campaign started. Write the page, publish it, then open participation here.',
+  'admin.campaign.outcome.saved': 'Campaign saved.',
+  'admin.campaign.outcome.opened':
+    'Participation is open. It counts only while the page is published.',
+  'admin.campaign.outcome.closed':
+    'Participation is closed. The page stays published and shows the result.',
+  'admin.campaign.error.conflict':
+    'Someone changed this campaign in the meantime. Nothing was saved; this is the current state.',
+  'admin.campaign.error.forbidden':
+    'You may not do that. Opening, closing and moving the dates need publishing permission.',
+  'admin.campaign.error.formRequired': 'This campaign has no form, so participation cannot open.',
+  'admin.campaign.error.formKind':
+    'The form on this campaign is of another kind and cannot be used.',
+  'admin.campaign.error.window': 'The closing time must be after the opening time.',
+  'admin.campaign.error.goal': 'The goal must be a whole number above zero.',
+  'admin.campaign.error.archived': 'This campaign is archived and can no longer change.',
+  'admin.campaign.error.invalid': 'Check the dates and the goal: one of them is not valid.',
+  'admin.campaign.archivedHint': 'Archived: participation is closed for good.',
+  'admin.campaign.stateHint.draft': 'Nobody can take part yet, even when the page is published.',
+  'admin.campaign.stateHint.open':
+    'People can take part while the page is published and inside the dates.',
+  'admin.campaign.stateHint.closed': 'Nobody can take part; the page shows the result.',
+  'admin.campaign.windowNeedsPublish':
+    'Only someone with publishing permission can change these dates.',
+  'admin.campaign.openNeedsPublish':
+    'Only someone with publishing permission can open or close participation.',
+  'admin.campaign.action.save': 'Save campaign',
+  'admin.campaign.action.open': 'Open participation',
+  'admin.campaign.action.close': 'Close participation',
   'admin.audit.op.content.person_group.create': 'Person group added',
   'admin.audit.op.content.person_group.update': 'Person group changed',
   'admin.audit.op.content.author.create': 'Author added',
@@ -917,6 +988,15 @@ export const en = {
   'confirm.pending.body':
     'One more step: confirm with the button below. Did you not sign up? Then you need not do anything.',
   'confirm.pending.button': 'Confirm my subscription',
+  'confirm.participation.pending.title': 'Confirm your participation',
+  'confirm.participation.pending.body':
+    'One more step: confirm with the button below and your participation counts. This confirmation is for your participation only. Did you not take part? Then you need not do anything.',
+  'confirm.participation.pending.button': 'Confirm my participation',
+  'confirm.participation.ok.title': 'Participation confirmed',
+  'confirm.participation.ok.body': 'Thank you, your participation counts.',
+  'confirm.participation.already.title': 'Already confirmed',
+  'confirm.participation.already.body':
+    'Your participation was confirmed earlier and counts. Nothing more to do.',
   // Content admin (TODO #11 A1).
   'admin.content.back': 'Back to {site}',
   'admin.content.filter.page': 'Pages',

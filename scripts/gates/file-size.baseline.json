@@ -3,7 +3,7 @@
     "apps/web/src/lib/admin/ui/ui.css": 3200,
     "apps/web/src/lib/admin/ui/ui.test.ts": 1605,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 1178,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.svelte": 1493,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.svelte": 1472,
     "packages/core/src/content/block-types.ts": 1210,
     "packages/core/src/testing/demo-content.ts": 1339
   },

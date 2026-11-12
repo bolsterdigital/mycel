@@ -46,6 +46,8 @@
     path === `${base}/${segment}` || path.startsWith(`${base}/${segment}/`);
   /** Pages and articles are separate menu items (editor trial 2026-10-28): every content route
    * says which type it shows as `contentType` in its page data, the editor and writer included. */
+  /** The editor of a campaign's landing page sits under Campaigns, not Pages. */
+  const campaignPage = $derived(!!(page.data as { campaign?: unknown }).campaign);
   const contentType = $derived(
     (page.data as { contentType?: unknown }).contentType === 'article' ? 'article' : 'page'
   );
@@ -82,9 +84,18 @@
           href: `${base}/content?type=${type}`,
           label: t(type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article'),
           icon: type === 'page' ? 'panels-top-left' : 'square-pen',
-          current: within('content') && contentType === type,
+          current: within('content') && contentType === type && !campaignPage,
         }))
       : [];
+    // Campaigns are content under Content (navigation choice 2026-10-31), after the two
+    // stored types they are built from.
+    if (has('content:read'))
+      content.push({
+        href: `${base}/campaigns`,
+        label: t('admin.campaign.title'),
+        icon: 'megaphone',
+        current: within('campaigns') || campaignPage,
+      });
     if (has('content:read'))
       content.push({
         href: `${base}/people`,

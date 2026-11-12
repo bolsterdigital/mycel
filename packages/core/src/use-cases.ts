@@ -43,11 +43,13 @@ import {
   closeCampaign,
   createCampaign,
   getCampaign,
+  getLandingCampaign,
   listCampaigns,
   openCampaign,
   updateCampaign,
   withdrawParticipation,
 } from './campaigns/service.js';
+import { composeCampaign } from './campaigns/compose.js';
 import {
   createConnection,
   disconnectConnection,
@@ -232,11 +234,13 @@ export const useCases = {
   getHeroConversion,
   findItems,
   createCampaign,
+  composeCampaign,
   updateCampaign,
   openCampaign,
   closeCampaign,
   archiveCampaign,
   getCampaign,
+  getLandingCampaign,
   listCampaigns,
   withdrawParticipation,
   createPersonGroup,

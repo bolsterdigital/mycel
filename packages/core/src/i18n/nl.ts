@@ -4,6 +4,7 @@
 import type { Messages } from './en.js';
 
 export const nl: Partial<Messages> = {
+  'forms.default.petitionThanks': 'Bedankt! Controleer je mailbox en bevestig je handtekening.',
   'forms.default.signupThanks': 'Bedankt! Controleer je mailbox en bevestig je inschrijving.',
   'forms.default.submit': 'Versturen',
   'forms.default.thankYou': 'Bedankt',

@@ -15,7 +15,8 @@ import { anonymousPrincipal, useCases, type ConfirmPreview } from '@mycel/core';
 import { ui } from '../../../../i18n/index.js';
 import {
   CONFIRM_HEADERS,
-  OUTCOME_COPY,
+  confirmButton,
+  confirmCopy,
   answerLocale,
   outcomePath,
 } from '#lib/server/public/confirm.js';
@@ -42,12 +43,10 @@ export const load: PageServerLoad = async ({ url, request, locals, setHeaders })
   const copy =
     preview.status === 'pending' && site.access.status === 'suspended'
       ? ({ title: 'site.suspended.title', body: 'site.suspended.body' } as const)
-      : preview.status === 'pending'
-        ? ({ title: 'confirm.pending.title', body: 'confirm.pending.body' } as const)
-        : OUTCOME_COPY[preview.status];
+      : confirmCopy(preview.status, preview.purpose);
   const confirm =
-    copy.title === 'confirm.pending.title'
-      ? { action: sitePath(site, '/confirm'), token, label: t('confirm.pending.button') }
+    preview.status === 'pending' && site.access.status !== 'suspended'
+      ? { action: sitePath(site, '/confirm'), token, label: t(confirmButton(preview.purpose)) }
       : null;
   return { title: t(copy.title), body: t(copy.body), confirm };
 };
@@ -71,6 +70,6 @@ export const actions: Actions = {
       const t = ui(answerLocale(site, request, null));
       return fail(403, { title: t('site.suspended.title'), body: t('site.suspended.body') });
     }
-    redirect(303, outcomePath(site, result.status, result.locale));
+    redirect(303, outcomePath(site, result.status, result.locale, result.purpose));
   },
 };
