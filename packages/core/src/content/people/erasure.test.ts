@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { Invoker } from '../../invoke.js';
 import { parseJobPayload } from '../../jobs/types.js';
 import { EXAMPLE_PNG } from '../../media/service.js';
-import { systemPrincipal } from '../../principal.js';
+import { anonymousPrincipal, systemPrincipal } from '../../principal.js';
 import {
   FakeClock,
   MemoryBlobStore,
@@ -158,6 +158,7 @@ describe('content.person.erase in memory', () => {
         name,
         email: `${slug}@example.org`,
         bio: { nl: `${name} bio`, en: `${name} bio` },
+        pagePolicy: 'always',
       })
     ).id;
   }
@@ -245,7 +246,15 @@ describe('content.person.erase in memory', () => {
     ]);
 
     expect(tenantJson()).toContain(SAM);
+    const profile = () =>
+      invoker.run(useCases.getPublicPerson, anonymousPrincipal(TENANT, ['content:read']), {
+        slug: 'sam',
+        locale: 'nl',
+      });
+    await expect(profile()).resolves.toMatchObject({ person: { name: SAM } });
     expect(await apply()).toBeGreaterThan(0);
+    // The same 404 as an unknown person (ADR 031 rule 5).
+    await expectCode(profile(), 'not_found');
     const json = tenantJson();
     expect(json).not.toContain(SAM);
     expect(json).not.toContain('sam@example.org');
