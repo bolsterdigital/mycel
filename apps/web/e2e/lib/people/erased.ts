@@ -36,7 +36,12 @@ export async function exerciseErasedAuthor(page: Page, request: APIRequestContex
   await applyErasuresOf();
   await login(page, `/admin/probe/content/${item.id}`);
   const authors = page.locator('#authors');
-  const absent = authors.getByLabel(`Niet meer in het register (${person.id.slice(0, 8)})`);
+  // The operator's language may be either after other tests; the label says the same in both.
+  const absent = authors.getByLabel(
+    new RegExp(
+      `^(Niet meer in het register|No longer in the register) \\(${person.id.slice(0, 8)}\\)$`
+    )
+  );
   await expect(absent).toBeChecked();
   await expect(authors).not.toContainText(`Gewist ${run}`);
   await expectNoAxeViolations(page);
@@ -44,7 +49,7 @@ export async function exerciseErasedAuthor(page: Page, request: APIRequestContex
   await setTextSize(page, '200%');
   await layoutGate(page, 'erased author', '#authors');
   await absent.uncheck();
-  await page.getByRole('button', { name: 'Opslaan' }).click();
+  await page.getByRole('button', { name: /^(Opslaan|Save)$/ }).click();
   await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
   const { revision } = await callApi<{ revision: { document: { authorIds: string[] } } }>(
     request,
