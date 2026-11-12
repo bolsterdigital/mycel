@@ -32,7 +32,7 @@ import {
   pick,
   proposeHeroConversion,
   BLOCK_DEFINITIONS,
-  INSERTABLE_BLOCK_TYPES,
+  insertableBlockTypes,
   UseCaseError,
   ContentDocumentInput,
   can,
@@ -245,13 +245,8 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
       values: prefixed(blockFormValues(b.type, b.props, shown), blockPrefix(b.id)),
     })),
     openBlocks: (url.searchParams.get('block') ?? '').split(','),
-    /**
-     * No `hero`: the document header is the only header new content gets (ADR 025). No second
-     * `paywall`: the marker teaser takes exactly one, and core would refuse it (#230).
-     */
-    blockTypes: doc.blocks.some((b) => b.type === 'paywall')
-      ? INSERTABLE_BLOCK_TYPES.filter((type) => type !== 'paywall')
-      : INSERTABLE_BLOCK_TYPES,
+    /** No `hero` (ADR 025) and no second `paywall`. */
+    blockTypes: insertableBlockTypes(doc.blocks),
     pending:
       canWrite && pending && shown.length ? pendingView(pending, shown, undefined, dropped) : null,
     invalidInsert: !!url.searchParams.get('insert') && !pending,

@@ -17,7 +17,7 @@
 // it canonical), and rebasing through the three-way merge of a save, which would put an insert
 // after a block someone else rewrote and merge a props patch into props it never read.
 // The one document field an operation changes is the teaser, when a paywall comes or goes
-// (`teaserFollowing`, #230).
+// (`teaserFollowing`); on an older base that change needs a teaser nobody moved since.
 
 import { z } from 'zod';
 import { notFound, UseCaseError } from '../errors.js';
@@ -205,7 +205,10 @@ async function mutate(
     if (!newest) throw notFound('revision');
     const moved = shifted(base.document.blocks, newest.document.blocks, footing);
     if (moved.length) throw mergeConflict(item.latestRevisionId, moved);
+    const onBase = applied;
     applied = attempt(newest.document.blocks, apply);
+    const teaser = teaserMoved(base.document, onBase.blocks, newest.document, applied.blocks);
+    if (teaser) throw mergeConflict(item.latestRevisionId, [teaser]);
     on = newest.document;
     provenance = { merged: { baseRevisionId, latestRevisionId: item.latestRevisionId } };
   }
@@ -222,7 +225,7 @@ const paywalls = (blocks: readonly Block[]) =>
   allBlocks(blocks).filter((b) => b.type === 'paywall').length;
 
 /**
- * The teaser after a block operation (#230). Placing the first `paywall` block is the editor
+ * The teaser after a block operation. Placing the first `paywall` block is the editor
  * choosing the marker teaser (ADR 018 rule 6: everything above the boundary the editor places), so
  * the same revision sets `marker`, whatever teaser it replaces; removing the last one while the
  * teaser is `marker` falls back to the default `lead`. Every other operation keeps the teaser.
@@ -242,6 +245,28 @@ function teaserFollowing(
   if (was > 0 && is === 0 && doc.access.teaser === 'marker')
     return { ...doc.access, teaser: 'lead' };
   return doc.access;
+}
+
+/**
+ * On an older base, an operation that changes the teaser relies on the teaser it read: when
+ * someone set another one since, writing ours would overwrite a value both changed (ADR 026), on
+ * the access boundary. That is a `conflict` on `access.teaser`, like a block whose footing moved
+ * (ADR 027 rule 1). An operation that leaves the teaser alone, or a teaser nobody moved, rebases.
+ * Rejected: following the newest teaser silently, which turned a `{ blocks: n }` chosen with the
+ * preview open into the marker.
+ */
+function teaserMoved(
+  base: ContentDocument,
+  onBase: readonly Block[],
+  newest: ContentDocument,
+  onNewest: readonly Block[]
+): MergeConflict | null {
+  const changes = (doc: ContentDocument, blocks: readonly Block[]) =>
+    canonicalJson(teaserFollowing(doc, blocks).teaser) !== canonicalJson(doc.access.teaser);
+  if (canonicalJson(base.access.teaser) === canonicalJson(newest.access.teaser)) return null;
+  if (!changes(base, onBase) && !changes(newest, onNewest)) return null;
+  const mine = teaserFollowing(base, onBase).teaser;
+  return { path: 'access.teaser', base: base.access.teaser, mine, theirs: newest.access.teaser };
 }
 
 /** Move and remove can bring two text blocks together; they merge into the first. */
