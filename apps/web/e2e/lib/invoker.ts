@@ -10,6 +10,7 @@
 import { Invoker, buildRegistry, type UnitOfWork } from '@mycel/core';
 import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
 import {
+  applyErasures,
   createDb,
   createTenantDirectory,
   createUnitOfWork,
@@ -60,6 +61,16 @@ export async function asOwner<T>(fn: (owner: Db) => Promise<T>): Promise<T> {
   } finally {
     await owner.destroy();
   }
+}
+
+/**
+ * What the worker's `person.erase` and `supporter.erase` jobs do: apply the tenant's erasure
+ * registers on the owner's connection, which may enter mycel_erasure. A spec that needs the
+ * outcome of an erasure runs it here instead of waiting for the worker.
+ */
+export async function applyErasuresOf(slug = 'probe'): Promise<number> {
+  const id = await tenantId(slug);
+  return asOwner((owner) => applyErasures(owner, id));
 }
 
 /** The id of a seeded tenant, `probe` unless named. */

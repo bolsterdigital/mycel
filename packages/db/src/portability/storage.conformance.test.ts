@@ -24,9 +24,21 @@ describe.skipIf(skip)('storage catalog against the schema', () => {
       ['audit_log.actor_kind', 'the kind of actor, no person'],
       ['content_presence.actor_kind', 'the kind of actor, no person'],
       ['operators.email_verified_at', 'a timestamp, no person'],
+      ['tenants.name', 'the name of the organisation that runs the site, no person'],
+      ['tenant_directory.name', 'the same organisation name, through the view'],
+      ['tenants.entitlements', 'features and limits, no person'],
+      ['site_settings.theme', 'validated theme values, no free text'],
+      ['site_settings.images', 'media ids of the default images, no person'],
+      ['site_settings.retention', 'a number of months, no person'],
+      ['media.focal', 'a point in the image, no person'],
+      ['media.variants', 'derivative names, formats and sizes, no person'],
+      ['connections.consent_scopes', 'scope names of a connection, no person'],
+      ['form_feed_settings.value', 'feed configuration: ids, scopes and field mappings'],
+      ['campaigns.goal', 'a number to reach, no person (ADR 033)'],
     ]);
-    const { rows } = await sql<{ rel: string; col: string }>`
-      select c.relname as rel, a.attname as col from pg_class c
+    const { rows } = await sql<{ rel: string; col: string; json: boolean }>`
+      select c.relname as rel, a.attname as col,
+             format_type(a.atttypid, a.atttypmod) in ('json', 'jsonb') as json from pg_class c
       join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
       where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p', 'v')
         and not c.relispartition and c.relname <> 'schema_migrations'`.execute(operatorDb);
@@ -42,10 +54,12 @@ describe.skipIf(skip)('storage catalog against the schema', () => {
       [...listed].filter((f) => !columns.has(f)),
       'catalog fields that are no column'
     ).toEqual([]);
+    // A name, title or other typed text, and any JSON, may name someone (R2 of the D review).
     const personShaped =
-      /(email|phone|subscriber|^actor|_by$|ip_hash|member_hash|supporter_id|person_id|operator_id)/;
+      /(email|phone|subscriber|^actor|_by$|ip_hash|member_hash|supporter_id|person_id|operator_id|(^|_)name$|title|caption|description|note)/;
+    const json = new Set(rows.filter((r) => r.json).map((r) => `${r.rel}.${r.col}`));
     const unlisted = [...columns]
-      .filter((f) => personShaped.test(f.split('.')[1]!))
+      .filter((f) => personShaped.test(f.split('.')[1]!) || json.has(f))
       .filter((f) => !listed.has(f) && !reviewed.has(f));
     expect(unlisted, 'person-shaped columns outside the storage catalog').toEqual([]);
   });

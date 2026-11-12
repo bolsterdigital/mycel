@@ -408,6 +408,13 @@ export function jobHandlers({
       // Archives the apply expired lose their file now, not at the next daily expire.
       if (exports) await expireExports(operatorDb, exports.blobs, job.tenantId, mail.clock.now());
     },
+    // ADR 034: the same per-tenant apply, planned by `content.person.erase`; same rules as above.
+    'person.erase': async (job) => {
+      if (job.tenantId === null) throw new Error('person.erase is a tenant job but has no tenant');
+      parseJobPayload('person.erase', job.payload);
+      await applyErasures(operatorDb, job.tenantId);
+      if (exports) await expireExports(operatorDb, exports.blobs, job.tenantId, mail.clock.now());
+    },
     'erasures.apply': platformJob('erasures.apply', () =>
       applyAllErasures(operatorDb, tenantIds, errors)
     ),

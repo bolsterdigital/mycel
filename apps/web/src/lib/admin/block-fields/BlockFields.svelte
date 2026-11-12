@@ -26,6 +26,7 @@
   import { Button, Checkbox, Choices, Field, Fieldset, Icon, MediaPicker } from '../ui/index.js';
   import type { MediaChoice } from '../media-choice.js';
   import { fill, ui, type UiKey } from '../../../i18n/index.js';
+  import { shortId, withAbsent } from '../people/absent.js';
 
   interface Option {
     id: string;
@@ -105,6 +106,8 @@
   const fields = $derived(suppliedFields ?? (block ? BLOCK_DEFINITIONS[block.type].fields : []));
   const imageDescription = $derived(suppliedDescription ?? block?.image?.description);
   const t = $derived(ui(locale));
+  /** An erased person's id still in the block (ADR 034): shown, removable, never offered. */
+  const absentLabel = (id: string) => fill(t('admin.people.absent'), { id: shortId(id) });
   /** The edit screen's `arrange` action, in the locale the form shows, as every action carries. */
   const arrange = $derived(`?/arrange&locale=${encodeURIComponent(locales[0] ?? '')}`);
   const label = (key: string) => t(`admin.block.field.${key}` as UiKey);
@@ -321,7 +324,12 @@
       selected={[v(name)]}
       options={[
         { value: '', label: t('admin.block.none') },
-        ...(references?.people ?? people).map((p) => ({ value: p.id, label: p.label })),
+        ...withAbsent(
+          (references?.people ?? people).map((p) => ({ value: p.id, label: p.label })),
+          (o) => o.value,
+          [v(name)],
+          (absent) => ({ value: absent, label: absentLabel(absent) })
+        ),
       ]}
     />
   {:else if f.kind === 'reference' && (f.to === 'person' || f.to === 'person_group')}
@@ -329,7 +337,15 @@
       name,
       label(f.key),
       f.to === 'person'
-        ? (references?.people ?? people)
+        ? withAbsent(
+            references?.people ?? people,
+            (o) => o.id,
+            [v(name)],
+            (absent) => ({
+              id: absent,
+              label: absentLabel(absent),
+            })
+          )
         : (references?.personGroups ?? personGroups),
       t('admin.block.none')
     )}

@@ -49,6 +49,7 @@ import {
   type StoredVariant,
 } from './model.js';
 import './ports.js';
+import { knownPerson, withoutErasedCredits } from '../content/people/erasure.js';
 import { exampleId } from '../util/ids.js';
 
 const MediaId = z.string().guid();
@@ -309,6 +310,9 @@ export const uploadMedia = defineUseCase({
     },
   ],
   async handler(ctx, input) {
+    // N3 of the ADR 034 merge review: a new file is not credited to an erased person. Unlike a
+    // save of existing content (rule 7) there is no attribution to keep, so a registered id is
+    // refused like an unknown one; pickers never offer it.
     if (
       input.credit?.photographerPersonId &&
       !(await ctx.authors.get(input.credit.photographerPersonId))
@@ -457,9 +461,12 @@ export const updateMedia = defineUseCase({
   ],
   async handler(ctx, { id, ...patch }) {
     await requireMedia(ctx, id);
+    // ADR 034 rules 4 and 7: a registered person id is a known-absent reference, and its credit
+    // is stored without the free-text name, also when a stale form sends it.
+    if (patch.credit) patch.credit = await withoutErasedCredits(ctx, patch.credit);
     if (
       patch.credit?.photographerPersonId &&
-      !(await ctx.authors.get(patch.credit.photographerPersonId))
+      !(await knownPerson(ctx, patch.credit.photographerPersonId))
     )
       throw notFound('person');
     const changes = Object.fromEntries(

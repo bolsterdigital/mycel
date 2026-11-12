@@ -62,6 +62,7 @@ export { finalize, assertBase, requireBlockTypes, prepareItemSave } from './merg
 import { newRevision, storeRevision } from './revisions/write.js';
 export { restoreRevision } from './revisions/write.js';
 import { iso } from '../util/date.js';
+import { knownPerson, withoutErasedCredits } from './people/erasure.js';
 import { exampleId } from '../util/ids.js';
 
 export const DEFAULT_PAGE_SIZE = 20;
@@ -190,7 +191,7 @@ export async function blockReferenceIssues(
     if (!(await ctx.forms.findById(id)))
       issues.push({ path, message: 'content.reference.form-unknown', params: { id } });
   for (const id of refs.people)
-    if (!(await ctx.authors.get(id)))
+    if (!(await knownPerson(ctx, id)))
       issues.push({ path, message: 'content.reference.author-unknown', params: { id } });
   for (const id of refs.personGroups)
     if (!(await ctx.personGroups.get(id)))
@@ -276,7 +277,7 @@ export async function referenceIssues(
   }
   if (doc.type === 'article') {
     for (const id of doc.authorIds)
-      if (!(await ctx.authors.get(id)))
+      if (!(await knownPerson(ctx, id)))
         issues.push({
           path: 'authorIds',
           message: 'content.reference.author-unknown',
@@ -398,7 +399,8 @@ async function insertDraft(
 ) {
   const now = ctx.clock.now();
   const itemId = ctx.ids.next();
-  const revision = newRevision(ctx, itemId, doc, now);
+  // ADR 034 rule 4: a new item stores no name beside an erased person's credit either.
+  const revision = newRevision(ctx, itemId, await withoutErasedCredits(ctx, doc), now);
   const item: ItemRecord = {
     id: itemId,
     type: doc.type,

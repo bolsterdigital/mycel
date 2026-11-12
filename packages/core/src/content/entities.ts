@@ -30,6 +30,7 @@ import {
   requireBlockTypes,
 } from './service.js';
 import './ports.js';
+import { withoutErasedCredits } from './people/erasure.js';
 import { exampleId } from '../util/ids.js';
 
 const Limit = z.number().int().min(1).max(MAX_PAGE_SIZE).optional();
@@ -256,13 +257,16 @@ function withIds(ctx: TransactionContext, blocks: readonly BlockInput[]) {
  */
 async function savePatternBlocks(
   ctx: TransactionContext,
-  pattern: Pattern,
-  write: () => Promise<void>
+  given: Pattern,
+  write: (pattern: Pattern) => Promise<void>
 ): Promise<Pattern> {
+  // ADR 034 rule 4: a pattern stores no name beside an erased person's credit (N1 of the merge
+  // review); the reference check lets the registered id through (rule 7).
+  const pattern = { ...given, blocks: await withoutErasedCredits(ctx, given.blocks) };
   const issues = await blockReferenceIssues(ctx, pattern.blocks);
   if (issues.length)
     throw new UseCaseError('invalid_input', 'the pattern references unknown data', issues);
-  await write();
+  await write(pattern);
   await recordMediaUsages(ctx, `pattern:${pattern.id}`, pattern.blocks, []);
   return pattern;
 }
@@ -294,7 +298,7 @@ export const createPattern = defineUseCase({
       createdAt: now,
       updatedAt: now,
     };
-    return savePatternBlocks(ctx, pattern, () => ctx.patterns.insert(pattern));
+    return savePatternBlocks(ctx, pattern, (p) => ctx.patterns.insert(p));
   },
 });
 
@@ -327,7 +331,7 @@ export const updatePattern = defineUseCase({
       createdAt: current.createdAt,
       updatedAt: stamp(ctx),
     };
-    return savePatternBlocks(ctx, pattern, () => ctx.patterns.update(pattern));
+    return savePatternBlocks(ctx, pattern, (p) => ctx.patterns.update(p));
   },
 });
 

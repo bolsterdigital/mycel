@@ -100,6 +100,8 @@ export const TABLES = {
   api_keys: 'operational',
   audit_log: 'export',
   erasures: 'export',
+  // The person register (ADR 034 rule 2): a set of its own beside the supporter register.
+  person_erasures: 'export',
   outbox: 'operational',
   jobs: 'operational',
   mail_sends: 'operational',
@@ -154,6 +156,7 @@ export const EXPORT_ORDER: readonly ExportTable[] = [
   'tenant_memberships',
   'audit_log',
   'erasures',
+  'person_erasures',
 ];
 
 export const sha256 = (data: string | Uint8Array) =>

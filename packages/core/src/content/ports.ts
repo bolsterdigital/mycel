@@ -199,8 +199,26 @@ export interface PersonGroupRepository {
   insert(group: PersonGroup): Promise<void>;
   update(group: PersonGroup, baseUpdatedAt: string): Promise<boolean>;
 }
+/**
+ * The person register of ADR 034 (migration 0050): append-only, one row per erased person id,
+ * never an address. `register` takes the tenant's person-erasure lock exclusively and `guard`
+ * takes it shared, so a write that stores a credit and a registration serialise: a write that
+ * guarded before the registration commits first, one that guards after it reads the new row
+ * (ADR 034 rule 4). Applying the register is `ctx.erasures.apply()`, the same per-tenant run as
+ * for supporters.
+ */
+export interface PersonErasureRepository {
+  /** Appends the ids that are not yet registered; returns the ones it appended. */
+  register(personIds: readonly string[]): Promise<string[]>;
+  /** Shared lock against `register`, held until commit; take it before reading the register. */
+  guard(): Promise<void>;
+  /** Which of `ids` are registered. */
+  registered(ids: Iterable<string>): Promise<Set<string>>;
+  get(personId: string): Promise<{ registeredAt: Date } | null>;
+}
 declare module '../ports.js' {
   interface TransactionContext {
+    personErasures: PersonErasureRepository;
     personGroups: PersonGroupRepository;
     content: ContentRepository;
     bulkPlans: BulkPlanRepository;

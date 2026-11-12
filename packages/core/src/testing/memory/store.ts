@@ -113,6 +113,8 @@ export interface TenantStore {
   /** `erasures` (0019), keyed by supporter id: the hash of the address, never the address. */
   supporterLifecycles: Map<string, import('../../supporters/lifecycle.js').SupporterLifecycle>;
   erasures: Map<string, { emailHash: string; erasedAt: Date; actor: Principal['actor'] }>;
+  /** `person_erasures` (0050, ADR 034), keyed by person id: append-only, never an address. */
+  personErasures: Map<string, { erasedAt: Date; actor: Principal['actor'] }>;
   /**
    * `erasure_backups` (0021), keyed by supporter id. Only the backup writes it over Postgres; a
    * suite marks a registration secured with `secureErasures`.
@@ -179,6 +181,7 @@ const emptyTenant = (): TenantStore => ({
   audit: [],
   supporterLifecycles: new Map(),
   erasures: new Map(),
+  personErasures: new Map(),
   erasureBackups: new Map(),
   exports: new Map(),
 });

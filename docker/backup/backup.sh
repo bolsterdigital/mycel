@@ -93,6 +93,9 @@ if [ "$mode" = erasures ]; then
   # reads them back by name, whatever a later migration adds to the table.
   psql --no-psqlrc --quiet --set=ON_ERROR_STOP=1 --command="\\copy (select tenant_id, supporter_id, email_hash, erased_at, actor from erasures order by tenant_id, supporter_id) to '${erasures_path}/erasures.copy'"
   say "register: $(wc -l <"${erasures_path}/erasures.copy" | tr -d ' ') registrations"
+  # The person register (ADR 034, 0050) as a set of its own beside it, in the same snapshot.
+  psql --no-psqlrc --quiet --set=ON_ERROR_STOP=1 --command="\\copy (select tenant_id, person_id, erased_at, actor from person_erasures order by tenant_id, person_id) to '${erasures_path}/person-erasures.copy'"
+  say "person register: $(wc -l <"${erasures_path}/person-erasures.copy" | tr -d ' ') registrations"
   id=$(snapshot --tag mycel --tag erasures "$erasures_path")
   secure "${erasures_path}/erasures.copy" "$id"
   # Cumulative: the newest snapshot holds every registration; the rest is margin.

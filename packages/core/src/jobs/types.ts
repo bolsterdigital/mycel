@@ -67,6 +67,11 @@ export const JobPayloads = {
    */
   'supporter.erase': z.object({ supporterId: z.string().guid() }).strict(),
   /**
+   * Tenant job: apply this tenant's erasure registers after `content.person.erase` (ADR 034); the
+   * same run as `supporter.erase`. Key `person.erase:<smallest open person id>`.
+   */
+  'person.erase': z.object({ personIds: z.array(z.string().guid()).min(1).max(100) }).strict(),
+  /**
    * Platform job: per tenant, apply the erasure register again. The safety net under
    * `supporter.erase`: a job that exhausted its attempts, a lost wake-up or a register restored
    * without its jobs is erased by the next run instead of waiting for someone to notice.

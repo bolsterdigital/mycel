@@ -50,6 +50,7 @@ import {
   sectionRepository,
 } from './content.js';
 import { erasureRepository } from './erasures.js';
+import { personErasureRepository } from './person-erasures.js';
 import { tenantExportRepository } from './portability/tenant-exports.js';
 import { hostnameRepository } from './hostnames.js';
 import { enterTenant } from './infra/roles.js';
@@ -284,6 +285,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           audit: auditRepository(trx, tenantId),
           inputHasher: deps.inputHasher,
           erasures: erasureRepository(trx, tenantId, principal, deps.clock),
+          personErasures: personErasureRepository(trx, tenantId, principal, deps.clock),
           exports: tenantExportRepository(trx, tenantId),
         });
       });

@@ -7,6 +7,7 @@ import type { ItemRecord } from '../ports.js';
 import { documentMedia, type ContentDocument, type ContentItem, type Revision } from '../model.js';
 import { draftLocale } from '../lifecycle.js';
 import { assertReferences, recordMediaUsages, toContentItem } from '../service.js';
+import { withoutErasedCredits } from '../people/erasure.js';
 
 /** The one shape of a new revision, for a new item and for every write after it. */
 export const newRevision = (
@@ -40,6 +41,10 @@ export async function storeRevision(
   doc: ContentDocument,
   provenance?: Revision['provenance']
 ): Promise<{ item: ContentItem; revision: Revision }> {
+  // ADR 034 rule 4: after any merge and whatever the caller sent, a credit of an erased person
+  // is stored without its free-text name. Every save, block operation, restore and bulk apply or
+  // undo stores its revision here.
+  doc = await withoutErasedCredits(ctx, doc);
   await assertReferences(ctx, doc);
   // ADR 033 rule 5: a landing page bound to a campaign stays public. Every save, restore and
   // bulk write passes here under the item lock, which campaign.create takes too.

@@ -16,6 +16,7 @@
     Notice,
   } from '#lib/admin/ui/index.js';
   import { formatBytes } from '#lib/admin/format.js';
+  import { shortId, withAbsent } from '#lib/admin/people/absent.js';
   import { fill, ui, refusalCopy } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -200,7 +201,12 @@
           selected={[m.credit.photographerPersonId ?? '']}
           options={[
             { value: '', label: t('admin.block.none') },
-            ...data.people.map((person) => ({ value: person.id, label: person.name })),
+            ...withAbsent(
+              data.people.map((person) => ({ value: person.id, label: person.name })),
+              (o) => o.value,
+              [m.credit.photographerPersonId],
+              (id) => ({ value: id, label: fill(t('admin.people.absent'), { id: shortId(id) }) })
+            ),
           ]}
         />
       {:else}

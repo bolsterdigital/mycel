@@ -136,6 +136,7 @@ import { getAttentionSummary, listAttention, updateAttentionSeenAt } from './att
 import { UseCaseRegistry, type UseCase } from './registry.js';
 import { changeSupporterEmail, getSupporter } from './supporters/service.js';
 import { eraseSupporter, getSupporterErasure } from './supporters/erase.js';
+import { erasePeople } from './content/people/erase.js';
 import { checkThemeUseCase } from './theme/service.js';
 import { getBrandAsset, putBrandAsset, removeBrandAsset } from './theme/assets.js';
 import {
@@ -260,6 +261,7 @@ export const useCases = {
   changeSupporterEmail,
   eraseSupporter,
   getSupporterErasure,
+  erasePeople,
   listMembers,
   inviteMember,
   updateMember,
