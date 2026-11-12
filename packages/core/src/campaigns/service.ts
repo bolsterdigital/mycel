@@ -216,6 +216,15 @@ export const openCampaign = defineUseCase({
     if (FORM_KIND_OF[current.kind] === null)
       throw refuse('conflict', 'campaignId', 'campaign.kind.not-available', { kind: current.kind });
     if (!current.formId) throw refuse('conflict', 'formId', 'campaign.form.required');
+    // Rule 3 at the moment it matters: `form.update` can still change a bound form's kind (its own
+    // guard follows with B2), so the form is read again under its lock before participation opens.
+    const form = await ctx.forms.lock(current.formId);
+    if (!form) throw notFound('form');
+    if (FORM_KIND_OF[current.kind] !== form.kind)
+      throw refuse('conflict', 'formId', 'campaign.form.kind-mismatch', {
+        kind: current.kind,
+        formKind: form.kind,
+      });
     if (current.participation.state === 'open') return current;
     return save(
       ctx,

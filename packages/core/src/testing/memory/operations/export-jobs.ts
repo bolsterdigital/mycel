@@ -15,9 +15,9 @@ import {
   type ExportClaim,
   type ExportStep,
   type TenantExportRecord,
-} from '../../tenants/exports.js';
-import type { ExportLifecycle } from '../export-lifecycle.js';
-import { memoryExports } from './tenants.js';
+} from '../../../tenants/exports.js';
+import type { ExportLifecycle } from '../../export-lifecycle.js';
+import { memoryExports } from '../tenants.js';
 
 class MemoryExportJobs {
   /** The archive files that exist, by `exportArchiveKey`. */

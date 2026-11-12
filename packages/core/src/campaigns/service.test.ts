@@ -1,7 +1,7 @@
 // The campaign rules of ADR 033 over the memory adapter: binding (rules 1 and 3), the public
 // landing page (rule 5), archive and trash (rule 9) and the capability split (rule 10).
-// `packages/db/src/campaigns.test.ts` holds the Postgres adapter to the same keys and the tenant
-// boundary.
+// `packages/db/src/campaigns/repository.test.ts` holds the Postgres adapter to the same keys and
+// the tenant boundary.
 
 import { describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';
@@ -197,6 +197,39 @@ describe('a campaign (ADR 033)', () => {
     ).toBe(c.landingItemId);
   });
 
+  it('refuses to publish or plan a restricted revision from before the binding (rule 5)', async () => {
+    const { clock, invoker, admin } = setup();
+    const { item, revision: closed } = await invoker.run(useCases.createItem, admin, {
+      slug: 'eerst-leden',
+      document: doc('page', 'Eerst leden', MEMBERS) as never,
+    });
+    const { revision: open } = await invoker.run(useCases.updateItem, admin, {
+      itemId: item.id,
+      baseRevisionId: closed.id,
+      document: { ...closed.document, access: { level: 'public' } } as never,
+    });
+    await invoker.run(useCases.createCampaign, admin, { kind: 'signup', landingItemId: item.id });
+    const target = { itemId: item.id, revisionId: closed.id, locale: 'nl' };
+    await expectCode(
+      invoker.run(useCases.publishItem, admin, target),
+      'conflict',
+      'campaign.landing.restricted'
+    );
+    const at = new Date(clock.now().getTime() + 86_400_000).toISOString();
+    await expectCode(
+      invoker.run(useCases.scheduleItem, admin, { ...target, at }),
+      'conflict',
+      'campaign.landing.restricted'
+    );
+    // The public revision still goes live and can still be planned.
+    await invoker.run(useCases.scheduleItem, admin, { ...target, revisionId: open.id, at });
+    const published = await invoker.run(useCases.publishItem, admin, {
+      ...target,
+      revisionId: open.id,
+    });
+    expect(published.publication[0]?.publishedRevisionId).toBe(open.id);
+  });
+
   it('opens and closes participation without touching publication', async () => {
     const { invoker, admin, campaign } = setup();
     const c = await campaign();
@@ -220,6 +253,27 @@ describe('a campaign (ADR 033)', () => {
       'conflict',
       'campaign.conflict'
     );
+  });
+
+  it('refuses to open when the bound form changed kind after binding (rule 3)', async () => {
+    const { invoker, admin, campaign } = setup();
+    const c = await campaign('van-soort');
+    const { form, version } = await invoker.run(useCases.getFormForAuthoring, admin, {
+      id: c.formId!,
+    });
+    await invoker.run(useCases.updateForm, admin, {
+      baseVersion: version,
+      value: { ...form, kind: 'contact' },
+    });
+    const refused = await expectCode(
+      invoker.run(useCases.openCampaign, admin, {
+        campaignId: c.id,
+        baseUpdatedAt: c.updatedAt,
+      }),
+      'conflict',
+      'campaign.form.kind-mismatch'
+    );
+    expect(refused.issues[0]?.params).toEqual({ kind: 'petition', formKind: 'contact' });
   });
 
   it('refuses to open without a form, and a fundraiser before ADR 005', async () => {

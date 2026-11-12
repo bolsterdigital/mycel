@@ -42,7 +42,7 @@ create table campaigns (
   foreign key (tenant_id, landing_item_id) references content_items (tenant_id, id),
   foreign key (tenant_id, form_id) references forms (tenant_id, id)
 );
-create index campaigns_list on campaigns (tenant_id, (archived_at is null), created_at desc, id);
+create index campaigns_list on campaigns (tenant_id, (archived_at is not null), created_at desc, id desc);
 alter table campaigns enable row level security;
 alter table campaigns force row level security;
 create policy tenant_isolation on campaigns to mycel_app

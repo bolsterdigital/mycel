@@ -41,7 +41,7 @@ import {
   memoryPlatform,
 } from './fakes.js';
 import { memoryFormMail, memoryForms, memoryRateLimits, memorySubmissions } from './forms.js';
-import { MemoryJobRecovery, MemoryScheduler } from './jobs.js';
+import { MemoryJobRecovery, MemoryScheduler } from './operations/jobs.js';
 import { memoryMailSends } from './mailing.js';
 import { MemoryBlobStore, memoryImageProcessor, memoryMedia } from './media.js';
 import {

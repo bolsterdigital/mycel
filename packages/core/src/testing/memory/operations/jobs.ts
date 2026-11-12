@@ -1,11 +1,11 @@
 // `ctx.jobs` and `ctx.jobRecovery` over a MemoryStore's `jobs` list.
 
-import type { JobRecord, JobRequest, Scheduler } from '../../jobs/ports.js';
-import type { JobType } from '../../jobs/types.js';
-import type { JobRecovery, RecoveryResult, StuckJob, WaitingJobs } from '../../ops/ports.js';
-import type { Clock, Ids } from '../../ports.js';
-import { FakeClock, SequentialIds } from './fakes.js';
-import type { MemoryStore } from './store.js';
+import type { JobRecord, JobRequest, Scheduler } from '../../../jobs/ports.js';
+import type { JobType } from '../../../jobs/types.js';
+import type { JobRecovery, RecoveryResult, StuckJob, WaitingJobs } from '../../../ops/ports.js';
+import type { Clock, Ids } from '../../../ports.js';
+import { FakeClock, SequentialIds } from '../fakes.js';
+import type { MemoryStore } from '../store.js';
 
 /**
  * `ctx.jobs` over a MemoryStore: one open job per key across all tenants, like the partial
