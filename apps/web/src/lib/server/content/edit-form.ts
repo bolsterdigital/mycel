@@ -21,6 +21,7 @@ import {
   GALLERY_ROWS,
   INSERTABLE_BLOCK_TYPES,
   isUuid,
+  teaserFollowing,
   type Block,
   type BlockType,
   type ContentDocument,
@@ -438,5 +439,24 @@ export function formDocument(
   }
   const readable = editing === undefined || (!!editing && doc.locales.includes(editing));
   const read = readable ? blocksFrom(kept, post, skip) : { blocks: kept, errors: [] };
-  return { document: { ...doc, blocks: read.blocks }, blocks: read.blocks, errors: read.errors };
+  return {
+    document: { ...doc, access: accessFollowing(base, doc, read.blocks), blocks: read.blocks },
+    blocks: read.blocks,
+    errors: read.errors,
+  };
+}
+
+/**
+ * The access a post saves. One save can take away or place the only paywall (the writer,
+ * a new block form), so the teaser follows it by core's rule (`teaserFollowing`), as a block action
+ * does; a teaser the editor changed in the same post is theirs and stands, refusal and all.
+ * Rejected: following only in the writer's payload, which the posted teaser field then overwrote.
+ */
+function accessFollowing(
+  base: ContentDocument,
+  doc: ContentDocumentInput,
+  blocks: readonly Block[]
+): ContentDocumentInput['access'] {
+  if (!isDeepStrictEqual(doc.access?.teaser, base.access.teaser)) return doc.access;
+  return { ...doc.access, teaser: teaserFollowing(base, blocks).teaser };
 }

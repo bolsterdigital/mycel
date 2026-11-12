@@ -4,7 +4,14 @@
 // never trusts props sent by the browser. Rejected: storing the TipTap document as a revision,
 // which would make public rendering and MCP depend on an admin editor.
 import { richTextHtml } from '../blocks/rich-text.js';
-import { Block, ContentDocument, RichTextDoc, isBlankDoc, normalizeBlocks } from '@mycel/core';
+import {
+  Block,
+  ContentDocument,
+  RichTextDoc,
+  isBlankDoc,
+  normalizeBlocks,
+  teaserFollowing,
+} from '@mycel/core';
 
 export type EditorNode = {
   type: 'mycelProse' | 'mycelCard';
@@ -250,7 +257,10 @@ export function fromArticleEditor(
   });
   if ([...byId.keys()].some((id) => !seen.has(id) && !removed.includes(id)))
     throw new EditorInputError('A block is missing');
-  return ContentDocument.parse({ ...base, blocks: normalizeBlocks(blocks).blocks });
+  // Taking away or placing the only paywall moves the teaser with it, as the screen's own block
+  // action does; the form may still state another teaser over this one.
+  const kept = normalizeBlocks(blocks).blocks;
+  return ContentDocument.parse({ ...base, access: teaserFollowing(base, kept), blocks: kept });
 }
 
 /** The same constrained renderer supplies the initial sheet; no independent HTML serializer. */

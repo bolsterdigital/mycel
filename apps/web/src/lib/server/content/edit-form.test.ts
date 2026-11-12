@@ -432,6 +432,44 @@ it('saves explicit writer card removal, accepts undo and refuses unannounced car
   ]);
 });
 
+// The writer saves the whole document: taking away the only paywall there brings the teaser along
+// by core's rule, also over the unchanged teaser field the screen posts; a teaser the editor
+// changed in the same post stands.
+it('a writer save without the only paywall falls back from the marker teaser', () => {
+  const paywall = blocks.find((block) => block.type === 'paywall')!;
+  const base = ContentDocument.parse({
+    type: 'article',
+    defaultLocale: 'nl',
+    locales: ['nl'],
+    title: { nl: 'Artikel' },
+    lead: { nl: 'Voor iedereen' },
+    access: { level: 'members', teaser: 'marker' },
+    blocks: [paywall],
+  });
+  const parse = (values: Record<string, string>) => {
+    const post = new FormData();
+    post.set(
+      'articleEditor',
+      JSON.stringify({ type: 'doc', content: [], removedCardIds: [paywall.id] })
+    );
+    return formDocument(
+      base,
+      { 'title.nl': 'Artikel', ...values },
+      postedValues(Object.fromEntries(post.entries()) as Record<string, string>),
+      '2026-11-12',
+      'nl'
+    );
+  };
+  for (const values of [{}, { level: 'members', teaser: 'marker' }] as Record<string, string>[]) {
+    const saved = parse(values);
+    expect(saved.errors).toEqual([]);
+    expect(saved.blocks).toEqual([]);
+    expect(saved.document.access).toEqual({ level: 'members', teaser: 'lead' });
+  }
+  const chosen = parse({ level: 'members', teaser: 'blocks', teaserBlocks: '0' });
+  expect(chosen.document.access?.teaser).toEqual({ blocks: 0 });
+});
+
 // Removing a card between text blocks whose locales or names differ is refused with copy of
 // its own; any other editor failure, such as a card that silently went missing, keeps the general
 // sentence.

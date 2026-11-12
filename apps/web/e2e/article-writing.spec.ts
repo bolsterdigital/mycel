@@ -13,12 +13,19 @@ import { NARROW, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
 import { closePublication, openPublication } from './lib/publication';
 import { isA11y, onlyA11y } from './lib/project';
-import { article, articleWithAmbiguousJoin, callApi, requireApi } from './lib/api';
+import {
+  article,
+  articleWithAmbiguousJoin,
+  articleWithPaywall,
+  callApi,
+  requireApi,
+} from './lib/api';
 import {
   block,
   blockPage,
   card,
   editorReady,
+  emptyProse,
   more,
   newPage,
   reloadsEditor,
@@ -30,23 +37,6 @@ import {
 // project proves the adjacent form can write the same prose without hydrating the editor.
 test.describe('article-writing', () => {
   test.use({ locale: 'nl-NL' });
-
-  // ProseMirror reads the selection a moment later: a Backspace before that takes one letter, and
-  // the block keeps its words. Rejected: select all, which takes the cards too (#149).
-  async function emptyProse(page: Page) {
-    const surface = page.locator('.writing-surface .ProseMirror').first();
-    const prose = surface.locator('.editor-prose');
-    await expect(prose).toBeVisible();
-    await expect(async () => {
-      // Select text in the writing host, then address the key to that host. A page-wide
-      // Backspace can delete the last character of the textarea filled immediately before it.
-      await surface.focus();
-      await prose.locator('p').first().selectText();
-      await expect(surface).toBeFocused();
-      await surface.press('Backspace');
-      await expect(prose).toHaveText('', { timeout: 1000 });
-    }).toPass();
-  }
 
   test('a refused save from a direct locale link keeps English through the next post', async ({
     page,
@@ -799,6 +789,27 @@ test.describe('article-writing', () => {
       'paywall',
       'Kop twee',
     ]);
+  });
+
+  // One save takes the paywall away and the teaser along, as the screen does.
+  test('the only paywall taken away in the writer saves, and the teaser falls back', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y();
+    requireApi();
+    const { edit, document } = await articleWithPaywall(request);
+    await login(page, edit);
+    await editorReady(page);
+    await wipeFirstCard(page);
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/\?saved/);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    const after = await document();
+    // The two text blocks the paywall stood between are one again.
+    expect(after.blocks.map((b) => b.type)).toEqual(['rich-text']);
+    expect(after.access.teaser).toBe('lead');
+    await expectNoAxeViolations(page);
   });
 
   test('typing in an empty article saves and reopens with stable block identity', async ({

@@ -189,6 +189,16 @@ describe('article editor document', () => {
     expect(() => fromArticleEditor(base(prose), 'nl', after)).toThrow('missing');
   });
 
+  it('takes the teaser along when the only paywall is removed', () => {
+    const paywall = blocks.find((block) => block.type === 'paywall')!;
+    const document = base(paywall);
+    const after = { type: 'doc' as const, content: [], removedCardIds: [paywall.id] };
+    const saved = fromArticleEditor(document, 'nl', after);
+    expect(saved.blocks).toEqual([]);
+    expect(saved.access).toEqual({ level: 'members', teaser: 'lead' });
+    expect(fromArticleEditor(document, 'nl', toArticleEditor(document, 'nl'))).toEqual(document);
+  });
+
   it('normalizes prose brought together by a removed card without losing translations', () => {
     const prose = blocks.find((block) => block.type === 'rich-text')!;
     const quote = blocks.find((block) => block.type === 'quote')!;

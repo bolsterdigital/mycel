@@ -230,12 +230,15 @@ const paywalls = (blocks: readonly Block[]) =>
  * the same revision sets `marker`, whatever teaser it replaces; removing the last one while the
  * teaser is `marker` falls back to the default `lead`. Every other operation keeps the teaser.
  * Without this an editor could neither add nor remove a paywall on its own: each is refused until
- * the teaser changes, and the teaser cannot change first (`content.access.*`). Only block
- * operations follow; a whole-document `content.item.update` sends its teaser itself. Rejected:
- * a picker that only offers the paywall after the teaser was switched, which leaves removal stuck
- * and moves one core rule into each front.
+ * the teaser changes, and the teaser cannot change first (`content.access.*`). Block operations
+ * follow here; a front whose one save carries block edits (the article writer) applies the
+ * same rule to the document it sends when the editor left the teaser as it was, so screen, writer,
+ * API and MCP agree. `content.item.update` itself follows nothing: its input states the teaser.
+ * Rejected: a picker that only offers the paywall after the teaser was switched, which leaves
+ * removal stuck and moves one core rule into each front; following inside `content.item.update`,
+ * which would silently rewrite a teaser an API client did send.
  */
-function teaserFollowing(
+export function teaserFollowing(
   doc: ContentDocument,
   blocks: readonly Block[]
 ): ContentDocument['access'] {

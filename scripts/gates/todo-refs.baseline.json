@@ -3,7 +3,7 @@
   ".github/workflows/restore-drill.yml": 3,
   ".github/workflows/verify.yml": 4,
   "apps/web/e2e/admin.spec.ts": 23,
-  "apps/web/e2e/article-writing.spec.ts": 4,
+  "apps/web/e2e/article-writing.spec.ts": 3,
   "apps/web/e2e/assist.spec.ts": 6,
   "apps/web/e2e/content-admin.spec.ts": 24,
   "apps/web/e2e/content-blocks.spec.ts": 10,
