@@ -226,6 +226,23 @@ async function eraseRows(
       trx
     )
   );
+  // ADR 033 rule 8: an erased supporter's participations go, and the confirmed, non-withdrawn
+  // ones join the campaign's anonymous count in the same statement, so the public number never
+  // drops and a rebuild from the remaining rows gives it back. A second apply finds no rows.
+  const participations = await sql<{ deleted: string }>`
+    with gone as (
+      delete from campaign_participations where supporter_id = any(${supporterIds}::uuid[])
+      returning campaign_id, withdrawn_at
+    ), counted as (
+      select campaign_id, count(*)::int as n from gone where withdrawn_at is null
+      group by campaign_id
+    ), bumped as (
+      update campaigns c set erased_count = c.erased_count + counted.n
+      from counted where c.id = counted.campaign_id
+      returning c.id
+    )
+    select count(*)::text as deleted from gone`.execute(trx);
+  changed += Number(participations.rows[0]?.deleted ?? 0);
   if (!addresses.size) return changed;
 
   // Mail intents and their reconcile jobs hang off the outbox event that carried the address;

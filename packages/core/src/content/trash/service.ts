@@ -18,6 +18,7 @@ import { unpublish, withdrawReview } from '../lifecycle.js';
 import { ContentItem, ContentType, Slug } from '../model.js';
 import type { ItemRecord } from '../ports.js';
 import { lockItem, toContentItem } from '../service.js';
+import '../../campaigns/ports.js';
 
 const ItemId = z.string().guid();
 const IsoDate = z.string().datetime({ offset: true });
@@ -53,6 +54,17 @@ export const deleteItem = defineUseCase({
   examples: [{ input: { itemId: exampleId(0x1) } }],
   async handler(ctx, { itemId }) {
     const item = await lockItem(ctx, itemId);
+    // ADR 033 rule 9: a landing page leaves only after its campaign is archived, so a campaign
+    // never points at a page in the trash while it can still take part or show a card.
+    const campaign = await ctx.campaigns.byLandingItem(itemId);
+    if (campaign && !campaign.archivedAt)
+      throw new UseCaseError('conflict', 'this item is the landing page of a campaign', [
+        {
+          path: 'itemId',
+          message: 'content.delete.campaign-landing',
+          params: { campaignId: campaign.id },
+        },
+      ]);
     const linking = await referrers(ctx, itemId);
     if (linking.length)
       throw new UseCaseError('conflict', 'other items link to this item', [

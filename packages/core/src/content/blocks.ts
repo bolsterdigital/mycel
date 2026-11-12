@@ -231,6 +231,7 @@ export const REFERENCE_TYPES = [
   'media',
   'person',
   'person_group',
+  'campaign',
 ] as const;
 export type ReferenceType = (typeof REFERENCE_TYPES)[number];
 

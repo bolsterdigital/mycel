@@ -11,6 +11,7 @@ import { mailchimpReceipts } from './connections/mailchimp-receipts.js';
 // identity store, never the operator pool.
 
 import { personGroupRepository } from './people/groups.js';
+import { campaignRepository } from './campaigns/repository.js';
 import { bulkPlanRepository } from './content-bulk.js';
 import { presenceRepository } from './presence/content-presence.js';
 
@@ -235,6 +236,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           platform: deps.platform,
           events: outboxEventBus(trx),
           content: contentRepository(trx, tenantId),
+          campaigns: campaignRepository(trx, tenantId),
           bulkPlans: bulkPlanRepository(trx, tenantId),
           presence: presenceRepository(trx, tenantId),
           siteSettings: siteSettingsRepository(trx, tenantId),

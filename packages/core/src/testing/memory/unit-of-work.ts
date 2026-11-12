@@ -31,6 +31,7 @@ import {
 } from './connections.js';
 import { memoryBulkPlans, memoryContent, memoryPresence, memorySite } from './content.js';
 import { memoryErasures } from './erasures.js';
+import { memoryCampaigns } from './campaigns.js';
 import {
   FakeClock,
   FakeDns,
@@ -119,6 +120,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
           },
         },
         content: memoryContent(s),
+        campaigns: memoryCampaigns(s),
         bulkPlans: memoryBulkPlans(s, bulkLock.lock),
         presence: memoryPresence(s),
         ...memorySite(s),

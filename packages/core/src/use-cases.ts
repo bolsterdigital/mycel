@@ -39,6 +39,15 @@ import { createBulk, getBulk } from './content/bulk/service.js';
 import { deleteItem, listContentTrash, restoreItem } from './content/trash/service.js';
 import { listAudit } from './audit/service.js';
 import {
+  archiveCampaign,
+  closeCampaign,
+  createCampaign,
+  getCampaign,
+  listCampaigns,
+  openCampaign,
+  updateCampaign,
+} from './campaigns/service.js';
+import {
   createConnection,
   disconnectConnection,
   getConnection,
@@ -218,6 +227,13 @@ export const useCases = {
   convertHero,
   getHeroConversion,
   findItems,
+  createCampaign,
+  updateCampaign,
+  openCampaign,
+  closeCampaign,
+  archiveCampaign,
+  getCampaign,
+  listCampaigns,
   createPersonGroup,
   updatePersonGroup,
   getPersonGroup,

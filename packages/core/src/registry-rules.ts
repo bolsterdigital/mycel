@@ -41,6 +41,8 @@ const MODULES = [
   'assist',
   'attention',
   'audit',
+  // ADR 033 rule 12: a bare campaign is the participation entity; a mailing send is not one.
+  'campaign',
   'connection',
   'content',
   'form',
@@ -77,6 +79,9 @@ const VERBS = [
   ...['request', 'withdraw'],
   // Back out of the trash.
   'restore',
+  // ADR 033 rules 2 and 9: participation opens (`close` is above) and a campaign is archived,
+  // never deleted.
+  ...['open', 'archive'],
   // A key, a hostname, a visitor's entry points, a theme report.
   ...['revoke', 'verify', 'upload', 'submit', 'confirm', 'check'],
 ];

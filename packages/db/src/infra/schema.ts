@@ -268,7 +268,7 @@ export interface Database {
     item_id: string;
     revision_id: string;
     block_id: string | null;
-    type: 'form' | 'item' | 'author' | 'section' | 'media' | 'person' | 'person_group';
+    type: 'form' | 'item' | 'author' | 'section' | 'media' | 'person' | 'person_group' | 'campaign';
     ref_id: string;
   };
   content_item_locales: {
@@ -311,6 +311,30 @@ export interface Database {
     sort_order: number;
     created_at: Timestamp;
     updated_at: Timestamp;
+  };
+  campaigns: {
+    id: string;
+    tenant_id: string;
+    kind: string;
+    landing_item_id: string;
+    form_id: string | null;
+    participation_state: string;
+    opens_at: Timestamp | null;
+    closes_at: Timestamp | null;
+    goal: Json<unknown> | null;
+    counter_visible: Generated<boolean>;
+    erased_count: Generated<number>;
+    archived_at: Timestamp | null;
+    created_at: Timestamp;
+    updated_at: Timestamp;
+  };
+  campaign_participations: {
+    tenant_id: string;
+    campaign_id: string;
+    supporter_id: string;
+    submission_id: string;
+    confirmed_at: Timestamp;
+    withdrawn_at: Timestamp | null;
   };
   person_group_members: {
     tenant_id: string;
