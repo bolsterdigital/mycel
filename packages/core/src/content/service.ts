@@ -710,6 +710,12 @@ async function publishableRevision(
 ): Promise<Revision> {
   const revision = await ctx.content.revision(itemId, revisionId);
   if (!revision) throw notFound('revision');
+  // ADR 033 rule 5 for older revisions: `storeRevision` holds new saves, but a restricted
+  // revision from before the binding must not go live or be planned afterwards either.
+  if (revision.document.access.level !== 'public' && (await ctx.campaigns.byLandingItem(itemId)))
+    throw new UseCaseError('conflict', 'a campaign landing page stays public', [
+      { path: 'revisionId', message: 'campaign.landing.restricted' },
+    ]);
   await assertPublishable(ctx, revision.document, locale);
   return revision;
 }

@@ -68,6 +68,8 @@ const IMPORT_RULE = {
   supporter_admissions: 'as-exported',
   events: 'as-exported',
   people: 'as-exported',
+  campaigns: 'as-exported',
+  campaign_participations: 'as-exported',
   person_groups: 'as-exported',
   person_group_members: 'as-exported',
   sections: 'as-exported',

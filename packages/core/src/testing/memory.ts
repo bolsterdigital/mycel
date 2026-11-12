@@ -23,10 +23,10 @@ export {
   testPlatformActor,
 } from './memory/fakes.js';
 export { MemoryStore } from './memory/store.js';
-export { MemoryScheduler } from './memory/jobs.js';
+export { MemoryScheduler } from './memory/operations/jobs.js';
 export { MemoryBlobStore, memoryImageProcessor } from './memory/media.js';
 export { secureErasures } from './memory/erasures.js';
-export { memoryExportLifecycle } from './memory/export-jobs.js';
+export { memoryExportLifecycle } from './memory/operations/export-jobs.js';
 export { MemoryIdentityStore } from './memory/operators.js';
 export { MemorySiteDirectory } from './memory/tenants.js';
 export { MemoryUnitOfWork } from './memory/unit-of-work.js';

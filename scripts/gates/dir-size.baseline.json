@@ -1,7 +1,5 @@
 {
-  "ceilings": {
-    "packages/core/src/testing/memory": 16
-  },
+  "ceilings": {},
   "exempt": {
     ".": "the repository root holds the files tools look for there (package.json, licence, configs)",
     "apps/web/src/lib/blocks": "one component per block type; the block registry is the index",

@@ -367,6 +367,28 @@ export const STORAGE = {
     ],
     retention: SITE_KEPT,
   },
+  campaigns: {
+    category: 'content',
+    owner: 'tenant',
+    // `erased_count` is a number without an identifier (ADR 033 rule 8), not a copy.
+    copies: IDS_ONLY,
+    retention: { kind: 'kept', why: 'archived, never deleted (ADR 033 rule 9)' },
+  },
+  campaign_participations: {
+    category: 'supporters',
+    owner: 'tenant',
+    copies: [
+      {
+        field: 'supporter_id',
+        subject: 'supporter',
+        route: {
+          kind: 'apply',
+          does: 'deletes the participation and adds a confirmed one to the anonymous erased_count',
+        },
+      },
+    ],
+    retention: SUPPORTER_KEPT,
+  },
   person_groups: {
     category: 'people',
     owner: 'tenant',

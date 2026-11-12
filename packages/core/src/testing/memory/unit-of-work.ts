@@ -31,6 +31,7 @@ import {
 } from './connections.js';
 import { memoryBulkPlans, memoryContent, memoryPresence, memorySite } from './content.js';
 import { memoryErasures } from './erasures.js';
+import { memoryCampaigns } from './campaigns.js';
 import {
   FakeClock,
   FakeDns,
@@ -40,7 +41,7 @@ import {
   memoryPlatform,
 } from './fakes.js';
 import { memoryFormMail, memoryForms, memoryRateLimits, memorySubmissions } from './forms.js';
-import { MemoryJobRecovery, MemoryScheduler } from './jobs.js';
+import { MemoryJobRecovery, MemoryScheduler } from './operations/jobs.js';
 import { memoryMailSends } from './mailing.js';
 import { MemoryBlobStore, memoryImageProcessor, memoryMedia } from './media.js';
 import {
@@ -121,6 +122,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
           exists: async (id) => store.keptEvents.has(id),
         },
         content: memoryContent(s),
+        campaigns: memoryCampaigns(s),
         bulkPlans: memoryBulkPlans(s, bulkLock.lock),
         presence: memoryPresence(s),
         ...memorySite(s),

@@ -4,6 +4,7 @@
 // make erasure, export and usage reach into a dozen objects for one question.
 
 import type { PersonGroup } from '../../content/people/model.js';
+import type { Campaign } from '../../campaigns/model.js';
 import type { BulkPlan, BulkResult } from '../../content/bulk/model.js';
 import type { PresenceEntry } from '../../content/presence/model.js';
 
@@ -74,6 +75,8 @@ export interface TenantStore {
   /** `content_block_refs`, keyed by revision id. */
   blockRefs: Map<string, DocumentReference[]>;
   personGroups: Map<string, PersonGroup>;
+  /** `campaigns` (0049), keyed by id. */
+  campaigns: Map<string, Campaign>;
   authors: Map<string, Author>;
   sections: Map<string, Section>;
   presence: Map<string, PresenceEntry>;
@@ -149,6 +152,7 @@ const emptyTenant = (): TenantStore => ({
   revisions: new Map(),
   blockRefs: new Map(),
   personGroups: new Map(),
+  campaigns: new Map(),
   authors: new Map(),
   sections: new Map(),
   presence: new Map(),

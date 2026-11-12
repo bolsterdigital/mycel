@@ -41,6 +41,7 @@ import {
   uuidv7Ids,
 } from './index.js';
 import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
+import { seedCampaign } from './portability/campaigns.fixture.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
@@ -348,6 +349,7 @@ describe.skipIf(skip)('row level security conformance', () => {
       },
     };
     await supporterIngestSubscriber(uow).handle(event);
+    await seedCampaign(invoker, operatorDb, admin, email);
     // Ingest released that signup's admission seat (0010); a reservation without a signup keeps
     // one in `supporter_admissions`. Reserved directly, not through a second signup: that signup's
     // event would sit in the shared outbox, where any drain of every tenant (a running worker; and

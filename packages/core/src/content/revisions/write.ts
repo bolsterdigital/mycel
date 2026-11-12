@@ -1,6 +1,8 @@
 // Revision persistence shared by normal saves and exact-state bulk restoration. Rejected:
 // implementing undo as an old-base save, which would merge and erase the actual pre-effect state.
+import { UseCaseError } from '../../errors.js';
 import type { TransactionContext } from '../../ports.js';
+import '../../campaigns/ports.js';
 import type { ItemRecord } from '../ports.js';
 import { documentMedia, type ContentDocument, type ContentItem, type Revision } from '../model.js';
 import { draftLocale } from '../lifecycle.js';
@@ -39,6 +41,12 @@ export async function storeRevision(
   provenance?: Revision['provenance']
 ): Promise<{ item: ContentItem; revision: Revision }> {
   await assertReferences(ctx, doc);
+  // ADR 033 rule 5: a landing page bound to a campaign stays public. Every save, restore and
+  // bulk write passes here under the item lock, which campaign.create takes too.
+  if (doc.access.level !== 'public' && (await ctx.campaigns.byLandingItem(item.id)))
+    throw new UseCaseError('conflict', 'a campaign landing page stays public', [
+      { path: 'document.access.level', message: 'campaign.landing.restricted' },
+    ]);
   const now = ctx.clock.now();
   const revision = newRevision(ctx, item.id, doc, now, provenance);
   const next: ItemRecord = {

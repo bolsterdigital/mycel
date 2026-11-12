@@ -67,6 +67,7 @@ describe.skipIf(skip)('erasure conformance', () => {
   const invoker = new Invoker(buildRegistry(), uow);
   const tenants: Record<'a' | 'b', string> = { a: '', b: '' };
   let supporterId = '';
+  const campaignIds: string[] = [];
 
   /** Every row of the tenant, as text, from every table that has a tenant_id (the catalog). */
   async function rowsOf(tenantId: string): Promise<Record<string, string[]>> {
@@ -274,6 +275,43 @@ describe.skipIf(skip)('erasure conformance', () => {
     supporterId = (await uow.run(systemPrincipal(tenants.a, 'erasure-test'), (ctx) =>
       ctx.supporters.getProjection(email)
     ))!.id;
+    // ADR 033 rule 8: a confirmed and a withdrawn participation of the supporter to erase, and a
+    // confirmed one of the supporter who stays. The confirmation path writes these.
+    const otherId = (await uow.run(systemPrincipal(tenants.a, 'erasure-test'), (ctx) =>
+      ctx.supporters.getProjection(other)
+    ))!.id;
+    for (const slug of ['petitie', 'aanmelding']) {
+      const landing = await invoker.run(useCases.createItem, editor, {
+        slug,
+        document: {
+          type: 'page',
+          title: { nl: slug },
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          blocks: [],
+        },
+      });
+      campaignIds.push(
+        (
+          await invoker.run(useCases.createCampaign, editor, {
+            kind: 'signup',
+            landingItemId: landing.item.id,
+          })
+        ).id
+      );
+    }
+    await asRole(operatorDb, 'mycel_app', async (trx) => {
+      await sql`select set_config('app.tenant_id', ${tenants.a}, true)`.execute(trx);
+      for (const [campaign, supporter, withdrawn] of [
+        [campaignIds[0], supporterId, null],
+        [campaignIds[1], supporterId, new Date().toISOString()],
+        [campaignIds[0], otherId, null],
+      ])
+        await sql`insert into campaign_participations
+          (tenant_id, campaign_id, supporter_id, submission_id, confirmed_at, withdrawn_at)
+          values (${tenants.a}, ${campaign}, ${supporter}, ${uuidv7()}, now() - interval '1 hour',
+            ${withdrawn}::timestamptz)`.execute(trx);
+    });
   });
 
   afterAll(async () => {
@@ -321,10 +359,16 @@ describe.skipIf(skip)('erasure conformance', () => {
         and (has_table_privilege('mycel_erasure', c.oid, 'DELETE')
              or has_any_column_privilege('mycel_erasure', c.oid, 'UPDATE'))
       order by 1`.execute(operatorDb);
-    const applied = Object.entries(STORAGE)
-      .filter(([, e]) => e.copies.some((c) => c.route.kind === 'apply'))
-      .map(([name]) => name)
-      .sort();
+    // Apply may also change a count that holds no person, each reviewed here with its reason.
+    const counters = new Map([
+      ['campaigns', 'erased_count adds erased participations without an identifier (ADR 033)'],
+    ]);
+    const applied = [
+      ...Object.entries(STORAGE)
+        .filter(([, e]) => e.copies.some((c) => c.route.kind === 'apply'))
+        .map(([name]) => name),
+      ...counters.keys(),
+    ].sort();
     expect(rows.map((r) => r.name)).toEqual(applied);
   });
 
@@ -372,6 +416,25 @@ describe.skipIf(skip)('erasure conformance', () => {
 
   it('is idempotent: a second apply changes nothing', async () => {
     expect(await applyErasures(operatorDb, tenants.a)).toBe(0);
+  });
+
+  it('turns the participations into an anonymous count that never drops (ADR 033 rule 8)', async () => {
+    const counts = await asRole(operatorDb, 'mycel_app', async (trx) => {
+      await sql`select set_config('app.tenant_id', ${tenants.a}, true)`.execute(trx);
+      const campaigns = await sql<{ id: string; erased_count: number }>`
+        select id, erased_count from campaigns where id = any(${campaignIds}::uuid[])`.execute(trx);
+      const left = await sql<{ campaign_id: string; supporter_id: string }>`
+        select campaign_id, supporter_id from campaign_participations`.execute(trx);
+      return { campaigns: campaigns.rows, left: left.rows };
+    });
+    // The confirmed one counts; the withdrawn one went without counting.
+    expect(Object.fromEntries(counts.campaigns.map((c) => [c.id, c.erased_count]))).toEqual({
+      [campaignIds[0]!]: 1,
+      [campaignIds[1]!]: 0,
+    });
+    // Only the supporter who stays is left: active rows plus the count give the same public 2.
+    expect(counts.left.map((r) => r.supporter_id)).not.toContain(supporterId);
+    expect(counts.left).toHaveLength(1);
   });
 
   it('leaves the same address in another tenant alone', async () => {
@@ -491,6 +554,8 @@ describe.skipIf(skip)('erasure conformance', () => {
       select tablename || '.' || policyname as name, qual, with_check as check from pg_policies
       where schemaname = 'public' and 'mycel_erasure' = any(roles) order by 1`.execute(operatorDb);
     expect(policies.map((p) => p.name)).toEqual([
+      'campaign_participations.erasure_apply',
+      'campaigns.erasure_apply',
       'connection_intents.erasure',
       'erasures.erasure_apply',
       'events.erasure_apply',

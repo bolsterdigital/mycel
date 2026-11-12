@@ -49,6 +49,8 @@
         "apps/web/src/routes/internal/**",
         "packages/core/src/supporters/**",
         "packages/core/src/forms/**",
+        "packages/core/src/campaigns/**",
+        "packages/db/src/campaigns/**",
         "packages/core/src/mailing/**",
         "packages/db/src/supporters*",
         "packages/db/src/supporters/**",
@@ -106,6 +108,8 @@
       "question": "Do an editor and a visitor understand the content types, sections, labels and navigation; do publication and findability stay coherent?",
       "paths": [
         "packages/core/src/content/**",
+        "packages/core/src/campaigns/**",
+        "packages/db/src/campaigns/**",
         "packages/db/src/content*",
         "packages/db/src/people/**",
         "apps/web/src/routes/(public)/**",
