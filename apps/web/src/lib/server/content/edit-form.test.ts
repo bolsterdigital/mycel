@@ -460,7 +460,7 @@ it('a writer save without the only paywall falls back from the marker teaser', (
       'nl'
     );
   };
-  for (const values of [{}, { level: 'members', teaser: 'marker' }]) {
+  for (const values of [{}, { level: 'members', teaser: 'marker' }] as Record<string, string>[]) {
     const saved = parse(values);
     expect(saved.errors).toEqual([]);
     expect(saved.blocks).toEqual([]);
