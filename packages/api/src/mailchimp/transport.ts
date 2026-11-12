@@ -87,6 +87,7 @@ export function mailchimpTransport({
           member?.timestamp_opt && !Number.isNaN(Date.parse(member.timestamp_opt))
             ? new Date(member.timestamp_opt)
             : null,
+        memberHash: mailchimpMemberHash,
       });
     });
   };
@@ -257,12 +258,12 @@ export function mailchimpTransport({
           connection.id,
           intent.credentialVersion
         );
-        const sub = await ctx.submissions.findByFeedBusinessId(intent.businessId);
+        // The submission is not asked for: after its retention term the comparison goes on from
+        // the receipt, so a withdrawal at the provider still reaches local consent.
         const receipt = await ctx.mailchimpReceipts.get(intent.id);
         const supporter = await ctx.supporters.getProjectionById(intent.supporterId);
         if (
           !credential ||
-          !sub ||
           !receipt ||
           !supporter ||
           mailchimpMemberHash(supporter.email) !== receipt.memberHash

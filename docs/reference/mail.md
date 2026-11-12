@@ -16,7 +16,7 @@ Verified on 2026-10-22 against the OpenAPI schema (`https://www.scaleway.com/en/
 
 ## The intent row and its states
 
-Every message has a row in `mail_sends` (migrations 0006, 0013) keyed by `<subscriber>:<event id>`, holding timestamps, the provider id and a `correlation`, never an address. The state is derived; there is no status column:
+Every message has a row in `mail_sends` (migrations 0006, 0013) keyed by `<subscriber>:<event id>`, holding timestamps, the provider id and a `correlation`, never an address. A row goes with its outbox event, 30 days after the event was processed and never while its `mail.reconcile` job is open ([jobs.md](jobs.md) § Retention); a form mail whose row and event are both gone reads as `expired` in `form.delivery.get`, not as pending. The state is derived; there is no status column:
 
 | State     | Condition                                                                                                                     |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------- |

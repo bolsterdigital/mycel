@@ -171,6 +171,7 @@ describe.skipIf(skip)('tenant export and import', () => {
       bytes: useCases.uploadMedia.examples[0].input.bytes,
       licence: `Fixture licence ${t.slug}`,
     });
+    await uow.run(admin, (ctx) => ctx.siteSettings.updateRetention(0, { submissionMonths: 18 }));
     const formId = uuidv7();
     const definition = conditionalProbeForm(formId);
     definition.name = { nl: 'Contact', en: 'Contact us', de: 'Kontakt' };
@@ -418,8 +419,7 @@ describe.skipIf(skip)('tenant export and import', () => {
   it('exports only the tenant brand bytes and licence in the settings snapshot', async () => {
     const row = await readFile(join(scratch.dir, 'a', 'tables', 'site_settings.ndjson'), 'utf8');
     expect(row).toContain(`Fixture licence ${tenant.a.slug}`);
-    expect(row).toContain('logo_bytes');
-    expect(row).toContain('font_bytes');
+    for (const k of ['logo_bytes', 'font_bytes', 'submissionMonths": 18']) expect(row).toContain(k);
     expect(row).not.toContain(`Fixture licence ${tenant.b.slug}`);
   });
 

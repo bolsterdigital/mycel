@@ -11,6 +11,7 @@ import { DEFAULT_THEME } from './presets.js';
 import { DEFAULT_TIME_ZONE, IanaTimeZone } from '../util/time-zone.js';
 import { imageIssue } from '../content/service.js';
 import '../media/ports.js';
+import { SiteRetention } from '../ops/retention.js';
 
 const Localized = z.record(z.string().min(2).max(12), z.string().trim().min(1).max(240));
 const Footer = z.record(z.string().min(2).max(12), z.string().trim().max(500));
@@ -94,6 +95,7 @@ const ThemeState = z.object({ version, value: ResolvedTheme });
 const ChromeState = z.object({ version, value: SiteChrome });
 const GeneralState = z.object({ version, value: SiteGeneral });
 const ImagesState = z.object({ version, value: SiteImages });
+const RetentionState = z.object({ version, value: SiteRetention });
 const conflict = () => {
   throw new UseCaseError('conflict', 'site.settings.conflict');
 };
@@ -206,5 +208,35 @@ export const updateSiteImages = defineUseCase({
         { path: 'images.defaultImageId', message: 'content.reference.media-unrecorded' },
       ]);
     return { version: next, value: images };
+  },
+});
+/**
+ * How long this site keeps what visitors sent in (docs/reference/jobs.md § Retention). A document of its
+ * own with its own capability: `general` is written with `content:write`, and a shorter term
+ * deletes submissions, which is not an editor's decision.
+ */
+export const getSiteRetention = defineUseCase({
+  name: 'site.retention.get',
+  kind: 'query',
+  description: 'Read how many months this site keeps form submissions.',
+  requires: 'forms:read',
+  input: z.object({}).strict(),
+  output: RetentionState,
+  examples: [{ input: {} }],
+  handler: async (ctx) => ctx.siteSettings.retention(),
+});
+export const updateSiteRetention = defineUseCase({
+  name: 'site.retention.update',
+  kind: 'command',
+  description:
+    'Set how many months this site keeps form submissions, at a known version; a shorter term deletes older submissions at the next daily run.',
+  requires: 'tenant:admin',
+  input: z.object({ baseVersion: version, retention: SiteRetention }).strict(),
+  output: RetentionState,
+  examples: [{ input: { baseVersion: 0, retention: { submissionMonths: 12 } } }],
+  handler: async (ctx, { baseVersion, retention }) => {
+    const next = await ctx.siteSettings.updateRetention(baseVersion, retention);
+    if (next === null) return conflict();
+    return { version: next, value: retention };
   },
 });

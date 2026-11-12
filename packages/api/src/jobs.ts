@@ -24,6 +24,7 @@ import {
   systemPrincipal,
   runAssistSuggestion,
   retainAssistSuggestions,
+  retentionCutoffs,
   type Clock,
   type DomainEvent,
   type ErrorReporter,
@@ -43,6 +44,7 @@ import {
 } from '@mycel/core';
 import {
   applyErasures,
+  applyRetention,
   createDb,
   createEventPartitions,
   deleteExpiredAudit,
@@ -77,6 +79,7 @@ export const RECURRING_JOBS: readonly RecurringJob[] = [
   { type: 'assist.retention', cadence: 'daily' },
   { type: 'tenant.export.expire', cadence: 'daily' },
   { type: 'erasures.apply', cadence: 'daily' },
+  { type: 'retention.apply', cadence: 'daily' },
 ];
 
 /**
@@ -175,6 +178,34 @@ export function applyAllErasures(
   errors?: ErrorReporter
 ): Promise<number> {
   return forEachTenant('erasures.apply', tenantIds, (id) => applyErasures(operatorDb, id), errors);
+}
+
+/**
+ * `retention.apply`: per tenant, read its retention setting as any use case would (mycel_app under
+ * RLS), take the cut-offs from core and delete what passed them on the operator connection
+ * (`applyRetention` enters mycel_retention for that tenant only). Runs whatever the tenant's
+ * status: it accepts no command, publishes nothing and sends nothing, and a suspended site's
+ * visitors are owed the same terms.
+ */
+export function applyAllRetention(
+  uow: UnitOfWork,
+  operatorDb: ReturnType<typeof createDb>,
+  tenantIds: () => Promise<string[]>,
+  now: Date,
+  errors?: ErrorReporter
+): Promise<number> {
+  return forEachTenant(
+    'retention.apply',
+    tenantIds,
+    async (id) => {
+      const { value } = await uow.run(systemPrincipal(id, 'jobs:retention.apply'), (ctx) =>
+        ctx.siteSettings.retention()
+      );
+      const gone = await applyRetention(operatorDb, id, retentionCutoffs(now, value));
+      return gone.outbox + gone.mailIntents + gone.submissions + gone.admissions;
+    },
+    errors
+  );
 }
 
 /** What the export jobs need: the store the archives go to and the version in the manifest. */
@@ -379,6 +410,9 @@ export function jobHandlers({
     },
     'erasures.apply': platformJob('erasures.apply', () =>
       applyAllErasures(operatorDb, tenantIds, errors)
+    ),
+    'retention.apply': platformJob('retention.apply', () =>
+      applyAllRetention(uow, operatorDb, tenantIds, mail.clock.now(), errors)
     ),
   } satisfies Record<JobType, JobHandler>;
 }

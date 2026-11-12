@@ -34,6 +34,15 @@ export function outboxEventBus(trx: Kysely<Database>): EventBus {
         })
         .execute();
     },
+    async exists(id) {
+      // Under the tenant's row policy; the fronts' role may read these two columns only (0048).
+      const row = await trx
+        .selectFrom('outbox')
+        .select('id')
+        .where('id', '=', id)
+        .executeTakeFirst();
+      return !!row;
+    },
   };
 }
 

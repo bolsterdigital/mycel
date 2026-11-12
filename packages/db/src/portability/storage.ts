@@ -87,8 +87,6 @@ export interface StorageEntry {
  * route, and storage.test.ts refuses a key nothing names.
  */
 export const OPEN_WORK = {
-  retention:
-    'the decided terms: outbox 30 days after processing, submissions 24 months as a tenant setting',
   people: 'an erasure route for people and image credits, by explicit person id (ADR 031)',
   operators: 'a way to remove an operator account and the actor recorded on what they did',
 } as const;
@@ -277,7 +275,11 @@ export const STORAGE = {
         route: { kind: 'apply', does: 'goes with its submission' },
       },
     ],
-    retention: { kind: 'planned', open: 'retention', term: '24 months, tenant setting' },
+    retention: {
+      kind: 'term',
+      term: '24 calendar months, or the fewer the tenant set (site.retention.update); longer while an open mail or connector effect still reads the submission, or while it is the evidence of a readmitted lifecycle that a connection intent was planned from',
+      by: 'retention.apply',
+    },
   },
   supporters: {
     category: 'supporters',
@@ -317,7 +319,11 @@ export const STORAGE = {
         route: { kind: 'apply', does: 'deletes the seat of an erased address' },
       },
     ],
-    retention: { kind: 'term', term: '7 days (ADMISSION_WINDOW_MS)', by: 'form.submit' },
+    retention: {
+      kind: 'term',
+      term: '7 days (ADMISSION_WINDOW_MS), removed by the next daily run or the next reservation',
+      by: 'retention.apply',
+    },
   },
   events: {
     category: 'supporters',
@@ -636,18 +642,14 @@ export const STORAGE = {
       {
         field: 'actor',
         subject: 'visitor',
-        route: {
-          kind: 'planned',
-          open: 'retention',
-          does: 'the anonymous ipHash goes with the event at the outbox term',
-        },
+        route: { kind: 'expires', why: 'the anonymous ipHash goes with the event at its term' },
       },
       ACTOR,
     ],
     retention: {
-      kind: 'planned',
-      open: 'retention',
-      term: '30 days after processed_at',
+      kind: 'term',
+      term: '30 days after processed_at; longer while an open mail.reconcile job reads the event; an event that never processed stays until ops retries it',
+      by: 'retention.apply',
     },
   },
   jobs: {
@@ -662,7 +664,7 @@ export const STORAGE = {
     ],
     retention: {
       kind: 'term',
-      term: '30 days after done (JOBS_RETENTION_DAYS)',
+      term: '30 days after done (JOBS_RETENTION_DAYS); a job that exhausted its attempts stays until ops retries or closes it',
       by: 'jobs.retention',
     },
   },
@@ -676,7 +678,11 @@ export const STORAGE = {
         route: { kind: 'apply', does: 'deletes the intents of an erased event' },
       },
     ],
-    retention: { kind: 'kept', why: 'delivery record; no term decided' },
+    retention: {
+      kind: 'term',
+      term: 'goes with its outbox event, which is the only way an erasure finds the intent',
+      by: 'retention.apply',
+    },
   },
   rate_limits: {
     category: 'access',

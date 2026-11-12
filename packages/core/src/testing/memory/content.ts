@@ -215,6 +215,12 @@ export function memorySite(
         s.siteImages = { version: baseVersion + 1, value: structuredClone(value) };
         return s.siteImages.version;
       },
+      retention: async () => structuredClone(s.siteRetention),
+      updateRetention: async (baseVersion, value) => {
+        if (s.siteRetention.version !== baseVersion) return null;
+        s.siteRetention = { version: baseVersion + 1, value: structuredClone(value) };
+        return s.siteRetention.version;
+      },
     },
     brandAssets: {
       get: async (kind) => structuredClone(kind === 'logo' ? s.brandLogo : s.brandFont),

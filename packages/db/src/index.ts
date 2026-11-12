@@ -87,6 +87,7 @@ export {
 } from './operations/outbox.js';
 export { deleteFinishedJobs, ping, queueLag, type QueueLag } from './operations/ops.js';
 export { sweepRateLimits } from './infra/janitor.js';
+export { applyRetention } from './infra/retention.js';
 export {
   opsCloseJob,
   opsDeadEvents,
