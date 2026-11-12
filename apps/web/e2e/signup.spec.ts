@@ -7,8 +7,11 @@ import { expectNoAxeViolations } from './lib/axe';
 import { isA11y, onlyA11y } from './lib/project';
 import { postUseCase } from './lib/api';
 import { pastMinimumFillTime } from './lib/form';
-import { forwarded } from './lib/login';
+import { forwarded, login } from './lib/login';
 import { NARROW, layoutGate, setTextSize } from './lib/layout';
+import { capabilitiesFor, systemPrincipal, UseCaseError, useCases } from '@mycel/core';
+import { testTenant } from '@mycel/db/testing';
+import { asOwner, withInvoker } from './lib/invoker';
 
 /**
  * A form page ships proof of work, plus conditional display only when its definition needs it.
@@ -603,4 +606,92 @@ test('conditional fields validate natively and forged inactive consent creates n
   await page.getByRole('button', { name: 'Aanmelden', exact: true }).click();
   await expect(page).toHaveURL(/signup\/thanks$/);
   expect(await supporter(request, email)).toBeNull();
+});
+
+// How long a site keeps what visitors sent (docs/reference/jobs.md § Retention): a site
+// administrator sees and changes the term on a native form (the no-js project proves it without
+// JavaScript); a stale save is a conflict, and an editor neither sees the section nor may post it. A site of its own: a shorter term on Probe would let
+// the daily run delete the submissions other specs make there.
+test('an administrator sets how long submissions are kept; an editor cannot', async ({
+  page,
+  baseURL,
+}) => {
+  const project = test.info().project.name;
+  const slug = `site-retention-${project}`;
+  const admin = `site-retention-${project}@probe.test`;
+  const editor = `site-retention-editor-${project}@probe.test`;
+  const tenant = await asOwner((owner) =>
+    testTenant(owner, slug, {
+      name: 'Retention',
+      locales: ['nl'],
+      platformDomain: process.env['PLATFORM_DOMAIN']!,
+      reuse: true,
+    })
+  );
+  const system = systemPrincipal(tenant.id, 'e2e');
+  const stored = () => withInvoker((invoker) => invoker.run(useCases.getSiteRetention, system, {}));
+  const setMonths = async (submissionMonths: number) => {
+    const { version } = await stored();
+    await withInvoker((invoker) =>
+      invoker.run(useCases.updateSiteRetention, system, {
+        baseVersion: version,
+        retention: { submissionMonths },
+      })
+    );
+  };
+  await withInvoker(async (invoker) => {
+    for (const [email, capabilities] of [
+      [admin, ['tenant:admin']],
+      [editor, capabilitiesFor('editor')],
+    ] as const)
+      try {
+        await invoker.run(useCases.inviteMember, system, {
+          email,
+          capabilities: [...capabilities],
+        });
+      } catch (e) {
+        if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
+      }
+  });
+  await setMonths(24);
+  const section = page.getByRole('region', { name: 'Inzendingen bewaren' });
+  try {
+    await login(page, `/admin/${slug}/site`, admin);
+    await expect(
+      page.getByRole('heading', { level: 2, name: 'Inzendingen bewaren' })
+    ).toBeVisible();
+    await expect(section).toContainText('Deze site bewaart formulierinzendingen 24 maanden.');
+    await expect(section).toContainText('bij de volgende dagelijkse run');
+    await expectNoAxeViolations(page);
+
+    await page.getByLabel('Bewaartermijn').selectOption('6');
+    await section.getByRole('button', { name: 'Termijn opslaan' }).click();
+    await expect(section).toContainText('Instellingen opgeslagen.');
+    await expect(section).toContainText('Deze site bewaart formulierinzendingen 6 maanden.');
+    expect((await stored()).value.submissionMonths).toBe(6);
+
+    // Another save after this page loaded: the form's version is stale, nothing is written.
+    await page.goto(`/admin/${slug}/site`);
+    await setMonths(12);
+    await page.getByLabel('Bewaartermijn').selectOption('1');
+    await section.getByRole('button', { name: 'Termijn opslaan' }).click();
+    await expect(page.getByText('Deze instellingen zijn elders gewijzigd')).toBeVisible();
+    expect((await stored()).value.submissionMonths).toBe(12);
+    await expectNoAxeViolations(page);
+
+    // An editor writes content, not retention: no section, and a post by hand is refused.
+    await page.context().clearCookies();
+    await login(page, `/admin/${slug}/site`, editor);
+    await expect(page.getByRole('heading', { level: 2, name: 'Tijdzone' })).toBeVisible();
+    await expect(section).toHaveCount(0);
+    const post = await page.request.post(`/admin/${slug}/site?section=general&/retention`, {
+      headers: { origin: baseURL!, 'content-type': 'application/x-www-form-urlencoded' },
+      data: `baseVersion=${(await stored()).version}&submissionMonths=1`,
+      maxRedirects: 0,
+    });
+    expect(post.status()).toBe(403);
+    expect((await stored()).value.submissionMonths).toBe(12);
+  } finally {
+    await setMonths(24);
+  }
 });

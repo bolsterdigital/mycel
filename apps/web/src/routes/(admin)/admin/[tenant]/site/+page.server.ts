@@ -13,6 +13,10 @@
 // its own form and version, so a save there never overwrites the theme or the logo.
 // API access (#101) holds the site's API keys, moved from Members: rare, for administrators only,
 // so a subject here rather than a menu item of its own; its actions are those Members had.
+// How long submissions are kept (`site.retention.*`, docs/reference/jobs.md § Retention) is a
+// section of General for `tenant:admin` only, its own form and version: a shorter term deletes submissions, which is
+// not an editor's decision. Rejected: a subject of its own for one field, or the Forms screen,
+// which an editor with `forms:read` opens too.
 import {
   BRAND_LIMITS,
   can,
@@ -96,6 +100,10 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
     section === 'api' ? (await runtime().invoker.run(useCases.listKeys, principal, {})).keys : null;
   const images =
     section === 'brand' ? await runtime().invoker.run(useCases.getSiteImages, principal, {}) : null;
+  const retention =
+    section === 'general' && can(principal, 'tenant:admin')
+      ? await runtime().invoker.run(useCases.getSiteRetention, principal, {})
+      : null;
   const chosen = images?.value.defaultImageId;
   const t = ui(langOf(locals));
   return {
@@ -103,6 +111,7 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
     subject: t(SUBJECT[section]),
     general,
     zones: section === 'general' ? timeZoneOptions(langOf(locals)) : [],
+    retention,
     theme,
     chrome,
     logo,
@@ -171,6 +180,20 @@ export const actions: Actions = {
       return { saved: 'general', version: result.version };
     } catch (e) {
       return refused(e, 'general', data);
+    }
+  },
+  retention: async ({ request, locals, url, params }) => {
+    const data = await request.formData();
+    const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
+    if (!can(principal, 'tenant:admin')) refuse(403);
+    try {
+      const result = await runtime().invoker.run(useCases.updateSiteRetention, principal, {
+        baseVersion: baseVersion(data),
+        retention: { submissionMonths: Number(text(data, 'submissionMonths')) },
+      });
+      return { saved: 'retention', version: result.version };
+    } catch (e) {
+      return refused(e, 'retention', data);
     }
   },
   brand: async ({ request, locals, url, params }) => {

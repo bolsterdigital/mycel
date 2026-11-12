@@ -2133,6 +2133,14 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.general.timeZone.hint':
     'Het beheer plant en toont tijden in deze zone, tenzij iemand onder Voorkeuren een eigen zone koos.',
   'admin.site.general.save': 'Tijdzone opslaan',
+  'admin.site.retention.title': 'Inzendingen bewaren',
+  'admin.site.retention.current': 'Deze site bewaart formulierinzendingen {months}.',
+  'admin.site.retention.months': 'Bewaartermijn',
+  'admin.site.retention.hint':
+    'Een kortere termijn verwijdert oudere inzendingen bij de volgende dagelijkse run; ze zijn daarna niet terug te halen.',
+  'admin.site.retention.month.one': '1 maand',
+  'admin.site.retention.month.other': '{n} maanden',
+  'admin.site.retention.save': 'Termijn opslaan',
   'admin.content.state.short.live': 'Gepubliceerd',
   'admin.content.state.short.changed': 'Gepubliceerd · ongepubliceerde wijzigingen',
   'admin.content.state.short.pinned': 'Ingepland',

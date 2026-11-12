@@ -2115,6 +2115,14 @@ export const en = {
   'admin.site.general.timeZone.hint':
     'The admin plans and shows times in this zone, unless someone chose their own under Preferences.',
   'admin.site.general.save': 'Save time zone',
+  'admin.site.retention.title': 'Keeping submissions',
+  'admin.site.retention.current': 'This site keeps form submissions for {months}.',
+  'admin.site.retention.months': 'Retention term',
+  'admin.site.retention.hint':
+    'A shorter term deletes older submissions at the next daily run; they cannot be brought back.',
+  'admin.site.retention.month.one': '1 month',
+  'admin.site.retention.month.other': '{n} months',
+  'admin.site.retention.save': 'Save term',
   'admin.content.state.short.live': 'Published',
   'admin.content.state.short.changed': 'Published · unpublished changes',
   'admin.content.state.short.pinned': 'Scheduled',
