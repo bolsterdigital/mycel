@@ -195,6 +195,7 @@ export function createApp({
         kind: useCase.kind,
         description: useCase.description,
         requires: useCase.requires,
+        ...(useCase.alsoRequires?.length ? { alsoRequires: useCase.alsoRequires } : {}),
         ...(useCase.effect ? { effect: useCase.effect } : {}),
         methods: methodsOf(useCase),
       })),

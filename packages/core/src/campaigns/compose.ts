@@ -13,8 +13,6 @@ import { Slug } from '../content/model.js';
 import { Locale } from '../i18n/locale.js';
 import { createItem } from '../content/service.js';
 import { createForm } from '../forms/authoring.js';
-import { can } from '../principal.js';
-import { UseCaseError } from '../errors.js';
 import { defineUseCase } from '../registry.js';
 import { CampaignGoal, CampaignView } from './model.js';
 import { createCampaign } from './service.js';
@@ -26,6 +24,8 @@ export const composeCampaign = defineUseCase({
   name: 'campaign.landing.create',
   kind: 'command',
   requires: 'content:write',
+  // A new form needs form rights, and a petition or signup form publishing permission.
+  alsoRequires: ['forms:write', 'content:publish'],
   consumes: null,
   description:
     'Start a petition or signup in one step: a new form of that kind, a draft landing page with the title per locale that places the form, and the campaign with participation in draft. Needs form rights and, as for every petition or signup form, publishing permission; nothing is published or opened.',
@@ -53,11 +53,6 @@ export const composeCampaign = defineUseCase({
     },
   ],
   async handler(ctx, { kind, title, defaultLocale, locales, slug, goal, counterVisible }) {
-    // Before anything is written: `campaign.create` checks the form right only when it binds.
-    if (!can(ctx.principal, 'forms:write'))
-      throw new UseCaseError('forbidden', 'form rights required', [
-        { path: 'kind', message: 'campaign.forbidden.forms-write' },
-      ]);
     const form = await createForm.handler(ctx, createForm.input.parse({ kind }));
     const { item } = await createItem.handler(
       ctx,

@@ -4,7 +4,14 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { describe, expect, it } from 'vitest';
-import { Invoker, buildRegistry, toJsonSchema, type Capability, type UseCase } from '@mycel/core';
+import {
+  Invoker,
+  buildRegistry,
+  requiredCapabilities,
+  toJsonSchema,
+  type Capability,
+  type UseCase,
+} from '@mycel/core';
 import { MemoryUnitOfWork, principal } from '@mycel/core/testing';
 import { createMcpServer } from './index.js';
 
@@ -95,7 +102,7 @@ describe.each(useCases.map((u) => [u.name, u] as const))('MCP conformance: %s', 
   });
 
   it('returns invalid_input with issues for arguments that violate the schema', async () => {
-    const result = await call([useCase.requires], brokenArgs(useCase));
+    const result = await call(requiredCapabilities(useCase), brokenArgs(useCase));
     expect(result.isError).toBe(true);
     const error = payload(result);
     if (
@@ -110,7 +117,7 @@ describe.each(useCases.map((u) => [u.name, u] as const))('MCP conformance: %s', 
   });
 
   it('accepts examples[0] with exactly the required capability', async () => {
-    const result = await call([useCase.requires], useCase.examples[0].input);
+    const result = await call(requiredCapabilities(useCase), useCase.examples[0].input);
     if (
       useCase.actors &&
       !useCase.actors.includes(useCase.requires === 'tenant:admin' ? 'system' : 'agent')

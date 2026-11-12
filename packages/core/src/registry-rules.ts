@@ -126,6 +126,11 @@ function checkUseCase(useCase: UseCase, fail: (rule: string) => void): void {
     else if (requires !== EFFECT_CAPABILITY[effect] && requires !== 'tenant:admin')
       fail(`effect "${effect}" requires ${EFFECT_CAPABILITY[effect]}, not ${requires}`);
   }
+  // `alsoRequires` adds capabilities; it never repeats `requires` or names `tenant:admin`, which
+  // would make the use case an admin's alone without saying so in `requires`.
+  const also = useCase.alsoRequires ?? [];
+  if (also.includes(requires) || also.includes('tenant:admin') || new Set(also).size < also.length)
+    fail('alsoRequires repeats a capability or names tenant:admin');
   const verb = name.split('.').at(-1) ?? '';
   if (kind === 'command' && EFFECT_VERBS.includes(verb) && !effect)
     fail(`a command named "${verb}" must declare an effect`);

@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   Invoker,
   buildRegistry,
+  requiredCapabilities,
   toJsonSchema,
   type Capability,
   type Principal,
@@ -49,7 +50,7 @@ const post = (useCase: UseCase, body: string, auth?: string) =>
   });
 
 const exactly = (useCase: UseCase) =>
-  `Bearer ${useCase.actors?.includes('operator') ? 'operator-' : ''}caps:${useCase.requires}`;
+  `Bearer ${useCase.actors?.includes('operator') ? 'operator-' : ''}caps:${requiredCapabilities(useCase).join(',')}`;
 
 /** A body that fails every object schema: the wrong top-level type. */
 const SCHEMA_VIOLATION = '[]';

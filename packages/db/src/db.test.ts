@@ -233,6 +233,7 @@ describe.skipIf(skip)('postgres adapter', () => {
     expect(await invoker.run(useCases.previewConfirmation, visitor, { token })).toEqual({
       status: 'pending',
       locale: 'en',
+      purpose: 'subscription',
     });
     expect(await consents()).toEqual([]);
     const click = () => invoker.run(useCases.confirmSubscription, visitor, { token });
@@ -245,7 +246,11 @@ describe.skipIf(skip)('postgres adapter', () => {
         consentTextVersion: probeForm(formId).consentTextVersion,
       }),
     ]);
-    expect(await click()).toEqual({ status: 'already_confirmed', locale: 'en' });
+    expect(await click()).toEqual({
+      status: 'already_confirmed',
+      locale: 'en',
+      purpose: 'subscription',
+    });
     await drainOwn();
     const confirmed = await invoker.run(useCases.getSupporter, systemPrincipal(tenantA, 'test'), {
       email,

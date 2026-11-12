@@ -27,7 +27,12 @@ import { requireActive } from './entitlements/guards.js';
 import { type Issue, notFound, UseCaseError } from './errors.js';
 import type { ErrorReporter, Logger, TransactionContext, UnitOfWork } from './ports.js';
 import type { Principal } from './principal.js';
-import { UNAUDITED_COMMANDS, type UseCase, type UseCaseRegistry } from './registry.js';
+import {
+  UNAUDITED_COMMANDS,
+  requiredCapabilities,
+  type UseCase,
+  type UseCaseRegistry,
+} from './registry.js';
 
 export function zodIssues(error: z.ZodError): Issue[] {
   return error.issues.map((i) => ({ path: i.path.join('.'), message: i.message }));
@@ -124,7 +129,12 @@ function admit(
 ): unknown {
   guardSuspended(useCase, principal);
   if (!registry.authorize(useCase, principal))
-    throw new UseCaseError('forbidden', `missing capability ${useCase.requires}`);
+    throw new UseCaseError(
+      'forbidden',
+      `missing capability ${requiredCapabilities(useCase)
+        .filter((c) => !principal.capabilities.includes(c))
+        .join(', ')}`
+    );
   const parsed = useCase.input.safeParse(input);
   if (!parsed.success)
     throw new UseCaseError(

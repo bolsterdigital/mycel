@@ -45,6 +45,15 @@ export interface UseCase<
   /** One sentence for humans and agents. */
   description: string;
   requires: Capability;
+  /**
+   * Capabilities needed beside `requires`, for a use case that does the work of several in one
+   * transaction (ADR 033 rule 10: `campaign.landing.create` also makes a form, which needs
+   * `forms:write` and, for a petition or signup, `content:publish`). `authorize` checks them, so
+   * every front refuses the same principal before the handler runs, and OpenAPI names them.
+   * Rejected: checks inside the handler only (the front-door contract would understate what the
+   * call needs, and the conformance suites could not grant exactly enough).
+   */
+  alsoRequires?: readonly Capability[];
   effect?: UseCaseEffect;
   /**
    * The limit this use case grows (ADR 015): it must call `withinLimit` for it, and the registry
@@ -128,9 +137,13 @@ export class UseCaseRegistry {
     if (principal.actor.kind === 'anonymous' && !ANONYMOUS_USE_CASES.has(useCase.name))
       return false;
     if (useCase.actors && !useCase.actors.includes(principal.actor.kind)) return false;
-    return (
-      principal.capabilities.includes(useCase.requires) ||
-      principal.capabilities.includes('tenant:admin')
-    );
+    if (principal.capabilities.includes('tenant:admin')) return true;
+    return requiredCapabilities(useCase).every((c) => principal.capabilities.includes(c));
   }
 }
+
+/** Every capability a use case needs: `requires`, then `alsoRequires`. */
+export const requiredCapabilities = (useCase: UseCase): Capability[] => [
+  useCase.requires,
+  ...(useCase.alsoRequires ?? []),
+];
