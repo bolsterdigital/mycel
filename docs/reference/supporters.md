@@ -10,17 +10,17 @@ A supporter is one person per tenant, identified by a normalised e-mail address 
 
 `SupporterEvent` (`packages/core/src/supporters/events.ts`) keeps the Dreamkit schema id so a backfill from the predecessor needs no translation. A new event type is an addition to `SupporterEventType`; a changed meaning is a new schema id, never an edit.
 
-| Field                                 | Content                                                                                                                                                     |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schema`                              | `wings.supporter-event.v1`                                                                                                                                  |
-| `id`                                  | deterministic dedup key: `sha1(source \| source_ref \| type \| occurred_at)`                                                                                |
-| `supporter_id`                        | Mycel's addition; assigned at ingest, ignored on input                                                                                                      |
-| `type`                                | `petition.signed`, `form.submitted`, `newsletter.*`, `consent.*`, `donation.*`, `event.rsvp`, `membership.*`, `supporter.erased`, `supporter.email_changed` |
-| `email`                               | lower-cased and trimmed; for `supporter.email_changed` the address before the change                                                                        |
-| `occurred_at`                         | ISO 8601 with offset                                                                                                                                        |
-| `source`, `source_site`, `source_ref` | origin; Mycel writes `source: mycel` and `source_ref: submission:<id>` or `supporter:<id>`                                                                  |
-| `lifecycle_id`                        | optional server-owned readmission id (ADR 032); validated against durable lifecycle and submission evidence, never a caller-selected supporter id           |
-| `props`                               | type-specific extras                                                                                                                                        |
+| Field                                 | Content                                                                                                                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema`                              | `wings.supporter-event.v1`                                                                                                                                                |
+| `id`                                  | deterministic dedup key: `sha1(source \| source_ref \| type \| occurred_at)`                                                                                              |
+| `supporter_id`                        | Mycel's addition; assigned at ingest, ignored on input                                                                                                                    |
+| `type`                                | `petition.signed`, `form.submitted`, `newsletter.*`, `consent.*`, `donation.*`, `event.rsvp`, `membership.*`, `supporter.erased`, `supporter.email_changed`               |
+| `email`                               | lower-cased and trimmed; for `supporter.email_changed` the address before the change                                                                                      |
+| `occurred_at`                         | ISO 8601 with offset                                                                                                                                                      |
+| `source`, `source_site`, `source_ref` | origin; Mycel writes `source: mycel` and `source_ref: submission:<id>` or `supporter:<id>`                                                                                |
+| `lifecycle_id`                        | optional server-owned readmission id (ADR 032); validated against the durable lifecycle and its submission (a provider withdrawal: or its receipt), never caller-selected |
+| `props`                               | type-specific extras                                                                                                                                                      |
 
 Today the `supporters.ingest` subscriber maps `newsletter.subscribed` and `consent.given` from forms. A signup and its confirmation share `source_ref` and differ in type, so both ids are deterministic and distinct.
 

@@ -277,7 +277,7 @@ export const STORAGE = {
     ],
     retention: {
       kind: 'term',
-      term: '24 calendar months, or the fewer the tenant set (site.retention.update); longer while an open mail or connector effect still reads the submission, or while it is the evidence of a readmitted lifecycle that a connection intent was planned from',
+      term: '24 calendar months, or the fewer the tenant set (site.retention.update); longer while an open mail or connector effect still reads the submission',
       by: 'retention.apply',
     },
   },

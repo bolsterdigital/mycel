@@ -263,16 +263,16 @@ describe.skipIf(skip)('retention', () => {
     expect(await left('form_submissions', a, [undelivered, uncertain, feeding])).toEqual([]);
   });
 
-  it('keeps the submission of a readmitted lifecycle while a settled intent was planned from it', async () => {
-    // ADR 032 rule 3: after an erasure a provider withdrawal is accepted only with its
-    // submission. Every other fed submission goes at its term (`fed` in the test above).
+  it('deletes the submission of a readmitted lifecycle at its term like any other fed one', async () => {
+    // ADR 032 rule 3: a provider withdrawal in a readmitted lifecycle is proven by its receipt,
+    // so a settled intent no longer holds the submission.
     const old = ms(cutoffs.submissionsBefore, -DAY);
     const settled = await connectionIntent(a, 'succeeded');
     const readmitted = await submission(a, old, settled.businessId, uuidv7());
     const unfed = await submission(a, old, uuidv7(), uuidv7());
 
-    expect(await applyRetention(operatorDb, a, cutoffs)).toMatchObject({ submissions: 1 });
-    expect(await left('form_submissions', a, [readmitted, unfed])).toEqual([readmitted]);
+    expect(await applyRetention(operatorDb, a, cutoffs)).toMatchObject({ submissions: 2 });
+    expect(await left('form_submissions', a, [readmitted, unfed])).toEqual([]);
   });
 
   it('works through a backlog in batches and finds nothing the second time', async () => {

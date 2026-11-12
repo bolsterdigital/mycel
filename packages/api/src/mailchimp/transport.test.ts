@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 // The provider fixture runs the real form/feed/intent boundary. Rejected: mocking the source,
 // which would miss pending consent, a stale mapping and a withdrawal after acceptance.
@@ -10,6 +11,7 @@ import {
   buildRegistry,
   formFeedSource,
   formFeedSubscriber,
+  ingest,
   runConnectionIntent,
   signConfirmToken,
   systemPrincipal,
@@ -17,6 +19,8 @@ import {
   queueMailchimpCallback,
   type ConnectionIntent,
   type FormFeed,
+  type SupporterEvent,
+  type WithdrawalEvidence,
 } from '@mycel/core';
 import { FakeClock, FakeDns, MemoryUnitOfWork, probeForm, TENANT } from '@mycel/core/testing';
 import { mailchimpMemberHash, mailchimpTransport } from './transport.js';
@@ -571,6 +575,100 @@ describe('Mailchimp real form feed', () => {
     member = { ...member!, status: 'subscribed', last_changed: clock.now().toISOString() };
     expect(await transport.sync(TENANT, intent!.id)).toBe(true);
     expect(await lists()).toEqual([]);
+  });
+  describe('a readmitted lifecycle whose submission passed its retention term', () => {
+    // ADR 032 rule 3: erased, signed up again through the fed form, then the term ran out.
+    const readmit = async () => {
+      const first = await submit();
+      await dispatch(first.intent!);
+      await uow.run(admin, async (ctx) => {
+        await ctx.erasures.register(first.intent!.supporterId!, email);
+        await ctx.erasures.apply();
+      });
+      // Past the resubmission cooldown, and strictly later than the erasure.
+      clock.advance(86_400_001);
+      member = null;
+      const again = await invoker.run(useCases.submitForm, admin, {
+        formId: FORM,
+        locale: 'en',
+        values: { email, consent: true },
+      });
+      if (again.status !== 'accepted') throw new Error('fixture rejected');
+      const token = await uow.run(admin, (ctx) =>
+        signConfirmToken(
+          ctx.signer,
+          { tenantId: TENANT, submissionId: again.submissionId, list: 'newsletter' },
+          clock.now()
+        )
+      );
+      await invoker.run(useCases.confirmSubscription, admin, { token });
+      for (const event of [...uow.store.outbox]) await formFeedSubscriber(uow).handle(event);
+      const supporter = (await uow.run(admin, (ctx) => ctx.supporters.getProjection(email)))!;
+      expect(supporter.id).not.toBe(first.intent!.supporterId);
+      const intent = (
+        await uow.run(admin, (ctx) => ctx.connectionIntents.list(connectionId, 20))
+      ).find((i) => i.supporterId === supporter.id)!;
+      await dispatch(intent);
+      expect(supporter.lists).toEqual(['newsletter']);
+      clock.advance(25 * 31 * 24 * 3600_000);
+      uow.store.for(TENANT).submissions.delete(again.submissionId);
+      return { intent, supporter };
+    };
+    const lists = async () =>
+      (await uow.run(admin, (ctx) => ctx.supporters.getProjection(email)))?.lists;
+    const withdrawal = (lifecycleId: string, intentId: string, at: string): SupporterEvent => ({
+      schema: 'wings.supporter-event.v1',
+      id: `forged:${at}`,
+      type: 'newsletter.unsubscribed',
+      email,
+      occurred_at: clock.now().toISOString(),
+      lifecycle_id: lifecycleId,
+      source: 'mailchimp',
+      source_site: 'urn:mycel:connection:' + connectionId,
+      source_ref: intentId,
+      props: { list: 'newsletter' },
+    });
+
+    it('applies a provider withdrawal from the receipt of the live lifecycle', async () => {
+      await configure();
+      const { intent } = await readmit();
+      member = { ...member!, status: 'unsubscribed', last_changed: clock.now().toISOString() };
+      expect(await transport.sync(TENANT, intent.id)).toBe(true);
+      expect(await lists()).toEqual([]);
+      // The receipt removes permission only: a later subscribed status grants nothing.
+      member = { ...member!, status: 'subscribed', last_changed: clock.now().toISOString() };
+      expect(await transport.sync(TENANT, intent.id)).toBe(true);
+      expect(await lists()).toEqual([]);
+    });
+
+    it('accepts the receipt for a withdrawal only, and only for its own lifecycle and address', async () => {
+      await configure();
+      const { intent, supporter } = await readmit();
+      const proof = { receiptIntentId: intent.id, memberHash: mailchimpMemberHash };
+      const run = (event: SupporterEvent, evidence?: WithdrawalEvidence) =>
+        uow.run(admin, (ctx) => ingest(ctx, event, evidence));
+      const event = withdrawal(supporter.id, intent.id, 'a');
+      // No evidence, another intent's receipt, a hash of another address, a grant: all refused.
+      expect(await run(event)).toBe(false);
+      expect(await run(event, { ...proof, receiptIntentId: randomUUID() })).toBe(false);
+      expect(await run(event, { ...proof, memberHash: () => 'other' })).toBe(false);
+      expect(await run({ ...event, type: 'newsletter.subscribed' }, proof)).toBe(false);
+      expect(await lists()).toEqual(['newsletter']);
+      expect(await run(event, proof)).toBe(true);
+      expect(await lists()).toEqual([]);
+    });
+
+    it('refuses the receipt once its lifecycle is erased too', async () => {
+      await configure();
+      const { intent, supporter } = await readmit();
+      await uow.run(admin, (ctx) => ctx.erasures.register(supporter.id, email));
+      member = { ...member!, status: 'unsubscribed', last_changed: clock.now().toISOString() };
+      expect(await transport.sync(TENANT, intent.id)).toBe(false);
+      const proof = { receiptIntentId: intent.id, memberHash: mailchimpMemberHash };
+      expect(
+        await uow.run(admin, (ctx) => ingest(ctx, withdrawal(supporter.id, intent.id, 'b'), proof))
+      ).toBe(false);
+    });
   });
   it.each(['email', 'erasure'] as const)(
     'without the submission, a withdrawal is not applied after %s moved the address away',

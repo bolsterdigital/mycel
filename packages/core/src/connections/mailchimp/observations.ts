@@ -13,7 +13,7 @@ import type { TransactionContext } from '../../ports.js';
 import type { ConnectionIntent } from '../intents.js';
 import type { MailchimpMemberStatus, MailchimpReceipt } from './ports.js';
 import type { SupporterProjection } from '../../supporters/model.js';
-import { ingest, toSupporterEvent } from '../../supporters/service.js';
+import { ingest, toSupporterEvent, type WithdrawalEvidence } from '../../supporters/service.js';
 import { formFeedSource } from '../../forms/feed/delivery.js';
 
 const SUPPRESSED = ['unsubscribed', 'cleaned', 'archived', 'absent'];
@@ -36,7 +36,7 @@ async function suppress(
   intent: ConnectionIntent,
   supporter: SupporterProjection,
   at: { now: Date; id: string },
-  evidence: { lifecycleId: string | undefined; submissionId: string } | null
+  evidence: { lifecycleId: string | undefined; proof: WithdrawalEvidence } | null
 ): Promise<boolean> {
   const { now, id } = at;
   return ingest(
@@ -53,7 +53,7 @@ async function suppress(
       source_ref: intent.id,
       props: { list: intent.scope, connectionId: intent.connectionId },
     },
-    evidence?.submissionId
+    evidence?.proof
   );
 }
 
@@ -75,8 +75,9 @@ const published = (
 /**
  * The submission is gone (retention). Only a withdrawal can still be applied, and only to the
  * supporter the receipt was written for while it holds the address the member hash was made of.
- * A readmitted lifecycle (ADR 032 rule 3) needs its submission as evidence, which retention
- * therefore keeps; without it `ingest` refuses and nothing is recorded as withdrawn.
+ * For an address that was erased and signed up again, the supporter is its readmitted lifecycle
+ * and `ingest` takes the receipt of that lifecycle as the evidence (ADR 032 rule 3), so retention
+ * need not keep the submission.
  */
 async function applyWithoutSubmission(
   ctx: TransactionContext,
@@ -101,7 +102,14 @@ async function applyWithoutSubmission(
   const now = ctx.clock.now();
   if (SUPPRESSED.includes(observation.status) && supporter.lists.includes(intent.scope)) {
     const at = { now, id: ctx.ids.next() };
-    if (await suppress(ctx, intent, supporter, at, null))
+    // A registered address is only usable as its live lifecycle; `ingest` checks that it is one.
+    const evidence = (await ctx.erasures.allows(supporter.email))
+      ? null
+      : {
+          lifecycleId: supporter.id,
+          proof: { receiptIntentId: intent.id, memberHash: observation.memberHash },
+        };
+    if (await suppress(ctx, intent, supporter, at, evidence))
       await published(ctx, intent, supporter.email, at);
   }
   await ctx.mailchimpReceipts.observe(intent.id, observation.status, now, receipt.confirmedAt);
@@ -182,7 +190,7 @@ export async function applyMailchimpObservation(
     const at = { now, id: ctx.ids.next() };
     await suppress(ctx, intent, supporter, at, {
       lifecycleId: sub.evaluation?.supporterLifecycleId,
-      submissionId: sub.id,
+      proof: { submissionId: sub.id },
     });
     await published(ctx, intent, supporter.email, at);
   }

@@ -83,25 +83,48 @@ export async function toSupporterEvent(event: DomainEvent): Promise<SupporterEve
  * the address decides. After a `supporter.email_changed` the old address no longer resolves, so an
  * event that still uses it starts a new supporter: the source has to use the new address.
  */
+/**
+ * What a provider withdrawal in a readmitted lifecycle may be proven with (ADR 032 rule 3): the
+ * current submission, or, once retention has deleted it, the provider receipt written for that
+ * lifecycle. Both only remove permission; nothing else accepts them.
+ */
+export type WithdrawalEvidence =
+  { submissionId: string } | { receiptIntentId: string; memberHash(email: string): string };
+
+/** The receipt was written for this live lifecycle and for the address it still holds. */
+async function receiptProves(
+  ctx: TransactionContext,
+  event: SupporterEvent,
+  evidence: { receiptIntentId: string; memberHash(email: string): string }
+): Promise<boolean> {
+  const receipt = await ctx.mailchimpReceipts.get(evidence.receiptIntentId);
+  if (!receipt || receipt.supporterId !== event.lifecycle_id) return false;
+  if (receipt.memberHash !== evidence.memberHash(event.email)) return false;
+  return (await ctx.supporters.getProjectionById(receipt.supporterId))?.email === event.email;
+}
+
 export async function ingest(
   ctx: TransactionContext,
   event: SupporterEvent,
-  withdrawalSubmissionId?: string
+  withdrawalEvidence?: WithdrawalEvidence
 ): Promise<boolean> {
   await ctx.supporters.lock(event.email);
   if (!(await ctx.erasures.allows(event.email, event.lifecycle_id))) return false;
   if (event.lifecycle_id) {
     const withdrawal =
-      ['newsletter.unsubscribed', 'consent.withdrawn'].includes(event.type) &&
-      withdrawalSubmissionId;
-    const sub = withdrawal
-      ? await ctx.submissions.findById(withdrawal)
-      : event.source === SOURCE && event.source_ref.startsWith('submission:')
-        ? await ctx.submissions.findById(event.source_ref.slice('submission:'.length))
-        : null;
-    if (sub?.evaluation?.supporterLifecycleId !== event.lifecycle_id) return false;
-    const field = sub.evaluation.definition.fields.find((f) => f.type === 'email');
-    if (!field || sub.values[field.name] !== event.email) return false;
+      ['newsletter.unsubscribed', 'consent.withdrawn'].includes(event.type) && withdrawalEvidence;
+    if (withdrawal && 'receiptIntentId' in withdrawal) {
+      if (!(await receiptProves(ctx, event, withdrawal))) return false;
+    } else {
+      const sub = withdrawal
+        ? await ctx.submissions.findById(withdrawal.submissionId)
+        : event.source === SOURCE && event.source_ref.startsWith('submission:')
+          ? await ctx.submissions.findById(event.source_ref.slice('submission:'.length))
+          : null;
+      if (sub?.evaluation?.supporterLifecycleId !== event.lifecycle_id) return false;
+      const field = sub.evaluation.definition.fields.find((f) => f.type === 'email');
+      if (!field || sub.values[field.name] !== event.email) return false;
+    }
   }
   const resolved = await ctx.supporters.resolve(event.email);
   const id = event.lifecycle_id ?? resolved.id;
