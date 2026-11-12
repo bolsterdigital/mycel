@@ -49,7 +49,14 @@ const server = createServer(async (request, response) => {
     result = { ...members.get(key), ...body, last_changed: new Date().toISOString() };
     members.set(key, result);
   } else status = 404;
-  response.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(result));
+  // Every response closes its connection. A pooled keep-alive socket raced the server's idle
+  // close (5 s plus Node's 1 s buffer): a test that waited ~6 s between two calls wrote on a
+  // socket the fixture was closing and got ECONNRESET (#232, reproduced 64/900 at 5.99 s).
+  // Rejected: a longer keepAliveTimeout, which only moves the edge to a longer wait, and
+  // request retries, which would also hide a fixture that really died.
+  response
+    .writeHead(status, { 'content-type': 'application/json', connection: 'close' })
+    .end(JSON.stringify(result));
 });
 server.listen(Number(process.env.MAILCHIMP_FIXTURE_PORT), '127.0.0.1');
 for (const signal of ['SIGTERM', 'SIGINT'])
