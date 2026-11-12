@@ -3,7 +3,7 @@
 // which is inside the editor's own form, so its controls belong to a separate form by the `form`
 // attribute and post to `campaigns/[id]`; that route answers with a 303 back to the editor and a
 // `?campaign=` outcome, so the flow works without JavaScript and a refresh repeats nothing.
-// Rejected: actions in the editor route (2,800 lines already, #173) and a nested form (invalid
+// Rejected: actions in the editor route (past its size ceiling already) and a nested form (invalid
 // HTML; browsers drop the inner one).
 
 import { can, useCases, type CampaignView, type Principal } from '@mycel/core';
