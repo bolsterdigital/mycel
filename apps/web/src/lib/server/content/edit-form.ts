@@ -318,6 +318,16 @@ const DOCUMENT_FIELDS: [RegExp, string][] = [
 ];
 
 /**
+ * Core's refusal of a paywall block without the marker teaser. It sits on `blocks`, but on a save
+ * the block is already there and what the editor changed is the teaser, so that is the field it
+ * names. Only on the save's own path (`document.blocks`): on a block action (root `blocks`) the
+ * refused insert put the paywall there, and an open item shows no teaser choice to point at.
+ * Rejected: a path entry `document.blocks` in `DOCUMENT_FIELDS`, which would send every other
+ * issue on the block list (an unrecorded medium) to the teaser as well.
+ */
+const PAYWALL_WITHOUT_MARKER = 'content.access.paywall-without-marker';
+
+/**
  * The issues of a refused save that name a document field, as `{ name, message }`. A save's input
  * nests the document (`document.access.teaser`); a block action validates the stored document,
  * whose paths start at its root (`access.teaser`).
@@ -325,6 +335,8 @@ const DOCUMENT_FIELDS: [RegExp, string][] = [
 export function documentFieldIssues(e: UseCaseError): { name: string; message: string }[] {
   return e.issues
     .map((i) => {
+      if (i.path === 'document.blocks' && i.message === PAYWALL_WITHOUT_MARKER)
+        return { name: 'teaser', message: i.message };
       const path = i.path.startsWith('document.') ? i.path : `document.${i.path}`;
       return { name: DOCUMENT_FIELDS.find(([re]) => re.test(path))?.[1] ?? '', message: i.message };
     })

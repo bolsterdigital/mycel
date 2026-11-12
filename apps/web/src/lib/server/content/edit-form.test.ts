@@ -14,6 +14,7 @@ import {
 } from '@mycel/core';
 import { formValues, postedValues } from '#lib/editor/block-form.js';
 import { issueCopy } from './content-blocks.js';
+import { ISSUES } from './edit-copy.js';
 import {
   formDocument,
   blockIssueField,
@@ -378,6 +379,23 @@ describe('the one edit form', () => {
       'teaser',
       'locales',
     ]);
+  });
+
+  it('names the teaser for a paywall refused on the save, and only there', () => {
+    const save = (path: string, message: string) =>
+      documentFieldIssues(new UseCaseError('invalid_input', 'bad', [{ path, message }]));
+    const PAYWALL = 'content.access.paywall-without-marker';
+    expect(save('document.blocks', PAYWALL)).toEqual([{ name: 'teaser', message: PAYWALL }]);
+    expect(ISSUES[PAYWALL]).toBe('admin.content.error.paywallWithoutMarker');
+    // Another issue on the save's block list names no field, as before.
+    expect(save('document.blocks', 'content.reference.media-unrecorded')).toEqual([]);
+    // The same key on a block action (root `blocks`): the refused insert has no teaser to name.
+    expect(save('blocks', PAYWALL)).toEqual([]);
+    expect(
+      blockRefusalIssues(
+        new UseCaseError('invalid_input', 'bad', [{ path: 'blocks', message: PAYWALL }])
+      )
+    ).toEqual([]);
   });
 });
 

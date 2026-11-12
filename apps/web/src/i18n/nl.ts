@@ -1370,6 +1370,8 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Een tag heeft alleen letters en cijfers, met één spatie of streepje tussen woorden.',
   'admin.content.error.marker':
     '"Alles boven het betaalmuurblok" vraagt precies één betaalmuurblok op het hoogste niveau.',
+  'admin.content.error.paywallWithoutMarker':
+    'Dit item heeft een betaalmuurblok, en dat werkt alleen met "Alles boven het betaalmuurblok". Kies die teaser.',
   'admin.content.error.teaserTooLong':
     'Er zijn meer blokken voor iedereen zichtbaar dan het item heeft.',
   'admin.content.error.tier': 'Een betaald niveau vraagt een niveau; dat is er nog niet.',
