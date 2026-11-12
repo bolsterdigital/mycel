@@ -51,7 +51,7 @@ const server = createServer(async (request, response) => {
   } else status = 404;
   // Every response closes its connection. A pooled keep-alive socket raced the server's idle
   // close (5 s plus Node's 1 s buffer): a test that waited ~6 s between two calls wrote on a
-  // socket the fixture was closing and got ECONNRESET (#232, reproduced 64/900 at 5.99 s).
+  // socket the fixture was closing and got ECONNRESET (reproduced 64 of 900 calls at 5.99 s).
   // Rejected: a longer keepAliveTimeout, which only moves the edge to a longer wait, and
   // request retries, which would also hide a fixture that really died.
   response
