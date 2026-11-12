@@ -12,7 +12,7 @@
 // hash is registered (a restore can bring back a submission whose supporter was never ingested).
 // They live in this process for the length of one call.
 //
-// Scale (#225): apply first asks which registrations still have such a copy (`pendingHashes`) and
+// Scale: apply first asks which registrations still have such a copy (`pendingHashes`) and
 // locks and applies only those, `APPLY_BATCH` per transaction; a settled register costs one
 // read per table and no lock. SQL hashes the text it can hash exactly (`plain`) to narrow what
 // is read; core's `emailKey` decides on everything it reads.
@@ -110,7 +110,7 @@ export function erasureRepository(
 }
 
 /**
- * Registrations one transaction locks and applies at most (#225). Each holds one advisory lock
+ * Registrations one transaction locks and applies at most. Each holds one advisory lock
  * until commit, from a lock table every session of the cluster shares; at 64 locks per connection
  * slot a run of 15,000 failed with `out of shared memory`.
  */
@@ -477,7 +477,7 @@ export function erasureStatus(operatorDb: Kysely<Database>, tenantId: string) {
 /**
  * `mycel erasures apply`: apply the register of one tenant on the operator connection, which may
  * enter mycel_erasure. Returns the rows changed. The registrations with something left to change
- * go in transactions of at most `APPLY_BATCH` (#225): each commits what it erased, and one that
+ * go in transactions of at most `APPLY_BATCH`: each commits what it erased, and one that
  * fails leaves the rest to the next run, which finds the same work from the register.
  */
 export async function applyErasures(

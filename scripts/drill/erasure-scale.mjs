@@ -5,7 +5,7 @@
 // of erasures, then times `applyErasures` (packages/db/src/erasures.ts) and prints the plan and
 // buffers of each scan it makes, as mycel_erasure under the tenant's context, which is what apply
 // runs as. Apply locks only registrations with something left to change, at most `APPLY_BATCH`
-// per transaction (#225); before that it took one lock per registration in one transaction and
+// per transaction; before that it took one lock per registration in one transaction and
 // failed past the lock table (between 10,000 and 15,000 on a dev server).
 //
 //   source .scratch/<dir>/env.sh   # a scratch database: the tenant stays behind

@@ -472,13 +472,13 @@ describe('erasure address boundaries in decoded JSON', () => {
     [null, false],
   ])('selects %j only when it carries the whole address (%s)', (value, expected) => {
     expect(carriesErasedAddress(value, addresses)).toBe(expected);
-    // #225: the indexed matcher gives the same answer, alone and among many other addresses.
+    // The indexed matcher gives the same answer, alone and among many other addresses.
     expect(erasedAddressMatcher(addresses)(value)).toBe(expected);
     const many = new Set([...addresses, 'nn@example.org', 'ann@example.or', '@x', 'y@', 'n@e']);
     expect(erasedAddressMatcher(many)(value)).toBe(carriesErasedAddress(value, many));
   });
 
-  it('matches like carriesErasedAddress on generated text (#225)', () => {
+  it('matches like carriesErasedAddress on generated text', () => {
     const parts = ['a', 'n', '@', 'e', '.', 'o', ' ', 'A', 'İ', 'é', '+', '\n'];
     const set = new Set(['an@e.o', 'a@e', 'n@e.o', 'i̇n@e', '@e', 'a@', 'ae@o']);
     const matcher = erasedAddressMatcher(set);

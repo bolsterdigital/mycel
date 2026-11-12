@@ -530,7 +530,7 @@ describe.skipIf(skip)('erasure conformance', () => {
     }
   );
 
-  // #225: SQL narrows the rows apply reads by hashing `plain` text itself; it must agree with core
+  // At scale SQL narrows the rows apply reads by hashing `plain` text itself; it must agree with core
   // wherever it decides, and leave the rest to core.
   it('hashes plain text in SQL exactly as core does, and nothing else', async () => {
     const tenant = uuidv7();
@@ -558,7 +558,7 @@ describe.skipIf(skip)('erasure conformance', () => {
     }
   });
 
-  it('applies in batches of separate transactions and then has nothing left to lock (#225)', async () => {
+  it('applies in batches of separate transactions and then has nothing left to lock', async () => {
     const tenant = (await testTenant(operatorDb, `erase-batches-${run}`)).id;
     const admin = systemPrincipal(tenant, 'erasure-test');
     try {

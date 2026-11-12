@@ -109,7 +109,7 @@ export function carriesErasedAddress(value: unknown, addresses: ReadonlySet<stri
 }
 
 /**
- * `carriesErasedAddress` for many rows against one large set (TODO #225): the same answer, but a
+ * `carriesErasedAddress` for many rows against one large set (erasure at scale): the same answer, but a
  * string is only compared with the addresses whose characters around their first `@` match the
  * characters around one of its own. An occurrence of an address puts that `@` at the same place
  * in the text, so no address that could match is skipped. Rejected: a regular expression over all
