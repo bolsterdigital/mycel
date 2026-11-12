@@ -345,7 +345,7 @@ export function documentFieldIssues(e: UseCaseError): { name: string; message: s
 
 /**
  * The issues of a refused block operation as the summary lists them. The reason can sit on the
- * document, not the block (the only paywall of a marker teaser cannot go), or on the operation
+ * document, not the block (a second paywall beside the marker teaser's one), or on the operation
  * itself (a removal or move that would join text of different locales). With neither, the message
  * has to stand alone, so it is not the sentence that ends in a colon.
  */

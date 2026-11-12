@@ -16,6 +16,8 @@
 // shift under concurrent edits), normalising in `update` (whoever sends the whole document sends
 // it canonical), and rebasing through the three-way merge of a save, which would put an insert
 // after a block someone else rewrote and merge a props patch into props it never read.
+// The one document field an operation changes is the teaser, when a paywall comes or goes
+// (`teaserFollowing`, #230).
 
 import { z } from 'zod';
 import { notFound, UseCaseError } from '../errors.js';
@@ -30,6 +32,7 @@ import {
   BlockInput,
   BlockOperationError,
   REFERENCE_TYPES,
+  allBlocks,
   normalizeBlocks,
   type Block,
   type BlockType,
@@ -206,9 +209,39 @@ async function mutate(
     on = newest.document;
     provenance = { merged: { baseRevisionId, latestRevisionId: item.latestRevisionId } };
   }
-  const doc: ContentDocument = finalize(ctx, on, applied.blocks);
+  const doc: ContentDocument = finalize(
+    ctx,
+    { ...on, access: teaserFollowing(on, applied.blocks) },
+    applied.blocks
+  );
   const saved = await writeRevision(ctx, item, doc, provenance);
   return { ...saved, created: applied.created, retired: applied.retired, merged: applied.merged };
+}
+
+const paywalls = (blocks: readonly Block[]) =>
+  allBlocks(blocks).filter((b) => b.type === 'paywall').length;
+
+/**
+ * The teaser after a block operation (#230). Placing the first `paywall` block is the editor
+ * choosing the marker teaser (ADR 018 rule 6: everything above the boundary the editor places), so
+ * the same revision sets `marker`, whatever teaser it replaces; removing the last one while the
+ * teaser is `marker` falls back to the default `lead`. Every other operation keeps the teaser.
+ * Without this an editor could neither add nor remove a paywall on its own: each is refused until
+ * the teaser changes, and the teaser cannot change first (`content.access.*`). Only block
+ * operations follow; a whole-document `content.item.update` sends its teaser itself. Rejected:
+ * a picker that only offers the paywall after the teaser was switched, which leaves removal stuck
+ * and moves one core rule into each front.
+ */
+function teaserFollowing(
+  doc: ContentDocument,
+  blocks: readonly Block[]
+): ContentDocument['access'] {
+  const [was, is] = [paywalls(doc.blocks), paywalls(blocks)];
+  if (was === 0 && is === 1 && doc.access.teaser !== 'marker')
+    return { ...doc.access, teaser: 'marker' };
+  if (was > 0 && is === 0 && doc.access.teaser === 'marker')
+    return { ...doc.access, teaser: 'lead' };
+  return doc.access;
 }
 
 /** Move and remove can bring two text blocks together; they merge into the first. */
@@ -235,7 +268,7 @@ export const insertBlock = defineUseCase({
   name: 'content.block.insert',
   kind: 'command',
   description:
-    'Insert one block before or after a block id, or at the start or end, as a new revision; the block keeps a free id it was sent with, otherwise it gets one.' +
+    'Insert one block before or after a block id, or at the start or end, as a new revision; the block keeps a free id it was sent with, otherwise it gets one. The first paywall block sets access.teaser to marker in the same revision.' +
     REBASE,
   requires: 'content:write',
   input: z.object({ ...Target, block: BlockInput, place: Placement }),
@@ -300,7 +333,7 @@ export const removeBlock = defineUseCase({
   name: 'content.block.remove',
   kind: 'command',
   description:
-    'Remove one block by id as a new revision; text blocks that end up next to each other merge into the first.' +
+    'Remove one block by id as a new revision; text blocks that end up next to each other merge into the first. Removing the last paywall block of a marker teaser sets access.teaser to lead.' +
     REBASE,
   requires: 'content:write',
   input: z.object({ ...Target, blockId: BlockId }),

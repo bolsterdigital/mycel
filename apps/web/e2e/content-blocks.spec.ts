@@ -1335,7 +1335,7 @@ test.describe('content-blocks', () => {
     expect(revision.document.blocks[0]!.props.entries).toEqual(entries);
   });
 
-  test('a paywall lands on its actions after a move, and its removal says why it cannot go', async ({
+  test('a paywall is added and taken away in the screen, and the teaser follows it (#230)', async ({
     page,
     request,
   }) => {
@@ -1344,20 +1344,42 @@ test.describe('content-blocks', () => {
     const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
       slug: `c-paywall-${Date.now()}`,
       document: {
-        type: 'article',
+        type: 'page',
         defaultLocale: 'nl',
         locales: ['nl'],
         title: { nl: 'Voor leden' },
-        access: { level: 'members', teaser: 'marker' },
+        lead: { nl: 'Wat iedereen leest.' },
+        access: { level: 'members', teaser: 'lead' },
         blocks: [
           { type: 'heading', version: 1, props: { text: { nl: 'Voor iedereen' } } },
-          { type: 'paywall', version: 1, props: {} },
           { type: 'heading', version: 1, props: { text: { nl: 'Voor leden' } } },
         ],
       },
     });
+    const teaser = async () =>
+      (
+        await callApi<{ revision: { document: { access: { teaser: unknown } } } }>(
+          request,
+          'content.item.get',
+          { itemId: item.id }
+        )
+      ).revision.document.access.teaser;
     await login(page, `/admin/probe/content/${item.id}`);
     await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+
+    // Added after the first block: no refusal, and the boundary is the teaser from then on.
+    await insert(page, 'Betaalmuur', 'after', 1);
+    await add(page);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(page.locator('.ui-block-card-title').nth(1)).toHaveText('Blok 02 Betaalmuur');
+    expect(await teaser()).toBe('marker');
+    await expect(page.locator('#teaser')).toHaveValue('marker');
+    // One is all the marker takes: the picker no longer offers a second.
+    for (const picker of await page.locator('[data-block-picker]').all())
+      await expect(picker.getByRole('button', { name: 'Betaalmuur', exact: true })).toHaveCount(0);
+    await expectNoAxeViolations(page);
+
+    // A move keeps it; it lands on its actions.
     await card(page, 2).locator('details.ui-block-card-more > summary').click();
     await card(page, 2).getByRole('button', { name: 'Omlaag', exact: true }).click();
     await expect(page.getByRole('status').filter({ hasText: 'Blok verplaatst.' })).toContainText(
@@ -1366,15 +1388,19 @@ test.describe('content-blocks', () => {
     const paywall = card(page, 3);
     await expect(paywall.locator('.ui-block-card-title')).toHaveText('Blok 03 Betaalmuur');
     await expect(paywall.locator('details.ui-block-card-more > summary')).toBeFocused();
+    expect(await teaser()).toBe('marker');
 
+    // Taken away: no refusal, and the teaser is the lead again.
     await paywall.locator('details.ui-block-card-more > summary').click();
     await paywall.getByRole('button', { name: 'Verwijderen', exact: true }).click();
-    const alert = page.getByRole('alert');
-    await expect(alert.getByRole('link', { name: 'Wat alle anderen zien' })).toBeVisible();
-    await expect(alert.locator('li')).not.toBeEmpty();
-    await expect(page.locator('.ui-block-card-title').nth(2)).toHaveText('Blok 03 Betaalmuur');
-    await alert.getByRole('link', { name: 'Wat alle anderen zien' }).click();
-    await expect(page.locator('#teaser')).toBeFocused();
+    await expect(page.locator('.ui-block-card-title')).toHaveCount(2);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    expect(await teaser()).toBe('lead');
+    await expect(page.locator('#teaser')).toHaveValue('lead');
+    await expect(
+      page.locator('[data-block-picker]').last().getByRole('button', { name: 'Betaalmuur' })
+    ).toHaveCount(1);
+    await expectNoAxeViolations(page);
   });
 
   test("a picture's caption at rest follows its mode, as the save will read it", async ({

@@ -676,6 +676,127 @@ describe('block operations', () => {
       })
     ).resolves.toBeDefined();
   });
+
+  describe('a paywall brings its teaser along (#230)', () => {
+    const paywall = { type: 'paywall' as const, version: 1 as const, props: {} };
+    const restricted = (blocks: object[], teaser: object | string) =>
+      invoker.run(useCases.createItem, admin, {
+        slug: `members-${Math.random().toString(36).slice(2)}`,
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl', 'en'],
+          title: { nl: 'Titel', en: 'Title' },
+          access: { level: 'members', teaser },
+          blocks,
+        } as never,
+      });
+
+    it.each([['lead'], [{ blocks: 1 }]])(
+      'inserting the first paywall on teaser %o sets the marker, removing it sets lead',
+      async (teaser) => {
+        const { item, revision } = await restricted(
+          [headingBlock('open'), headingBlock('paid')],
+          teaser
+        );
+        const inserted = await invoker.run(useCases.insertBlock, admin, {
+          itemId: item.id,
+          baseRevisionId: revision.id,
+          block: { ...paywall, id: 'wall' },
+          place: { after: 'open' },
+        });
+        expect(inserted.revision.document.access).toEqual({ level: 'members', teaser: 'marker' });
+        expect(ids(inserted.revision.document.blocks)).toEqual(['open', 'wall', 'paid']);
+        const removed = await invoker.run(useCases.removeBlock, admin, {
+          itemId: item.id,
+          baseRevisionId: inserted.revision.id,
+          blockId: 'wall',
+        });
+        expect(removed.revision.document.access).toEqual({ level: 'members', teaser: 'lead' });
+        expect(ids(removed.revision.document.blocks)).toEqual(['open', 'paid']);
+      }
+    );
+
+    it('a split that puts in the first paywall sets the marker as well', async () => {
+      const { item, revision } = await restricted(
+        [richText('t', { nl: doc(para('1'), para('2')), en: doc(para('one'), para('two')) })],
+        'lead'
+      );
+      const out = await invoker.run(useCases.splitInsertBlock, admin, {
+        itemId: item.id,
+        baseRevisionId: revision.id,
+        blockId: 't',
+        at: { nl: 1, en: 1 },
+        block: paywall,
+      });
+      expect(out.revision.document.access.teaser).toBe('marker');
+    });
+
+    it('an open item gets the marker too, so the boundary waits for a restricted level', async () => {
+      const { item, revision } = await create([headingBlock('open')]);
+      const out = await invoker.run(useCases.insertBlock, admin, {
+        itemId: item.id,
+        baseRevisionId: revision.id,
+        block: paywall,
+        place: { at: 'end' },
+      });
+      expect(out.revision.document.access).toEqual({ level: 'public', teaser: 'marker' });
+    });
+
+    it('other operations keep the teaser, and a second paywall is still refused', async () => {
+      const { item, revision } = await restricted(
+        [headingBlock('open'), { ...paywall, id: 'wall' }, headingBlock('paid')],
+        'marker'
+      );
+      const moved = await invoker.run(useCases.moveBlock, admin, {
+        itemId: item.id,
+        baseRevisionId: revision.id,
+        blockId: 'wall',
+        place: { at: 'start' },
+      });
+      expect(moved.revision.document.access.teaser).toBe('marker');
+      const other = await invoker.run(useCases.removeBlock, admin, {
+        itemId: item.id,
+        baseRevisionId: moved.revision.id,
+        blockId: 'paid',
+      });
+      expect(other.revision.document.access.teaser).toBe('marker');
+      await expect(
+        invoker.run(useCases.insertBlock, admin, {
+          itemId: item.id,
+          baseRevisionId: other.revision.id,
+          block: paywall,
+          place: { at: 'end' },
+        })
+      ).rejects.toMatchObject({
+        code: 'invalid_input',
+        issues: expect.arrayContaining([
+          expect.objectContaining({ message: 'content.access.marker-needs-one-paywall' }),
+        ]),
+      });
+      expect(await revisionCount(item.id)).toBe(3);
+    });
+
+    it('a teaser someone changed on a newer revision is the one the rebased insert follows', async () => {
+      const { item, revision } = await restricted([headingBlock('open')], 'lead');
+      const doc0 = revision.document;
+      const newer = await invoker.run(useCases.updateItem, admin, {
+        itemId: item.id,
+        baseRevisionId: revision.id,
+        document: { ...doc0, access: { level: 'members', teaser: { blocks: 1 } } } as never,
+      });
+      const out = await invoker.run(useCases.insertBlock, admin, {
+        itemId: item.id,
+        baseRevisionId: revision.id,
+        block: paywall,
+        place: { at: 'end' },
+      });
+      expect(out.revision.provenance).toMatchObject({
+        merged: { latestRevisionId: newer.revision.id },
+      });
+      expect(out.revision.document.access.teaser).toBe('marker');
+    });
+  });
 });
 
 describe('block operations, random sequences', () => {
