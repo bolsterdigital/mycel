@@ -365,6 +365,7 @@ describe.skipIf(skip)('row level security conformance', () => {
     // An erasure registration (TODO #18d, 0019): the register holds a hash, never the address.
     const erased = uuidv7();
     await uow.run(admin, (ctx) => ctx.erasures.register(erased, `rls-erased-${run}@example.org`));
+    await uow.run(admin, (ctx) => ctx.personErasures.register([erased]));
     await uow.run(admin, (ctx) =>
       ctx.erasures.admit(`rls-erased-${run}@example.org`, uuidv7(), new Date(Date.now() + 1))
     );

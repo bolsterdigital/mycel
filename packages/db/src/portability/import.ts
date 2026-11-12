@@ -88,6 +88,7 @@ const IMPORT_RULE = {
   tenant_memberships: 'as-invitation',
   audit_log: 'as-exported',
   erasures: 'as-exported',
+  person_erasures: 'as-exported',
 } as const satisfies Record<ExportTable, 'as-exported' | 'as-invitation' | 'custom-only'>;
 
 /** Lines of an export file, streamed. */

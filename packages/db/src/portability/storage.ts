@@ -87,7 +87,6 @@ export interface StorageEntry {
  * route, and storage.test.ts refuses a key nothing names.
  */
 export const OPEN_WORK = {
-  people: 'an erasure route for people and image credits, by explicit person id (ADR 031)',
   operators: 'a way to remove an operator account and the actor recorded on what they did',
 } as const;
 export type OpenWork = keyof typeof OPEN_WORK;
@@ -106,15 +105,32 @@ const ACTOR: Copy = {
     does: 'the actor names an operator by id and address; no route removes an operator yet',
   },
 };
+/** A copy `content.person.erase` reaches through apply (ADR 034, people/erasures.ts). */
 const PEOPLE = (field: string, does: string): Copy => ({
   field,
   subject: 'person',
-  route: { kind: 'planned', open: 'people', does },
+  route: { kind: 'apply', does },
+});
+/** A person id that stays as an inert reference once the person row is gone (ADR 034 rule 3). */
+const INERT_PERSON_ID = (field: string): Copy => ({
+  field,
+  subject: 'person',
+  route: {
+    kind: 'excluded',
+    reason:
+      'an id without its person row identifies nobody; kept so attribution keeps its shape (ADR 034 rule 3)',
+  },
 });
 const FREE_TEXT = (field: string, useCases: readonly string[]): Copy => ({
   field,
   subject: 'anyone',
   route: { kind: 'use-case', useCases, does: 'the tenant edits or removes the text' },
+});
+/** A copy kept on purpose, for `reason`. */
+const KEPT = (field: string, subject: Subject, reason: string): Copy => ({
+  field,
+  subject,
+  route: { kind: 'excluded', reason },
 });
 const IDS_ONLY: readonly Copy[] = [];
 
@@ -122,7 +138,10 @@ export const STORAGE = {
   site_settings: {
     category: 'site',
     owner: 'tenant',
-    copies: [FREE_TEXT('chrome', ['site.chrome.update'])],
+    copies: [
+      FREE_TEXT('chrome', ['site.chrome.update']),
+      FREE_TEXT('general', ['site.general.update']),
+    ],
     retention: SITE_KEPT,
   },
   connections: {
@@ -131,6 +150,7 @@ export const STORAGE = {
     copies: [
       FREE_TEXT('maintainer', ['connection.update']),
       FREE_TEXT('external_owner', ['connection.update']),
+      FREE_TEXT('purpose', ['connection.update']),
     ],
     retention: SITE_KEPT,
   },
@@ -306,6 +326,11 @@ export const STORAGE = {
             'evidence of an explicit readmission after an erasure, which must survive apply and a restore (ADR 032)',
         },
       },
+      KEPT(
+        'id',
+        'supporter',
+        'the pseudonymous id of a readmitted lifecycle, the same evidence as its hash (ADR 032)'
+      ),
     ],
     retention: SUPPORTER_KEPT,
   },
@@ -355,15 +380,16 @@ export const STORAGE = {
     category: 'people',
     owner: 'tenant',
     copies: [
-      PEOPLE('name', 'no use case deletes a person yet'),
-      PEOPLE('email', 'no use case deletes a person yet'),
-      PEOPLE('public_email', 'no use case deletes a person yet'),
-      PEOPLE('phone', 'no use case deletes a person yet'),
-      PEOPLE('bio', 'no use case deletes a person yet'),
-      PEOPLE('links', 'no use case deletes a person yet'),
-      PEOPLE('role', 'no use case deletes a person yet'),
-      PEOPLE('organisation', 'no use case deletes a person yet'),
-      PEOPLE('image_id', 'the portrait is a media asset of its own'),
+      PEOPLE('name', 'deletes the person row'),
+      PEOPLE('slug', 'deletes the person row; the slug is free again'),
+      PEOPLE('email', 'deletes the person row'),
+      PEOPLE('public_email', 'deletes the person row'),
+      PEOPLE('phone', 'deletes the person row'),
+      PEOPLE('bio', 'deletes the person row'),
+      PEOPLE('links', 'deletes the person row'),
+      PEOPLE('role', 'deletes the person row'),
+      PEOPLE('organisation', 'deletes the person row'),
+      PEOPLE('image_id', 'deletes the reference; the portrait is a media asset (media.delete)'),
     ],
     retention: SITE_KEPT,
   },
@@ -392,27 +418,32 @@ export const STORAGE = {
   person_groups: {
     category: 'people',
     owner: 'tenant',
-    copies: IDS_ONLY,
+    copies: [FREE_TEXT('name', ['content.person_group.update'])],
     retention: SITE_KEPT,
   },
   person_group_members: {
     category: 'people',
     owner: 'tenant',
-    copies: [PEOPLE('person_id', 'membership goes with the person')],
+    copies: [PEOPLE('person_id', 'deletes the memberships of the person')],
     retention: SITE_KEPT,
   },
   sections: {
     category: 'content',
     owner: 'tenant',
-    copies: [FREE_TEXT('description', ['content.section.update'])],
+    copies: [
+      FREE_TEXT('title', ['content.section.update']),
+      FREE_TEXT('description', ['content.section.update']),
+    ],
     retention: SITE_KEPT,
   },
   patterns: {
     category: 'content',
     owner: 'tenant',
     copies: [
+      FREE_TEXT('name', ['content.pattern.update']),
+      FREE_TEXT('description', ['content.pattern.update']),
       FREE_TEXT('blocks', ['content.pattern.update']),
-      PEOPLE('blocks', 'person refs and credit overrides in a pattern'),
+      PEOPLE('blocks', 'nulls the credit name beside an erased person id; the id stays inert'),
     ],
     retention: SITE_KEPT,
   },
@@ -420,7 +451,7 @@ export const STORAGE = {
     category: 'media',
     owner: 'tenant',
     copies: [
-      PEOPLE('credit', 'photographerPersonId and the free-text maker'),
+      PEOPLE('credit', 'nulls the credit name beside an erased person id; the id stays inert'),
       FREE_TEXT('caption', ['media.update']),
       FREE_TEXT('source', ['media.update']),
       FREE_TEXT('filename', ['media.delete']),
@@ -461,7 +492,10 @@ export const STORAGE = {
             'revisions are immutable history (ADR 018); a new revision changes the current text',
         },
       },
-      PEOPLE('document', 'author refs and credit overrides in current and older revisions'),
+      PEOPLE(
+        'document',
+        'nulls the credit name beside an erased person id in every revision, trashed items included; author and credit ids stay inert (ADR 034 rule 4)'
+      ),
       ACTOR,
       {
         field: 'provenance',
@@ -497,7 +531,18 @@ export const STORAGE = {
   content_bulk_plan_items: {
     category: 'content',
     owner: 'tenant',
-    copies: [PEOPLE('preview', 'a pinned preview may carry person refs and names')],
+    copies: [
+      KEPT(
+        'publication',
+        'anyone',
+        'durable plan evidence (ADR 028); review notes as they were at freeze'
+      ),
+      PEOPLE('selection', 'nulls the credit name beside an erased person id in the frozen input'),
+      PEOPLE(
+        'preview',
+        'nulls the credit name beside an erased person id in the candidate and its change values'
+      ),
+    ],
     retention: { kind: 'kept', why: 'durable plan and undo evidence (ADR 028)' },
   },
   content_bulk_runs: {
@@ -509,7 +554,14 @@ export const STORAGE = {
   content_bulk_effects: {
     category: 'content',
     owner: 'tenant',
-    copies: IDS_ONLY,
+    copies: [
+      KEPT(
+        'result',
+        'anyone',
+        'durable undo evidence (ADR 028); item titles and review notes as they were'
+      ),
+      { field: 'result.actor', subject: 'operator', route: ACTOR.route },
+    ],
     retention: { kind: 'kept', why: 'durable plan and undo evidence (ADR 028)' },
   },
   assist_settings: {
@@ -565,7 +617,7 @@ export const STORAGE = {
   content_block_refs: {
     category: 'content',
     owner: 'tenant',
-    copies: [PEOPLE('ref_id', 'person and person-group refs (0044)')],
+    copies: [INERT_PERSON_ID('ref_id')],
     retention: SITE_KEPT,
   },
   tenant_memberships: {
@@ -593,6 +645,11 @@ export const STORAGE = {
         subject: 'operator',
         route: ACTOR.route,
       },
+      KEPT(
+        'name',
+        'anyone',
+        'a label an operator typed; a revoked key stays as a record and no use case renames it'
+      ),
     ],
     retention: { kind: 'kept', why: 'a revoked key stays as a record; no term decided' },
   },
@@ -651,6 +708,23 @@ export const STORAGE = {
       },
     ],
     retention: { kind: 'kept', why: 'permanent register (ADR 019 rule 8, ADR 032)' },
+  },
+  person_erasures: {
+    category: 'erasure',
+    owner: 'tenant',
+    copies: [
+      KEPT(
+        'person_id',
+        'person',
+        'the id a restore or import erases again by, without a name (ADR 034 rule 2)'
+      ),
+      KEPT(
+        'actor',
+        'operator',
+        'who registered an erasure is part of the register (ADR 034 rule 2)'
+      ),
+    ],
+    retention: { kind: 'kept', why: 'permanent register (ADR 034 rule 2)' },
   },
   outbox: {
     category: 'mail',
@@ -782,7 +856,15 @@ export const OFF_TABLE_STORAGE = {
     where: 'the blob store, key per asset (media.ts)',
     owner: 'tenant',
     copies: [
-      PEOPLE('pixels', 'a portrait or a photographed person is not found from an address'),
+      {
+        field: 'pixels',
+        subject: 'person',
+        route: {
+          kind: 'use-case',
+          useCases: ['media.delete'],
+          does: 'a face is not found from a person id, and a shared image may show others (ADR 034 rule 3); the tenant deletes the asset',
+        },
+      },
       {
         // An image is re-encoded with stripMetadata (media/service.ts), so EXIF and location are
         // gone before it is stored; a PDF is stored as uploaded, its author field included.
@@ -804,7 +886,13 @@ export const OFF_TABLE_STORAGE = {
   'media variants': {
     where: 'the blob store, beside each original (variants column)',
     owner: 'tenant',
-    copies: [PEOPLE('pixels', 'goes with the original')],
+    copies: [
+      {
+        field: 'pixels',
+        subject: 'person',
+        route: { kind: 'use-case', useCases: ['media.delete'], does: 'goes with the original' },
+      },
+    ],
     retention: { kind: 'term', term: 'with the original', by: 'media.orphans' },
   },
   'export archives': {
@@ -819,7 +907,10 @@ export const OFF_TABLE_STORAGE = {
           does: 'expires every archive that may hold an erased person; the job deletes the file',
         },
       },
-      PEOPLE('archive', 'an archive holds the people register and revisions'),
+      PEOPLE(
+        'archive',
+        'expires every archive asked for before a person registration, or all when apply changed anything'
+      ),
     ],
     retention: {
       kind: 'term',
@@ -840,6 +931,11 @@ export const OFF_TABLE_STORAGE = {
             'a snapshot is not rewritten; a restore re-applies the register before serving (ADR 019 rule 8)',
         },
       },
+      KEPT(
+        'snapshot',
+        'person',
+        'a snapshot is not rewritten; a restore re-applies the person register before serving (ADR 034 rule 2)'
+      ),
     ],
     retention: {
       kind: 'term',
@@ -859,6 +955,11 @@ export const OFF_TABLE_STORAGE = {
           reason: 'hashes and ids only; it is what a restore re-applies',
         },
       },
+      KEPT(
+        'snapshot',
+        'person',
+        'person ids only; the person register a restore re-applies (ADR 034 rule 2)'
+      ),
     ],
     retention: {
       kind: 'term',

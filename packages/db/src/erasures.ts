@@ -35,6 +35,7 @@ import { withTenant } from './index.js';
 import type { Database } from './infra/schema.js';
 import { lifecycleEvidence, lifecycleRepository, lockSupporter } from './supporters/lifecycle.js';
 import { advisoryLock, setRole } from './infra/roles.js';
+import { applyPersonErasures } from './people/erasures.js';
 
 type Trx = Kysely<Database>;
 
@@ -92,11 +93,11 @@ export function erasureRepository(
         .execute();
       for (const { email_hash } of hashes)
         await advisoryLock(trx, 'supporter', tenantId, email_hash);
-      if (!hashes.length) {
-        await setRole(trx, 'mycel_app');
-        return 0;
-      }
-      const changed = await applyAsEraser(trx, tenantId, new Set(hashes.map((r) => r.email_hash)));
+      const locked = new Set(hashes.map((r) => r.email_hash));
+      // ADR 034: the person phase runs in the same per-tenant run; the supporter phase is unchanged.
+      let changed = locked.size ? await eraseRows(trx, tenantId, locked) : 0;
+      changed += await applyPersonErasures(trx);
+      changed += await expireExports(trx, changed > 0, locked);
       await setRole(trx, 'mycel_app');
       return changed;
     },
@@ -118,22 +119,25 @@ export function erasureRepository(
   };
 }
 
-async function applyAsEraser(
+/**
+ * Core `expiresOnErasure` as one statement: every archive asked for before the newest
+ * registration of either register, or every one when this apply changed anything. The file goes
+ * after commit (`expireExports`, run by `mycel erasures apply` and daily by the worker); the row
+ * keeps no trace of who.
+ */
+async function expireExports(
   trx: Trx,
-  tenantId: string,
+  changedRows: boolean,
   lockedHashes: ReadonlySet<string>
 ): Promise<number> {
-  const changed = await eraseRows(trx, tenantId, lockedHashes);
-  // Core `expiresOnErasure` as one statement. The file goes after commit (`expireExports`, run
-  // by `mycel erasures apply` and daily by the worker); the row keeps no trace of who.
   const r = await sql`
     update tenant_exports
     set status = 'expired', error = ${ERASURE_EXPORT_ERROR}, expires_at = now()
     where status = any(${[...ERASURE_EXPIRES_EXPORTS]}::text[])
-      and (${changed > 0} or requested_at < (select max(erased_at) from erasures where email_hash = any(${[...lockedHashes]}::text[])))`.execute(
-    trx
-  );
-  return changed + Number(r.numAffectedRows ?? 0n);
+      and (${changedRows} or requested_at < greatest(
+        (select max(erased_at) from erasures where email_hash = any(${[...lockedHashes]}::text[])),
+        (select max(erased_at) from person_erasures)))`.execute(trx);
+  return Number(r.numAffectedRows ?? 0n);
 }
 
 async function eraseRows(

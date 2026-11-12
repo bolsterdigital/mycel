@@ -1,7 +1,8 @@
 <!-- A native author choice with inline creation; it posts the surrounding article without saving it. -->
 <script lang="ts">
   import { Choices, Field, Button } from '../ui/index.js';
-  import { ui } from '../../../i18n/index.js';
+  import { fill, ui } from '../../../i18n/index.js';
+  import { shortId, withAbsent } from './absent.js';
   let {
     locale,
     authors,
@@ -12,7 +13,7 @@
     action,
   }: {
     locale: string;
-    authors: readonly { id: string; name: string }[];
+    authors: readonly { id: string; name: string; absent?: boolean }[];
     selected: readonly string[];
     write: boolean;
     name: string;
@@ -20,6 +21,8 @@
     action: string;
   } = $props();
   const t = $derived(ui(locale));
+  /** An erased person's id still on the article (ADR 034): shown checked, removable by unchecking. */
+  const absentLabel = (id: string) => fill(t('admin.people.absent'), { id: shortId(id) });
 </script>
 
 <div id="authors">
@@ -32,7 +35,12 @@
     {locale}
     hint={authors.length === 0 ? t('admin.content.edit.noAuthors') : undefined}
     {selected}
-    options={authors.map((a) => ({ value: a.id, label: a.name }))}
+    options={withAbsent(
+      authors.map((a) => ({ value: a.id, label: a.absent ? absentLabel(a.id) : a.name })),
+      (o) => o.value,
+      selected,
+      (id) => ({ value: id, label: absentLabel(id) })
+    )}
   />
   {#if write}<details class="ui-fold">
       <summary>{t('admin.people.new')}</summary>

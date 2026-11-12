@@ -537,6 +537,13 @@ export interface Database {
     erased_at: Timestamp;
     actor: Json<unknown>;
   };
+  /** The person register (0050, ADR 034): append-only, never a name or an address. */
+  person_erasures: {
+    tenant_id: string;
+    person_id: string;
+    erased_at: Timestamp;
+    actor: Json<unknown>;
+  };
   /** Which registrations a restic snapshot holds (0021); written by mycel_backup only. */
   erasure_backups: {
     tenant_id: string;

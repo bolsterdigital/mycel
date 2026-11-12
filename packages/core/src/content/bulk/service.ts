@@ -13,6 +13,7 @@ import { diffDocuments } from '../diff.js';
 import { prepareItemSave, referenceIssues, toContentItem } from '../service.js';
 import { preserveTranslationReview } from '../translation-review.js';
 import { BulkPlan, PrepareBulk, type BulkPlanItem } from './model.js';
+import { withoutErasedCredits, withoutErasedPlanCredits } from '../people/erasure.js';
 
 function need(ctx: TransactionContext, capability: 'content:write' | 'content:publish') {
   return can(ctx.principal, capability)
@@ -79,10 +80,19 @@ async function previewItem(
         ]);
       candidate = revision.document;
     }
+    // ADR 034 rule 4 (N2 of the merge review): the frozen candidate and its changes hold no name
+    // beside an erased person's credit; the reference check passes the registered id (rule 7).
+    candidate = await withoutErasedCredits(ctx, candidate);
+    const frozen = await withoutErasedPlanCredits(
+      ctx,
+      candidate,
+      op.kind === 'save' ? diffDocuments(latest.document, candidate) : []
+    );
+    candidate = frozen.candidate;
     const refs = await referenceIssues(ctx, candidate);
     if (refs.length) throw new UseCaseError('invalid_input', 'invalid references', refs);
     preview.candidate = candidate;
-    preview.changes = op.kind === 'save' ? diffDocuments(latest.document, candidate) : [];
+    preview.changes = frozen.changes;
     const state = item.publication.find((p) => p.locale === locale);
     if (!state)
       preview.problems.push({
@@ -152,8 +162,11 @@ export const createBulk = defineUseCase({
     // All content locks in a stable order before any media lock: no cross-plan lock inversion.
     for (const selected of [...input.items].sort((a, b) => a.itemId.localeCompare(b.itemId)))
       await ctx.content.lock(selected.itemId);
-    for (const selection of input.items)
-      items.push(await previewItem(ctx, selection, input.locale));
+    for (const selection of input.items) {
+      const item = await previewItem(ctx, selection, input.locale);
+      // ADR 034 rule 4: the caller's document is a stored copy as well.
+      items.push({ ...item, selection: await withoutErasedCredits(ctx, item.selection) });
+    }
     const plan: BulkPlan = {
       id: ctx.ids.next(),
       version: 1,

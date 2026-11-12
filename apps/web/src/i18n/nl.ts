@@ -187,6 +187,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.people.slugHint':
     'Laat leeg om de naam te gebruiken. Het adres is daarna niet te wijzigen.',
   'admin.people.settings': 'Pagina-instellingen',
+  'admin.people.absent': 'Niet meer in het register ({id})',
   'admin.people.quick': 'Auteur toevoegen en selecteren',
   'admin.people.kind.website': 'Website',
   'admin.people.kind.linkedin': 'LinkedIn',
@@ -821,6 +822,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.site.retention.update': 'Bewaartermijn van inzendingen gewijzigd',
   'admin.audit.op.site.theme.update': 'Huisstijl gewijzigd',
   'admin.audit.op.supporter.email.update': 'E-mailadres van supporter gewijzigd',
+  'admin.audit.op.content.person.erase': 'Wissen van persoon aangevraagd',
   'admin.audit.op.supporter.erase': 'Wissen van supporter aangevraagd',
   'admin.audit.op.tenant.export.create': 'Export gestart',
   'admin.audit.op.tenant.hostname.add': 'Domein toegevoegd',

@@ -62,7 +62,8 @@ export function asRole<T>(
 }
 
 /** What an advisory lock serialises; the scope keeps two kinds of lock on one id apart. */
-export type LockScope = 'admissions' | 'assist' | 'media' | 'members' | 'rate' | 'supporter';
+export type LockScope =
+  'admissions' | 'assist' | 'media' | 'members' | 'person-erasure' | 'rate' | 'supporter';
 
 /**
  * A transaction-scoped advisory lock on `scope` plus `parts`, keyed `scope:part:part` through
@@ -71,4 +72,18 @@ export type LockScope = 'admissions' | 'assist' | 'media' | 'members' | 'rate' |
 export async function advisoryLock(trx: Trx, scope: LockScope, ...parts: string[]): Promise<void> {
   const key = [scope, ...parts].join(':');
   await sql`select pg_advisory_xact_lock(hashtextextended(${key}, 0))`.execute(trx);
+}
+
+/**
+ * `advisoryLock` in shared mode: any number of shared holders run together, and an exclusive
+ * `advisoryLock` on the same key waits for all of them (and they for it). For many writers that
+ * must not overtake one rare registration (ADR 034 rule 4) without serialising each other.
+ */
+export async function advisoryLockShared(
+  trx: Trx,
+  scope: LockScope,
+  ...parts: string[]
+): Promise<void> {
+  const key = [scope, ...parts].join(':');
+  await sql`select pg_advisory_xact_lock_shared(hashtextextended(${key}, 0))`.execute(trx);
 }

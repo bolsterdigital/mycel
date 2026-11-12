@@ -30,7 +30,8 @@ import {
   memoryMailchimpReceipts,
 } from './connections.js';
 import { memoryBulkPlans, memoryContent, memoryPresence, memorySite } from './content.js';
-import { memoryErasures } from './erasures.js';
+import { memoryErasures } from './erasures/repository.js';
+import { memoryPersonErasures } from './erasures/people.js';
 import { memoryCampaigns } from './campaigns.js';
 import {
   FakeClock,
@@ -174,6 +175,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         audit: memoryAudit(s),
         inputHasher: this.inputHasher,
         erasures: memoryErasures(store, principal, clock),
+        personErasures: memoryPersonErasures(s, principal, clock),
         exports: memoryExports(s.exports),
       });
     } finally {

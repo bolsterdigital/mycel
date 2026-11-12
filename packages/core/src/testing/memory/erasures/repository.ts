@@ -7,10 +7,10 @@ import {
   protectsErasureCopy,
   admissionFor,
   allowsLifecycle,
-} from '../../supporters/lifecycle.js';
-import type { Principal } from '../../principal.js';
-import type { Clock, Erasures } from '../../ports.js';
-import { emailKey } from '../../supporters/email-key.js';
+} from '../../../supporters/lifecycle.js';
+import type { Principal } from '../../../principal.js';
+import type { Clock, Erasures } from '../../../ports.js';
+import { emailKey } from '../../../supporters/email-key.js';
 import {
   carriesErasedAddress,
   eraseOutboxProps,
@@ -19,9 +19,10 @@ import {
   expiresOnErasure,
   isTombstone,
   tombstoneEmail,
-} from '../../supporters/erasure.js';
-import { normalizeEmail } from '../../util/email.js';
-import type { MemoryStore } from './store.js';
+} from '../../../supporters/erasure.js';
+import { normalizeEmail } from '../../../util/email.js';
+import type { MemoryStore } from '../store.js';
+import { applyPersonErasures } from './people.js';
 
 /**
  * The register is kept by supporter id and address hash; the addresses to erase are found from
@@ -68,7 +69,27 @@ export function memoryErasures(store: MemoryStore, principal: Principal, clock: 
       const e = s.erasures.get(supporterId);
       return e ? { registeredAt: e.erasedAt, secured: s.erasureBackups.has(supporterId) } : null;
     },
-    apply: async () => (s.erasures.size ? applyErasures(store, tenantId, clock) : 0),
+    async apply() {
+      // ADR 034: the person phase runs in the same apply as the supporter phase.
+      let changed = applyPersonErasures(store, tenantId);
+      if (s.erasures.size) changed += await applyErasures(store, tenantId, clock);
+      // Archives that may hold a registered person (TODO #28), as packages/db/src/erasures.ts.
+      const times = [...s.erasures.values(), ...s.personErasures.values()].map((e) =>
+        e.erasedAt.getTime()
+      );
+      if (!times.length) return changed;
+      const newest = new Date(Math.max(...times));
+      for (const x of s.exports.values())
+        if (expiresOnErasure(x, changed > 0, newest)) {
+          Object.assign(x, {
+            status: 'expired',
+            error: ERASURE_EXPORT_ERROR,
+            expiresAt: clock.now(),
+          });
+          changed++;
+        }
+      return changed;
+    },
     async status() {
       let oldest: Date | null = null;
       for (const [id, e] of s.erasures)
@@ -195,17 +216,6 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
       changed++;
     }
   }
-  // Archives that may hold a registered person (TODO #28), as packages/db/src/erasures.ts.
-  const newest = new Date(Math.max(...[...s.erasures.values()].map((e) => e.erasedAt.getTime())));
-  for (const x of s.exports.values())
-    if (expiresOnErasure(x, changed > 0, newest)) {
-      Object.assign(x, {
-        status: 'expired',
-        error: ERASURE_EXPORT_ERROR,
-        expiresAt: clock.now(),
-      });
-      changed++;
-    }
   return changed;
 }
 

@@ -354,7 +354,10 @@ export async function resolveDocument(
                       ? personPath(resolved.slug, locale, options.fallbackLocale)
                       : null,
                   }
-                : credit,
+                : credit.photographerPersonId
+                  ? // ADR 034 rule 4: an absent person shows nobody, never the free text beside it.
+                    { ...credit, photographer: null }
+                  : credit,
             }
           : {}),
       },
@@ -684,11 +687,12 @@ async function resolvedCredit(
 ): Promise<NonNullable<RenderImage['credit']> | undefined> {
   if (!credit?.photographerPersonId) return credit;
   const person = await source.creditPerson?.(credit.photographerPersonId);
+  // ADR 034 rule 4: an absent person shows nobody, never the free text stored beside the id.
   return person
     ? {
         ...credit,
         photographer: person.name,
         photographerHref: person.slug ? personPath(person.slug, locale, defaultLocale) : null,
       }
-    : credit;
+    : { ...credit, photographer: null };
 }

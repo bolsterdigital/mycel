@@ -67,7 +67,7 @@ async function setup() {
 }
 
 describe('runtimeSource', () => {
-  it('reads current credit names, keeps per-use fallbacks, and links only enabled profiles', async () => {
+  it('reads current credit names, never falls back to text beside an absent person, and links only enabled profiles', async () => {
     const { source, upload, invoker } = await setup();
     const admin = systemPrincipal(TENANT, 'test');
     const person = await invoker.run(useCases.createPerson, admin, {
@@ -126,7 +126,9 @@ describe('runtimeSource', () => {
       overrideDoc,
       { base: '', fallbackLocale: 'nl' }
     );
-    expect(credit(fallback)?.photographer).toBe('Own fallback');
+    // ADR 034 rule 4: a person that cannot be resolved shows nobody, not the text beside the id.
+    expect(credit(fallback)?.photographer ?? null).toBeNull();
+    expect(JSON.stringify(fallback)).not.toContain('Own fallback');
     expect(
       (await resolveIntro(source, { lead: null, heroImageId: asset.id, heroAlt: null }, 'en')).hero
         ?.credit?.photographerHref
@@ -151,7 +153,8 @@ describe('runtimeSource', () => {
       base: '',
       fallbackLocale: 'nl',
     });
-    expect(credit(missing)?.photographer).toBe('Fallback');
+    expect(credit(missing)?.photographer ?? null).toBeNull();
+    expect(JSON.stringify(missing)).not.toContain('Fallback');
 
     await expect(
       invoker.run(useCases.updateMedia, admin, {

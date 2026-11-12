@@ -19,7 +19,13 @@ export async function relationshipChoices(
   sectionId: string
 ) {
   const { invoker } = runtime();
-  const author = (a: { id: string; name: string }) => ({ id: a.id, name: a.name });
+  const author = (a: {
+    id: string;
+    name: string;
+  }): { id: string; name: string; absent?: true } => ({
+    id: a.id,
+    name: a.name,
+  });
   const section = (s: Section) => ({
     id: s.id,
     title: pickAny(s.title, defaultLocale) ?? s.slug,
@@ -36,7 +42,8 @@ export async function relationshipChoices(
                 : null;
               return a && author(a);
             },
-            (id) => ({ id, name: id })
+            // An erased person's id stays in the article (ADR 034 rule 3): kept, marked absent.
+            (id) => ({ id, name: id, absent: true as const })
           )
         ),
         invoker

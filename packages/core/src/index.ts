@@ -137,6 +137,8 @@ export * from './content/people/grid.js';
 export * from './content/people/grid-block.js';
 
 export * from './content/people/credit.js';
+export * from './content/people/erasure.js';
+export * from './content/people/erase.js';
 
 export type { FieldPredicate } from './forms/fields.js';
 export { predicateMatches, fieldPattern } from './forms/fields.js';

@@ -437,6 +437,14 @@ describe.skipIf(skip)('self-service export', () => {
     expect((await list(tenant.b)).exports.find((e) => e.id === kept)?.status).toBe('ready');
   });
 
+  it('expires an archive asked for before a person erasure (ADR 034 rule 5)', async () => {
+    const archived = await readyExport(tenant.a);
+    await uow.run(admin(tenant.a), (ctx) => ctx.personErasures.register([uuidv7()]));
+    await applyErasures(operatorDb, tenant.a.id);
+    const row = (await list(tenant.a)).exports.find((e) => e.id === archived)!;
+    expect(row).toMatchObject({ status: 'expired', error: 'deleted after an erasure' });
+  });
+
   // Requests, job steps, expiries and time. Fifteen runs of fifteen steps are some 700 transactions,
   // so a loaded machine needs far more than the default 5 s: 11.9 s in a full run on a laptop, under
   // 1 s on a server. Rejected: fewer runs, which would let a slow machine pass by proving less.

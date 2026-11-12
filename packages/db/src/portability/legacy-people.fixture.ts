@@ -108,4 +108,7 @@ export async function seedGroupedPerson(
     name: { nl: 'Redactie' },
     personIds: [person.id],
   });
+  // The person register travels as a set of its own (ADR 034 rule 2): a registered, unapplied id.
+  const gone = await invoker.run(useCases.createPerson, admin, { slug: 'gewist', name: 'Gewist' });
+  await invoker.run(useCases.erasePeople, admin, { personIds: [gone.id] });
 }

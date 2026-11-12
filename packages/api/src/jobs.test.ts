@@ -106,6 +106,11 @@ describe('job handlers', () => {
       /tenant job/
     );
     await expect(handlers['hostnames.reverify']!(job({ payload: {} }))).rejects.toThrow();
+    await expect(
+      handlers['person.erase']!(
+        job({ type: 'person.erase', tenantId: null, payload: { personIds: [TENANT] } })
+      )
+    ).rejects.toThrow(/tenant job/);
     // An erasure job names no address and is bound to the tenant on its row.
     const erase = { type: 'supporter.erase', key: 'supporter.erase:x' };
     await expect(
@@ -601,6 +606,22 @@ describe.skipIf(skip)('erasure jobs against Postgres', () => {
     await expect(
       invoker.run(useCases.getSupporterErasure, request, { supporterId: id })
     ).resolves.toMatchObject({ id, applied: true, secured: false });
+  });
+
+  it('erases a person of a suspended site through the worker (ADR 034)', async () => {
+    const tenant = await newTenant('erase-person');
+    const person = await invoker.run(useCases.createPerson, systemPrincipal(tenant, 'test'), {
+      slug: 'gone',
+      name: `Gone ${run}`,
+    });
+    await setStatus(operatorDb, tenant, 'suspended', testPlatformActor);
+    const request = eraser(tenant, { tenantStatus: 'suspended' });
+    const result = await invoker.run(useCases.erasePeople, request, { personIds: [person.id] });
+    expect(result).toMatchObject({ created: [person.id], people: [{ applied: false }] });
+    const ran = await runJobs(operatorDb, handlers, { tenantId: tenant, types: ['person.erase'] });
+    expect(ran).toMatchObject({ claimed: 1, completed: 1, failed: 0 });
+    const again = await invoker.run(useCases.erasePeople, request, { personIds: [person.id] });
+    expect(again).toMatchObject({ created: [], people: [{ applied: true }] });
   });
 
   it('serialises two requests for one supporter: one registration, one job, one created', async () => {
