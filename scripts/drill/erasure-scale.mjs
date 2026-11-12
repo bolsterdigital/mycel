@@ -4,8 +4,9 @@
 // tenant with synthetic supporters, events, submissions, outbox events and jobs, registers a number
 // of erasures, then times `applyErasures` (packages/db/src/erasures.ts) and prints the plan and
 // buffers of each scan it makes, as mycel_erasure under the tenant's context, which is what apply
-// runs as. `--registrations` past the lock table shows the ceiling: apply takes one advisory lock
-// per registered address in one transaction.
+// runs as. Apply locks only registrations with something left to change, at most `APPLY_BATCH`
+// per transaction; before that it took one lock per registration in one transaction and
+// failed past the lock table (between 10,000 and 15,000 on a dev server).
 //
 //   source .scratch/<dir>/env.sh   # a scratch database: the tenant stays behind
 //   node scripts/drill/erasure-scale.mjs --supporters 20000 --registrations 100
@@ -18,7 +19,7 @@
 
 import { parseArgs } from 'node:util';
 import { sql } from 'kysely';
-import { applyErasures, createDb, uuidv7 } from '@mycel/db';
+import { APPLY_BATCH, applyErasures, createDb, uuidv7 } from '@mycel/db';
 import { testTenant } from '@mycel/db/testing';
 
 const { values: opts } = parseArgs({
@@ -111,13 +112,15 @@ try {
     return rows[0];
   });
 
-  // The scans apply makes, as it makes them (erasures.ts eraseRows): every row of the tenant.
+  // The scans apply makes when it has something to erase (erasures.ts eraseRows): the copies
+  // that can carry an address. A settled run makes none of them; its cost is the pending scan.
   const scans = {
-    supporters: sql`select id, email from supporters`,
-    events: sql`select id, supporter_id, email from events`,
-    form_submissions: sql`select id, values, evaluation from form_submissions`,
-    outbox: sql`select id, type, props from outbox`,
-    jobs: sql`select id, payload, type from jobs`,
+    form_submissions: sql`select id, values, evaluation from form_submissions
+      where strpos(values::text, '@') > 0`,
+    outbox: sql`select id, type, props from outbox
+      where tenant_id = ${t} and strpos(props::text, '@') > 0`,
+    jobs: sql`select id, payload, type from jobs
+      where tenant_id = ${t} and (strpos(payload::text, '@') > 0 or type = 'mail.reconcile')`,
   };
   const plans = {};
   for (const [name, query] of Object.entries(scans)) {
@@ -164,7 +167,8 @@ try {
         tenant: tenant.slug,
         seeded: { ...counts, outbox: n.supporters, jobs: n.jobs, ms: seedMs },
         settings: Object.fromEntries(settings.map((s) => [s.name, Number(s.setting)])),
-        advisoryLocksPerApply: counts.registrations,
+        advisoryLocksPerTransaction: Math.min(counts.registrations, APPLY_BATCH),
+        transactions: Math.max(1, Math.ceil(counts.registrations / APPLY_BATCH)),
         apply: first,
         repeatApply: second,
         rssMiB: {
