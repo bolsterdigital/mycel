@@ -10,9 +10,17 @@
      The subjects sit in the sidebar (#81-rest, #114: src/lib/admin/nav.ts), so this screen draws
      no sub-navigation of its own and only names its subject. The brand subject also picks the
      default image items inherit (#81-rest), and the theme whether articles open with a drop cap.
-     API access (#101) is the site's API keys, moved from Members (lib/admin/ApiAccess.svelte). -->
+     API access (#101) is the site's API keys, moved from Members (lib/admin/ApiAccess.svelte).
+     General also holds, for `tenant:admin` only, how long form submissions are kept (#227). -->
 <script lang="ts">
-  import { DROP_CAPS, FONT_PAIRS, THEME_MODES, THEME_ROLES } from '@mycel/core';
+  import {
+    DROP_CAPS,
+    FONT_PAIRS,
+    MAX_SUBMISSION_RETENTION_MONTHS,
+    MIN_SUBMISSION_RETENTION_MONTHS,
+    THEME_MODES,
+    THEME_ROLES,
+  } from '@mycel/core';
   import {
     Actions,
     Button,
@@ -96,6 +104,15 @@
   };
   const saved = (what: string) =>
     form && 'saved' in form && form.saved === what ? t('admin.site.saved') : undefined;
+  /** The terms a site may keep submissions for, in whole months (core checks the same range). */
+  const RETENTION_MONTHS = Array.from(
+    { length: MAX_SUBMISSION_RETENTION_MONTHS - MIN_SUBMISSION_RETENTION_MONTHS + 1 },
+    (_, i) => MIN_SUBMISSION_RETENTION_MONTHS + i
+  );
+  const months = (n: number) =>
+    n === 1
+      ? t('admin.site.retention.month.one')
+      : fill(t('admin.site.retention.month.other'), { n });
   const brandSaved = (kind: 'logo' | 'font') =>
     form && 'saved' in form && form.saved === 'brand' && 'kind' in form && form.kind === kind
       ? t('admin.site.saved')
@@ -191,6 +208,41 @@
         ]}
       />
     </SettingsSection>
+    {#if data.retention}
+      <!-- #227: only for `tenant:admin` (the load reads it for no one else); its own version,
+           so a save here never posts over the time zone. -->
+      {@const retention = data.retention}
+      <SettingsSection
+        id="site-retention"
+        title={t('admin.site.retention.title')}
+        description={fill(t('admin.site.retention.current'), {
+          months: months(retention.value.submissionMonths),
+        })}
+        action={action('retention')}
+        submit={t('admin.site.retention.save')}
+        saved={saved('retention')}
+        unsaved={t('admin.site.unsaved')}
+      >
+        <input
+          type="hidden"
+          name="baseVersion"
+          value={form?.action === 'retention'
+            ? value('baseVersion', String(retention.version))
+            : String(retention.version)}
+        />
+        <Select
+          id="site-retention-months"
+          name="submissionMonths"
+          label={t('admin.site.retention.months')}
+          locale={data.locale}
+          hint={t('admin.site.retention.hint')}
+          value={form?.action === 'retention'
+            ? value('submissionMonths', String(retention.value.submissionMonths))
+            : String(retention.value.submissionMonths)}
+          options={RETENTION_MONTHS.map((n) => ({ value: String(n), label: months(n) }))}
+        />
+      </SettingsSection>
+    {/if}
   {:else if data.section === 'assist' && data.assist}
     {@const assist = data.assist}
     <SettingsSection
