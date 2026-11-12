@@ -801,6 +801,73 @@ test.describe('article-writing', () => {
     ]);
   });
 
+  // The writer saves the whole document, so taking away the only paywall there is one save that
+  // must bring the teaser along, as the screen's own remove action does (#230, #231).
+  test('the only paywall taken away in the writer saves, and the teaser falls back (#231)', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y();
+    requireApi();
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `writer-paywall-${Date.now()}`,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Voor leden' },
+        lead: { nl: 'Wat iedereen leest.' },
+        access: { level: 'members', teaser: 'marker' },
+        blocks: [
+          {
+            type: 'rich-text',
+            version: 1,
+            props: {
+              content: {
+                nl: {
+                  type: 'doc',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Iedereen' }] }],
+                },
+              },
+            },
+          },
+          { type: 'paywall', version: 1, props: {} },
+          {
+            type: 'rich-text',
+            version: 1,
+            props: {
+              content: {
+                nl: {
+                  type: 'doc',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Leden' }] }],
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+    const stored = async () =>
+      (
+        await callApi<{
+          revision: { document: { access: { teaser: unknown }; blocks: { type: string }[] } };
+        }>(request, 'content.item.get', { itemId: item.id })
+      ).revision.document;
+    await login(page, `/admin/probe/content/${item.id}`);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await editorReady(page);
+
+    await wipeFirstCard(page);
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/\?saved/);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    const after = await stored();
+    // The two text blocks the paywall stood between are one again.
+    expect(after.blocks.map((b) => b.type)).toEqual(['rich-text']);
+    expect(after.access.teaser).toBe('lead');
+    await expectNoAxeViolations(page);
+  });
+
   test('typing in an empty article saves and reopens with stable block identity', async ({
     page,
     request,
