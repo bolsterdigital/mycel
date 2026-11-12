@@ -47,6 +47,7 @@ import {
   type SiteImages,
 } from '../../theme/settings.js';
 import type { OperatorPreferences } from '../../operators/preferences.js';
+import { DEFAULT_RETENTION, type SiteRetention } from '../../ops/retention.js';
 import type { TenantExportRecord } from '../../tenants/exports.js';
 import { platformHostname } from '../../tenants/model.js';
 import type { HostnameRecord, TenantInfo } from '../../tenants/ports.js';
@@ -56,6 +57,7 @@ export interface TenantStore {
   siteChrome: { version: number; value: SiteChrome };
   siteGeneral: { version: number; value: SiteGeneral };
   siteImages: { version: number; value: SiteImages };
+  siteRetention: { version: number; value: SiteRetention };
   brandLogo: { version: number; asset: BrandAsset | null };
   brandFont: { version: number; asset: BrandAsset | null };
   connections: Map<string, ConnectionRecord>;
@@ -128,6 +130,7 @@ const emptyTenant = (): TenantStore => ({
   siteChrome: { version: 0, value: DEFAULT_CHROME },
   siteGeneral: { version: 0, value: DEFAULT_GENERAL },
   siteImages: { version: 0, value: DEFAULT_IMAGES },
+  siteRetention: { version: 0, value: DEFAULT_RETENTION },
   brandLogo: { version: 0, asset: null },
   brandFont: { version: 0, asset: null },
   connections: new Map(),
@@ -198,6 +201,11 @@ export class MemoryStore {
   readonly bulkLocks = new Map<string, Promise<void>>();
   readonly tenants = new Map<string, TenantStore>();
   readonly outbox: DomainEvent[] = [];
+  /**
+   * Ids of the events the outbox table would still hold: `drain` empties `outbox`, where
+   * Postgres keeps a processed row until retention. A test deletes an id to play retention.
+   */
+  readonly keptEvents = new Set<string>();
   readonly operators = new Map<string, OperatorRow>();
   /** Every tenant's and the platform's jobs, like the `jobs` table. */
   readonly jobs: JobRecord[] = [];

@@ -1,5 +1,5 @@
 // The row stays tenant scoped under forced RLS. Every setting on it (theme, chrome, general,
-// images, logo, font) is a value with its own version, written through one compare-and-set (`writeVersioned`). A
+// images, retention, logo, font) is a value with its own version, written through one compare-and-set (`writeVersioned`). A
 // column that was never written is null and reads as the current default, so the first write of
 // one setting does not freeze the defaults of the others (TODO #53). Rejected: read, then
 // unconditional update; and one upsert per setting, which drifted into three copies.
@@ -8,10 +8,12 @@ import {
   DEFAULT_CHROME,
   DEFAULT_GENERAL,
   DEFAULT_IMAGES,
+  DEFAULT_RETENTION,
   DEFAULT_THEME,
   SiteChrome,
   SiteGeneral,
   SiteImages,
+  SiteRetention,
   Theme,
   type SiteSettingsRepository,
   type BrandAssetsRepository,
@@ -26,6 +28,7 @@ type VersionColumn =
   | 'chrome_version'
   | 'general_version'
   | 'images_version'
+  | 'retention_version'
   | 'logo_version'
   | 'font_version';
 
@@ -130,6 +133,24 @@ export function siteSettingsRepository(
     updateImages: (baseVersion, value) =>
       writeVersioned(db, tenantId, 'images_version', baseVersion, {
         images: JSON.stringify(value),
+      }),
+    async retention() {
+      const row = await db
+        .selectFrom('site_settings')
+        .select(['retention', 'retention_version'])
+        .where('tenant_id', '=', tenantId)
+        .executeTakeFirst();
+      // A stored term this version no longer accepts reads as the default, which is the longest
+      // term on offer: a document that fails to parse must never shorten what is kept.
+      const parsed = row?.retention == null ? null : SiteRetention.safeParse(row.retention);
+      return {
+        version: row?.retention_version ?? 0,
+        value: parsed?.success ? parsed.data : DEFAULT_RETENTION,
+      };
+    },
+    updateRetention: (baseVersion, value) =>
+      writeVersioned(db, tenantId, 'retention_version', baseVersion, {
+        retention: JSON.stringify(value),
       }),
   };
 }

@@ -157,6 +157,40 @@ describe.skipIf(skip)('site settings conformance', () => {
       value: DEFAULT_GENERAL,
     });
   });
+  it('keeps submissions 24 months until a site sets fewer, and never reads a bad document as a shorter term', async () => {
+    const principal = systemPrincipal(a, 'test');
+    expect(await invoker.run(useCases.getSiteRetention, principal, {})).toEqual({
+      version: 0,
+      value: { submissionMonths: 24 },
+    });
+    const retention = { submissionMonths: 6 };
+    expect(
+      await invoker.run(useCases.updateSiteRetention, principal, { baseVersion: 0, retention })
+    ).toEqual({ version: 1, value: retention });
+    await expect(
+      invoker.run(useCases.updateSiteRetention, principal, { baseVersion: 0, retention })
+    ).rejects.toMatchObject({ code: 'conflict' });
+    // The other documents of the row keep their own versions and values.
+    expect((await invoker.run(useCases.getSiteImages, principal, {})).value).toEqual(
+      (await invoker.run(useCases.getSiteImages, principal, {})).value
+    );
+    expect(await invoker.run(useCases.getSiteRetention, systemPrincipal(b, 'test'), {})).toEqual({
+      version: 0,
+      value: { submissionMonths: 24 },
+    });
+    await owner.transaction().execute(async (trx) => {
+      await enterTenant(trx, a);
+      await trx
+        .updateTable('site_settings')
+        .set({ retention: JSON.stringify({ submissionMonths: 0 }) })
+        .where('tenant_id', '=', a)
+        .execute();
+    });
+    expect(await invoker.run(useCases.getSiteRetention, principal, {})).toEqual({
+      version: 1,
+      value: { submissionMonths: 24 },
+    });
+  });
   it('isolates brand bytes and versions under the same forced RLS row', async () => {
     const aPrincipal = systemPrincipal(a, 'test');
     const bPrincipal = systemPrincipal(b, 'test');

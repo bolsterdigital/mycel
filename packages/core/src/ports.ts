@@ -79,6 +79,12 @@ export interface DomainEvent<TType extends string = string, TProps = Record<stri
 export interface EventBus {
   /** Publish within the current unit of work; delivery happens after commit (outbox). */
   publish(event: DomainEvent): Promise<void>;
+  /**
+   * Whether the outbox still keeps this event of the tenant, processed or not. An event is
+   * written with the change that caused it and deleted by retention only (jobs.md § Retention),
+   * so "no longer there" tells a record past its term from work that has not started.
+   */
+  exists(id: string): Promise<boolean>;
 }
 
 /**

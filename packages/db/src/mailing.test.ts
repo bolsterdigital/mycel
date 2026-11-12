@@ -41,6 +41,7 @@ import {
   adminOf,
 } from '@mycel/core/testing';
 import {
+  applyRetention,
   readOutboxEvent,
   createDb,
   createUnitOfWork,
@@ -48,6 +49,7 @@ import {
   uuidv7,
   uuidv7Ids,
 } from './index.js';
+import { asRole } from './infra/roles.js';
 import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -437,6 +439,44 @@ describe.skipIf(skip)('mailing conformance', () => {
       formMailSubscriber({ ...delivery, uow: uow2 }).handle(event),
     ]);
     expect(mailer.delivered).toHaveLength(1);
+    const status = async () =>
+      (
+        await invoker.run(useCases.getFormMailStatus, admin, {
+          submissionId: accepted.submissionId,
+        })
+      ).actions.map((a) => a.state);
+    expect(await status()).toEqual(['sent']);
+    // Retention takes the processed event and its intent (30 days); the submission lives on.
+    // The record then reads as past its term, not as mail that never started, and a replay
+    // schedules no job that could only fail on the missing event.
+    // The worker's part first: the event is processed and the attempt's reconcile job done.
+    await asRole(operatorDb, 'mycel_worker', async (trx) => {
+      await sql`update outbox set processed_at = now() where id = ${pin.eventId}`.execute(trx);
+      await sql`update jobs set done_at = now()
+                where type = 'mail.reconcile' and payload->>'eventId' = ${pin.eventId}`.execute(
+        trx
+      );
+    });
+    const far = new Date(Date.now() + 3600_000);
+    expect(
+      await applyRetention(operatorDb, tenantId, {
+        outboxBefore: far,
+        submissionsBefore: new Date(0),
+        admissionsThrough: new Date(0),
+      })
+    ).toMatchObject({ outbox: 1, mailIntents: 1, submissions: 0 });
+    expect(await status()).toEqual(['expired']);
+    expect(
+      await invoker.run(useCases.replayFormMail, admin, {
+        submissionId: accepted.submissionId,
+        eventId: pin.eventId,
+      })
+    ).toEqual({ scheduled: false });
+    const { rows: reconcile } = await asRole(operatorDb, 'mycel_worker', (trx) =>
+      sql`select 1 from jobs where type = 'mail.reconcile' and done_at is null
+              and payload->>'eventId' = ${pin.eventId}`.execute(trx)
+    );
+    expect(reconcile).toEqual([]);
     const other = (await testTenant(operatorDb, `form-mail-other-${run}`)).id;
     expect(await invoker.run(useCases.getFormMailSettings, adminOf(other), {})).toMatchObject({
       version: 0,

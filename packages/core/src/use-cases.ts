@@ -147,6 +147,8 @@ import {
   updateSiteGeneral,
   getSiteImages,
   updateSiteImages,
+  getSiteRetention,
+  updateSiteRetention,
 } from './theme/settings.js';
 import {
   addHostname,
@@ -298,6 +300,8 @@ export const useCases = {
   updateSiteGeneral,
   getSiteImages,
   updateSiteImages,
+  getSiteRetention,
+  updateSiteRetention,
   getBrandAsset,
   putBrandAsset,
   removeBrandAsset,

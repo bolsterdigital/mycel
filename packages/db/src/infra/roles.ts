@@ -18,6 +18,7 @@ export type DbRole =
   | 'mycel_janitor'
   | 'mycel_ops'
   | 'mycel_platform'
+  | 'mycel_retention'
   | 'mycel_worker';
 
 /**

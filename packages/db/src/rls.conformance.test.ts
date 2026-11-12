@@ -974,8 +974,17 @@ describe.skipIf(skip)('row level security conformance', () => {
           `${name}: fixture wrote no row, so the check above is vacuous`
         ).toBeGreaterThan(0);
       }
-      // The outbox is write-only for the app; the worker role reads it (ADR 011).
-      expect(counts['outbox']).toBe('no select');
+      // The outbox is write-only for the app but for one thing: whether an event of its own
+      // tenant is still kept (0048, `EventBus.exists`, counted above like any tenant table).
+      // Type, actor, props and delivery state stay unreadable; the worker role reads those
+      // (ADR 011).
+      const { rows: readable } = await client.query<{ column_name: string }>(
+        `select column_name::text from information_schema.columns
+         where table_schema = 'public' and table_name = 'outbox'
+           and has_column_privilege(current_user, 'public.outbox', column_name, 'select')
+         order by column_name`
+      );
+      expect(readable.map((r) => r.column_name)).toEqual(['id', 'tenant_id']);
     } finally {
       await client.end();
     }

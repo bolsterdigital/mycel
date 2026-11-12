@@ -72,10 +72,28 @@ A tenant handler throws when the job has no tenant, a platform handler when it h
 | `assist.retention`     | daily   | `YYYY-MM-DD`    | `mycel_app` per tenant: expired assistance proposals                         |
 | `tenant.export.expire` | daily   | `YYYY-MM-DD`    | `mycel_app` per tenant ([export.md](export.md))                              |
 | `erasures.apply`       | daily   | `YYYY-MM-DD`    | `mycel_erasure` per tenant: the register again, as `mycel erasures apply`    |
+| `retention.apply`      | daily   | `YYYY-MM-DD`    | `mycel_retention` per tenant: what passed its term (§ Retention)             |
 
 ## Retention
 
 `jobs.retention` (`deleteFinishedJobs`, `packages/db/src/operations/ops.ts`) deletes jobs whose `done_at` is older than `JOBS_RETENTION_DAYS`, in batches until none are left. The restrictive delete policy `worker_retention` (migration 0014) lets `mycel_worker` delete finished rows only, so an open job, exhausted or not, can never disappear whatever the query asks.
+
+`retention.apply` (`applyAllRetention` in `packages/api/src/jobs.ts`, `applyRetention` in `packages/db/src/infra/retention.ts`) enforces three terms per tenant. It reads the tenant's retention setting as `mycel_app`, takes the cut-offs from core (`retentionCutoffs`, `packages/core/src/ops/retention.ts`) and deletes as `mycel_retention` (migration 0048) inside that tenant's transactions, 500 rows at a time. Only the operator connection may enter that role, and every one of its policies tests the tenant, so a run never reaches another tenant's rows. It runs for a suspended tenant too: it accepts no command, publishes nothing and sends nothing.
+
+| What            | Term                                                                                                | Kept longer while                                                                                                                                                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| outbox event    | 30 days after `processed_at`                                                                        | a `mail.reconcile` job that is not done names it; an event that never processed is not a candidate ([ops.md](ops.md))                                                                                                              |
+| mail intent     | goes with its outbox event                                                                          | its event exists                                                                                                                                                                                                                   |
+| form submission | 24 calendar months after `created_at`, or the fewer months the tenant set (`site.retention.update`) | an unprocessed outbox event or an open `mail.reconcile` job's event names it, a connection intent planned from it is `pending` or `unknown`, or it belongs to a readmitted lifecycle and any connection intent was planned from it |
+| admission seat  | 7 days after `admitted_at` (`ADMISSION_WINDOW_MS`)                                                  | never                                                                                                                                                                                                                              |
+
+A row on its cut-off stays; the first moment after it goes at the next daily run, so a row can outlive its term by a day. Months are calendar months in UTC with the day clamped to the month's last (`monthsBefore`): 31 March minus one month is 28 February, 29 in a leap year. `site.retention.get` (`forms:read`) and `site.retention.update` (`tenant:admin`, versioned like the other site settings) read and set `submissionMonths`, 1 to 24; there is no unlimited option, a site that never set it keeps 24 months, and a lower term applies to what is already stored. The setting travels in an export with `site_settings`. There is no screen for it yet; HTTP and MCP reach it like every use case.
+
+The exceptions are there so no effect loses its source: `mail.reconcile` rebuilds a message from the outbox event and the submission, and a connector dispatch rereads the submission. Without them such an effect fails closed (no mail, no dispatch), but an attempt whose outcome at the provider is unknown could never be settled. They are visible, not silent: a job that exhausted its attempts and a dead outbox event show on the status page ([ops.md](ops.md)) and hold their rows until someone retries or closes them. An intent that is still unsettled when its event goes (its reconcile job was closed) goes with it: the intent holds a keyed digest of the recipient that an erasure finds through the event only, so it must not outlive the event.
+
+Two readers outlive a row on purpose and are built for it. A delivery record past its term is not shown as mail that never started: `form.delivery.get` reports `expired` when neither the intent nor its event is kept, and `form.mail.replay` then schedules nothing ([forms.md](forms.md)). And the recurring Mailchimp comparison goes on after the submission is gone: a withdrawal at the provider (unsubscribed, cleaned, archived or absent) is applied from the receipt, the intent and the supporter that still holds the address the receipt's member hash was made of, so the term never cuts a supporter off from their own unsubscribe ([connections.md](connections.md)). What needs the submission ends with it: a provider-owned confirmation that arrives after the term grants nothing. The one submission the comparison cannot do without is that of a readmitted lifecycle: after an erasure, supporter ingest accepts a provider withdrawal for that address only with its submission as evidence (ADR 032 rule 3), so such a submission stays while a connection intent planned from it exists. That holds for addresses that were erased and signed up again through a fed form, not for fed submissions in general, and an erasure on request still removes it.
+
+The policies of `mycel_retention` hold four floors whatever a statement asks: an unprocessed outbox event cannot be deleted, a mail intent cannot be deleted while its event exists, a submission younger than 28 days cannot be deleted, and an admission seat inside its seven-day window cannot be deleted. Retention does not touch the supporter's event log, projection or consent, nor the form definitions pinned in other submissions; erasure on request stays [supporters.md](supporters.md) § Erasure. Backups keep what they hold for their own window ([self-hosting.md](../self-hosting.md)).
 
 ## The outbox
 
@@ -83,18 +101,21 @@ A tenant handler throws when the job has no tenant, a platform handler when it h
 
 ## Constants
 
-| Constant              | Value                     | Where                                           | Why                                                                      |
-| --------------------- | ------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------ |
-| `JOB_LEASE_SECONDS`   | 300                       | `packages/db/src/operations/jobs.ts`            | a claim older than this is free again; its worker is presumed dead       |
-| `max_attempts`        | 10                        | `packages/db/migrations/0009_jobs.sql`          | column default; an exhausted job waits for recovery                      |
-| job backoff           | `min(2^attempts, 3600)` s | `packages/db/src/operations/jobs.ts`            | 2, 4, 8 ... seconds after each failure, at most an hour                  |
-| job batch size        | 10                        | `packages/db/src/operations/jobs.ts`            | jobs per claim (`claimJobs`)                                             |
-| pool batch size       | 1                         | `packages/db/src/operations/jobs.ts`            | jobs per claim in a pool (`JobPool`), so a waiting lease never runs out  |
-| `JOBS_INTERVAL_MS`    | 5 s                       | `packages/api/src/runtime/compose.ts`           | job loop tick when the queue is empty                                    |
-| `HEARTBEAT_MS`        | 60 s                      | `packages/db/src/portability/tenant-exports.ts` | how often a running export renews its lease, well inside the 300 s lease |
-| `MAX_ATTEMPTS`        | 10                        | `packages/db/src/operations/outbox.ts`          | failed passes before an outbox event is dead                             |
-| outbox backoff        | `min(2^attempts, 3600)` s | `packages/db/src/operations/outbox.ts`          | the same schedule as jobs                                                |
-| outbox batch size     | 50                        | `packages/db/src/operations/outbox.ts`          | events per claim (`drainOutbox`)                                         |
-| `OUTBOX_INTERVAL_MS`  | 1 s                       | `packages/api/src/runtime/compose.ts`           | outbox loop tick when nothing is pending                                 |
-| `JOBS_RETENTION_DAYS` | 30 (1 to 3650)            | `packages/api/src/runtime/config.ts`            | env; finished jobs older than this are deleted daily                     |
-| retention batch       | 1000                      | `packages/db/src/operations/ops.ts`             | rows per delete, so no transaction holds many row locks                  |
+| Constant                | Value                     | Where                                           | Why                                                                      |
+| ----------------------- | ------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------ |
+| `JOB_LEASE_SECONDS`     | 300                       | `packages/db/src/operations/jobs.ts`            | a claim older than this is free again; its worker is presumed dead       |
+| `max_attempts`          | 10                        | `packages/db/migrations/0009_jobs.sql`          | column default; an exhausted job waits for recovery                      |
+| job backoff             | `min(2^attempts, 3600)` s | `packages/db/src/operations/jobs.ts`            | 2, 4, 8 ... seconds after each failure, at most an hour                  |
+| job batch size          | 10                        | `packages/db/src/operations/jobs.ts`            | jobs per claim (`claimJobs`)                                             |
+| pool batch size         | 1                         | `packages/db/src/operations/jobs.ts`            | jobs per claim in a pool (`JobPool`), so a waiting lease never runs out  |
+| `JOBS_INTERVAL_MS`      | 5 s                       | `packages/api/src/runtime/compose.ts`           | job loop tick when the queue is empty                                    |
+| `HEARTBEAT_MS`          | 60 s                      | `packages/db/src/portability/tenant-exports.ts` | how often a running export renews its lease, well inside the 300 s lease |
+| `MAX_ATTEMPTS`          | 10                        | `packages/db/src/operations/outbox.ts`          | failed passes before an outbox event is dead                             |
+| outbox backoff          | `min(2^attempts, 3600)` s | `packages/db/src/operations/outbox.ts`          | the same schedule as jobs                                                |
+| outbox batch size       | 50                        | `packages/db/src/operations/outbox.ts`          | events per claim (`drainOutbox`)                                         |
+| `OUTBOX_INTERVAL_MS`    | 1 s                       | `packages/api/src/runtime/compose.ts`           | outbox loop tick when nothing is pending                                 |
+| `JOBS_RETENTION_DAYS`   | 30 (1 to 3650)            | `packages/api/src/runtime/config.ts`            | env; finished jobs older than this are deleted daily                     |
+| retention batch         | 1000                      | `packages/db/src/operations/ops.ts`             | rows per delete, so no transaction holds many row locks                  |
+| `OUTBOX_RETENTION_DAYS` | 30                        | `packages/core/src/ops/retention.ts`            | decided term for a processed outbox event                                |
+| submission months       | 24 (1 to 24)              | `packages/core/src/ops/retention.ts`            | decided default and ceiling; the tenant may choose fewer                 |
+| `RETENTION_BATCH`       | 500                       | `packages/db/src/infra/retention.ts`            | rows per `retention.apply` transaction                                   |

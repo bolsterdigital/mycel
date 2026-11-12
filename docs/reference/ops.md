@@ -16,6 +16,8 @@ Three kinds of background work can stall without anyone noticing: a job that use
 
 A job is **recoverable** when it is exhausted and no run holds its lease (`claimed_at` null or older than `JOB_LEASE_SECONDS`). A job on its last attempt counts as exhausted from the claim on; resetting it while that run is still going would let a second worker run it beside the first, so that is refused.
 
+Unresolved mail does not stay listed for ever: an intent goes with its outbox event, 30 days after the event was processed, once no `mail.reconcile` job for it is open ([jobs.md](jobs.md) § Retention). An abandoned intent is therefore visible for about a month; an exhausted reconcile job keeps both its event and its intent until someone retries or closes the job.
+
 ## The site's view: `ops.status.get`
 
 A query, capability `tenant:admin`, behind `/admin/<tenant>/status` in the web app. The page opens with the verdict and its moment, names job types in words with the type itself under "Technical details", confirms a close in the row and, with JavaScript, refreshes itself every minute; a refresh that fails or finds access gone turns the verdict into "Status unknown". It returns:

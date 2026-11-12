@@ -103,6 +103,7 @@ export * from './audit/model.js';
 export * from './audit/ports.js';
 export * from './audit/service.js';
 export * from './ops/model.js';
+export * from './ops/retention.js';
 export * from './ops/ports.js';
 export * from './ops/service.js';
 export * from './ops/well-known.js';

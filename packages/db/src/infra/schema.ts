@@ -73,6 +73,8 @@ export interface Database {
     general_version: Generated<number>;
     images: Json<unknown> | null;
     images_version: Generated<number>;
+    retention: Json<unknown> | null;
+    retention_version: Generated<number>;
   };
   connection_intents: {
     id: string;

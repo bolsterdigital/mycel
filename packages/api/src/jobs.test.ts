@@ -26,6 +26,7 @@ import {
   MEDIA_TRASH_RETENTION_MS,
   DEFAULT_ACCESS,
   supporterIngestSubscriber,
+  monthsBefore,
 } from '@mycel/core';
 import {
   FakeClock,
@@ -123,6 +124,7 @@ describe('job handlers', () => {
       'rate_limits.sweep',
       'media.orphans',
       'erasures.apply',
+      'retention.apply',
     ])
       await expect(handlers[type]!(job({ type, payload: {} }))).rejects.toThrow(/platform job/);
   });
@@ -460,14 +462,15 @@ describe.skipIf(skip)('erasure jobs against Postgres', () => {
   const operatorDb = createDb(operatorUrl);
   const appDb = createDb(appUrl);
   const clock = { now: () => new Date() };
-  const uow = createUnitOfWork(appDb, {
+  const uowDeps = {
     clock,
     ids: uuidv7Ids,
     signer: new FakeSigner(),
     inputHasher: new FakeInputHasher(),
     dns: new FakeDns(),
     platform: memoryPlatform,
-  });
+  };
+  const uow = createUnitOfWork(appDb, uowDeps);
   const invoker = new Invoker(buildRegistry(), uow);
   const run = runSuffix();
   const address = `erase-job-${run}@example.org`;
@@ -671,5 +674,57 @@ describe.skipIf(skip)('erasure jobs against Postgres', () => {
       failedAt: null,
     });
     expect(await copies(tenant)).toEqual(none);
+  });
+  // The daily job reads each tenant's own term and deletes as mycel_retention.
+  it('retention.apply deletes a submission past the term its own tenant set, also when suspended', async () => {
+    const months = (n: number) => monthsBefore(new Date(), n);
+    // Thirteen months ago: past a twelve-month term, inside the default of twenty-four.
+    const past = createUnitOfWork(appDb, { ...uowDeps, clock: { now: () => months(13) } });
+    const submit = async (tenantId: string) => {
+      const admin = systemPrincipal(tenantId, 'retention-job-test');
+      const formId = uuidv7();
+      await past.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
+      const submitted = await new Invoker(buildRegistry(), past).run(useCases.submitForm, admin, {
+        formId,
+        values: { email: address, consent: true },
+        locale: 'nl',
+      });
+      if (submitted.status !== 'accepted') throw new Error(`submit ${submitted.status}`);
+      await closeTenantWork(operatorDb, [tenantId]);
+    };
+    const shorter = await newTenant('retention-short');
+    const standard = await newTenant('retention-default');
+    for (const t of [shorter, standard]) await submit(t);
+    await invoker.run(useCases.updateSiteRetention, systemPrincipal(shorter, 'test'), {
+      baseVersion: 0,
+      retention: { submissionMonths: 12 },
+    });
+    expect((await copies(shorter)).form_submissions).toBe(1);
+
+    sweepTenants = [shorter, standard];
+    const suspendedHandlers = jobHandlers({
+      uow,
+      operatorDb,
+      identity: { tenantAccess: async () => ({ ...DEFAULT_ACCESS, status: 'suspended' }) },
+      mail: { mailer: new MemoryMailer(), clock, sources: {} },
+      tenantIds: async () => sweepTenants,
+    });
+    await suspendedHandlers['retention.apply']!({
+      id: uuidv7(),
+      tenantId: null,
+      type: 'retention.apply',
+      key: `retention.apply:${run}`,
+      runAt: clock.now(),
+      payload: {},
+      attempts: 1,
+      maxAttempts: 10,
+      claimedAt: clock.now(),
+      doneAt: null,
+      lastError: null,
+      createdAt: clock.now(),
+      failedAt: null,
+    });
+    expect((await copies(shorter)).form_submissions).toBe(0);
+    expect((await copies(standard)).form_submissions).toBe(1);
   });
 });

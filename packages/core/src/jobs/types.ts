@@ -72,6 +72,12 @@ export const JobPayloads = {
    * without its jobs is erased by the next run instead of waiting for someone to notice.
    */
   'erasures.apply': z.object({}).strict(),
+  /**
+   * Platform job: per tenant, delete what passed its retention term: processed outbox events
+   * after 30 days with their mail intents, form submissions after the tenant's months, expired
+   * admission seats (`core/ops/retention.ts`, docs/reference/jobs.md § Retention).
+   */
+  'retention.apply': z.object({}).strict(),
 } as const;
 
 export type JobType = keyof typeof JobPayloads;
