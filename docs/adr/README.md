@@ -39,3 +39,4 @@ The contract the code is built against. How a decision gets here, and when one i
 | 032 | [Erasure ends a lifecycle; explicit readmission starts another](032-erasure-and-explicit-readmission.md)                               | accepted |
 | 033 | [A campaign is a participation entity with one landing page and referencing cards](033-campaign-identity-and-participation.md)         | accepted |
 | 034 | [A person is erased by explicit id; a name beside an erased id is scrubbed everywhere](034-person-erasure.md)                          | accepted |
+| 035 | [An operator account is erased by the installation; a stored actor carries an id, never an address](035-operator-erasure.md)           | proposed |
