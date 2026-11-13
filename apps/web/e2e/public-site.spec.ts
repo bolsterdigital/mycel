@@ -25,10 +25,18 @@ import sharp from 'sharp';
 import { expectNoAxeViolations } from './lib/axe';
 import { editorReady } from './lib/editor';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
-import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
+import {
+  NARROW,
+  TEXT_SIZES,
+  chromeRails,
+  expectChromeOnWideRail,
+  expectChromeTransitions,
+  layoutGate,
+  setTextSize,
+  setTextSpacing,
+} from './lib/layout';
 import { login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
-import { chromeRails, expectChromeOnWideRail, expectChromeTransitions } from './lib/rails';
 import { callApi, requireApi } from './lib/api';
 import { themeCss } from '../src/lib/theme/tokens';
 
