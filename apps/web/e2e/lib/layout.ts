@@ -557,3 +557,211 @@ export function textBlockProblems(page: Page): Promise<string[]> {
     return [...new Set(out)];
   });
 }
+
+// Media blocks: every image layout and video width between prose, with a landscape, a portrait, a
+// panorama and a source smaller than its column, long captions and credits, floats that hang past
+// their text, in nl and en. Rejected: the registry examples, which put one image alone on a page
+// and never a float before a wide block or at the end of the article.
+
+const CAPTION = {
+  nl: 'Bewoners meten de snelheid van het verkeer bij de oversteek op de Vaartweg, op een zaterdagochtend in maart, samen met de wijkagent en twee leerlingen van de school.',
+  en: 'Residents measure the speed of the traffic at the Vaartweg crossing on a Saturday morning in March, with the community officer and two pupils of the school.',
+};
+
+/** The blocks of the media page; `media` holds the uploaded image ids, `version` each type's. */
+export function mediaBlocks(
+  media: { landscape: string; portrait: string; panorama: string; small: string },
+  version: { image: number; 'video-embed': number; 'rich-text': number }
+) {
+  const prose = (id: string, text: { nl: string; en: string }) => ({
+    id,
+    type: 'rich-text',
+    version: version['rich-text'],
+    props: {
+      content: { nl: doc(para(text.nl), para(text.nl)), en: doc(para(text.en), para(text.en)) },
+    },
+  });
+  const image = (id: string, mediaId: string, layout: string, extra: object = {}) => ({
+    id,
+    type: 'image',
+    version: version.image,
+    props: { mediaId, decorative: false, alt: { nl: 'Verkeer', en: 'Traffic' }, layout, ...extra },
+  });
+  const video = (id: string, width: string, props: object) => ({
+    id,
+    type: 'video-embed',
+    version: version['video-embed'],
+    props: { width, ...props },
+  });
+  const long = {
+    caption: CAPTION,
+    credit: {
+      work: { title: 'Ochtendmeting', maker: 'Werkgroep Vaartweg' },
+      photographer: 'Sam de Vries',
+    },
+  };
+  const title = {
+    nl: 'Verslag van de bewonersavond over de nieuwe oversteekplaats bij de basisschool',
+    en: 'Report of the residents’ evening about the new crossing by the primary school',
+  };
+  return [
+    prose('media-prose-open', LONG),
+    image('media-content-landscape', media.landscape, 'content', long),
+    image('media-float-left-portrait', media.portrait, 'float-left', {
+      caption: { nl: 'Staand.', en: 'Portrait.' },
+    }),
+    prose('media-prose-beside-left', LONG),
+    image('media-wide-panorama', media.panorama, 'wide', long),
+    image('media-float-right-small', media.small, 'float-right', { caption: CAPTION }),
+    prose('media-prose-short', { nl: 'Kort.', en: 'Short.' }),
+    video('media-video-content', 'content', { provider: 'youtube', videoId: 'dQw4w9WgXcQ', title }),
+    image('media-content-portrait', media.portrait, 'content'),
+    image('media-full-panorama', media.panorama, 'full', long),
+    video('media-video-wide', 'wide', {
+      provider: 'vimeo',
+      videoId: '76979871',
+      title,
+      caption: CAPTION,
+    }),
+    image('media-content-small', media.small, 'content', {
+      caption: { nl: 'Klein bronbeeld.', en: 'Small source.' },
+    }),
+    video('media-video-full', 'full', {
+      provider: 'youtube',
+      videoId: 'aqz-KE-bpKQ',
+      title,
+      caption: CAPTION,
+    }),
+    prose('media-prose-close', LONG),
+    image('media-float-left-end', media.landscape, 'float-left', { caption: CAPTION }),
+  ];
+}
+
+/** What is off about the page's images and videos, measured against probe elements of its own
+ *  rails: each figure sits on the rail its layout names, a float stays inside the gutters and
+ *  leaves the text beside it a readable line, every image fills its figure in its own aspect
+ *  ratio, a caption starts at the image's edge (the gutter for a full image) and keeps the
+ *  content measure, a video's title and caption keep the content rail, nothing framed or broad
+ *  sits beside a hanging float, the page contains its last float, and with `sizes` (default text)
+ *  each image's `sizes` picks the srcset candidate its rendered width would. */
+export function mediaBlockProblems(page: Page, sizes: boolean): Promise<string[]> {
+  return page.evaluate(async (checkSizes) => {
+    const out: string[] = [];
+    const main = document.querySelector('main.page')!;
+    const rail = (className: string) => {
+      const probe = document.createElement('div');
+      probe.className = className;
+      main.append(probe);
+      const r = probe.getBoundingClientRect();
+      probe.remove();
+      return r;
+    };
+    const rails: Record<string, DOMRect> = {
+      content: rail(''),
+      wide: rail('layout-wide'),
+      full: rail('layout-full'),
+    };
+    const probe = document.createElement('div');
+    probe.style.width = 'var(--gutter)';
+    main.append(probe);
+    const gutter = probe.getBoundingClientRect().width;
+    probe.remove();
+    const off = (a: DOMRect, b: DOMRect) =>
+      Math.abs(a.left - b.left) > 1 || Math.abs(a.right - b.right) > 1;
+    // The boxes of the text itself, not of the elements around it: a credit is a block as wide
+    // as its caption, whatever the length of the name in it.
+    const lines = (el: Element) => {
+      const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      const rects: DOMRect[] = [];
+      const range = document.createRange();
+      for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+        range.selectNodeContents(node);
+        rects.push(...[...range.getClientRects()].filter((r) => r.width > 0));
+      }
+      return rects;
+    };
+    const imgs = [...main.querySelectorAll('img')];
+    for (const img of imgs) img.loading = 'eager';
+    await Promise.all(imgs.map((img) => img.decode().catch(() => undefined)));
+    const blocks = [...main.querySelectorAll(':scope .image, :scope .video')];
+    if (!blocks.length) out.push('no media blocks');
+    const floats: DOMRect[] = [];
+    for (const [at, block] of main.querySelectorAll('.block').entries()) {
+      const box = block.getBoundingClientRect();
+      const label = `${at} ${block.className}`;
+      if (getComputedStyle(block).float !== 'none') {
+        floats.push(box);
+        if (box.left < rails.full!.left + gutter - 1 || box.right > rails.full!.right - gutter + 1)
+          out.push(`${label}: past the gutter`);
+        const text = block.nextElementSibling?.querySelector('p');
+        const [line, next] = text ? lines(text) : [];
+        if (text && line && next && line.width < 15 * parseFloat(getComputedStyle(text).fontSize))
+          out.push(`${label}: the text beside it is under 15em`);
+      } else if (
+        block.matches('.image, .video, .width-wide, .width-full, .layout-wide, .layout-full')
+      )
+        for (const f of floats)
+          if (box.top < f.bottom - 1 && box.left < f.right && box.right > f.left)
+            out.push(`${label}: beside a float`);
+      if (!block.matches('.image, .video')) continue;
+      const width = /(?:width|layout)-(wide|full|content)\b/.exec(block.className)?.[1];
+      if (width && off(box, rails[width]!)) out.push(`${label}: not on the ${width} rail`);
+      const img = block.querySelector('img');
+      if (img) {
+        const r = img.getBoundingClientRect();
+        if (Math.abs(r.width - box.width) > 1)
+          out.push(`${label}: image ${r.width}px in ${box.width}px`);
+        if (!img.naturalWidth) out.push(`${label}: image not loaded`);
+        else if (
+          Math.abs(r.width / r.height - img.naturalWidth / img.naturalHeight) >
+          0.01 * (r.width / r.height)
+        )
+          out.push(`${label}: image stretched`);
+        if (checkSizes && img.srcset) {
+          const candidates = img.srcset
+            .split(', ')
+            .map((c) => parseInt(c.split(' ')[1]!))
+            .sort((a, b) => a - b);
+          const pick = (w: number) => candidates.find((c) => c >= w) ?? candidates.at(-1);
+          const slot = img.sizes
+            .split(', ')
+            .map((s) => /^(\(.*\))?\s*(.+)$/.exec(s)!)
+            .find((m) => !m[1] || matchMedia(m[1]).matches)!;
+          const probe = document.createElement('div');
+          probe.style.width = slot[2]!;
+          document.body.append(probe);
+          const claimed = probe.getBoundingClientRect().width;
+          probe.remove();
+          if (pick(claimed) !== pick(r.width))
+            out.push(`${label}: sizes says ${Math.round(claimed)}px for ${Math.round(r.width)}px`);
+        }
+      }
+      const inner = block.matches('.video')
+        ? [...block.children]
+        : [...block.querySelectorAll('figcaption')];
+      for (const part of inner) {
+        const text = lines(part);
+        if (!text.length) continue;
+        const left = Math.min(...text.map((r) => r.left));
+        const right = Math.max(...text.map((r) => r.right));
+        if (block.matches('.image')) {
+          const edge =
+            img!.getBoundingClientRect().left + (box.left <= rails.full!.left + 1 ? gutter : 0);
+          if (Math.abs(left - edge) > 1) out.push(`${label}: caption not at the image's edge`);
+          if (right > rails.full!.right - (box.right >= rails.full!.right - 1 ? gutter : 0) + 1)
+            out.push(`${label}: caption against the edge`);
+        } else if (left < rails.content!.left - 1 || right > rails.content!.right + 1)
+          out.push(`${label}: ${part.tagName.toLowerCase()} past the content rail`);
+        if (right - left > rails.content!.width + 1)
+          out.push(`${label}: a caption line past the measure`);
+      }
+      for (const el of block.querySelectorAll('*'))
+        for (const r of el.getClientRects())
+          if (r.width && (r.left < box.left - 1 || r.right > box.right + 1))
+            out.push(`${label}: ${el.tagName.toLowerCase()} past the block`);
+    }
+    const last = main.getBoundingClientRect().bottom;
+    if (floats.some((f) => f.bottom > last + 1)) out.push('a float hangs past the page');
+    return [...new Set(out)];
+  }, sizes);
+}

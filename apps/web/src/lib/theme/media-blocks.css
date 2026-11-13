@@ -8,6 +8,8 @@
 .gallery figcaption {
   margin-block-start: 4px;
   padding-inline: var(--caption-inset);
+  /* As wide as the image, but its lines keep the content measure (content-layout.md). */
+  max-width: calc(var(--content-width, 100%) + 2 * var(--caption-inset));
   text-align: start;
   font-family: var(--font-caption, inherit);
   font-size: calc(var(--step--1) * 0.92);
