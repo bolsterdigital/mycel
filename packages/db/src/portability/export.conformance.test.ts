@@ -12,6 +12,7 @@
 // CI that is a failure.
 
 import { seedFormActions } from './form-actions.fixture.js';
+import { checkLegacyActorImport } from './legacy-actors.fixture.js';
 import { checkLegacyPeopleImport, seedGroupedPerson } from './legacy-people.fixture.js';
 import { seedCampaign } from './campaigns.fixture.js';
 import { createHash } from 'node:crypto';
@@ -533,19 +534,17 @@ describe.skipIf(skip)('tenant export and import', () => {
     const otherPlatform = { ...memoryPlatform, domain: 'other.example' };
     const targetBlobs = new MemoryBlobStore();
 
+    const legacy = () => ({
+      ...{ operatorDb, targetDb: target.db!, invoker, blobs, targetBlobs, root: scratch.dir },
+      ...{ run, by, platform: otherPlatform },
+    });
     it('imports an older authors archive with ids and internal addresses intact', async (ctx) => {
       if (!canCreateDb) ctx.skip();
-      await checkLegacyPeopleImport({
-        operatorDb,
-        targetDb: target.db!,
-        invoker,
-        blobs,
-        targetBlobs,
-        root: scratch.dir,
-        run,
-        by,
-        platform: otherPlatform,
-      });
+      await checkLegacyPeopleImport(legacy());
+    });
+    it('imports an archive from before 0053 without the addresses in its actors', async (ctx) => {
+      if (!canCreateDb) ctx.skip();
+      await checkLegacyActorImport(legacy());
     });
 
     it.skipIf(!operatorUrl)('refuses a slug that is taken there', async (ctx) => {

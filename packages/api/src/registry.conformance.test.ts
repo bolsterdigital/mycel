@@ -26,7 +26,7 @@ const useCases = registry.list();
 const caller = (capabilities: Capability[], operator = false): Principal =>
   principal({
     actor: operator
-      ? { kind: 'operator', operatorId: 'conformance', email: 'operator@probe.test' }
+      ? { kind: 'operator', operatorId: 'conformance' }
       : capabilities.includes('tenant:admin')
         ? { kind: 'system', job: 'conformance' }
         : { kind: 'api-key', keyId: 'conformance' },

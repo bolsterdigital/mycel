@@ -54,11 +54,7 @@ describe('members and keys', () => {
       email,
       emailVerified: true,
     });
-    const principal = await operatorPrincipal(
-      identity,
-      { operatorId: op.id, email: op.email },
-      TENANT
-    );
+    const principal = await operatorPrincipal(identity, { operatorId: op.id }, TENANT);
     return { op, principal: principal! };
   }
 
@@ -464,10 +460,10 @@ describe('members and keys', () => {
   describe('operator principal', () => {
     it('comes from the membership of the tenant in the URL and nothing else', async () => {
       const { op } = await loggedIn('a@example.org', ['content:write']);
-      const who = { operatorId: op.id, email: op.email };
+      const who = { operatorId: op.id };
       expect(await operatorPrincipal(identity, who, TENANT)).toEqual(
         principal({
-          actor: { kind: 'operator', operatorId: op.id, email: 'a@example.org' },
+          actor: { kind: 'operator', operatorId: op.id },
           capabilities: ['content:write'],
         })
       );

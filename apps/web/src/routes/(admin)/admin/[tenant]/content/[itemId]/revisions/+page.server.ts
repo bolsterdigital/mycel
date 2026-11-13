@@ -4,7 +4,7 @@
 import { pickAny, isUuid, useCases } from '@mycel/core';
 import { actorLabel, diffRows, when } from '#lib/server/content/content-admin.js';
 import { loaded } from '#lib/server/admin/admin-actions.js';
-import { adminTimeZone } from '#lib/server/admin/admin.js';
+import { actorNames, adminTimeZone } from '#lib/server/admin/admin.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { PageServerLoad } from './$types';
 import { refuse } from '#lib/server/http/refuse.js';
@@ -19,6 +19,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
   const { item } = await loaded(
     invoker.run(useCases.getItem, principal, { itemId: params.itemId })
   );
+  const names = await actorNames(principal, locals);
   const { revisions, next } = await loaded(
     invoker.run(useCases.listRevisions, principal, {
       itemId: item.id,
@@ -53,7 +54,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     revisions: revisions.map((r) => ({
       id: r.id,
       when: when(r.createdAt, zone),
-      who: actorLabel(r.actor),
+      who: actorLabel(r.actor, names),
     })),
     next,
     compare: { from, to },

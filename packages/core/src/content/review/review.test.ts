@@ -19,7 +19,6 @@ const operator = (n: number, capabilities: Capability[]): Principal =>
     actor: {
       kind: 'operator',
       operatorId: `01900000-0000-7000-8000-0000000a000${n}`,
-      email: `lid${n}@example.org`,
     },
     capabilities,
   });

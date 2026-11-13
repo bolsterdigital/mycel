@@ -1,5 +1,5 @@
-// Shared plumbing of the operator admin: cookie flags, the login rate limit, and the admin's
-// time zone. The session itself is decided in core (`issueSession`, `readSession`); the tenant and
+// Shared plumbing of the operator admin: cookie flags, the login rate limit, the admin's time
+// zone and the names of the team. The session itself is decided in core (`issueSession`, `readSession`); the tenant and
 // capabilities of a request come from the membership, never from the cookie.
 
 import {
@@ -15,6 +15,8 @@ import { error, redirect, type Cookies } from '@sveltejs/kit';
 import { adminCookieOptions, loginLimiter } from './admin-paths.js';
 import { runtime } from '../runtime.js';
 import { refuse } from '#lib/server/http/refuse.js';
+import type { ActorNames } from '#lib/server/content/content-admin.js';
+import { langOf, ui } from '../../../i18n/index.js';
 
 export const SESSION_COOKIE = 'mycel_session';
 
@@ -100,4 +102,21 @@ export function adminTimeZone(locals: App.Locals): Promise<{ zone: string; site:
     zones.set(locals, found);
   }
   return found;
+}
+
+/**
+ * Who an operator id is, for the screens that show who saved a revision, is editing, or wrote the
+ * newer version in a conflict. A stored actor carries the operator id only (ADR 035 rule 4), so
+ * the name is read at render time from the current members (`tenant.member_name.list`); an id that is
+ * not among them, a member who was removed or an account the installation erased, shows as "a
+ * team member" in the admin's language, the words the audit log uses. Rejected: resolving inside
+ * each use case's output (every revision read would join the members) and showing the id itself
+ * (it says nothing to an editor and looks like an error).
+ */
+export async function actorNames(principal: Principal, locals: App.Locals): Promise<ActorNames> {
+  const { members } = await runtime().invoker.run(useCases.listMemberNames, principal, {});
+  return {
+    byId: Object.fromEntries(members.map((m) => [m.operatorId, m.label])),
+    teamMember: ui(langOf(locals))('admin.audit.actor.operator'),
+  };
 }

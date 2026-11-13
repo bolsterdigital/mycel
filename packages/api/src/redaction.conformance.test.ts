@@ -9,6 +9,7 @@ import {
   Invoker,
   UseCaseError,
   buildRegistry,
+  type Actor,
   type UnitOfWork,
   type UseCaseErrorCode,
 } from '@mycel/core';
@@ -23,7 +24,10 @@ import { createApp } from './app.js';
 
 const ADDRESS = 'jan.jansen@example.org';
 
-const operator = principal({ actor: { kind: 'operator', operatorId: 'op-1', email: ADDRESS } });
+// The actor type holds no address (ADR 035 rule 4); an object can still carry one at run time.
+const operator = principal({
+  actor: { kind: 'operator', operatorId: 'op-1', email: ADDRESS } as Actor,
+});
 
 /** A unit of work whose every transaction fails, quoting an address like a driver error might. */
 const failing: UnitOfWork = {

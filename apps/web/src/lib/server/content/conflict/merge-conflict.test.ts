@@ -43,7 +43,13 @@ const revision = (document: ContentDocument) => ({
   document,
 });
 
-const ctx = (values = {}) => ({ values, editing: 'nl', zone: 'Europe/Amsterdam', slug: null });
+const ctx = (values = {}) => ({
+  values,
+  editing: 'nl',
+  zone: 'Europe/Amsterdam',
+  names: { byId: {}, teamMember: 'A team member' },
+  slug: null,
+});
 
 const form = (entries: Record<string, string>) => {
   const data = new FormData();

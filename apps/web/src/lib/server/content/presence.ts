@@ -1,7 +1,7 @@
 // What the edit screen shows of `content.presence.*` (ADR 029): labels in place of actors, so the
 // page and the beat answer alike and nothing else of a principal reaches the browser.
 import { PRESENCE_BEAT_MS, useCases, type Principal, type PresenceView } from '@mycel/core';
-import { actorLabel } from '#lib/server/content/content-admin.js';
+import { actorLabel, type ActorNames } from '#lib/server/content/content-admin.js';
 import { runtime } from '#lib/server/runtime.js';
 
 export interface PresenceLines {
@@ -9,9 +9,13 @@ export interface PresenceLines {
   newer: { who: string } | null;
 }
 
-export const presenceLines = (view: PresenceView): PresenceLines => ({
-  present: view.present.map((p) => ({ who: actorLabel(p.actor), state: p.state, self: p.self })),
-  newer: view.newer ? { who: actorLabel(view.newer.actor) } : null,
+export const presenceLines = (view: PresenceView, names: ActorNames): PresenceLines => ({
+  present: view.present.map((p) => ({
+    who: actorLabel(p.actor, names),
+    state: p.state,
+    self: p.self,
+  })),
+  newer: view.newer ? { who: actorLabel(view.newer.actor, names) } : null,
 });
 
 /**
@@ -22,10 +26,11 @@ export async function presenceOnLoad(
   principal: Principal,
   tenantSlug: string,
   itemId: string,
-  base: string
+  base: string,
+  names: ActorNames
 ) {
   const view = await runtime().invoker.run(useCases.listPresence, principal, { itemId });
-  const { present, newer } = presenceLines(view);
+  const { present, newer } = presenceLines(view, names);
   return {
     present: present.filter((p) => !p.self),
     newer,

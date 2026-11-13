@@ -24,7 +24,6 @@ const operator = principal({
   actor: {
     kind: 'operator',
     operatorId: '01900000-0000-7000-8000-00000000a001',
-    email: 'editor@probe.test',
   },
   capabilities: ['tenant:admin', 'content:read', 'content:write', 'content:publish', 'ai:assist'],
 });

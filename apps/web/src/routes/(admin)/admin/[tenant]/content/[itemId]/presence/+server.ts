@@ -8,7 +8,7 @@
 import { json } from '@sveltejs/kit';
 import { UseCaseError, type PresenceView } from '@mycel/core';
 import { refusalOf } from '#lib/server/http/refuse.js';
-import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
+import { actorNames, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { presenceLines } from '#lib/server/content/presence.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { RequestHandler } from './$types';
@@ -30,7 +30,9 @@ export const POST: RequestHandler = async ({ locals, url, params, request }) => 
       state: body['state'],
       baseRevisionId: body['baseRevisionId'],
     })) as PresenceView;
-    return json(presenceLines(view), { headers: NOT_NO_STORE });
+    return json(presenceLines(view, await actorNames(principal, locals)), {
+      headers: NOT_NO_STORE,
+    });
   } catch (e) {
     return json({}, { status: STATUS[refusalOf(e).code] ?? 403, headers: NOT_NO_STORE });
   }

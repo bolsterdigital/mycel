@@ -261,8 +261,9 @@ test.describe('article-writing', () => {
       await expect(presence.getByRole('link')).toHaveCount(0);
     });
 
-    // PR #351 review, F1: a label is not an identity. Two operators with one address is the case
-    // that stays possible whatever a key's label looks like, so the collision cannot rot away.
+    // PR #351 review, F1: a label is not an identity. Two operators who are not members both
+    // read "Een teamlid" (ADR 035 rule 3), the collision that stays possible whatever a key's
+    // label looks like, so it cannot rot away.
     test('two people with the same label leave the form and its input alone', async ({
       page,
       request,
@@ -280,7 +281,7 @@ test.describe('article-writing', () => {
         for (const operatorId of [randomUUID(), randomUUID()]) {
           const sharing = principal({
             tenantId: probe,
-            actor: { kind: 'operator', operatorId, email: 'gedeeld@probe.test' },
+            actor: { kind: 'operator', operatorId },
           });
           await invoker.run(useCases.updatePresence, sharing, {
             itemId,
@@ -291,7 +292,7 @@ test.describe('article-writing', () => {
       });
       await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
 
-      const lines = page.locator('[data-presence] li', { hasText: 'gedeeld@probe.test' });
+      const lines = page.locator('[data-presence] li', { hasText: 'Een teamlid' });
       await expect(lines).toHaveCount(2);
       await expect(page.locator('form#item-edit')).toHaveCount(1);
       await expect(page.locator('#title\\.nl')).toHaveValue('Nog niet opgeslagen');

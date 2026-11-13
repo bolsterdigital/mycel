@@ -320,14 +320,25 @@ export function withLocale(doc: ContentDocument, to: string, from: string | null
 }
 
 /**
- * Who saved a revision, in a few words. A key shows the end of its id: a UUIDv7 starts with the
- * time, so the first characters are the same for keys made within the same minute.
+ * The names of the current members by operator id, and the words for an id that is not among
+ * them (`actorNames` in lib/server/admin/actor-names.ts loads both).
+ */
+export interface ActorNames {
+  byId: Readonly<Record<string, string>>;
+  teamMember: string;
+}
+
+/**
+ * Who saved a revision, in a few words. An operator is named through the current members; a
+ * stored actor holds the id only (ADR 035 rule 4), so a former or erased member shows as a team
+ * member, never as an address. A key shows the end of its id: a UUIDv7 starts with the time, so
+ * the first characters are the same for keys made within the same minute.
  * Rejected: the key's name, which only `tenant:admin` may list and this label reaches every reader.
  */
-export function actorLabel(actor: Actor): string {
+export function actorLabel(actor: Actor, names: ActorNames): string {
   switch (actor.kind) {
     case 'operator':
-      return actor.email;
+      return names.byId[actor.operatorId] ?? names.teamMember;
     case 'api-key':
       return `API key ${actor.keyId.slice(-8)}`;
     case 'agent':

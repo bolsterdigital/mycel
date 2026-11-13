@@ -1,7 +1,7 @@
 // Immutable plans over Postgres, behind the same tenant transaction as content. Composite
 // foreign keys bind every resolved base/latest pointer; opaque refused ids resolve to nothing.
 import type { Kysely } from 'kysely';
-import { BulkPlan, BulkPhase, BulkResult, type BulkPlanRepository } from '@mycel/core';
+import { BulkPlan, BulkPhase, BulkResult, storedActor, type BulkPlanRepository } from '@mycel/core';
 import type { Database } from './infra/schema.js';
 
 export function bulkPlanRepository(trx: Kysely<Database>, tenantId: string): BulkPlanRepository {
@@ -14,7 +14,7 @@ export function bulkPlanRepository(trx: Kysely<Database>, tenantId: string): Bul
           item_count: plan.items.length,
           id: plan.id,
           version: plan.version,
-          actor: JSON.stringify(plan.actor),
+          actor: JSON.stringify(storedActor(plan.actor)),
           locale: plan.locale,
           created_at: plan.createdAt,
         })
@@ -131,7 +131,7 @@ export function bulkPlanRepository(trx: Kysely<Database>, tenantId: string): Bul
         item_id: slot.item_id,
         before_revision_id: result.before?.latestRevisionId ?? null,
         after_revision_id: result.after?.latestRevisionId ?? null,
-        result: JSON.stringify(result),
+        result: JSON.stringify({ ...result, actor: storedActor(result.actor) }),
       };
       await trx
         .insertInto('content_bulk_effects')

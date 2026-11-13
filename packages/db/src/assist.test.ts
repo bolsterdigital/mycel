@@ -95,7 +95,7 @@ describe.skipIf(skip)('assistance tenant isolation', () => {
     expect((await uow.run(pb, (ctx) => ctx.assist.settings())).enabled).toBe(false);
     const editorB: Principal = {
       ...pb,
-      actor: { kind: 'operator', operatorId: uuidv7(), email: 'editor@probe.test' },
+      actor: { kind: 'operator', operatorId: uuidv7() },
       capabilities: ['content:read', 'content:write'],
     };
     await expect(
