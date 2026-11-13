@@ -370,7 +370,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
       });
   }
 
-  // Twenty draft articles for the generic gate's article list (routes.ts, TODO #233): a local
+  // Twenty draft articles for the generic gate's article list (routes.ts): a local
   // database gathers this many drafts after a few runs, and only then did the row actions clip
   // their confirm button, while a fresh CI shard with two drafts stayed green. Seeded here so every
   // run measures the full list. Rejected: creating them in ui-gate.spec.ts, which other specs'

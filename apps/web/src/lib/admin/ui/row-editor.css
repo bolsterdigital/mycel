@@ -127,7 +127,7 @@
   /* The card's "more" menu has a name of its own: it once shared `.ui-row-menu` with RowActions,
      and these rules (a full-width button among them) reached the content list's row menu, where a
      button with a percentage width stops counting its words toward the table column; "Ja, naar de
-     prullenbak" was clipped once the list held enough rows (#233). */
+     prullenbak" was clipped once the list held enough rows. */
   .ui-row-more-menu {
     display: flex;
     flex-direction: column;
