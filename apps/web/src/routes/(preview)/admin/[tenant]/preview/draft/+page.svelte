@@ -40,6 +40,7 @@
     <Blocks
       model={form.model}
       preview={form.formNote}
+      campaignNotes={form.campaignNotes}
       selectable
       eagerFirstImage={!form.intro.hero}
     />

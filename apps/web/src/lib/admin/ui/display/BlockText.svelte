@@ -12,7 +12,7 @@
      closes with typed changes. Rejected: the public block components, which print `h2` and real
      links. -->
 <script lang="ts">
-  import type { FormField } from '@mycel/core';
+  import type { CampaignKind, CampaignPhase, FormField } from '@mycel/core';
   import { renderedHtml } from '../../trusted/rendered-html.js';
   type View =
     | { kind: 'heading'; text: string; from?: string }
@@ -106,14 +106,31 @@
           fields: readonly { type: FormField['type']; label: string }[];
           submit: string;
         } | null;
+      }
+    | {
+        kind: 'campaign';
+        variant: string;
+        variantFrom?: string;
+        idFrom?: string;
+        campaign: {
+          title: string;
+          kind: CampaignKind;
+          phase: CampaignPhase;
+          participants: number | null;
+          target: number | null;
+        } | null;
+        reason: string | null;
       };
 
   let {
     view,
     kindLabel,
     noteLabel,
+    liveLabel,
   }: {
     view: View;
+    /** A campaign card: that it is a live reference, not a copy. */
+    liveLabel?: string | undefined;
     /** A callout's kind, a video's host, what a form is or what a paywall does, in words. */
     kindLabel?: string | undefined;
     /**
@@ -235,6 +252,25 @@
         <p class="ui-block-text-kind" data-rest-option={view.providerFrom}>{kindLabel}</p>
         <p class="ui-block-text-body" data-rest-from={view.captionFrom}>{view.caption}</p>
       </div>
+    </div>
+  {:else if view.kind === 'campaign'}
+    <div
+      class="ui-block-text-campaign"
+      data-variant={view.variant}
+      data-rest-variant={view.variantFrom}
+    >
+      {#if view.campaign}
+        <p class="ui-block-text-title">{view.campaign.title}</p>
+      {/if}
+      <p
+        class="ui-block-text-kind"
+        data-rest-option={view.idFrom}
+        data-missing={view.campaign ? undefined : ''}
+      >
+        {kindLabel}
+      </p>
+      {#if liveLabel}<p class="ui-hint">{liveLabel}</p>{/if}
+      <p class="ui-block-text-changed" data-rest-changed={view.idFrom} hidden>{noteLabel}</p>
     </div>
   {:else if view.kind === 'form'}
     <div

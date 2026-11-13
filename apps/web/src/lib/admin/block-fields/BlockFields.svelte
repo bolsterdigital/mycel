@@ -25,7 +25,7 @@
   import TargetPicker from './TargetPicker.svelte';
   import { Button, Checkbox, Choices, Field, Fieldset, Icon, MediaPicker } from '../ui/index.js';
   import type { MediaChoice } from '../media-choice.js';
-  import { fill, ui, type UiKey } from '../../../i18n/index.js';
+  import { fill, isUiKey, ui, type UiKey } from '../../../i18n/index.js';
   import { shortId, withAbsent } from '../people/absent.js';
 
   interface Option {
@@ -58,6 +58,8 @@
     items?: readonly Option[];
     references?: {
       forms?: readonly Option[] | null;
+      /** The site's own campaigns that are not archived (ADR 033 rule 4); null: not offered. */
+      campaigns?: readonly Option[] | null;
       items: readonly Option[];
       people: readonly Option[];
       personGroups: readonly Option[];
@@ -111,7 +113,11 @@
   /** The edit screen's `arrange` action, in the locale the form shows, as every action carries. */
   const arrange = $derived(`?/arrange&locale=${encodeURIComponent(locales[0] ?? '')}`);
   const label = (key: string) => t(`admin.block.field.${key}` as UiKey);
-  const option = (o: string) => t(`admin.block.option.${o}` as UiKey);
+  /** A field may name a value its own way (`variant.full`: "With form", not the width "Full"). */
+  const option = (o: string, field?: string) => {
+    const own = `admin.block.option.${field}.${o}`;
+    return t(field && isUiKey(own) ? own : (`admin.block.option.${o}` as UiKey));
+  };
   const v = (name: string) => values[name] ?? '';
   const id = (name: string) => `${idPrefix}-${name.slice(prefix.length).replaceAll('.', '-')}`;
   const bad = (name: string) => invalid.includes(name);
@@ -312,6 +318,24 @@
         <a href="{base}/forms">{t('admin.block.form.definition')}</a>
       </p>
     {/if}
+  {:else if f.kind === 'reference' && f.to === 'campaign' && references?.campaigns}
+    {@const chosen = v(name)}
+    {@const available = references.campaigns}
+    {@render select(
+      name,
+      t('admin.block.campaign.choose'),
+      chosen && !available.some((o) => o.id === chosen)
+        ? [
+            { id: chosen, label: fill(t('admin.block.campaign.unknown'), { id: chosen }) },
+            ...available,
+          ]
+        : available,
+      t('admin.block.none')
+    )}
+    <p class="ui-hint">
+      {t('admin.block.campaign.live')}
+      <a href="{base}/campaigns">{t('admin.block.campaign.manage')}</a>
+    </p>
   {:else if f.kind === 'reference' && f.to === 'item'}
     {@render select(name, label(f.key), references?.items ?? items, t('admin.block.none'))}
   {:else if f.kind === 'reference' && f.key === 'photographerPersonId'}
@@ -355,7 +379,7 @@
     {@render select(
       name,
       label(f.key),
-      f.options.map((o) => ({ id: o, label: option(o) }))
+      f.options.map((o) => ({ id: o, label: option(o, f.key) }))
     )}
   {:else if f.kind === 'date'}
     {@render dateInput(name, label(f.key))}

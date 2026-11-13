@@ -27,6 +27,7 @@ export const BLOCK_ICONS: Readonly<Record<BlockType, IconName>> = {
   'video-embed': 'video',
   form: 'clipboard-list',
   'signup-form': 'mail',
+  'campaign-card': 'megaphone',
   paywall: 'lock',
   hero: 'image',
 };
@@ -91,6 +92,8 @@ export const BLOCK_PRESENTATION: { readonly [T in BlockType]: BlockPresentation 
   'video-embed': { rest: 'text', display: ['width'], source: [], stage: 'C3' },
   form: { rest: 'text', display: ['variant', 'width'], source: [], stage: 'C3' },
   'signup-form': { rest: 'text', display: [], source: [], stage: 'C3' },
+  // ADR 033 rule 4: the campaign as the site shows it now, with its state and count.
+  'campaign-card': { rest: 'text', display: ['variant', 'width'], source: [], stage: 'C3' },
   paywall: { rest: 'text', display: [], source: [], stage: 'C4' },
   hero: { rest: 'text', display: ['variant', 'width', 'align'], source: [], stage: 'C4' },
 };

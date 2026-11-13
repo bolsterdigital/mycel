@@ -1,10 +1,13 @@
 <!-- The block list of one render model: one component per type, nothing resolved here. `paywall`
      renders nothing (the teaser boundary of #19), and a block whose reference did not resolve
      (restricted or deleted image, unknown form) renders nothing either. `preview` is the admin
-     preview's note for forms (#11), which then do not post. -->
+     preview's note for forms (#11), which then do not post; `campaignNotes` are the preview's words
+     for a campaign card: that it is a live reference, or why it shows nothing (ADR 033 rule 4). -->
 <script lang="ts">
   import type { FormState, RenderBlock, RenderModel } from './model.js';
   import Callout from './Callout.svelte';
+  import CampaignCard from './CampaignCard.svelte';
+  import CampaignNotice from './CampaignNotice.svelte';
   import Cards from './Cards.svelte';
   import PeopleGrid from './PeopleGrid.svelte';
   import Cta from './Cta.svelte';
@@ -27,10 +30,12 @@
     preview = null,
     selectable = false,
     eagerFirstImage = true,
+    campaignNotes = null,
   }: {
     model: RenderModel;
     formState?: FormState | null;
     preview?: string | null;
+    campaignNotes?: { live: string; reasons: Record<string, string> } | null;
     selectable?: boolean;
     /** False when the page shows a hero image above the blocks, which is then the eager one. */
     eagerFirstImage?: boolean;
@@ -97,7 +102,22 @@
         state={formState}
         {preview}
       />
+    {:else if block.campaign}
+      <CampaignNotice
+        campaign={block.campaign}
+        {model}
+        id={block.id}
+        variant={block.variant}
+        width={block.width}
+      />
     {/if}
+  {:else if block.type === 'campaign-card'}
+    {#if campaignNotes}
+      <p class="block preview-note" class:preview-note-warning={!block.campaign}>
+        {block.campaign ? campaignNotes.live : campaignNotes.reasons[block.diagnosis ?? 'unknown']}
+      </p>
+    {/if}
+    <CampaignCard {block} {model} state={formState} {preview} />
   {/if}
 {/snippet}
 

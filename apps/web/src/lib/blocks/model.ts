@@ -11,6 +11,9 @@
 
 import type {
   ArticleHeader,
+  CampaignCardReason,
+  CampaignKind,
+  CampaignPhase,
   PublicPersonCard,
   CreditKind,
   FormField,
@@ -46,6 +49,21 @@ export interface BlockCopy {
   };
   honeypotLabel: string;
   summaryTitle: string;
+  /** A campaign card's and a closed campaign form's words (ADR 033 rule 4). */
+  campaign: {
+    kind: Record<CampaignKind, string>;
+    phase: Record<CampaignPhase, string>;
+    /** What the counter counts, per kind: 'Handtekeningen'. */
+    unit: Record<CampaignKind, string>;
+    /** `{n}` and `{target}`: '1.234 van 5.000'. */
+    ofTarget: string;
+    /** The button to the landing page while participation is open, per kind. */
+    act: Record<CampaignKind, string>;
+    /** The button to the landing page otherwise. */
+    more: string;
+    /** In place of a form whose campaign does not accept participation now. */
+    notOpen: Record<'upcoming' | 'closed', string>;
+  };
 }
 
 export interface RenderImage {
@@ -118,6 +136,25 @@ export interface RenderForm {
     max?: number;
     maxLength?: number;
   }[];
+}
+
+/**
+ * A campaign as a card or a closed form shows it (ADR 033 rule 4): only aggregates, never a
+ * participant. `revisionId` is the landing page's published revision; the host page's ETag
+ * digests it with the phase and the count (rule 6).
+ */
+export interface RenderCampaign {
+  campaignId: string;
+  kind: CampaignKind;
+  phase: CampaignPhase;
+  /** The landing page's site-root path in this locale. */
+  href: string;
+  title: string;
+  summary: string | null;
+  /** Decorative: the heading beside it names the campaign. */
+  image: RenderImage | null;
+  counter: { participants: number; target: number | null } | null;
+  revisionId: string;
 }
 
 type Width = 'content' | 'wide' | 'full';
@@ -234,7 +271,28 @@ export type RenderBlock = { id: string } & (
       caption: string | null;
       width: Width;
     }
-  | { type: 'form'; variant: 'default' | 'card'; width: Width; form: RenderForm | null }
+  | {
+      type: 'form';
+      variant: 'default' | 'card';
+      width: Width;
+      form: RenderForm | null;
+      /**
+       * The campaign the form is bound to, while it does not accept participation: the block then
+       * shows where it stands instead of its fields (ADR 033 rule 2). Null otherwise.
+       */
+      campaign?: RenderCampaign | null;
+    }
+  | {
+      type: 'campaign-card';
+      variant: 'compact' | 'full';
+      width: Width;
+      /** Null: the campaign is not available here, and the page shows nothing for it. */
+      campaign: RenderCampaign | null;
+      /** The campaign's form, on a `full` card while participation is open; else null. */
+      form: RenderForm | null;
+      /** Why `campaign` is null; set only for the admin preview (`diagnose`), never publicly. */
+      diagnosis?: CampaignCardReason;
+    }
 );
 
 /** What the page's form action returned after a failed post, if anything. */

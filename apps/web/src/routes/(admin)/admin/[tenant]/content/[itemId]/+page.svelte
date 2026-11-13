@@ -463,7 +463,7 @@
   {:else if BLOCK_PRESENTATION[b.type].rest === 'text' && b.text}
     {#if b.type === 'hero' && b.image}{@render picture(b.image, 'image-mediaId')}{/if}
     {@const words = restWords(b.text, data.restricted, t)}
-    <BlockText view={b.text} kindLabel={words.kindLabel} noteLabel={words.noteLabel} />
+    <BlockText view={b.text} {...words} />
     {#if b.type === 'hero'}
       <p class="ui-hint">
         {t('admin.block.hero.legacy')}

@@ -20,7 +20,7 @@
 // carries it as `editLocale`; a save reads only that locale and keeps every other one as the base
 // revision has it (`formDocument`). Switching locale saves first and remembers the choice; a
 // locale the document lacks shows "start the translation", empty or as a copy of another locale.
-import { editorForms } from '#lib/server/forms/editor.js';
+import { editorReferences } from '#lib/server/content/editor-references.js';
 import { relationshipChoices } from '#lib/server/people/relationships.js';
 import { addAuthor } from '#lib/server/people/add-author.js';
 import { blockNaming } from '#lib/server/content/block-names.js';
@@ -85,7 +85,6 @@ import {
   imageRestOf,
   previewOf,
   summaryOf,
-  textRestOf,
 } from '#lib/server/content/content-blocks.js';
 import {
   NEW_BLOCK,
@@ -210,10 +209,11 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     principal.entitlements['ai.assist'] &&
     (doc.access.level === 'public' || assistSettings.allowRestricted)
   );
-  const forms = await editorForms(principal, doc.blocks, read, tenant.defaultLocale);
+  const refs = await editorReferences(principal, doc.blocks, read, tenant.defaultLocale);
   rememberListFromReferer(cookies, request.headers.get('referer'), url, params.tenant, item.type);
   return {
-    forms: forms.choices,
+    forms: refs.forms.choices,
+    campaigns: refs.campaigns.choices,
     contentType: item.type,
     presence: await presenceOnLoad(principal, params.tenant, item.id, revision.id),
     // Back to the list as it was left: its search, status, order and page, at this item's row.
@@ -233,7 +233,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
       summary: summaryOf(b, read),
       preview: previewOf(b, read, options),
       image: imageRestOf(b, read, options.media, doc.locales, options.people),
-      text: textRestOf(b, read, blockPrefix(b.id), forms.definitions, tenant.defaultLocale),
+      text: refs.rest(b, blockPrefix(b.id)),
       duplicable: !SINGLE.has(b.type),
       // The other locales a text block has, to translate the shown one from (AI help).
       translatable:

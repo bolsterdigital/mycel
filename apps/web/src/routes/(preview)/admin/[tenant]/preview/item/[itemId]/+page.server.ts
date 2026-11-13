@@ -7,6 +7,7 @@ import { loaded } from '#lib/server/admin/admin-actions.js';
 import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { actorLabel, when } from '#lib/server/content/content-admin.js';
 import {
+  campaignNotes,
   PREVIEW_HEADERS,
   previewBase,
   previewSite,
@@ -50,7 +51,7 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
   const model = await resolveDocument(
     source,
     { locale, ...projectDocument(doc, locale) },
-    { base, fallbackLocale: tenant.defaultLocale }
+    { base, fallbackLocale: tenant.defaultLocale, diagnose: true }
   );
   const live = item.publication.find((p) => p.locale === locale)?.publishedAt ?? null;
   const intro = await resolveIntro(source, await introOf(principal, doc, locale, live), locale);
@@ -81,5 +82,6 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
     locale,
     edit: `/admin/${tenant.slug}/content/${item.id}`,
     formNote: ui(admin)('admin.content.preview.form'),
+    campaignNotes: campaignNotes(admin),
   };
 };

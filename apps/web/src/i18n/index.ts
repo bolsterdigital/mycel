@@ -10,6 +10,9 @@ export function ui(locale: string): (key: UiKey) => string {
 }
 export type { UiKey };
 
+/** Whether a key built at run time is in the catalog: a field-specific option label, say. */
+export const isUiKey = (key: string): key is UiKey => key in en;
+
 /** The UI language when nothing chose one. */
 export const FALLBACK_LANG = 'en';
 

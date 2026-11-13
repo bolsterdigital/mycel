@@ -275,6 +275,18 @@ Version 1.
 
 Examples: `form-default`, `form-card-wide`, `form-full`.
 
+## `campaign-card` (Campaign card)
+
+Version 1.
+
+| Prop         | Label    | Kind                             | Presence |
+| ------------ | -------- | -------------------------------- | -------- |
+| `campaignId` | Campaign | campaign reference (id)          | required |
+| `variant`    | Variant  | one of `compact`, `full`         | required |
+| `width`      | Width    | one of `content`, `wide`, `full` | required |
+
+Examples: `campaign-card-compact`, `campaign-card-full-wide`, `campaign-card-compact-full`.
+
 ## Rich text in the no-JavaScript form
 
 A rich-text field is a `textarea` with a Markdown subset that reads back into exactly the stored document (`apps/web/src/lib/editor/markdown.ts`):

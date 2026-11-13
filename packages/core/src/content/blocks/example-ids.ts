@@ -10,4 +10,5 @@ export const EXAMPLE_IDS = {
   portrait: exampleId(0xd002),
   document: exampleId(0xd003),
   audio: exampleId(0xd004),
+  campaign: exampleId(0xc1),
 } as const;

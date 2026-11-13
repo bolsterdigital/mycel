@@ -12,6 +12,7 @@
 // and a cross-origin load per image).
 
 import {
+  CampaignCardReason,
   anonymousPrincipal,
   effectiveImages,
   type ContentDocument,
@@ -25,6 +26,7 @@ import { renderMeta } from '../../blocks/resolve.js';
 import { PRIVATE_NO_STORE } from '../http/http-cache.js';
 import { runtime } from '../runtime.js';
 import { siteTenant, type Site } from '../site.js';
+import { ui } from '../../../i18n/index.js';
 
 /** The response headers of every preview route: never cached, never indexed. */
 export const PREVIEW_HEADERS = {
@@ -95,6 +97,21 @@ export async function introOf(
       },
       locale,
       timeZone
+    ),
+  };
+}
+
+/**
+ * The preview's words for campaign cards, in the operator's language (ADR 033 rule 4): that a card
+ * is a live reference, and per reason why one shows nothing. The resolver's `diagnose` gives the
+ * reason; the public page never has it.
+ */
+export function campaignNotes(admin: string): { live: string; reasons: Record<string, string> } {
+  const t = ui(admin);
+  return {
+    live: t('admin.block.campaign.live'),
+    reasons: Object.fromEntries(
+      CampaignCardReason.options.map((r) => [r, t(`admin.block.campaign.reason.${r}`)])
     ),
   };
 }

@@ -28,6 +28,10 @@ import {
   type RichTextDoc,
   type UseCaseError,
   type FormDefinition,
+  type CampaignCard,
+  type CampaignCardReason,
+  type CampaignKind,
+  type CampaignPhase,
   MAX_PAGE_SIZE,
   pickAny,
 } from '@mycel/core';
@@ -349,6 +353,24 @@ export type TextRest =
         fields: readonly { type: FormDefinition['fields'][number]['type']; label: string }[];
         submit: string;
       } | null;
+    }
+  /**
+   * A campaign card (ADR 033 rule 4): the campaign as the site shows it now in this locale, or
+   * why it shows nothing. Live: it is read when the screen loads, not stored in the block.
+   */
+  | {
+      kind: 'campaign';
+      variant: string;
+      variantFrom: string;
+      idFrom: string;
+      campaign: {
+        title: string;
+        kind: CampaignKind;
+        phase: CampaignPhase;
+        participants: number | null;
+        target: number | null;
+      } | null;
+      reason: CampaignCardReason | null;
     };
 
 /** How many actions a CTA's form offers (`max` of its `actions` field). */
@@ -360,7 +382,8 @@ export function textRestOf(
   locale: string,
   prefix: string,
   forms: ReadonlyMap<string, FormDefinition | null> = new Map(),
-  fallback = locale
+  fallback = locale,
+  campaigns: ReadonlyMap<string, CampaignCard> = new Map()
 ): TextRest | null {
   const local = (v: unknown): string => anyLocale<string>(v, locale) ?? '';
   const field = (path: string) => `${prefix}p.${path}`;
@@ -511,6 +534,25 @@ export function textRestOf(
       captionFrom: field(`caption.${locale}`),
     };
   }
+  if (block.type === 'campaign-card') {
+    const card = campaigns.get(block.props.campaignId);
+    return {
+      kind: 'campaign',
+      variant: block.props.variant,
+      variantFrom: field('variant'),
+      idFrom: field('campaignId'),
+      campaign: card?.available
+        ? {
+            title: card.landing.title,
+            kind: card.kind,
+            phase: card.phase,
+            participants: card.counter?.participants ?? null,
+            target: card.counter?.target ?? null,
+          }
+        : null,
+      reason: card && !card.available ? card.reason : null,
+    };
+  }
   if (block.type === 'form' || block.type === 'signup-form') {
     const form = forms.get(block.props.formId);
     return {
@@ -630,6 +672,7 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.people-grid.group-required': 'admin.content.issue.referenceUnknown',
   'content.reference.item-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.form-unknown': 'admin.content.issue.referenceUnknown',
+  'content.reference.campaign-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.media-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.media-not-image': 'admin.content.issue.mediaNotImage',
   'content.blocks.adjacent-rich-text': 'admin.block.issue.adjacentText',

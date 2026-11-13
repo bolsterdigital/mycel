@@ -14,6 +14,20 @@ function kindLabel(view: TextRest, t: Translate): string | undefined {
   if (view.kind === 'callout') return option(view.variant);
   if (view.kind === 'video') return option(view.provider);
   if (view.kind === 'paywall') return t('admin.block.paywall.boundary');
+  if (view.kind === 'campaign') {
+    if (!view.campaign) return t(`admin.block.campaign.reason.${view.reason ?? 'unknown'}`);
+    const { kind, phase, participants, target } = view.campaign;
+    const state = t(`admin.campaign.state.${phase === 'upcoming' ? 'draft' : phase}`);
+    const count =
+      participants === null
+        ? []
+        : [
+            target === null
+              ? String(participants)
+              : fill(t('admin.campaign.count.ofTarget'), { count: participants, target }),
+          ];
+    return [t(`admin.campaign.kind.${kind}`), state, ...count].join(' · ');
+  }
   if (view.kind !== 'form') return undefined;
   if (view.form) return view.form.name ?? view.form.list;
   return t(view.unread ? 'admin.block.form.unread' : 'admin.block.form.missing');
@@ -24,14 +38,19 @@ export function restWords(
   view: TextRest,
   restricted: boolean,
   t: Translate
-): { kindLabel: string | undefined; noteLabel: string | undefined } {
+): { kindLabel: string | undefined; noteLabel: string | undefined; liveLabel?: string } {
   const note =
     view.kind !== 'paywall'
       ? t('admin.block.form.changed')
       : restricted
         ? undefined
         : t('admin.block.paywall.public');
-  return { kindLabel: kindLabel(view, t), noteLabel: note };
+  return {
+    kindLabel: kindLabel(view, t),
+    noteLabel: note,
+    // A card is a reference that is read when the page is (ADR 033 rule 4): say so at rest.
+    ...(view.kind === 'campaign' ? { liveLabel: t('admin.block.campaign.live') } : {}),
+  };
 }
 
 /** The one notice a card's head carries: what the last save refused, else what readiness says. */
