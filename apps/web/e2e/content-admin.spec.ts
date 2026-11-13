@@ -8,7 +8,7 @@ import { UseCaseError, systemPrincipal, useCases } from '@mycel/core';
 import { type APIRequestContext, type Browser, type Page, expect } from '@playwright/test';
 import { test } from './lib/evidence/page';
 import { expectNoAxeViolations } from './lib/axe';
-import { bfcacheBack, bfcacheBrowser } from './lib/bfcache';
+import { bfcacheBack, bfcacheBrowser } from './lib/navigation/bfcache';
 import { blockPage, card, editorReady, more, newPage, reloadsEditor } from './lib/editor';
 import { exercisePeople } from './lib/people/manage';
 import { exerciseErasedAuthor } from './lib/people/erased';
@@ -2054,7 +2054,7 @@ test.describe('block card details', () => {
 // Looking at a list keeps the editor waiting behind it: Chrome drops a `no-store` page from the
 // back/forward cache when an HttpOnly cookie changes, and rich text does not survive a new load
 // the way a form field does. The cookie that remembers a list is therefore written on entering
-// an item, and only if it changes (content-list.ts). It needs its own browser (lib/bfcache.ts).
+// an item, and only if it changes (content-list.ts). It needs its own browser (lib/navigation/bfcache.ts).
 test.describe('an editor with unsaved rich text survives a look at the list', () => {
   let browser: Browser | undefined;
   test.beforeAll(async () => {

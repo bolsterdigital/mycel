@@ -185,6 +185,7 @@
         "apps/web/src/lib/theme/**",
         "packages/core/src/theme/**",
         "apps/web/src/lib/server/public/theme*",
+        "apps/web/src/lib/server/public/chrome.ts",
         "apps/web/static/**",
         "apps/web/src/app.html",
         "apps/web/src/lib/assets/**",

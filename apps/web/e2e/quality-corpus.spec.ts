@@ -21,8 +21,8 @@ import {
   setTextSpacing,
   tabStops,
 } from './lib/layout';
-import { bfcacheBrowser, bfcacheRestore } from './lib/bfcache';
-import { arrivesFetchedAhead } from './lib/speculation';
+import { bfcacheBrowser, bfcacheRestore } from './lib/navigation/bfcache';
+import { arrivesFetchedAhead } from './lib/navigation/speculation';
 import { type LocaleMetadata, localeMetadata, localeMetadataProblems } from './lib/metadata';
 import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
@@ -176,7 +176,7 @@ for (const entry of metadataPages)
     expect(localeMetadataProblems(pages)).toEqual([]);
   });
 
-// Every corpus page, in each locale, comes back from the back/forward cache (lib/bfcache.ts). Its
+// Every corpus page, in each locale, comes back from the back/forward cache (lib/navigation/bfcache.ts). Its
 // own browser, so one project is enough; a11y is the one with JavaScript, where an enhancement
 // could add the unload handler or connection that blocks the cache.
 test.describe('quality corpus back/forward cache', () => {
@@ -227,7 +227,7 @@ test.describe('quality corpus back/forward cache', () => {
 });
 
 // Every corpus page fetches a link ahead on hover, under the real Content-Security-Policy, in the
-// browser that keeps the cache (lib/speculation.ts); what must not be fetched ahead is not.
+// browser that keeps the cache (lib/navigation/speculation.ts); what must not be fetched ahead is not.
 test.describe('quality corpus speculation rules', () => {
   let browser: Browser | undefined;
   test.beforeAll(async () => {
