@@ -120,6 +120,8 @@
     color: var(--color-link);
     text-decoration-thickness: 0.08em;
     text-underline-offset: 0.15em;
+    /* A hyphen in a linked URL reads as another address; a `.button` label keeps hyphens. */
+    hyphens: manual;
   }
   img {
     max-width: 100%;
@@ -224,18 +226,17 @@
   .image.layout-full {
     --caption-inset: var(--gutter);
   }
-  /* Every image fills its figure, so the image and its caption share a left edge even when the
-     file is narrower than its rail. */
+  /* Every image fills its figure: image and caption share a left edge, however small the file. */
   .image img {
     width: 100%;
   }
+  /* A wide or full background keeps its text on the content rail, gutters included: a full quote
+     has no padding, so `100cqi` (the page) bounds it. Rejected: a padding per block type. */
   .page :is(.cta, .quote, .form) > * {
-    max-width: var(--content-width);
+    max-width: min(var(--content-width), 100cqi - 2 * var(--gutter, 0px));
     margin-inline: auto;
   }
-  /* The item's own introduction (#86): the lead in the next step of the scale, in the heading
-     font, and the hero image between it and the blocks. */
-  /* Centred under the title like Dreamkit's compact-header lede, in its own rail. */
+  /* The item's lead (#86): heading font, one step up, centred under the title in its own rail. */
   .page > .lead {
     width: min(var(--lead-width), 100% - 2 * var(--gutter));
     text-align: center;
@@ -500,10 +501,10 @@
     min-height: var(--tap);
     min-width: var(--tap);
     max-width: 100%;
+    hyphens: auto;
     padding: calc(0.625rem - 2px) calc(min(1.25rem, 4vw) - 2px);
-    /* The shape is the background, which forced colours (Windows High Contrast) paint as the
-       canvas; a transparent border is invisible here and gets the system's text colour there,
-       so the button keeps its outline. The padding gives back the border's width. */
+    /* The shape is the background, which forced colours paint as the canvas; a transparent
+       border gets the system's text colour there. The padding gives back its width. */
     border: 2px solid transparent;
     border-radius: var(--radius);
     font-weight: 600;
@@ -857,9 +858,8 @@
     margin-block-end: 0;
   }
 
-  /* Quotes */
-  /* A pull quote is a pause in the page: it gets more room than the blocks around it, whatever
-     stands next to it (P185-79: it hung against the cards above). */
+  /* Quotes. A pull quote is a pause in the page: it gets more room than the blocks around it,
+     whatever stands next to it (P185-79: it hung against the cards above). */
   .page .quote-pullquote {
     margin-block: var(--space-4);
   }

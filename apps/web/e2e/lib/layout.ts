@@ -402,3 +402,158 @@ export function expectChromeTransitions(m: Rails) {
   if (m.footer) expect(m.footer.top - m.last!.bottom).toBeCloseTo(bottom, 0);
   expect(bottom).toBeGreaterThanOrEqual(32);
 }
+
+// Text blocks: prose, quote and callout against the page's own rails. One synthetic page holds
+// every quote width and variant and every callout variant, short and long, with a source link,
+// a bare URL and a list, in nl and en. Rejected: one page per registry example, which measures a
+// block alone and never next to prose or another rail.
+
+type Inline = { type: 'text'; text: string; marks?: object[] };
+const link = (text: string, href: string): Inline => ({
+  type: 'text',
+  text,
+  marks: [{ type: 'link', attrs: { href } }],
+});
+const para = (...parts: (string | Inline)[]) => ({
+  type: 'paragraph',
+  content: parts.map((part) => (typeof part === 'string' ? { type: 'text', text: part } : part)),
+});
+const doc = (...content: object[]) => ({ type: 'doc', content });
+const list = (...items: string[]) => ({
+  type: 'bullet_list',
+  content: items.map((text) => ({ type: 'list_item', content: [para(text)] })),
+});
+const LONG_URL =
+  'https://example.org/verslagen/2026/buurtonderzoek-verkeersveiligheid-oversteekplaatsen';
+const LONG = {
+  nl: 'Toen de gemeente de oversteek bij de school eindelijk verlegde, zagen we binnen een maand meer kinderen alleen naar school fietsen dan in de tien jaar ervoor. Dat had niemand van ons verwacht.',
+  en: 'When the council finally moved the crossing by the school, within a month more children cycled to school alone than in the ten years before. None of us had expected that.',
+};
+
+/** The blocks of the text-block page; `version` is each type's registry version. */
+export function textBlocks(version: { quote: number; callout: number; 'rich-text': number }) {
+  const quote = (id: string, props: object) => ({
+    id,
+    type: 'quote',
+    version: version.quote,
+    props,
+  });
+  const callout = (id: string, props: object) => ({
+    id,
+    type: 'callout',
+    version: version.callout,
+    props,
+  });
+  const source = {
+    nl: 'Verslag van het buurtonderzoek naar de oversteekplaatsen',
+    en: 'Report of the neighbourhood survey of the crossings',
+  };
+  return [
+    {
+      id: 'text-prose',
+      type: 'rich-text',
+      version: version['rich-text'],
+      props: {
+        content: {
+          nl: doc(para('Lees ', link(LONG_URL, LONG_URL), '.'), list(LONG.nl, 'Kort.')),
+          en: doc(para('Read ', link(LONG_URL, LONG_URL), '.'), list(LONG.en, 'Short.')),
+        },
+      },
+    },
+    quote('text-quote-short', {
+      text: { nl: 'Veilig oversteken.', en: 'Safe crossing.' },
+      attribution: { name: 'Fatima el Amrani', role: { nl: 'buurtbewoner', en: 'resident' } },
+    }),
+    quote('text-quote-long', {
+      text: LONG,
+      attribution: { name: 'Fatima el Amrani', source, url: LONG_URL },
+    }),
+    quote('text-pullquote-wide', {
+      text: LONG,
+      attribution: {
+        name: 'Jan de Boer',
+        role: { nl: 'wethouder', en: 'alderman' },
+        source,
+        url: LONG_URL,
+      },
+      variant: 'pullquote',
+      width: 'wide',
+    }),
+    quote('text-quote-full', {
+      text: LONG,
+      attribution: { name: 'Kim Bakker', url: LONG_URL },
+      width: 'full',
+    }),
+    quote('text-pullquote-full', {
+      text: { nl: 'Samen.', en: 'Together.' },
+      attribution: { name: 'Kim Bakker' },
+      variant: 'pullquote',
+      width: 'full',
+    }),
+    callout('text-callout-info', {
+      body: {
+        nl: doc(para('Zie ', link('het verslag', LONG_URL), '.')),
+        en: doc(para('See ', link('the report', LONG_URL), '.')),
+      },
+    }),
+    callout('text-callout-note', {
+      variant: 'note',
+      title: { nl: 'Bijgewerkt na het buurtonderzoek', en: 'Updated after the survey' },
+      body: {
+        nl: doc(para(LONG.nl, ' ', link(LONG_URL, LONG_URL))),
+        en: doc(para(LONG.en, ' ', link(LONG_URL, LONG_URL))),
+      },
+    }),
+    callout('text-callout-warning', {
+      variant: 'warning',
+      title: { nl: 'Let op', en: 'Note' },
+      body: { nl: doc(list(LONG.nl, 'Kort.')), en: doc(list(LONG.en, 'Short.')) },
+    }),
+  ];
+}
+
+/** What is off about the page's prose, quotes and callouts, measured against probe elements of
+ *  its own rails: each block sits on the rail its width names (prose and callout on the content
+ *  rail), the quotation and its attribution keep the content rail inside a wide or full block,
+ *  no line or link reaches past its block, and no link text is hyphenated. */
+export function textBlockProblems(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const out: string[] = [];
+    const main = document.querySelector('main.page')!;
+    const rail = (className: string) => {
+      const probe = document.createElement('div');
+      probe.className = className;
+      main.append(probe);
+      const r = probe.getBoundingClientRect();
+      probe.remove();
+      return r;
+    };
+    const rails: Record<string, DOMRect> = {
+      content: rail(''),
+      wide: rail('layout-wide'),
+      full: rail('layout-full'),
+    };
+    const off = (a: DOMRect, b: DOMRect) =>
+      Math.abs(a.left - b.left) > 1 || Math.abs(a.right - b.right) > 1;
+    const outside = (a: DOMRect, b: DOMRect) => a.left < b.left - 1 || a.right > b.right + 1;
+    const blocks = main.querySelectorAll(':scope .rich-text, :scope .quote, :scope .callout');
+    if (!blocks.length) out.push('no text blocks');
+    blocks.forEach((block, at) => {
+      const label = `${at} ${block.className}`;
+      const width = /width-(wide|full)/.exec(block.className)?.[1] ?? 'content';
+      const box = block.getBoundingClientRect();
+      if (off(box, rails[width]!)) out.push(`${label}: not on the ${width} rail`);
+      const inner = block.matches('.quote') ? [...block.children] : [block];
+      for (const part of inner)
+        if (outside(part.getBoundingClientRect(), rails.content!))
+          out.push(`${label}: ${part.tagName.toLowerCase()} past the content rail`);
+      for (const a of block.querySelectorAll('a'))
+        if (getComputedStyle(a).hyphens === 'auto') out.push(`${label}: a link is hyphenated`);
+      for (const el of block.querySelectorAll('*'))
+        for (const r of el.getClientRects())
+          if (r.width && outside(r, box))
+            out.push(`${label}: ${el.tagName.toLowerCase()} past the block`);
+    });
+    return [...new Set(out)];
+  });
+}
