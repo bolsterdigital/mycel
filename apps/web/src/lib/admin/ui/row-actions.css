@@ -57,12 +57,14 @@
     flex-direction: column;
     align-items: start;
   }
-  /* The menu lives in the title cell, which at 320 CSS px with every column shown is narrower than
-     "prullenbak" on CI's fonts. An open question gives the cell the inline cell's floor, so the
-     title column grows (the table scrolls in its own frame) and the danger button keeps its words.
-     Rejected: keeping the button on one line, which still clips in a cell that does not grow. */
-  .ui-row-menu > .ui-row-actions:has(.ui-confirm[open]) {
-    min-width: 18rem;
+  /* The menu lives in the title cell. `.ui-button`'s `max-width: 100%` makes a button
+     compressible: its min-content contribution drops, so with every column shown at 320 CSS px
+     the table squeezed the title cell below "prullenbak" on CI's fonts and the danger button
+     clipped. Without the percentage the cell keeps the button's longest word and its padding, and
+     no more, so the menu still ends inside 320 px at 200% text. Rejected: a fixed floor such as
+     the inline cell's 18rem, which is 576 px at 200% and pushes the menu behind the table's edge. */
+  .ui-row-menu .ui-confirm-body .ui-button {
+    max-width: none;
   }
   .ui-table tbody th .ui-row-menu {
     font-weight: 400;
