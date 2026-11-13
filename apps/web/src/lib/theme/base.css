@@ -214,10 +214,10 @@
     text-align: center;
   }
 
-  /* Images. A caption is as wide as its image and starts at the image's left edge, whatever the
-     layout (brief 46C-1 rules 1 to 4): it sits inside the figure and never follows the reading
-     column. Only an image that touches the container's edge insets its caption, so the text
-     never runs against the screen edge; that is one property, set where a layout is edgeless.
+  /* Images. A caption is as wide as its image up to the measure (media-blocks.css) and starts at
+     the image's left edge whatever the layout (brief 46C-1 rules 1-4), never the reading column.
+     Only an image on the container's edge insets its caption, so the text never runs against the
+     screen edge; that is one property, set where a layout is edgeless.
      Rejected: centring wide captions as Wings and Dreamkit did, which loses the shared edge. */
   .image,
   .video {
@@ -231,8 +231,9 @@
     width: 100%;
   }
   /* A wide or full background keeps its text on the content rail, gutters included: a full quote
-     has no padding, so `100cqi` (the page) bounds it. Rejected: a padding per block type. */
-  .page :is(.cta, .quote, .form) > * {
+     or video has no padding of its own, so `100cqi` (the page) bounds it. Rejected: a padding
+     per block type. */
+  .page :is(.cta, .quote, .form, .video) > * {
     max-width: min(var(--content-width), 100cqi - 2 * var(--gutter, 0px));
     margin-inline: auto;
   }
@@ -405,7 +406,8 @@
     float: right;
     margin: 0 var(--float-outer) var(--space-2) var(--float-inner);
   }
-  .page :is(.cta, .cards, .faq, .gallery, .timeline, .audio, .people-grid) {
+  .page
+    :is(.cta, .cards, .faq, .gallery, .timeline, .audio, .people-grid, .video, .layout-content) {
     clear: both;
   }
   @container (max-width: 40rem) {
@@ -748,10 +750,7 @@
 
   /* FAQ: <details> works without JavaScript; the question heading sits inside <summary>. The
      items paint their own surfaces, so a hanging float drops above the block instead of
-     overlapping a card (Dreamkit `_faq.scss`). */
-  .faq {
-    clear: both;
-  }
+     overlapping a card (Dreamkit `_faq.scss`; the `clear` is with the other framed blocks). */
   .faq h3 {
     margin-block: var(--space-3) var(--space-1);
   }
