@@ -448,7 +448,7 @@
               <summary aria-label={fill(t('admin.block.row.moreFor'), { n: i + 1 })}
                 ><Icon name="ellipsis" /><span>{t('admin.block.row.more')}</span></summary
               >
-              <div class="ui-row-menu">
+              <div class="ui-row-more-menu">
                 {#if i > 0}
                   <button
                     type="submit"
