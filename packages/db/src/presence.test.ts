@@ -43,7 +43,7 @@ describe.skipIf(skip)('content presence over Postgres (ADR 029)', () => {
     principal({
       tenantId,
       capabilities: ['content:read', 'content:write'],
-      actor: { kind: 'operator', operatorId: `${name}-${run}`, email: `${name}@example.org` },
+      actor: { kind: 'operator', operatorId: `${name}-${run}` },
     });
 
   beforeAll(async () => {
@@ -80,10 +80,10 @@ describe.skipIf(skip)('content presence over Postgres (ADR 029)', () => {
     await beat(person('dan'), shared, 'viewing');
     const { present } = await invoker.run(useCases.listPresence, person('erin'), { itemId });
     const states = Object.fromEntries(
-      present.map((p) => [p.actor.kind === 'operator' ? p.actor.email : '', p.state])
+      present.map((p) => [p.actor.kind === 'operator' ? p.actor.operatorId : '', p.state])
     );
-    expect(states['carol@example.org']).toBe('editing');
-    expect(states['dan@example.org']).toBe('viewing');
+    expect(states[`carol-${run}`]).toBe('editing');
+    expect(states[`dan-${run}`]).toBe('viewing');
   });
 
   it('keeps a report inside its site: another tenant gets not-found and reads no row', async () => {

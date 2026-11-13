@@ -287,7 +287,7 @@ async function observeMediaListing(invoker: Invoker, uow: UnitOfWork, admin: Pri
         licence: null,
         focal: CENTRE,
         state: 'ready',
-        createdBy: { kind: 'system', ref: 'rules' },
+        createdBy: { kind: 'system', job: 'rules' },
         // Apart by a day each, in the order of the calls.
         createdAt: new Date(Date.UTC(2026, 0, ids.size)),
         updatedAt: new Date(Date.UTC(2026, 0, ids.size)),

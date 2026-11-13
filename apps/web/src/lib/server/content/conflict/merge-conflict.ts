@@ -28,11 +28,13 @@ import {
 } from '@mycel/core';
 import { toArticleEditor } from '#lib/editor/article-document.js';
 import { runtime } from '#lib/server/runtime.js';
+import { actorNames, adminTimeZone } from '#lib/server/admin/admin.js';
 import {
   actorLabel,
   diffRows,
   valuesOf,
   when,
+  type ActorNames,
   type FormValues,
 } from '#lib/server/content/content-admin.js';
 import { blockFormValues, blockPrefix, type PendingBlock } from '#lib/server/content/edit-form.js';
@@ -223,14 +225,26 @@ export async function conflictOf(
   itemId: string,
   base: ContentDocument,
   mine: ContentDocumentInput,
-  ctx: ProposalContext
+  { locals, ...rest }: Omit<ProposalContext, 'zone' | 'names'> & { locals: App.Locals }
 ): Promise<{ view: ConflictView; values: FormValues; newest: string; slug: string }> {
   const { item, revision } = await runtime().invoker.run(useCases.getItem, principal, { itemId });
+  const ctx = { ...rest, ...(await screenOf(principal, locals)) };
   return { ...proposalOf(base, mine, revision, ctx), newest: revision.id, slug: item.slug };
+}
+
+/** The admin's zone and the members' names, both read for this request. */
+async function screenOf(principal: Principal, locals: App.Locals) {
+  const [{ zone }, names] = await Promise.all([
+    adminTimeZone(locals),
+    actorNames(principal, locals),
+  ]);
+  return { zone, names };
 }
 
 interface ProposalContext {
   values: FormValues;
+  /** Who the newest revision's author is, by operator id (`actorNames`). */
+  names: ActorNames;
   editing: string | null | undefined;
   zone: string;
   /** The slug field moved by both: theirs is the item's, mine the typed one. */
@@ -272,7 +286,7 @@ export function proposalOf(
     values.articleEditor = writerOf(proposal, newest, ctx.editing);
   return {
     view: {
-      who: actorLabel(revision.actor),
+      who: actorLabel(revision.actor, ctx.names),
       when: when(revision.createdAt, ctx.zone),
       choices,
       changes: [],
@@ -324,9 +338,10 @@ export async function changesSince(
   principal: Principal,
   itemId: string,
   from: string,
-  zone: string,
+  locals: App.Locals,
   baseSlug?: string
 ): Promise<{ view: ConflictView; newest: string; slug: string }> {
+  const { zone, names } = await screenOf(principal, locals);
   const { invoker } = runtime();
   const { item, revision } = await invoker.run(useCases.getItem, principal, { itemId });
   const { changes } = await invoker.run(useCases.diffRevisions, principal, {
@@ -339,7 +354,7 @@ export async function changesSince(
     newest: revision.id,
     slug: item.slug,
     view: {
-      who: actorLabel(revision.actor),
+      who: actorLabel(revision.actor, names),
       when: when(revision.createdAt, zone),
       choices: [],
       changes: diffRows(

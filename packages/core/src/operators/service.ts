@@ -1,7 +1,10 @@
-// Members and API keys of one tenant (TODO #7). Every use case needs `tenant:admin`: managing who
-// may do what is the one thing an API key or agent can never do (keys never carry that
-// capability, see model.ts). All writes of one tenant's memberships take the tenant's membership
-// lock first, so two admins acting at once cannot both pass the "an admin remains" check.
+// Members and API keys of one tenant (TODO #7). Every use case that manages them needs
+// `tenant:admin`: managing who may do what is the one thing an API key or agent can never do
+// (keys never carry that capability, see model.ts). `tenant.member_name.list` is the one read
+// below that: a stored actor names an operator by id only (ADR 035 rule 4), so every screen that
+// shows who saved a revision resolves the id through it. All writes of one tenant's memberships
+// take the tenant's membership lock first, so two admins acting at once cannot both pass the "an
+// admin remains" check.
 //
 // What a membership change does to keys (fundamentcheck 2026-10-21): a key is attributed to the
 // operator who made it, and they have seen its token. Removing that operator revokes the keys
@@ -101,6 +104,35 @@ export const listMembers = defineUseCase({
   examples: [{ input: {} }],
   async handler(ctx) {
     return { members: (await ctx.members.list()).map(withRole) };
+  },
+});
+
+/**
+ * Who the current members are, by id, in a few words: the name, or the address when the member
+ * has none. Every reader of content may ask, because a revision, a presence line and a conflict
+ * name their author by operator id only (ADR 035 rule 4). An id that is not here is a former team
+ * member, removed or erased; the caller shows that, never a stored address.
+ * Rejected: a name column beside each stored actor (a copy again, the thing rule 4 removes), and
+ * the full member list (capabilities and pending state are `tenant:admin`'s).
+ */
+export const listMemberNames = defineUseCase({
+  name: 'tenant.member_name.list',
+  kind: 'query',
+  description:
+    'Name the current members of this site by operator id, to show who saved a revision or is editing.',
+  requires: 'content:read',
+  input: z.object({}).strict(),
+  output: z.object({
+    members: z.array(z.object({ operatorId: z.string().guid(), label: z.string() })),
+  }),
+  examples: [{ input: {} }],
+  async handler(ctx) {
+    return {
+      members: (await ctx.members.list()).map((m) => ({
+        operatorId: m.operatorId,
+        label: m.name ?? m.email,
+      })),
+    };
   },
 });
 

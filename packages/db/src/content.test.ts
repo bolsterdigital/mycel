@@ -311,7 +311,7 @@ describe.skipIf(skip)('content conformance', () => {
     ).rejects.toMatchObject({ code: 'invalid_input' });
     const human = principal({
       tenantId: tenantA,
-      actor: { kind: 'operator', operatorId: uuidv7(), email: 'reviewer@probe.test' },
+      actor: { kind: 'operator', operatorId: uuidv7() },
     });
     const approved = await invoker.run(useCases.approveTranslation, human, {
       itemId: created.item.id,

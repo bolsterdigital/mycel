@@ -30,7 +30,6 @@ async function setup() {
       tenantId,
       actor: {
         kind: 'operator',
-        email: 'admin@example.org',
         operatorId: '01900000-0000-7000-8000-0000000000aa',
       },
     });

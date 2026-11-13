@@ -61,8 +61,10 @@ export const offeredCapabilities = (held: readonly Capability[] = []): Capabilit
 
 export const Actor = z.discriminatedUnion('kind', [
   // Our stable operator id, never the IdP subject: an operator can move between identity
-  // providers, and attribution (ADR 009 rule 9) must survive that.
-  z.object({ kind: z.literal('operator'), operatorId: z.string(), email: z.string().email() }),
+  // providers, and attribution (ADR 009 rule 9) must survive that. No address (ADR 035 rule 4):
+  // the account row holds the current one, and an actor is copied into immutable history. A
+  // stored actor of before migration 0053 still parses; zod drops its `email`.
+  z.object({ kind: z.literal('operator'), operatorId: z.string() }),
   z.object({ kind: z.literal('api-key'), keyId: z.string() }),
   // An MCP session acts with exactly one API key's capabilities (ADR 018 rule 5).
   z.object({
@@ -81,6 +83,54 @@ export const Actor = z.discriminatedUnion('kind', [
   }),
 ]);
 export type Actor = z.infer<typeof Actor>;
+
+/**
+ * The one form an actor takes at rest (ADR 035 rule 4): exactly the keys of its kind, so an
+ * object that arrived with more (a session decoded into a principal, a test double, an older
+ * stored row) cannot carry an address into a revision, plan, key, media row or register. Every
+ * adapter that persists an actor writes this; storage.conformance.test.ts holds every stored
+ * actor to it. Rejected: trusting the `Actor` type alone, which says nothing about extra keys of
+ * the object at run time.
+ */
+export function storedActor(actor: Actor): Actor {
+  switch (actor.kind) {
+    case 'operator':
+      return { kind: 'operator', operatorId: actor.operatorId };
+    case 'api-key':
+      return { kind: 'api-key', keyId: actor.keyId };
+    case 'agent':
+      return actor.onBehalfOf === undefined
+        ? { kind: 'agent', sessionId: actor.sessionId, keyId: actor.keyId }
+        : {
+            kind: 'agent',
+            sessionId: actor.sessionId,
+            keyId: actor.keyId,
+            onBehalfOf: actor.onBehalfOf,
+          };
+    case 'system':
+      return { kind: 'system', job: actor.job };
+    case 'anonymous':
+      return actor.ipHash === undefined
+        ? { kind: 'anonymous', channel: actor.channel }
+        : { kind: 'anonymous', channel: actor.channel, ipHash: actor.ipHash };
+  }
+}
+
+/**
+ * The same rule for an actor of unknown shape, as an import reads it from an archive (ADR 035
+ * rule 5): an operator keeps its kind and its id and nothing else. Two id spellings exist at rest:
+ * `operatorId` in an `Actor`, and `id` in the `{ kind, id }` form of form feeds and connection
+ * intents. Anything that is not an operator object comes back as it was.
+ */
+export function storedActorJson(value: unknown): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
+  const v = value as Record<string, unknown>;
+  if (v['kind'] !== 'operator') return value;
+  const out: Record<string, unknown> = { kind: 'operator' };
+  if ('operatorId' in v) out['operatorId'] = v['operatorId'];
+  if ('id' in v) out['id'] = v['id'];
+  return out;
+}
 
 export const Principal = z.object({
   tenantId: z.string().guid(),

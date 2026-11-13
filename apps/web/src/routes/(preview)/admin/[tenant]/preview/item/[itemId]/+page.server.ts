@@ -4,7 +4,7 @@
 // value in this locale yet is left out of it (`projectDocument`).
 import { isUuid, projectDocument, readinessIssues, useCases } from '@mycel/core';
 import { loaded } from '#lib/server/admin/admin-actions.js';
-import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
+import { actorNames, adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { actorLabel, when } from '#lib/server/content/content-admin.js';
 import {
   PREVIEW_HEADERS,
@@ -56,6 +56,8 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
   const theme = await siteTheme(site);
   const brand = await siteBrand(site);
   const admin = langOf(locals);
+  // In the admin's language, read before `locals.lang` turns to the previewed locale below.
+  const names = await actorNames(principal, locals);
   locals.lang = locale;
   return {
     admin,
@@ -73,7 +75,7 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
     issues: readinessIssues(doc, locale).map((i) => i.path),
     revision: {
       when: when(revision.createdAt, (await adminTimeZone(locals)).zone),
-      who: actorLabel(revision.actor),
+      who: actorLabel(revision.actor, names),
       latest: revision.id === item.latestRevisionId,
       // Which version this is (#66 PR 6d): what visitors see in this locale, the saved draft
       // after it, or an older revision.

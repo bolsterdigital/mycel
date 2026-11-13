@@ -26,6 +26,7 @@ import {
   type Paged,
   type RevisionSummary,
   type SluggedRepository,
+  storedActor,
 } from '@mycel/core';
 import type { Database } from './infra/schema.js';
 import { toIso } from './infra/dates.js';
@@ -155,7 +156,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         item_id: r.itemId,
         document: JSON.stringify(r.document),
         provenance: r.provenance ? JSON.stringify(r.provenance) : null,
-        actor: JSON.stringify(r.actor),
+        actor: JSON.stringify(storedActor(r.actor)),
         created_at: r.createdAt,
       })
       .execute();

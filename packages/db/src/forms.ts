@@ -10,6 +10,7 @@ import {
   parseFormDefinition,
   type FormRepository,
   type SubmissionRepository,
+  storedActorJson,
 } from '@mycel/core';
 import type { Database } from './infra/schema.js';
 
@@ -237,7 +238,7 @@ export function formFeedRepository(
       const change = {
         version: baseVersion + 1,
         value: JSON.stringify(value),
-        actor: JSON.stringify(actor),
+        actor: JSON.stringify(storedActorJson(actor)),
       };
       const row =
         baseVersion === 0

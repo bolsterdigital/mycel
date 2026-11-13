@@ -65,7 +65,7 @@ export async function agentPrincipalFor(
  */
 export async function operatorPrincipal(
   identity: IdentityStore,
-  operator: { operatorId: string; email: string },
+  operator: { operatorId: string },
   tenantId: string
 ): Promise<Principal | null> {
   const membership = (await identity.membershipsOf(operator.operatorId)).find(
@@ -76,7 +76,7 @@ export async function operatorPrincipal(
   const access = await identity.tenantAccess(tenantId);
   return {
     tenantId,
-    actor: { kind: 'operator', operatorId: operator.operatorId, email: operator.email },
+    actor: { kind: 'operator', operatorId: operator.operatorId },
     capabilities: [...membership.capabilities],
     entitlements: access.entitlements,
     tenantStatus: access.status,

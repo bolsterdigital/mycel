@@ -53,7 +53,7 @@ import {
 import { posted, type Posted } from '#lib/editor/block-form.js';
 import { arrange } from '#lib/server/content/arrange.js';
 import { failureOf, loaded, orNull, text } from '#lib/server/admin/admin-actions.js';
-import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
+import { actorNames, adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import {
   applyChoices,
   changesSince,
@@ -148,6 +148,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
   const shown = doc.locales.includes(work) ? [work] : [];
   const read = shown[0] ?? item.defaultLocale;
   const { invoker } = runtime();
+  const names = await actorNames(principal, locals);
   // Which revision is live or pinned, in the words of the revisions page; one lookup per id.
   const seen = new Map<string, Promise<{ when: string; who: string; latest: boolean }>>();
   const describe = (id: string) => {
@@ -161,7 +162,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
               .then((r) => r.revision)
         ).then((r) => ({
           when: when(r.createdAt, zone),
-          who: actorLabel(r.actor),
+          who: actorLabel(r.actor, names),
           latest: r.id === revision.id,
         }))
       );
@@ -215,7 +216,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
   return {
     forms: forms.choices,
     contentType: item.type,
-    presence: await presenceOnLoad(principal, params.tenant, item.id, revision.id),
+    presence: await presenceOnLoad(principal, params.tenant, item.id, revision.id, names),
     // Back to the list as it was left: its search, status, order and page, at this item's row.
     listPath: recalledListPath(cookies, params.tenant, item.type, item.id),
     patterns: doc.blocks.length
@@ -322,7 +323,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     revision: {
       id: revision.id,
       when: when(revision.createdAt, zone),
-      who: actorLabel(revision.actor),
+      who: actorLabel(revision.actor, names),
     },
     corrections: doc.type === 'article' ? doc.corrections : [],
     values: valuesOf(doc),
@@ -405,8 +406,8 @@ interface Committed {
    * (`mergedQuery`), so the screen says with whose save.
    */
   mergedWith: string | null;
-  /** The admin's time zone for this request (`adminTimeZone`). */
-  zone: string;
+  /** The request's locals: the admin's zone and language when a conflict is shown. */
+  locals: App.Locals;
   /**
    * The locale the form showed (`editLocale`) when the screen must name it to come back in it:
    * null when it is the operator's content locale anyway.
@@ -434,7 +435,7 @@ async function commit(
     event.params.tenant!
   );
   if (opts.publication && !can(principal, 'content:publish')) refuse(403);
-  const { zone } = await adminTimeZone(event.locals);
+  const { locals } = event;
   const data = await event.request.formData();
   const itemId = event.params.itemId!;
   const baseRevisionId = text(data, 'baseRevisionId');
@@ -452,7 +453,7 @@ async function commit(
     inserted,
     changed,
     mergedWith,
-    zone,
+    locals,
     editing: editing && editing !== contentLocale(event.cookies, tenant) ? editing : null,
   });
   if (!opts.always && !can(principal, 'content:write')) return done(baseRevisionId);
@@ -614,12 +615,12 @@ async function commit(
       (await conflictOf(principal, itemId, merging.base, merging.mine, {
         values,
         editing,
-        zone,
+        locals,
         slug: slugBoth,
       }));
     const conflict = merge?.view.choices.length
       ? merge
-      : { ...(await changesSince(principal, itemId, baseRevisionId, zone, baseSlug)), values };
+      : { ...(await changesSince(principal, itemId, baseRevisionId, locals, baseSlug)), values };
     return {
       failure: await refused(
         tenant,
@@ -733,7 +734,7 @@ async function publication(
  * who saved in between), anything else is thrown. Shared by `blockStep` and `restore`.
  */
 async function blockTry(saved: Committed, itemId: string, run: () => Promise<void>) {
-  const { principal, revisionId, zone } = saved;
+  const { principal, revisionId: from, locals } = saved;
   try {
     await run();
     return null;
@@ -745,7 +746,7 @@ async function blockTry(saved: Committed, itemId: string, run: () => Promise<voi
       invalid: issues.length ? 'admin.block.error.invalid' : 'admin.content.error.invalid',
     });
     const conflict =
-      refusal.code === 'conflict' ? await changesSince(principal, itemId, revisionId, zone) : null;
+      refusal.code === 'conflict' ? await changesSince(principal, itemId, from, locals) : null;
     return fail(status, {
       ...body,
       fieldIssues: issues,
@@ -867,8 +868,7 @@ export const actions: Actions = {
       (baseSlug !== undefined && baseSlug !== item.slug);
     const recovered = { error: 'admin.content.recovered.body' as const, recovered: true };
     if (!stale) return (await refused(tenant, principal, itemId, values, null, recovered)).data;
-    const { zone } = await adminTimeZone(event.locals);
-    const conflict = await changesSince(principal, itemId, baseRevisionId, zone, baseSlug);
+    const conflict = await changesSince(principal, itemId, baseRevisionId, event.locals, baseSlug);
     return (
       await refused(
         tenant,
@@ -1152,7 +1152,7 @@ export const actions: Actions = {
   startTranslation: async (event) => {
     const saved = await commit(event);
     if ('failure' in saved) return saved.failure;
-    const { tenant, principal, data, revisionId, zone } = saved;
+    const { tenant, principal, data, revisionId, locals } = saved;
     const itemId = event.params.itemId;
     const to = text(data, 'translateTo');
     const from = text(data, 'from') || null;
@@ -1170,7 +1170,7 @@ export const actions: Actions = {
     } catch (thrown) {
       const { error: e, status, body } = saveFailure(thrown);
       const conflict =
-        e.code === 'conflict' ? await changesSince(principal, itemId, revisionId, zone) : null;
+        e.code === 'conflict' ? await changesSince(principal, itemId, revisionId, locals) : null;
       return fail(status, { ...body, fieldIssues: [], conflict: conflict?.view ?? null });
     }
     redirect(303, itemPath(tenant.slug, itemId, to, { saved: '', ...mergedQuery(saved) }));

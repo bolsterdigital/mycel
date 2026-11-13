@@ -11,6 +11,7 @@
 
 import { z } from 'zod';
 import { Locale } from '../i18n/locale.js';
+import type { Actor } from '../principal.js';
 
 /** What `media.upload` accepts. SVG is refused on purpose: it can carry scripts. */
 export const MEDIA_CONTENT_TYPES = [
@@ -178,8 +179,8 @@ export interface MediaRecord {
   licence: string | null;
   focal: MediaFocal;
   state: MediaState;
-  /** The actor who uploaded it (ADR 009 rule 9). */
-  createdBy: unknown;
+  /** The actor who uploaded it (ADR 009 rule 9), stored as `storedActor` (ADR 035 rule 4). */
+  createdBy: Actor;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;

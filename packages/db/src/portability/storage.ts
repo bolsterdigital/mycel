@@ -96,13 +96,17 @@ const SUPPORTER_KEPT: Retention = {
   why: 'the relationship lasts until the supporter is erased',
 };
 const SITE_KEPT: Retention = { kind: 'kept', why: 'part of the site while the tenant exists' };
+/**
+ * A stored actor (ADR 035 rule 4): kind and id, never an address, since migration 0053 and
+ * through `storedActor` on every write; the account row holds the address and name.
+ */
 const ACTOR: Copy = {
   field: 'actor',
   subject: 'operator',
   route: {
-    kind: 'planned',
-    open: 'operators',
-    does: 'the actor names an operator by id and address; no route removes an operator yet',
+    kind: 'excluded',
+    reason:
+      'kind and operator id only, never an address (ADR 035 rule 4); the id is attribution (ADR 009 rule 9)',
   },
 };
 /** A copy `content.person.erase` reaches through apply (ADR 034, people/erasures.ts). */
@@ -703,7 +707,8 @@ export const STORAGE = {
         subject: 'operator',
         route: {
           kind: 'excluded',
-          reason: 'who registered an erasure is part of the register (ADR 019 rule 8)',
+          reason:
+            'who registered an erasure, by kind and id only, is part of the register (ADR 019 rule 8, ADR 035 rule 4)',
         },
       },
     ],
@@ -721,7 +726,7 @@ export const STORAGE = {
       KEPT(
         'actor',
         'operator',
-        'who registered an erasure is part of the register (ADR 034 rule 2)'
+        'who registered an erasure, by kind and id only, is part of the register (ADR 034 rule 2, ADR 035 rule 4)'
       ),
     ],
     retention: { kind: 'kept', why: 'permanent register (ADR 034 rule 2)' },
