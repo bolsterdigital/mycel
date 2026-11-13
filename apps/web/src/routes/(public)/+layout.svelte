@@ -29,21 +29,26 @@
         />{/if}
       <span class:site-wordmark={data.chrome.wordmark}>{data.chrome.name}</span>
     </a>
-    <nav aria-label={t('public.navigation')}>
-      {#each data.chrome.navigation as item (item.href)}<a href={item.href}>{item.label}</a>{/each}
-    </nav>
+    {#if data.chrome.navigation.length}
+      <nav aria-label={t('public.navigation')}>
+        {#each data.chrome.navigation as item (item.href)}<a href={item.href}>{item.label}</a
+          >{/each}
+      </nav>
+    {/if}
   </header>
 {/if}
 <div id="public-main">{@render children()}</div>
 {#if data.chrome}
   <footer class="site-footer">
     {#if data.chrome.footer}<p>{data.chrome.footer}</p>{/if}
-    <nav aria-label={t('public.footerNavigation')}>
-      {#each data.chrome.legal as item (item.href)}<a href={item.href}>{item.label}</a>{/each}
-      {#if data.chrome.support}<a href={data.chrome.support.href}>{data.chrome.support.label}</a
-        >{/if}
-      {#if data.chrome.help}<a href={data.chrome.help.href}>{data.chrome.help.label}</a>{/if}
-    </nav>
+    {#if data.chrome.legal.length || data.chrome.support || data.chrome.help}
+      <nav aria-label={t('public.footerNavigation')}>
+        {#each data.chrome.legal as item (item.href)}<a href={item.href}>{item.label}</a>{/each}
+        {#if data.chrome.support}<a href={data.chrome.support.href}>{data.chrome.support.label}</a
+          >{/if}
+        {#if data.chrome.help}<a href={data.chrome.help.href}>{data.chrome.help.label}</a>{/if}
+      </nav>
+    {/if}
     {#if data.credit}<MycelCredit {...data.credit} />{/if}
   </footer>
 {/if}

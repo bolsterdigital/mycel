@@ -45,6 +45,12 @@
     /* The item title's own rail (brief 46C-1 rule 8, Dreamkit's centred entry title): wider than
        the reading column so a long title breaks less, narrower than the wide rail. */
     --title-width: 52rem;
+    /* The lead's rail under the title: narrower than the title, whose larger font may run wider. */
+    --lead-width: 44rem;
+    /* The wide rail as an inset of a full-width band, for the site header and footer: their
+       background runs to the edges, their content starts and ends where a wide block does.
+       A percentage in padding resolves against the band's own containing block, the page. */
+    --wide-inset: max(var(--gutter), (100% - var(--wide-width)) / 2);
     --tap: 2.75rem;
   }
 }
@@ -150,6 +156,20 @@
   .page {
     padding-block: var(--space-3) var(--space-4);
   }
+  /* The two transitions to the site chrome are one distance each, whatever comes first or last:
+     the page's padding. The first and last element give up their own outer margin, so a page
+     that opens with a heading and one that opens with a hero, or ends on a paragraph, a card or
+     a FAQ, sit the same distance from the header and the footer. Rejected: a margin per block
+     type at the page's edges, which is per-page patching. */
+  .page:not(.admin) {
+    padding-block: var(--space-4);
+  }
+  :is(.page:not(.admin), .page:not(.admin) > .preview-selectable:first-child) > :first-child {
+    margin-block-start: 0;
+  }
+  :is(.page:not(.admin), .page:not(.admin) > .preview-selectable:last-child) > :last-child {
+    margin-block-end: 0;
+  }
   .page > .preview-selectable {
     display: contents;
   }
@@ -215,10 +235,9 @@
   }
   /* The item's own introduction (#86): the lead in the next step of the scale, in the heading
      font, and the hero image between it and the blocks. */
-  /* Centred under the title like Dreamkit's compact-header lede, in a 44rem rail of its own:
-     narrower than the title, whose larger font may run wider. */
+  /* Centred under the title like Dreamkit's compact-header lede, in its own rail. */
   .page > .lead {
-    width: min(44rem, 100% - 2 * var(--gutter));
+    width: min(var(--lead-width), 100% - 2 * var(--gutter));
     text-align: center;
     margin-block: 0 var(--space-3);
     font-family: var(--font-heading);
@@ -895,6 +914,12 @@
   .rich-text ol {
     padding-inline-start: 1.5em;
   }
+  /* Prose ends without a margin of its own: the block's margin separates it from the next one,
+     and as a page's last block its paragraph margin would otherwise collapse through the block
+     and add to the transition to the footer. */
+  .rich-text > :last-child {
+    margin-block-end: 0;
+  }
   .footnotes {
     margin-block-start: var(--space-3);
     font-size: var(--step--1);
@@ -907,8 +932,7 @@
   }
 
   .mycel-credit {
-    padding: var(--space-3) var(--gutter);
-    text-align: center;
+    padding-block-start: var(--space-2);
     font-size: var(--step--1);
   }
 }
@@ -925,23 +949,29 @@
   .public-skip:focus {
     inset-block-start: 0;
   }
+  /* The site header and footer are full-width bands on the wide rail (docs/architecture/
+     content-layout.md § Site chrome): logo and navigation start and end where a wide block does.
+     The header is one row while the logo and the whole navigation fit, else the navigation moves
+     under the logo as a whole, aligned at the start: `space-between` places a lone item on a line
+     at the start. Rejected: a breakpoint, which a long label or 200% text overruns. Measuring
+     what fits in a script belongs to an enhanced bar on top of this baseline. */
   .site-header,
   .site-footer {
-    padding: var(--space-2) var(--gutter);
+    padding: var(--space-2) var(--wide-inset);
     border-block: 1px solid var(--color-surface-bg);
+  }
+  .site-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
   }
   .site-header nav,
   .site-footer nav {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-1) var(--space-3);
-    max-width: var(--wide-width);
-    margin-inline: auto;
-  }
-  .site-header > .site-identity {
-    display: flex;
-    width: min(var(--wide-width), 100%);
-    margin-inline: auto;
   }
   .site-identity {
     display: inline-flex;
@@ -965,7 +995,6 @@
     min-height: var(--tap);
   }
   .site-footer p {
-    max-width: var(--wide-width);
-    margin-inline: auto;
+    margin-block: 0 var(--space-1);
   }
 }
