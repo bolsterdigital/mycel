@@ -5,11 +5,24 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expectNoAxeViolations } from './lib/axe';
 import { isA11y, onlyA11y } from './lib/project';
-import { postUseCase } from './lib/api';
+import { callApi, postUseCase } from './lib/api';
 import { pastMinimumFillTime } from './lib/form';
 import { forwarded, login } from './lib/login';
-import { NARROW, layoutGate, setTextSize } from './lib/layout';
-import { capabilitiesFor, systemPrincipal, UseCaseError, useCases } from '@mycel/core';
+import {
+  NARROW,
+  TEXT_SIZES,
+  actionBlockProblems,
+  actionBlocks,
+  layoutGate,
+  setTextSize,
+} from './lib/layout';
+import {
+  BLOCK_DEFINITIONS as DEFS,
+  capabilitiesFor,
+  systemPrincipal,
+  UseCaseError,
+  useCases,
+} from '@mycel/core';
 import { testTenant } from '@mycel/db/testing';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 
@@ -797,4 +810,75 @@ test('an administrator sets how long submissions are kept; an editor cannot', as
   } finally {
     await setMonths(24);
   }
+});
+
+// Every hero, CTA and form variant and width between prose (actionBlocks in lib/layout), measured
+// against the page's own rails. Here because a form block is this flow's way in; the page stays
+// in probe like the text and media pages do.
+test.describe('hero, CTA and form keep their rails', () => {
+  test.beforeAll(async ({ request }) => {
+    onlyA11y('composition measurements run in a11y');
+    const slug = 'grid-actions-v1';
+    if ((await callApi(request, 'content.item.list', { type: 'page', slug })).items.length) return;
+    const principal = systemPrincipal(await tenantId(), 'e2e');
+    const forms: string[] = [];
+    for (let i = 0; i < 3; i++)
+      forms.push((await callApi(request, 'form.create', { kind: 'contact' })).id);
+    await withInvoker(async (invoker, uow) => {
+      const [signup] = (
+        await invoker.run(useCases.listItems, principal, { type: 'page', slug: 'signup' })
+      ).items;
+      const { revision } = await invoker.run(useCases.getItem, principal, { itemId: signup!.id });
+      forms.push(
+        revision.document.blocks.flatMap((b) =>
+          'formId' in b.props ? [b.props.formId as string] : []
+        )[0]!
+      );
+      const [image] = await uow.run(principal, (ctx) =>
+        ctx.media.list({ q: 'malieveld.jpg', limit: 1 })
+      );
+      const v = (type: keyof typeof DEFS) => DEFS[type].version;
+      const created = await callApi(request, 'content.item.create', {
+        slug,
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl', 'en'],
+          title: { nl: 'Oproep, actie en formulier', en: 'Hero, action and form' },
+          blocks: actionBlocks(image!.id, forms as [string, string, string, string], {
+            hero: v('hero'),
+            cta: v('cta'),
+            form: v('form'),
+            'signup-form': v('signup-form'),
+            'rich-text': v('rich-text'),
+          }),
+        },
+      });
+      for (const locale of ['nl', 'en'])
+        await invoker.run(useCases.publishItem, principal, {
+          itemId: created.item.id,
+          revisionId: created.revision.id,
+          locale,
+        });
+    });
+  });
+
+  for (const locale of ['nl', 'en'])
+    for (const width of [320, 768, 1440])
+      for (const size of TEXT_SIZES)
+        test(`${locale} at ${width}px and ${size} text`, async ({ page }, info) => {
+          onlyA11y('DOM measurements');
+          await page.setViewportSize({ width, height: 900 });
+          const route = `/probe/${locale === 'en' ? 'en/' : ''}grid-actions-v1`;
+          expect((await page.goto(route))?.status()).toBe(200);
+          await setTextSize(page, size);
+          await page.evaluate(() => document.fonts.ready);
+          // The whole page as evidence for the visual judgement (crop, contrast, rhythm).
+          const path = info.outputPath('page.png');
+          await page.screenshot({ path, fullPage: true });
+          await info.attach('page', { path, contentType: 'image/png' });
+          expect(await actionBlockProblems(page)).toEqual([]);
+          await layoutGate(page, `${width}px ${size}`, 'main');
+          if (width === 1440 && size === '100%') await expectNoAxeViolations(page);
+        });
 });

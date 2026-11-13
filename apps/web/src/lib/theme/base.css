@@ -14,6 +14,7 @@
 @import './forms.css' layer(base);
 @import './people.css' layer(base);
 @import './action-row.css' layer(components);
+@import './hero.css' layer(components);
 
 /* A content column measured in the page's own `ch`, inherited as a length, so a heading with a
    larger font has the same column as the text under it. */
@@ -558,65 +559,6 @@
   .page:not(.admin) .button:focus-visible {
     outline-color: currentColor;
     outline-offset: -0.25rem;
-  }
-
-  /* Hero. `cover`: an opaque surface panel over the image, never text on the photo. */
-  .hero {
-    clear: both;
-  }
-  .hero h2 {
-    margin-block-start: 0;
-    font-size: clamp(var(--step-2), 1rem + 4vw, var(--step-4));
-  }
-  .hero-minimal {
-    padding-block: var(--space-3);
-  }
-  .hero-media picture,
-  .hero-media img {
-    width: 100%;
-  }
-  .hero-text {
-    padding: var(--inset) 0;
-  }
-  /* One column no wider than the block: an image that has not loaded (or failed) lays out as its
-     alt text, whose min-content width an `auto` track would take, past the viewport at 320 CSS px. */
-  .hero-cover {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .hero-cover > .hero-media,
-  .hero-cover > .hero-text {
-    grid-area: 1 / 1;
-  }
-  .hero-cover .hero-media,
-  .hero-cover picture,
-  .hero-cover img {
-    height: 100%;
-    min-height: 20rem;
-    object-fit: cover;
-  }
-  .hero-cover .hero-text {
-    align-self: end;
-    justify-self: start;
-    max-width: min(40rem, 100% - 2 * var(--gutter));
-    margin: var(--space-4) var(--gutter) var(--gutter);
-    padding: var(--inset);
-    color: var(--color-surface-fg);
-    background: var(--color-surface-bg);
-    border-radius: var(--radius);
-  }
-  .hero-cover.align-center .hero-text {
-    justify-self: center;
-  }
-  .hero-cover.align-end .hero-text {
-    justify-self: end;
-  }
-  @media (min-width: 48rem) {
-    .hero-split {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      align-items: center;
-    }
   }
 
   /* Call to action: a band in the primary pair or a card on the surface. */
