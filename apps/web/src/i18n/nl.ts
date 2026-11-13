@@ -1699,6 +1699,22 @@ export const nl: Partial<Record<UiKey, string>> = {
     'De pagina van deze campagne is in deze taal niet gepubliceerd; de kaart toont hier niets.',
   'admin.block.campaign.reason.restricted':
     'De pagina van deze campagne is afgeschermd; de kaart toont niets.',
+  'admin.block.campaign.form.upcoming':
+    'Alleen in dit voorbeeld: de deelname is nog niet geopend, dus de site toont hier "Meedoen kan nog niet" in plaats van het formulier.',
+  'admin.block.campaign.form.closed':
+    'Alleen in dit voorbeeld: de deelname is gesloten, dus de site toont hier de stand in plaats van het formulier.',
+  'admin.block.campaign.form.draft':
+    'Alleen in dit voorbeeld: de pagina van deze campagne is nog niet gepubliceerd, dus de site toont dit formulier nog niet.',
+  'admin.block.campaign.form.locale-unpublished':
+    'Alleen in dit voorbeeld: de pagina van deze campagne is in deze taal niet gepubliceerd, dus de site toont dit formulier hier niet.',
+  'admin.block.campaign.form.archived':
+    'Alleen in dit voorbeeld: deze campagne is gearchiveerd, dus de site toont dit formulier niet.',
+  'admin.block.campaign.form.landing-missing':
+    'Alleen in dit voorbeeld: de pagina van deze campagne staat in de prullenbak, dus de site toont dit formulier niet.',
+  'admin.block.campaign.form.restricted':
+    'Alleen in dit voorbeeld: de pagina van deze campagne is afgeschermd, dus de site toont dit formulier niet.',
+  'admin.block.campaign.form.unknown':
+    'Alleen in dit voorbeeld: de site toont dit formulier nu niet.',
   'admin.block.field.text': 'Tekst',
   'admin.block.field.formId': 'Formulier-id',
   'admin.block.field.content': 'Tekst',

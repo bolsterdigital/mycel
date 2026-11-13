@@ -345,8 +345,9 @@ export async function resolveDocument(
     /** Form copy falls back to the tenant's default locale, as the probe did. */
     fallbackLocale: string;
     /**
-     * Keep why a campaign card shows nothing (`diagnosis`): the admin preview only. The public
-     * page never carries it, so its HTML and data say nothing about a draft or archived campaign.
+     * Keep why a campaign card shows nothing, and keep a campaign's form with the reason the
+     * public page withholds it (`diagnosis`): the admin preview only. The public page never
+     * carries it, so its HTML and data say nothing about a draft or archived campaign.
      */
     diagnose?: boolean;
   }
@@ -478,9 +479,16 @@ export async function resolveDocument(
     width: 'content' | 'wide' | 'full'
   ): RenderBlock => {
     const gate = gates.get(formId) ?? null;
-    if (gate && (!gate.available || gate.phase !== 'open'))
-      return { id, type: 'form', variant, width, form: null, campaign: campaign(gate) };
-    return { id, type: 'form', variant, width, form: forms.get(formId) ?? null };
+    const form = forms.get(formId) ?? null;
+    if (!gate || (gate.available && gate.phase === 'open'))
+      return { id, type: 'form', variant, width, form };
+    // The admin preview keeps the form, which does not post there, and says what the public page
+    // shows instead: an editor checks a form before opening participation, never by opening it.
+    if (options.diagnose) {
+      const diagnosis = gate.available ? (gate.phase as 'upcoming' | 'closed') : gate.reason;
+      return { id, type: 'form', variant, width, form, diagnosis };
+    }
+    return { id, type: 'form', variant, width, form: null, campaign: campaign(gate) };
   };
 
   const text = (v: Partial<Record<string, string>> | undefined) => v?.[locale] ?? null;

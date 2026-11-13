@@ -1682,6 +1682,22 @@ export const en = {
     "This campaign's page is not published in this language; the card shows nothing here.",
   'admin.block.campaign.reason.restricted':
     "This campaign's page is restricted; the card shows nothing.",
+  'admin.block.campaign.form.upcoming':
+    'Only in this preview: participation is not open yet, so the site shows "You cannot take part yet" here instead of the form.',
+  'admin.block.campaign.form.closed':
+    'Only in this preview: participation is closed, so the site shows the result here instead of the form.',
+  'admin.block.campaign.form.draft':
+    "Only in this preview: this campaign's page is not published yet, so the site does not show this form yet.",
+  'admin.block.campaign.form.locale-unpublished':
+    "Only in this preview: this campaign's page is not published in this language, so the site does not show this form here.",
+  'admin.block.campaign.form.archived':
+    'Only in this preview: this campaign is archived, so the site does not show this form.',
+  'admin.block.campaign.form.landing-missing':
+    "Only in this preview: this campaign's page is in the trash, so the site does not show this form.",
+  'admin.block.campaign.form.restricted':
+    "Only in this preview: this campaign's page is restricted, so the site does not show this form.",
+  'admin.block.campaign.form.unknown':
+    'Only in this preview: the site does not show this form now.',
   'admin.block.field.text': 'Text',
   'admin.block.field.formId': 'Form id',
   'admin.block.field.content': 'Text',

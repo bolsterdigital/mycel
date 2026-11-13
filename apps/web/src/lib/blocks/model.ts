@@ -281,6 +281,11 @@ export type RenderBlock = { id: string } & (
        * shows where it stands instead of its fields (ADR 033 rule 2). Null otherwise.
        */
       campaign?: RenderCampaign | null;
+      /**
+       * Why the public page shows no form here, while this model keeps it: set only for the admin
+       * preview (`diagnose`), where an editor checks the form before participation opens.
+       */
+      diagnosis?: CampaignCardReason | 'upcoming' | 'closed';
     }
   | {
       type: 'campaign-card';

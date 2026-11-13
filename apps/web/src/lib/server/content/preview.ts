@@ -102,16 +102,27 @@ export async function introOf(
 }
 
 /**
- * The preview's words for campaign cards, in the operator's language (ADR 033 rule 4): that a card
- * is a live reference, and per reason why one shows nothing. The resolver's `diagnose` gives the
- * reason; the public page never has it.
+ * The preview's words for campaign cards and campaign forms, in the operator's language (ADR 033
+ * rules 2 and 4): that a card is a live reference, per reason why one shows nothing, and per
+ * reason or phase why the public page shows no form where the preview does. The resolver's
+ * `diagnose` gives the reason; the public page never has it.
  */
-export function campaignNotes(admin: string): { live: string; reasons: Record<string, string> } {
+export function campaignNotes(admin: string): {
+  live: string;
+  reasons: Record<string, string>;
+  form: Record<string, string>;
+} {
   const t = ui(admin);
   return {
     live: t('admin.block.campaign.live'),
     reasons: Object.fromEntries(
       CampaignCardReason.options.map((r) => [r, t(`admin.block.campaign.reason.${r}`)])
+    ),
+    form: Object.fromEntries(
+      ([...CampaignCardReason.options, 'upcoming', 'closed'] as const).map((r) => [
+        r,
+        t(`admin.block.campaign.form.${r}`),
+      ])
     ),
   };
 }

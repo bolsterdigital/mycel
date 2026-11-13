@@ -267,6 +267,15 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
   await expect(panel.getByText('Campagne gestart.')).toBeVisible();
   await expect(panel.getByText('0 van 500')).toBeVisible();
 
+  // The preview of the draft page keeps the form, which does not post there, and says that the
+  // site does not show it yet: an editor checks a form without opening participation (rule 2).
+  await page.goto(`/admin/probe/preview/item/${itemId}?locale=nl`);
+  await expect(
+    page.getByText('Alleen in dit voorbeeld: de pagina van deze campagne is nog niet gepubliceerd')
+  ).toBeVisible();
+  await expect(page.getByLabel('E-mailadres')).toBeDisabled();
+  await page.goto(`/admin/probe/content/${itemId}`);
+
   // Publishing the page opens nothing (rule 2): the page offers no form until participation opens.
   const editor = systemPrincipal(await tenantId(), 'e2e-campaign');
   await withInvoker(async (invoker) => {
@@ -408,9 +417,27 @@ test('a campaign card: live on page, article and scheduled page; nothing when un
   await expect(cards).toHaveCount(1);
   await expect(cards).toContainText('Petitie · open');
 
+  // A tab on the host opened while the card had its form, posted after closing: the server
+  // refuses (rule 3), and the page says so although the card no longer has a form to say it in.
+  const stale = await page.context().newPage();
+  await stale.goto(host);
+  await pastMinimumFillTime(stale);
+  await stale
+    .locator('.campaign-card')
+    .first()
+    .getByLabel('E-mailadres')
+    .fill(`e2e-card-late-${stamp}@example.org`);
+
   // The scheduled host publishes the revision it pinned, and the card still shows the campaign
   // as it is then: closed, under the landing page's newer title.
   await campaignAction('closeCampaign');
+  await stale.locator('.campaign-card').first().getByRole('button', { name: 'Versturen' }).click();
+  await expect(
+    stale.getByRole('alert').getByText('Deze campagne neemt op dit moment geen deelname aan.')
+  ).toBeVisible();
+  await expect(stale.getByRole('button', { name: 'Versturen' })).toHaveCount(0);
+  await expect(stale.locator('.campaign-card').first()).toContainText('Petitie · gesloten');
+  await stale.close();
   await publishOnSchedule(`Gesloten ${stamp}`);
   await page.goto(`/probe/gast-gepland-${stamp}`);
   await expect(cards).toContainText('Petitie · gesloten');

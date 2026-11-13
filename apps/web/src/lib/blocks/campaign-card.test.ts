@@ -172,6 +172,38 @@ describe('a campaign card in the render model (ADR 033 rule 4)', () => {
     expect(hasForm(after)).toBe(false);
   });
 
+  it('keeps the form in the preview before participation opens, and says what the site shows', async () => {
+    const { invoker, admin, campaign, publishLanding, open, close, resolve } = await setup();
+    const own = async (diagnose: boolean) => {
+      const { revision } = await invoker.run(useCases.getItem, admin, {
+        itemId: campaign.landingItemId,
+      });
+      const model = await resolve(projectDocument(revision.document, 'nl').blocks, { diagnose });
+      return model.blocks.find((b) => b.type === 'form');
+    };
+    // A draft landing page: the public model holds nothing, the preview the form and the reason.
+    expect(await own(false)).toMatchObject({ form: null, campaign: null });
+    expect(await own(false)).not.toHaveProperty('diagnosis');
+    expect(await own(true)).toMatchObject({
+      form: { formId: campaign.formId },
+      diagnosis: 'draft',
+    });
+    await publishLanding();
+    expect(await own(true)).toMatchObject({
+      form: { formId: campaign.formId },
+      diagnosis: 'upcoming',
+    });
+    await open();
+    expect(await own(true)).toMatchObject({ form: { formId: campaign.formId } });
+    expect(await own(true)).not.toHaveProperty('diagnosis');
+    await close();
+    expect(await own(true)).toMatchObject({
+      form: { formId: campaign.formId },
+      diagnosis: 'closed',
+    });
+    expect(await own(false)).toMatchObject({ form: null, campaign: { phase: 'closed' } });
+  });
+
   it('is a link with title and summary in Markdown: no form, no count', async () => {
     const { card, resolve, publishLanding, open } = await setup();
     await publishLanding();
