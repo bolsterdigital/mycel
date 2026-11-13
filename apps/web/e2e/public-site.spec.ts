@@ -25,7 +25,16 @@ import sharp from 'sharp';
 import { expectNoAxeViolations } from './lib/axe';
 import { editorReady } from './lib/editor';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
-import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
+import {
+  NARROW,
+  TEXT_SIZES,
+  chromeRails,
+  expectChromeOnWideRail,
+  expectChromeTransitions,
+  layoutGate,
+  setTextSize,
+  setTextSpacing,
+} from './lib/layout';
 import { login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
@@ -1238,6 +1247,9 @@ test.describe('grid-compositions', () => {
           expect(measured.prose!.width).toBeGreaterThanOrEqual(680);
           expect(measured.prose!.width).toBeLessThanOrEqual(740);
         }
+        const chrome = await chromeRails(page);
+        expectChromeOnWideRail(chrome, true);
+        expectChromeTransitions(chrome);
       });
 
   for (const entry of compositions)
@@ -1771,6 +1783,27 @@ test.describe('site-settings', () => {
       });
       expect(zoomed).toBe(true);
       await expectNoAxeViolations(page);
+    });
+
+  // Header, body and footer share the wide rail; a page that is only a title and one that ends
+  // on a wide row sit the same distance from the chrome (content-layout.md).
+  for (const width of [320, 768, 1440])
+    test(`header, body and footer share their rails at ${width}px`, async ({ page }) => {
+      onlyA11y('DOM measurements');
+      await page.setViewportSize({ width, height: 900 });
+      for (const path of ['home', 'acties']) {
+        await page.goto(`/${slug}/${path}`);
+        const m = await chromeRails(page);
+        await test.info().attach(`chrome-${path}.json`, { body: JSON.stringify(m) });
+        expectChromeOnWideRail(m, width > 320 || undefined);
+        expectChromeTransitions(m);
+        if (path === 'acties') expect(m.last!.left).toBeCloseTo(m.wide.left, 0);
+      }
+      if (width > 320) return;
+      await setTextSize(page, '200%');
+      expectChromeOnWideRail(await chromeRails(page));
+      for (const part of ['.site-header', '.site-footer'])
+        await layoutGate(page, `${part} at 320 px and 200% text`, part);
     });
 
   // The action row's colours come from the theme, card by card and per mode, and the button on a
