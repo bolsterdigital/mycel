@@ -34,7 +34,7 @@ describe('issueLabel', () => {
 });
 
 describe('fieldAnchor', () => {
-  it('links the writer to its own surface, not to a mangled block id (#234)', () => {
+  it('links the writer to its own surface, not to a mangled block id', () => {
     expect(fieldAnchor('articleEditor', 'nl')).toBe('articleEditor');
   });
   it('keeps the rule for document fields, locales and block fields', () => {

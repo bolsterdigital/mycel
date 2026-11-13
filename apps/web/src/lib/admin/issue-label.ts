@@ -63,7 +63,7 @@ export const DOC_FIELDS: Record<string, UiKey> = {
 export const WRITER_FIELD = 'articleEditor';
 
 /**
- * The element id a refused field links to (#234): a document field by its name, the writer by its
+ * The element id a refused field links to: a document field by its name, the writer by its
  * own surface, a block field as `b-<block id>-p-…` and the pending block as `b-new-p-…`.
  * Rejected: deriving the writer from the block rule, which read `articleEditor` as `b.<id>.…` and
  * produced `#b-ticleEditor`, a link to nothing.

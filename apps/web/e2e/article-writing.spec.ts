@@ -24,6 +24,7 @@ import {
   block,
   blockPage,
   card,
+  editScreen,
   editorReady,
   emptyProse,
   more,
@@ -46,14 +47,13 @@ test.describe('article-writing', () => {
     await login(page, edit);
     await page.context().clearCookies({ name: 'mycel-content-locale' });
     await page.goto(`${edit}?locale=en`);
-    if (isA11y())
-      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    if (isA11y()) await editScreen(page);
     const fold = page.getByRole('group', { name: 'Blok toevoegen', exact: true });
     await fold.getByRole('button', { name: 'Citaat', exact: true }).click();
     const fresh = page.locator('#block-new');
     await fresh.locator('[name="new.p.text.en"]').fill('Incomplete quote');
     if (isA11y()) {
-      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+      await editScreen(page);
       await page.locator('.writing-surface .editor-prose p').first().fill('English edited');
     } else {
       await page.locator('[data-native-article] > summary').click();
@@ -146,7 +146,7 @@ test.describe('article-writing', () => {
 
     const translated = await create(['nl', 'en'], { nl: line('Nederlands'), en: line('English') });
     await login(page, `/admin/probe/content/${translated}?locale=en`);
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await editScreen(page);
     await empty();
     expect((await blocksOf(translated)).document.blocks[0]!.props.content).toEqual({
       nl: line('Nederlands'),
@@ -167,7 +167,7 @@ test.describe('article-writing', () => {
 
     const only = await create(['nl'], { nl: line('Wordt leeg') });
     await page.goto(`/admin/probe/content/${only}`);
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await editScreen(page);
     await empty();
     const revision = await blocksOf(only);
     expect(revision.document.blocks.map((b) => b.type)).toEqual(['quote']);
@@ -341,7 +341,7 @@ test.describe('article-writing', () => {
         },
       });
       await login(page, `/admin/probe/content/${item.id}`);
-      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+      await editScreen(page);
       return item.id;
     };
     const prose = { type: 'rich-text', version: 1, props: { content: { nl: line('Wordt leeg') } } };
@@ -483,7 +483,7 @@ test.describe('article-writing', () => {
         expect((await stored(request, itemId)).map((x) => x.props.text?.nl)).toEqual(after);
 
         // The screen is on the new revision: a further save of it stands and changes nothing.
-        await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+        await editScreen(page);
         await save(page);
         await expect(page).toHaveURL(/\?saved/);
         expect((await stored(request, itemId)).map((x) => x.props.text?.nl)).toEqual(after);
@@ -503,8 +503,7 @@ test.describe('article-writing', () => {
       const before = await blocks();
       const quoteId = before[1]!.id;
       await login(page, edit);
-      if (isA11y())
-        await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+      if (isA11y()) await editScreen(page);
       if (action === 'writer') {
         await editorReady(page);
         await wipeFirstCard(page);
@@ -528,12 +527,9 @@ test.describe('article-writing', () => {
         await expect(alert).toContainText('Het blok kon niet worden opgeslagen:');
         await expect(alert.locator('li a')).toHaveCount(0);
       } else {
-        // The writer's issue links to the writing surface itself, an element that exists (#234),
-        // and following it hands focus to the editor.
-        const link = alert.locator('li a');
-        await expect(link).toHaveAttribute('href', '#articleEditor');
-        await expect(page.locator('#articleEditor')).toHaveCount(1);
-        await link.click();
+        // The writer's issue links to its own surface, and following it focuses the editor.
+        await alert.locator('li a').click();
+        await expect(page).toHaveURL(/#articleEditor$/);
         await expect(page.locator('#articleEditor .ProseMirror')).toBeFocused();
       }
       expect(await blocks()).toEqual(before);
@@ -548,8 +544,7 @@ test.describe('article-writing', () => {
     await login(page, edit);
     // This proves the save, not input during hydration (the early-input test below does): a fill
     // whose select-all lands while hydration sets the title's value would append to it.
-    if (isA11y())
-      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    if (isA11y()) await editScreen(page);
     await page.locator('#title\\.nl').fill('Gewijzigde kop');
     if (isA11y()) {
       await expect(page.locator('.writing-surface .ProseMirror').first()).toBeVisible();
@@ -626,8 +621,7 @@ test.describe('article-writing', () => {
     const edit = new URL(page.url()).pathname;
     const start = (await callApi(request, 'content.item.get', { itemId })).item.slug;
     expect(start).toMatch(/^page-[0-9a-f-]{36}$/);
-    if (isA11y())
-      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    if (isA11y()) await editScreen(page);
     const stamp = randomUUID().slice(0, 8);
     const title = `Leesbaar adres ${stamp} ${test.info().project.name}`;
     const slug = `leesbaar-adres-${stamp}-${test.info().project.name}`;
@@ -665,8 +659,7 @@ test.describe('article-writing', () => {
 
     // A second title leaves the address where the first save put it.
     await page.goto(edit);
-    if (isA11y())
-      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    if (isA11y()) await editScreen(page);
     await page.locator('#title\\.nl').fill(`${title} bis`);
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(`${edit}?saved`);
@@ -757,7 +750,7 @@ test.describe('article-writing', () => {
     });
     const edit = `/admin/probe/content/${item.id}`;
     await login(page, edit);
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await editScreen(page);
     const surface = page.locator('.writing .ProseMirror');
     await expect(surface).toBeVisible();
 

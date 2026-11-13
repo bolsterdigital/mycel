@@ -541,7 +541,7 @@
     }
     // A link in a refusal summary names the hidden textarea, which takes no focus: the editor does
     // (#130). Rejected: moving the id here, which unlabels the textarea that still posts the field.
-    // The article writer has no textarea; its link names the surface below (#234).
+    // The article writer has no textarea; its link names the surface below.
     const anchor = nativeId ?? (article ? name : undefined);
     const toField = (event: MouseEvent) => {
       if (!anchor || !(event.target instanceof Element)) return;
