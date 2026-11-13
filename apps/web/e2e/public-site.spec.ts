@@ -12,6 +12,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  BLOCK_DEFINITIONS as DEFS,
   type ContentDocument,
   DEFAULT_THEME,
   THEME_PRESETS,
@@ -34,6 +35,8 @@ import {
   layoutGate,
   setTextSize,
   setTextSpacing,
+  textBlockProblems,
+  textBlocks,
 } from './lib/layout';
 import { login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
@@ -1175,16 +1178,48 @@ test.describe('grid-compositions', () => {
           slug: compositions[0]!.slug,
           document: doc,
         });
+    // Every quote and callout variant next to prose, short and long (textBlocks in lib/layout).
+    const text = (
+      await callApi(request, 'content.item.list', { type: 'page', slug: 'grid-text-v1' })
+    ).items.length
+      ? null
+      : await callApi(request, 'content.item.create', {
+          slug: 'grid-text-v1',
+          document: {
+            ...doc,
+            title: { nl: 'Tekst, citaat en kader', en: 'Text, quote and callout' },
+            blocks: textBlocks({
+              quote: DEFS.quote.version,
+              callout: DEFS.callout.version,
+              'rich-text': DEFS['rich-text'].version,
+            }),
+          },
+        });
     const probe = await tenantId();
     await withInvoker(async (invoker) => {
-      for (const locale of ['nl', 'en'])
-        await invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
-          itemId: created.item.id,
-          revisionId: created.revision.id,
-          locale,
-        });
+      for (const made of text ? [created, text] : [created])
+        for (const locale of ['nl', 'en'])
+          await invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
+            itemId: made.item.id,
+            revisionId: made.revision.id,
+            locale,
+          });
     });
   });
+
+  for (const width of [320, 768, 1440])
+    for (const size of TEXT_SIZES)
+      test(`text, quote and callout keep their rails at ${width}px and ${size} text`, async ({
+        page,
+      }) => {
+        onlyA11y('DOM measurements');
+        await page.setViewportSize({ width, height: 900 });
+        expect((await page.goto('/probe/grid-text-v1'))?.status()).toBe(200);
+        await setTextSize(page, size);
+        await page.evaluate(() => document.fonts.ready);
+        expect(await textBlockProblems(page)).toEqual([]);
+        await layoutGate(page, `${width}px ${size}`, 'main');
+      });
 
   async function metrics(page: Page) {
     await page.evaluate(() => document.fonts.ready);
