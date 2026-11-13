@@ -24,20 +24,24 @@ import { testTenant } from '@mycel/db/testing';
 import { type APIRequestContext, type Page, chromium, expect, test } from '@playwright/test';
 import sharp from 'sharp';
 import { expectNoAxeViolations } from './lib/axe';
-import { editorReady } from './lib/editor';
+import { editorReady, postDraftPreview } from './lib/editor';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import {
   NARROW,
   TEXT_SIZES,
-  chromeRails,
-  expectChromeOnWideRail,
-  expectChromeTransitions,
   layoutGate,
   setTextSize,
   setTextSpacing,
   textBlockProblems,
   textBlocks,
 } from './lib/layout';
+import {
+  chromeRails,
+  expectChromeOnWideRail,
+  expectChromeTransitions,
+  expectPreviewChrome,
+  type Rails,
+} from './lib/chrome';
 import { login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
@@ -426,25 +430,6 @@ test.describe('blocks', () => {
 // and its published translations, published HTML is publicly cacheable with a strong ETag and a
 // 304, no cookie is set, and misses are `no-store`. Then the JSON read route of the API process
 // on the same seeded article.
-// Sends the edit form as it stands to the unsaved-document route, as the live-preview panel does.
-// An article has no panel yet (#11), so its specs post the unchanged native form themselves.
-async function postDraftPreview(page: Page, itemId: string) {
-  await page.locator('[data-live-preview-source]').evaluate((node, id) => {
-    const form = node as HTMLFormElement;
-    form.action = '/admin/probe/preview/draft';
-    for (const [name, value] of [
-      ['itemId', id],
-      ['previewLocale', 'nl'],
-    ]) {
-      const input = document.createElement('input');
-      input.name = name!;
-      input.value = value!;
-      form.append(input);
-    }
-    form.submit();
-  }, itemId);
-}
-
 test.describe('content-routes', () => {
   /** The canonical address form: the seed gives tenant probe this primary hostname. */
   const SITE = 'http://probe.localhost:4173';
@@ -1349,6 +1334,8 @@ test.describe('grid-compositions', () => {
       });
       expect(live.overflow).toBe(false);
       expectTitleRail(live.title, { width: live.prose }, live.width);
+      const frameEl = await page.locator('[data-live-preview-frame]').elementHandle();
+      const liveChrome = await chromeRails((await frameEl!.contentFrame())!);
       await test.info().attach('preview-rails.json', {
         body: JSON.stringify({ saved: savedMetrics, live }),
         contentType: 'application/json',
@@ -1356,6 +1343,8 @@ test.describe('grid-compositions', () => {
       await page.setViewportSize({ width: live.width, height: 900 });
       await page.goto(`/probe/${entry.type === 'article' ? 'articles/' : ''}${entry.slug}`);
       expect((await metrics(page)).prose!.width).toBeCloseTo(live.prose, 0);
+      // A narrow frame on a wide screen keeps the site's chrome.
+      expectPreviewChrome(liveChrome, await chromeRails(page), '/admin/probe/preview');
     });
 
   // Brief 46C-1 rules 1 to 4: a caption starts at its image's left edge, whatever the layout;
@@ -1621,6 +1610,7 @@ test.describe('site-settings', () => {
   let tenantId = '';
   let singleTenantId = '';
   let homeItemId = '';
+  let actiesItemId = '';
   const WALK = {
     light: [
       { foreground: '#ffffff', background: '#d32f2f' },
@@ -1738,6 +1728,7 @@ test.describe('site-settings', () => {
           ],
         },
       });
+      actiesItemId = row.item.id;
       await invoker.run(useCases.publishItem, principal, {
         itemId: row.item.id,
         revisionId: row.revision.id,
@@ -1828,12 +1819,22 @@ test.describe('site-settings', () => {
     test(`header, body and footer share their rails at ${width}px`, async ({ page }) => {
       onlyA11y('DOM measurements');
       await page.setViewportSize({ width, height: 900 });
+      // The saved preview of each page shows the site's chrome too.
+      const base = `/admin/${slug}/preview`;
+      const preview: Rails[] = [];
+      for (const id of [homeItemId, actiesItemId]) {
+        const at = `${base}/item/${id}?locale=nl`;
+        if (preview.length) await page.goto(at);
+        else await login(page, at, `site-editor-${slug}@probe.test`);
+        preview.push(await chromeRails(page));
+      }
       for (const path of ['home', 'acties']) {
         await page.goto(`/${slug}/${path}`);
         const m = await chromeRails(page);
         await test.info().attach(`chrome-${path}.json`, { body: JSON.stringify(m) });
         expectChromeOnWideRail(m, width > 320 || undefined);
         expectChromeTransitions(m);
+        expectPreviewChrome(preview.shift()!, m, base);
         if (path === 'acties') expect(m.last!.left).toBeCloseTo(m.wide.left, 0);
       }
       if (width > 320) return;

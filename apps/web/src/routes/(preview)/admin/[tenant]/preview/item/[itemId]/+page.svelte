@@ -4,6 +4,8 @@
 <script lang="ts">
   import Blocks from '#lib/blocks/Blocks.svelte';
   import Intro from '#lib/blocks/Intro.svelte';
+  import SiteFooter from '#lib/components/SiteFooter.svelte';
+  import SiteHeader from '#lib/components/SiteHeader.svelte';
   import { fill, ui } from '../../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -44,19 +46,10 @@
   {/if}
   <p><a href={data.edit}>{t('admin.content.preview.edit')}</a></p>
 </aside>
-<header class="site-header">
-  <span class="site-identity">
-    {#if data.brand.logo}<img
-        src={data.brand.logo}
-        width={data.brand.width ?? 1}
-        height={data.brand.height ?? 1}
-        alt=""
-      />{/if}
-    <span class:site-wordmark={data.brand.wordmark}>{data.brand.name}</span>
-  </span>
-</header>
+<SiteHeader chrome={data.chrome} locale={data.locale} />
 
 <main class="page" data-drop-cap={data.dropCap ? '' : undefined}>
   <Intro intro={data.intro} model={data.model} />
   <Blocks model={data.model} preview={data.formNote} eagerFirstImage={!data.intro.hero} />
 </main>
+<SiteFooter chrome={data.chrome} credit={data.credit} locale={data.locale} />

@@ -26,7 +26,8 @@ import {
   introOf,
 } from '#lib/server/content/preview.js';
 import { runtime } from '#lib/server/runtime.js';
-import { siteBrand, siteTheme } from '#lib/server/public/theme.js';
+import { chromeModel } from '#lib/server/public/chrome.js';
+import { siteTheme } from '#lib/server/public/theme.js';
 import { langOf, ui } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 import { refuse, refusalOf } from '#lib/server/http/refuse.js';
@@ -96,7 +97,6 @@ export const actions: Actions = {
       introOf(principal, doc, locale, live).then((intro) => resolveIntro(source, intro, locale)),
       siteTheme(site),
     ]);
-    const brand = await siteBrand(site);
     const admin = langOf(locals);
     locals.lang = locale;
     return {
@@ -107,13 +107,7 @@ export const actions: Actions = {
       dropCap: doc.type === 'article' && theme.dropCap === 'articles',
       issues: readinessIssues(doc, locale).map((issue) => issue.path),
       theme: { href: `${base}/_theme/${theme.hash}.css`, preload: theme.preload },
-      brand: {
-        name: tenant.name,
-        logo: brand.logo.active ? `${base}/_brand/logo/${brand.logo.version}.webp` : null,
-        width: brand.logo.width,
-        height: brand.logo.height,
-        wordmark: brand.font.active,
-      },
+      ...(await chromeModel(site, locale, base)),
       formNote: ui(admin)('admin.content.preview.form'),
     };
   },

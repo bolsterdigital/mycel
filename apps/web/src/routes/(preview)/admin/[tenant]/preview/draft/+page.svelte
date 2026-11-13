@@ -3,6 +3,8 @@
 <script lang="ts">
   import Blocks from '#lib/blocks/Blocks.svelte';
   import Intro from '#lib/blocks/Intro.svelte';
+  import SiteFooter from '#lib/components/SiteFooter.svelte';
+  import SiteHeader from '#lib/components/SiteHeader.svelte';
   import { ui } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -30,17 +32,7 @@
       </ul>
     {/if}
   </aside>
-  <header class="site-header">
-    <span class="site-identity">
-      {#if form.brand.logo}<img
-          src={form.brand.logo}
-          width={form.brand.width ?? 1}
-          height={form.brand.height ?? 1}
-          alt=""
-        />{/if}
-      <span class:site-wordmark={form.brand.wordmark}>{form.brand.name}</span>
-    </span>
-  </header>
+  <SiteHeader chrome={form.chrome} locale={form.locale} />
   <!-- `data-live-preview-rendered`: the editor shows this frame only once it carries the mark, so
        a refused draft (an error page) never replaces the last good image (#66 PR 6d). -->
   <main class="page" data-drop-cap={form.dropCap ? '' : undefined} data-live-preview-rendered>
@@ -52,6 +44,7 @@
       eagerFirstImage={!form.intro.hero}
     />
   </main>
+  <SiteFooter chrome={form.chrome} credit={form.credit} locale={form.locale} />
   <script type="module" src="/_admin/live-preview-child.js"></script>
 {:else}
   <main class="page"><h1>{t('admin.content.preview.live')}</h1></main>
