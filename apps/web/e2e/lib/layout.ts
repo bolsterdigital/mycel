@@ -765,3 +765,219 @@ export function mediaBlockProblems(page: Page, sizes: boolean): Promise<string[]
     return [...new Set(out)];
   }, sizes);
 }
+
+// Hero, CTA and form: every hero variant (existing content only, ADR 025), every CTA variant and
+// width with one and two actions, the longest label the schema allows, and every form variant and
+// width, between prose, in nl and en. Each form block references its own form: one form twice on
+// a page repeats its field ids. Rejected: the registry examples, which put one block alone on a
+// page and never a hero or a form between paragraphs.
+
+const LONG_LABEL = {
+  nl: 'Schrijf je vandaag nog in voor de maandelijkse nieuwsbrief over lokale woningbouwplannen',
+  en: 'Subscribe today to the monthly newsletter on local housing plans',
+};
+
+/** The blocks of the hero, CTA and form page; `forms` holds four form ids, `version` each type's. */
+export function actionBlocks(
+  image: string,
+  forms: [string, string, string, string],
+  version: { hero: number; cta: number; form: number; 'signup-form': number; 'rich-text': number }
+) {
+  const prose = (id: string, text: { nl: string; en: string } = LONG) => ({
+    id,
+    type: 'rich-text',
+    version: version['rich-text'],
+    props: { content: { nl: doc(para(text.nl)), en: doc(para(text.en)) } },
+  });
+  const action = (label: { nl: string; en: string }, url: string) => ({
+    label,
+    target: { kind: 'url', url },
+  });
+  const sign = action({ nl: 'Teken de petitie', en: 'Sign the petition' }, '/teken');
+  const long = action(LONG_LABEL, '/nieuwsbrief');
+  const title = {
+    nl: 'Samen maken we de oversteek bij de basisschool veilig voor alle kinderen',
+    en: 'Together we make the crossing by the primary school safe for every child',
+  };
+  const body = LONG;
+  const hero = (id: string, props: object) => ({ id, type: 'hero', version: version.hero, props });
+  const cta = (id: string, props: object) => ({ id, type: 'cta', version: version.cta, props });
+  const form = (id: string, formId: string, props: object = {}) => ({
+    id,
+    type: 'form',
+    version: version.form,
+    props: { formId, ...props },
+  });
+  const picture = {
+    mediaId: image,
+    decorative: false,
+    alt: { nl: 'Demonstranten op het Malieveld', en: 'Protesters on the Malieveld' },
+  };
+  return [
+    hero('action-hero-minimal', { title, body, actions: [sign] }),
+    prose('action-prose-open'),
+    hero('action-hero-cover', {
+      variant: 'cover',
+      title,
+      body,
+      image: picture,
+      actions: [sign, long],
+    }),
+    hero('action-hero-split', { variant: 'split', title, body, image: picture, actions: [long] }),
+    hero('action-hero-split-wide', {
+      variant: 'split',
+      title,
+      image: picture,
+      actions: [sign],
+      width: 'wide',
+      align: 'end',
+    }),
+    hero('action-hero-content', { title: { nl: 'Nieuws', en: 'News' }, width: 'content' }),
+    prose('action-prose-ctas'),
+    cta('action-cta-band', { title, body, actions: [sign] }),
+    cta('action-cta-card-wide', {
+      variant: 'card',
+      title,
+      actions: [sign, long],
+      width: 'wide',
+      align: 'center',
+    }),
+    cta('action-cta-band-full', {
+      title,
+      body,
+      actions: [long, sign],
+      width: 'full',
+      align: 'end',
+    }),
+    cta('action-cta-card-full', { variant: 'card', title, actions: [sign], width: 'full' }),
+    prose('action-prose-forms'),
+    form('action-form-default', forms[0]),
+    form('action-form-card-wide', forms[1], { variant: 'card', width: 'wide' }),
+    form('action-form-card-full', forms[2], { variant: 'card', width: 'full' }),
+    {
+      id: 'action-signup',
+      type: 'signup-form',
+      version: version['signup-form'],
+      props: { formId: forms[3] },
+    },
+    prose('action-prose-close', { nl: 'Kort.', en: 'Short.' }),
+  ];
+}
+
+/** What is off about the page's heroes, CTAs and forms, measured against probe elements of its
+ *  own rails: each block sits on the rail its width names, its text, actions and fields stay
+ *  within the gutters and, where nothing frames them (a minimal hero, a CTA, a form), on the
+ *  content rail; every action shows its whole label in a target of at least 44 px, and the
+ *  actions read in DOM order; a split hero's text keeps a gutter from its image, a cover's panel
+ *  starts or ends on the wide rail; nothing reaches past its block, and a hero image fills its
+ *  column without being stretched. */
+export function actionBlockProblems(page: Page): Promise<string[]> {
+  return page.evaluate(async () => {
+    const out: string[] = [];
+    const main = document.querySelector('main.page')!;
+    const rail = (className: string) => {
+      const probe = document.createElement('div');
+      probe.className = className;
+      main.append(probe);
+      const r = probe.getBoundingClientRect();
+      probe.remove();
+      return r;
+    };
+    const rails: Record<string, DOMRect> = {
+      content: rail(''),
+      wide: rail('layout-wide'),
+      full: rail('layout-full'),
+    };
+    const probe = document.createElement('div');
+    probe.style.width = 'var(--gutter)';
+    main.append(probe);
+    const gutter = probe.getBoundingClientRect().width;
+    probe.remove();
+    const off = (a: DOMRect, b: DOMRect) =>
+      Math.abs(a.left - b.left) > 1 || Math.abs(a.right - b.right) > 1;
+    const outside = (a: DOMRect, b: DOMRect) => a.left < b.left - 1 || a.right > b.right + 1;
+    const imgs = [...main.querySelectorAll('img')];
+    for (const img of imgs) img.loading = 'eager';
+    await Promise.all(imgs.map((img) => img.decode().catch(() => undefined)));
+    const blocks = [...main.querySelectorAll(':scope .hero, :scope .cta, :scope .form')];
+    if (!blocks.length) out.push('no hero, CTA or form blocks');
+    for (const [at, block] of blocks.entries()) {
+      const label = `${at} ${block.className}`;
+      const box = block.getBoundingClientRect();
+      const width = /width-(wide|full|content)\b/.exec(block.className)?.[1] ?? 'content';
+      if (off(box, rails[width]!)) out.push(`${label}: not on the ${width} rail`);
+      const inner = block.matches('.hero')
+        ? [...block.querySelectorAll('.hero-text > *')]
+        : block.matches('.form')
+          ? [...block.querySelectorAll('.field, .signup > :is(p, button, .error-summary)')]
+          : [...block.children];
+      const framed = block.matches('.hero-cover, .hero-split');
+      const within = framed
+        ? new DOMRect(rails.full!.left + gutter, 0, rails.full!.width - 2 * gutter, 0)
+        : rails.content!;
+      for (const part of inner) {
+        const r = part.getBoundingClientRect();
+        if (r.width && outside(r, within))
+          out.push(
+            `${label}: ${part.className || part.tagName.toLowerCase()} past the ${framed ? 'gutters' : 'content rail'}`
+          );
+      }
+      const media = block.querySelector('.hero-media')?.getBoundingClientRect();
+      const text = block.querySelector('.hero-text')?.getBoundingClientRect();
+      if (media && text && block.matches('.hero-split') && text.top < media.bottom - 1)
+        for (const part of inner) {
+          const r = part.getBoundingClientRect();
+          if (r.width && r.left < media.right + gutter - 1)
+            out.push(`${label}: text against the image`);
+        }
+      if (text && block.matches('.hero-cover')) {
+        const start = Math.max(box.left + gutter, rails.wide!.left);
+        const end = Math.min(box.right - gutter, rails.wide!.right);
+        const align = /align-(start|center|end)/.exec(block.className)?.[1];
+        if (
+          (align === 'start' && Math.abs(text.left - start) > 1) ||
+          (align === 'end' && Math.abs(text.right - end) > 1) ||
+          (align === 'center' && Math.abs(text.left + text.right - box.left - box.right) > 2)
+        )
+          out.push(`${label}: panel not on the wide rail`);
+      }
+      const buttons = [...block.querySelectorAll<HTMLElement>('.actions .button')];
+      for (const [i, b] of buttons.entries()) {
+        const r = b.getBoundingClientRect();
+        if (r.height < 44 - 0.5 || r.width < 44 - 0.5) out.push(`${label}: action ${i} under 44px`);
+        if (b.scrollWidth > b.clientWidth + 1 || b.scrollHeight > b.clientHeight + 1)
+          out.push(`${label}: action ${i} label cut`);
+        const prev = buttons[i - 1]?.getBoundingClientRect();
+        if (
+          prev &&
+          !(
+            r.top >= prev.bottom - 1 ||
+            (Math.abs(r.top - prev.top) < 1 && r.left >= prev.right - 1)
+          )
+        )
+          out.push(`${label}: action ${i} before action ${i - 1}`);
+      }
+      for (const el of block.querySelectorAll('*')) {
+        if (el.closest('.hp')) continue;
+        for (const r of el.getClientRects())
+          if (r.width && outside(r, box))
+            out.push(`${label}: ${el.tagName.toLowerCase()} past the block`);
+      }
+      const img = block.querySelector('img');
+      if (img) {
+        const r = img.getBoundingClientRect();
+        const column = block.querySelector('.hero-media')!.getBoundingClientRect();
+        if (Math.abs(r.width - column.width) > 1)
+          out.push(`${label}: image ${r.width}px in ${column.width}px`);
+        if (!img.naturalWidth) out.push(`${label}: image not loaded`);
+        else if (
+          getComputedStyle(img).objectFit !== 'cover' &&
+          Math.abs(r.width / r.height - img.naturalWidth / img.naturalHeight) >
+            0.01 * (r.width / r.height)
+        )
+          out.push(`${label}: image stretched`);
+      }
+    }
+    return [...new Set(out)];
+  });
+}
