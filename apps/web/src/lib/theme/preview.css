@@ -1,5 +1,11 @@
 /* The banner on top of the admin preview (TODO #11 A1). The page below it is the site's own
-   theme; the banner only uses the theme's custom properties, so it reads in every theme. */
+   theme; the banner only uses the theme's custom properties, so it reads in every theme.
+   The build links this file before base.css, so it states base.css's layer order first: a lone
+   `@layer components` here made components the weakest layer in the preview, and the site's
+   `components` rules (the page's first element giving up its margin) lost to `base`.
+   Rejected: relying on import order, which the bundler decides. */
+@layer tokens, base, components;
+
 @layer components {
   .preview-banner {
     margin: 0;

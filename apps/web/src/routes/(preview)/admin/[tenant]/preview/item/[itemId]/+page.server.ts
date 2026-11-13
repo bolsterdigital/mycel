@@ -14,7 +14,8 @@ import {
   introOf,
 } from '#lib/server/content/preview.js';
 import { runtime } from '#lib/server/runtime.js';
-import { siteBrand, siteTheme } from '#lib/server/public/theme.js';
+import { chromeModel } from '#lib/server/public/chrome.js';
+import { siteTheme } from '#lib/server/public/theme.js';
 import { resolveDocument, resolveIntro, runtimeSource } from '#lib/blocks/resolve.js';
 import { langOf, ui } from '../../../../../../../i18n/index.js';
 import type { PageServerLoad } from './$types';
@@ -54,7 +55,6 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
   const live = item.publication.find((p) => p.locale === locale)?.publishedAt ?? null;
   const intro = await resolveIntro(source, await introOf(principal, doc, locale, live), locale);
   const theme = await siteTheme(site);
-  const brand = await siteBrand(site);
   const admin = langOf(locals);
   locals.lang = locale;
   return {
@@ -63,13 +63,7 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
     intro,
     dropCap: doc.type === 'article' && theme.dropCap === 'articles',
     theme: { href: `${base}/_theme/${theme.hash}.css`, preload: theme.preload },
-    brand: {
-      name: tenant.name,
-      logo: brand.logo.active ? `${base}/_brand/logo/${brand.logo.version}.webp` : null,
-      width: brand.logo.width,
-      height: brand.logo.height,
-      wordmark: brand.font.active,
-    },
+    ...(await chromeModel(site, locale, base)),
     issues: readinessIssues(doc, locale).map((i) => i.path),
     revision: {
       when: when(revision.createdAt, (await adminTimeZone(locals)).zone),

@@ -1,6 +1,7 @@
 <script lang="ts">
   import '#lib/theme/base.css';
-  import MycelCredit from '#lib/components/MycelCredit.svelte';
+  import SiteFooter from '#lib/components/SiteFooter.svelte';
+  import SiteHeader from '#lib/components/SiteHeader.svelte';
   import { ui } from '../../i18n/index.js';
   import type { LayoutProps } from './$types';
 
@@ -19,36 +20,7 @@
 
 {#if data.chrome}
   <a class="public-skip" href="#public-main">{t('public.skip')}</a>
-  <header class="site-header">
-    <a class="site-identity" href={data.chrome.home} aria-label={data.chrome.name}>
-      {#if data.chrome.logo}<img
-          src={data.chrome.logo.src}
-          width={data.chrome.logo.width}
-          height={data.chrome.logo.height}
-          alt=""
-        />{/if}
-      <span class:site-wordmark={data.chrome.wordmark}>{data.chrome.name}</span>
-    </a>
-    {#if data.chrome.navigation.length}
-      <nav aria-label={t('public.navigation')}>
-        {#each data.chrome.navigation as item (item.href)}<a href={item.href}>{item.label}</a
-          >{/each}
-      </nav>
-    {/if}
-  </header>
+  <SiteHeader chrome={data.chrome} locale={data.locale} />
 {/if}
 <div id="public-main">{@render children()}</div>
-{#if data.chrome}
-  <footer class="site-footer">
-    {#if data.chrome.footer}<p>{data.chrome.footer}</p>{/if}
-    {#if data.chrome.legal.length || data.chrome.support || data.chrome.help}
-      <nav aria-label={t('public.footerNavigation')}>
-        {#each data.chrome.legal as item (item.href)}<a href={item.href}>{item.label}</a>{/each}
-        {#if data.chrome.support}<a href={data.chrome.support.href}>{data.chrome.support.label}</a
-          >{/if}
-        {#if data.chrome.help}<a href={data.chrome.help.href}>{data.chrome.help.label}</a>{/if}
-      </nav>
-    {/if}
-    {#if data.credit}<MycelCredit {...data.credit} />{/if}
-  </footer>
-{/if}
+{#if data.chrome}<SiteFooter chrome={data.chrome} credit={data.credit} locale={data.locale} />{/if}

@@ -186,3 +186,22 @@ export async function emptyProse(page: Page) {
     await expect(prose).toHaveText('', { timeout: 1000 });
   }).toPass();
 }
+
+// Sends the edit form as it stands to the unsaved-document route, as the live-preview panel does.
+// An article has no live-preview panel yet, so its specs post the unchanged native form themselves.
+export async function postDraftPreview(page: Page, itemId: string) {
+  await page.locator('[data-live-preview-source]').evaluate((node, id) => {
+    const form = node as HTMLFormElement;
+    form.action = '/admin/probe/preview/draft';
+    for (const [name, value] of [
+      ['itemId', id],
+      ['previewLocale', 'nl'],
+    ]) {
+      const input = document.createElement('input');
+      input.name = name!;
+      input.value = value!;
+      form.append(input);
+    }
+    form.submit();
+  }, itemId);
+}
