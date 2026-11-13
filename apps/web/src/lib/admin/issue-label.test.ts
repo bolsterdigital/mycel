@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { issueLabel } from './issue-label.js';
+import { fieldAnchor, issueLabel } from './issue-label.js';
 
 describe('issueLabel', () => {
   it('names an issue by the label of its field, its locale and its block', () => {
@@ -30,5 +30,17 @@ describe('issueLabel', () => {
       block: null,
     });
     expect(issueLabel('somethingElse', locales)).toBeNull();
+  });
+});
+
+describe('fieldAnchor', () => {
+  it('links the writer to its own surface, not to a mangled block id (#234)', () => {
+    expect(fieldAnchor('articleEditor', 'nl')).toBe('articleEditor');
+  });
+  it('keeps the rule for document fields, locales and block fields', () => {
+    expect(fieldAnchor('teaser', 'nl')).toBe('teaser');
+    expect(fieldAnchor('locales', 'nl')).toBe('locale-nl');
+    expect(fieldAnchor('b.abc.p.text.nl', 'nl')).toBe('b-abc-p-text-nl');
+    expect(fieldAnchor('new.p.text.nl', 'nl')).toBe('b-new-p-text-nl');
   });
 });

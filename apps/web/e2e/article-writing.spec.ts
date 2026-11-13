@@ -527,6 +527,14 @@ test.describe('article-writing', () => {
       if (action !== 'writer') {
         await expect(alert).toContainText('Het blok kon niet worden opgeslagen:');
         await expect(alert.locator('li a')).toHaveCount(0);
+      } else {
+        // The writer's issue links to the writing surface itself, an element that exists (#234),
+        // and following it hands focus to the editor.
+        const link = alert.locator('li a');
+        await expect(link).toHaveAttribute('href', '#articleEditor');
+        await expect(page.locator('#articleEditor')).toHaveCount(1);
+        await link.click();
+        await expect(page.locator('#articleEditor .ProseMirror')).toBeFocused();
       }
       expect(await blocks()).toEqual(before);
       if (isA11y()) await expectNoAxeViolations(page);

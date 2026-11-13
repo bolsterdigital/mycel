@@ -541,9 +541,11 @@
     }
     // A link in a refusal summary names the hidden textarea, which takes no focus: the editor does
     // (#130). Rejected: moving the id here, which unlabels the textarea that still posts the field.
+    // The article writer has no textarea; its link names the surface below (#234).
+    const anchor = nativeId ?? (article ? name : undefined);
     const toField = (event: MouseEvent) => {
-      if (!nativeId || !(event.target instanceof Element)) return;
-      const link = event.target.closest(`a[href="#${CSS.escape(nativeId)}"]`);
+      if (!anchor || !(event.target instanceof Element)) return;
+      const link = event.target.closest(`a[href="#${CSS.escape(anchor)}"]`);
       if (link) instance.commands.focus();
     };
     document.addEventListener('click', toField);
@@ -590,7 +592,7 @@
 {/snippet}
 
 <input type="hidden" {name} value={payload} />
-<div class="writing" class:active bind:this={frame}>
+<div class="writing" id={article ? name : undefined} class:active bind:this={frame}>
   <WritingSheet hidden={!active && !preview}>
     {#snippet toolbar()}
       <div class="writing-actions" hidden={!active && !preview}>

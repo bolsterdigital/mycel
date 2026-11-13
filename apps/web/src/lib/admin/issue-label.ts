@@ -58,3 +58,19 @@ export const DOC_FIELDS: Record<string, UiKey> = {
   slug: 'admin.content.slug',
   heroAlt: 'admin.content.field.heroAlt',
 };
+
+/** The posted name of the article writer; its surface carries the same string as element id. */
+export const WRITER_FIELD = 'articleEditor';
+
+/**
+ * The element id a refused field links to (#234): a document field by its name, the writer by its
+ * own surface, a block field as `b-<block id>-p-…` and the pending block as `b-new-p-…`.
+ * Rejected: deriving the writer from the block rule, which read `articleEditor` as `b.<id>.…` and
+ * produced `#b-ticleEditor`, a link to nothing.
+ */
+export function fieldAnchor(name: string, defaultLocale: string): string {
+  if (name === 'locales') return `locale-${defaultLocale}`;
+  if (name in DOC_FIELDS || name === WRITER_FIELD) return name;
+  if (name.startsWith('new.')) return `b-new-${name.slice(4).replaceAll('.', '-')}`;
+  return `b-${name.slice(2).replaceAll('.', '-')}`;
+}
