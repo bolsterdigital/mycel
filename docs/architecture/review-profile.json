@@ -82,6 +82,10 @@
         "apps/web/src/lib/server/admin/hostname*",
         "apps/web/src/lib/server/admin/profile*",
         "packages/core/src/content/people/public.ts",
+        "packages/core/src/content/published/**",
+        "packages/db/src/content/published.ts",
+        "apps/web/src/routes/(public)/[tenant]/sitemap.xml/**",
+        "apps/web/src/routes/(public)/[tenant]/robots.txt/**",
         "apps/web/src/lib/public/structured-data.ts",
         "apps/web/src/lib/server/public/person-page.ts",
         "apps/web/src/lib/server/forms/**"
@@ -113,6 +117,7 @@
         "packages/core/src/campaigns/**",
         "packages/db/src/campaigns/**",
         "packages/db/src/content*",
+        "packages/db/src/content/**",
         "packages/db/src/people/**",
         "apps/web/src/routes/(public)/**",
         "apps/web/src/lib/server/public/content-route*",

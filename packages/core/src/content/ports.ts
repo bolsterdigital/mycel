@@ -78,6 +78,34 @@ export interface OfferedLocale {
   since: Date;
 }
 
+/**
+ * One published locale of an item, as the public list (`content.published.list`) reads it:
+ * the publication pointer and the few fields a sitemap or feed decides on, never a document.
+ * `noindex`, `sectionId` and `access` are those of the published revision, not of a later draft.
+ */
+export interface PublishedEntry {
+  itemId: string;
+  type: ContentType;
+  slug: string;
+  locale: string;
+  /** Every published locale of the item, in the item's locale order. */
+  locales: string[];
+  revisionId: string;
+  publishedAt: Date;
+  /** When the published revision was saved. */
+  updatedAt: Date;
+  noindex: boolean;
+  sectionId: string | null;
+  access: 'public' | 'members' | 'tier';
+}
+
+/** Where a page of the published list starts: after this row of its order. */
+export interface PublishedPosition {
+  publishedAt: Date;
+  itemId: string;
+  locale: string;
+}
+
 /** An item in the trash, with the moment it went there (ADR 030). */
 export interface TrashedItem {
   item: ItemRecord;
@@ -120,6 +148,16 @@ export interface ContentRepository {
   insertRevision(revision: Revision): Promise<void>;
   /** Items whose latest (or, with `live`, published) revision matches; newest first. */
   find(filter: FindFilter, after: string | null, limit: number): Promise<Paged<ItemMatch>>;
+  /**
+   * One row per published locale of an item outside the trash, newest publication first, then
+   * by item id and locale (code-point order) ascending; `after` is the last row of the previous
+   * page. The order is core's (`comparePublished`); timestamps compare at millisecond precision.
+   */
+  listPublished(
+    filter: { type?: ContentType | undefined; sectionId?: string | undefined },
+    after: PublishedPosition | null,
+    limit: number
+  ): Promise<PublishedEntry[]>;
   /** The item if it is in the trash, locked for the rest of the transaction; else null. */
   lockTrashed(itemId: string): Promise<ItemRecord | null>;
   /** Moves a locked item to the trash and stamps `updatedAt`; its address becomes free. */

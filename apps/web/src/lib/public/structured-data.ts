@@ -37,14 +37,19 @@ export function articleData(
   absolute: (path: string) => string
 ) {
   if (item.type !== 'article') return null;
+  // NewsArticle: free access follows the served revision's level, the section is its public
+  // name. Only fields the projection already releases; never a body fragment, so a restricted
+  // article (once readers sign in) adds no text here. `dateModified` is the published revision's save.
   return {
     '@context': 'https://schema.org',
-    '@type': 'Article',
+    '@type': 'NewsArticle',
     url: canonical,
     headline: item.title,
     datePublished: item.publishedAt,
     dateModified: item.updatedAt,
     inLanguage: locale,
+    isAccessibleForFree: item.access === 'public',
+    ...(item.section ? { articleSection: item.section.name } : {}),
     author: (item.authors ?? []).map((person) => ({
       '@type': 'Person',
       name: person.name,

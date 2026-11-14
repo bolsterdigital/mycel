@@ -28,6 +28,7 @@ import {
   type SluggedRepository,
 } from '@mycel/core';
 import type { Database } from './infra/schema.js';
+import { listPublished } from './content/published.js';
 import { toIso } from './infra/dates.js';
 
 type Trx = Kysely<Database>;
@@ -449,6 +450,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         next: page.next,
       };
     },
+    listPublished: listPublished(trx),
     async liveReferences(ref) {
       const row = await trx
         .selectFrom('content_item_locales as l')

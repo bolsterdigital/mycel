@@ -130,14 +130,16 @@
     "robots-txt": {
       "category": "seo",
       "level": "recommended",
-      "status": "open",
-      "gap": "robots.txt is the framework default for every host: no sitemap reference, no per-tenant file"
+      "status": "covered",
+      "file": "apps/web/e2e/lib/published-representations.ts",
+      "note": "per-tenant robots.txt names the sitemap on the primary hostname"
     },
     "xml-sitemaps": {
       "category": "seo",
       "level": "recommended",
-      "status": "open",
-      "gap": "Profile-only sitemap exists; general published content enumeration remains open."
+      "status": "covered",
+      "file": "apps/web/e2e/lib/published-representations.ts",
+      "note": "published, indexable locales with lastmod and alternates, plus public people"
     },
     "sitemap-index": {
       "category": "seo",

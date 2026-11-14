@@ -4,12 +4,14 @@
 import { allBlocks } from '../../content/blocks.js';
 import { documentReferences, type Revision } from '../../content/model.js';
 import { compareItems, matchesItemDocument, matchesItemFilter } from '../../content/listing.js';
+import { comparePublished } from '../../content/published/list.js';
 import type {
   BulkPlanRepository,
   ContentRepository,
   ItemMatch,
   ItemRecord,
   PresenceRepository,
+  PublishedEntry,
 } from '../../content/ports.js';
 import { PRESENCE_READ_LIMIT } from '../../content/presence/model.js';
 import type { TransactionContext } from '../../ports.js';
@@ -49,6 +51,46 @@ function memoryTrash(
   };
 }
 
+/** The public list, by core's order (`comparePublished`), over the publication pointers. */
+function memoryPublished(
+  s: TenantStore,
+  kept: () => ItemRecord[]
+): Pick<ContentRepository, 'listPublished'> {
+  return {
+    async listPublished({ type, sectionId }, after, limit) {
+      const rows: PublishedEntry[] = kept().flatMap((item) => {
+        if (type && item.type !== type) return [];
+        const live = item.publication.filter((p) => p.publishedRevisionId);
+        return live.flatMap((p) => {
+          const revision = s.revisions.get(p.publishedRevisionId!)!;
+          const doc = revision.document;
+          const section = doc.type === 'article' ? (doc.sectionId ?? null) : null;
+          if (sectionId && section !== sectionId) return [];
+          return [
+            {
+              itemId: item.id,
+              type: item.type,
+              slug: item.slug,
+              locale: p.locale,
+              locales: live.map((l) => l.locale),
+              revisionId: revision.id,
+              publishedAt: new Date(p.publishedAt!.getTime()),
+              updatedAt: new Date(revision.createdAt),
+              noindex: doc.seo.noindex,
+              sectionId: section,
+              access: doc.access.level,
+            },
+          ];
+        });
+      });
+      return rows
+        .sort(comparePublished)
+        .filter((r) => after === null || comparePublished(after, r) < 0)
+        .slice(0, limit);
+    },
+  };
+}
+
 export function memoryContent(s: TenantStore): ContentRepository {
   const insertRevision = (r: Revision) => {
     s.revisions.set(r.id, structuredClone(r));
@@ -64,6 +106,7 @@ export function memoryContent(s: TenantStore): ContentRepository {
     findBySlug: async (type, slug) =>
       structuredClone(kept().find((i) => i.type === type && i.slug === slug) ?? null),
     ...memoryTrash(s, kept),
+    ...memoryPublished(s, kept),
     async list(filter, { order, after, offset, limit }) {
       const compare = compareItems(order, filter.locale);
       const matching = kept().filter((i) => {
