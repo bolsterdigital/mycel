@@ -6,6 +6,7 @@
 
 import { exercisePeopleGrid } from './lib/people/grid';
 import { exercisePublicPeople } from './lib/people/public';
+import { exercisePublishedRepresentations } from './lib/published-representations';
 import { openPublication, closePublication } from './lib/publication';
 import { randomBytes } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -2199,6 +2200,10 @@ test.describe('site-settings', () => {
 
 test('public profiles share policy across HTML, bylines and discovery', async ({ page }) => {
   await exercisePublicPeople(page);
+});
+
+test('noindex, canonical, sitemap and robots.txt follow publication', async ({ page }) => {
+  await exercisePublishedRepresentations(page);
 });
 
 test('authored people grids show teams without exposing internal email or unavailable links', async ({
