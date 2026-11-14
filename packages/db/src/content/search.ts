@@ -20,7 +20,7 @@
 // running meanwhile waits and then writes its own rows over a finished rebuild. It removes rows
 // per locked item, never per tenant: an item first published while the rebuild waits for a lock
 // is not in its list, and a tenant-wide delete would take that item's fresh row with it. Rejected:
-// one `delete from content_search` for the tenant (lost exactly that row, review of PR #426).
+// one `delete from content_search` for the tenant (it lost exactly that row).
 
 import { sql, type Kysely } from 'kysely';
 import {

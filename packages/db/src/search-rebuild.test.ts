@@ -3,7 +3,7 @@
 // the migration, finds nothing; after the rebuild it finds what a fresh publication would, no more
 // (restricted, `noindex` and drafts stay out), another tenant's rows are untouched, a second
 // run changes nothing, and an item first published while the rebuild waits for a row lock keeps
-// its index row (the counterproof of the PR #426 review). Real Postgres only: the memory adapter has no index to lose. Skips without
+// its index row. Real Postgres only: the memory adapter has no index to lose. Skips without
 // DATABASE_URL; in CI that is a failure.
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
