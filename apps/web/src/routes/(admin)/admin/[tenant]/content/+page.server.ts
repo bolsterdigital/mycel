@@ -385,9 +385,11 @@ export const actions: Actions = {
       event,
       'delete',
       {
-        // The one conflict `content.item.delete` has; the params name the linking items.
+        // `content.item.delete` has two conflicts: other items link to this one (the params name
+        // them), or it is the landing page of a campaign that is not archived (ADR 033 rule 9).
         conflict: 'admin.content.delete.referenced',
         notFound: 'admin.content.delete.refused',
+        issues: { 'content.delete.campaign-landing': 'admin.content.delete.campaignLanding' },
       },
       async (principal, form) => {
         await runtime().invoker.run(useCases.deleteItem, principal, {
