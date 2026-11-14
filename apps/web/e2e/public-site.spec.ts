@@ -46,7 +46,7 @@ import {
 import { login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
-import { themeCss } from '../src/lib/theme/tokens';
+import { CAPTION_MONO, themeCss } from '../src/lib/theme/tokens';
 
 // The block renderer on two composed pages (TODO #8c1, brief #8c § 5), seeded by scripts/e2e/e2e.mjs
 // from the registry's own examples: `campagne` (hero cover, rich text, cta card, wide image, FAQ
@@ -574,30 +574,40 @@ test.describe('content-routes', () => {
     expect(thanks.headers()['cache-control']).toBe('no-store');
   });
 
+  /**
+   * A copy of the quality article with a lead and its first block image as hero: synthetic
+   * assets that are already public and ready, never an upload. One item per project and slug:
+   * two creates of one slug at once answer 500 instead of 409.
+   */
+  const heroArticle = async (
+    request: APIRequestContext,
+    slug: string,
+    edit: (doc: ContentDocument) => void
+  ) => {
+    const { items } = await callApi(request, 'content.item.list', { type: 'article', slug });
+    if (items[0]) return callApi(request, 'content.item.get', { itemId: items[0].id });
+    const [source] = (
+      await callApi(request, 'content.item.list', { type: 'article', slug: 'quality-article-v3' })
+    ).items;
+    const { revision } = await callApi(request, 'content.item.get', { itemId: source.id });
+    const doc: ContentDocument = structuredClone(revision.document);
+    const image = doc.blocks.find((b) => b.type === 'image');
+    expect(image, 'the quality article has an image block').toBeTruthy();
+    doc.lead = { nl: 'Een straat die ruimte maakt.', en: 'A street that makes room.' };
+    doc.heroImageId = (image!.props as { mediaId: string }).mediaId;
+    // A described hero (#99): its alt in the locale on screen.
+    doc.heroAlt = { nl: 'Een straat met bomen.', en: 'A street with trees.' };
+    doc.locales = doc.locales.filter((l) => l === 'nl' || l === 'en');
+    edit(doc);
+    return callApi(request, 'content.item.create', { slug, document: doc });
+  };
+
   test('an article shows its lead, hero and drop cap, whole at 320 px and 200% text (#86)', async ({
     page,
     request,
   }) => {
-    // A copy of the quality article with a lead and its first block image as hero: synthetic
-    // assets that are already public and ready, never an upload.
-    // One item per project: two creates of one slug at once answer 500 instead of 409.
     const slug = `e2e-intro-99-${isA11y() ? 'a11y' : 'no-js'}`;
-    const { items } = await callApi(request, 'content.item.list', { type: 'article', slug });
-    let target = items[0]
-      ? await callApi(request, 'content.item.get', { itemId: items[0].id })
-      : null;
-    if (!target) {
-      const [source] = (
-        await callApi(request, 'content.item.list', { type: 'article', slug: 'quality-article-v3' })
-      ).items;
-      const { revision } = await callApi(request, 'content.item.get', { itemId: source.id });
-      const doc: ContentDocument = structuredClone(revision.document);
-      const image = doc.blocks.find((b) => b.type === 'image');
-      expect(image, 'the quality article has an image block').toBeTruthy();
-      doc.lead = { nl: 'Een straat die ruimte maakt.', en: 'A street that makes room.' };
-      doc.heroImageId = (image!.props as { mediaId: string }).mediaId;
-      // A described hero (#99): its alt in the locale on screen.
-      doc.heroAlt = { nl: 'Een straat met bomen.', en: 'A street with trees.' };
+    const target = await heroArticle(request, slug, (doc) => {
       // The quality article's text opens with a heading, which by design gets no drop cap.
       const paragraph = (text: string) => ({
         type: 'doc' as const,
@@ -609,9 +619,7 @@ test.describe('content-routes', () => {
         version: 1,
         props: { content: { nl: paragraph('Op de hoek.'), en: paragraph('On the corner.') } },
       } as ContentDocument['blocks'][number]);
-      doc.locales = doc.locales.filter((l) => l === 'nl' || l === 'en');
-      target = await callApi(request, 'content.item.create', { slug, document: doc });
-    }
+    });
     const probe = await tenantId();
     await withInvoker(async (invoker) => {
       for (const locale of ['nl', 'en'])
@@ -940,24 +948,9 @@ test.describe('content-routes', () => {
   /** The article with a cover header, published in nl. */
   const coverArticle = async (request: APIRequestContext) => {
     const slug = `e2e-cover-105-${isA11y() ? 'a11y' : 'no-js'}`;
-    const { items } = await callApi(request, 'content.item.list', { type: 'article', slug });
-    let target = items[0]
-      ? await callApi(request, 'content.item.get', { itemId: items[0].id })
-      : null;
-    if (!target) {
-      const [source] = (
-        await callApi(request, 'content.item.list', { type: 'article', slug: 'quality-article-v3' })
-      ).items;
-      const { revision } = await callApi(request, 'content.item.get', { itemId: source.id });
-      const doc: ContentDocument = structuredClone(revision.document);
-      const image = doc.blocks.find((b) => b.type === 'image');
-      doc.lead = { nl: 'Een straat die ruimte maakt.', en: 'A street that makes room.' };
-      doc.heroImageId = (image!.props as { mediaId: string }).mediaId;
-      doc.heroAlt = { nl: 'Een straat met bomen.', en: 'A street with trees.' };
-      doc.locales = doc.locales.filter((l) => l === 'nl' || l === 'en');
+    const target = await heroArticle(request, slug, (doc) => {
       (doc as { presentation?: { header: string } }).presentation = { header: 'cover' };
-      target = await callApi(request, 'content.item.create', { slug, document: doc });
-    }
+    });
     const probe = await tenantId();
     await withInvoker((invoker) =>
       invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
@@ -1646,6 +1639,8 @@ test.describe('site-settings', () => {
     withInvoker((invoker) => invoker.run(useCases.getSiteTheme, systemPrincipal(id, 'e2e'), {}));
   const chromeState = (id: string) =>
     withInvoker((invoker) => invoker.run(useCases.getSiteChrome, systemPrincipal(id, 'e2e'), {}));
+  const savedOk = (page: Page) =>
+    expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
 
   test.use({
     extraHTTPHeaders: {
@@ -1890,7 +1885,7 @@ test.describe('site-settings', () => {
     await card('dark', 1, 'foreground').fill('');
     await card('dark', 1, 'background').fill('');
     await page.getByRole('button', { name: 'Save theme' }).click();
-    await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+    await savedOk(page);
     const theme = (await themeState(tenantId)).value;
     expect(theme.fontPair).toBe('inter');
     expect(theme.palettes.light.cardAccents).toEqual([
@@ -1909,7 +1904,7 @@ test.describe('site-settings', () => {
     await page.goto(`/admin/${slug}/site?section=chrome`);
     await page.locator('input[name="footer.en"]').fill('New footer');
     await page.locator('form[action$="&/chrome"]').getByRole('button').click();
-    await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+    await savedOk(page);
     let saved = await chromeState(tenantId);
     expect(saved.value.footer).toEqual({
       nl: 'Een onafhankelijke site',
@@ -1930,7 +1925,7 @@ test.describe('site-settings', () => {
     await page.locator('input[name="footer.de"]').fill('');
     await page.locator('input[name="help.href"]').fill('');
     await page.locator('form[action$="&/chrome"]').getByRole('button').click();
-    await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+    await savedOk(page);
     saved = await chromeState(tenantId);
     expect(saved.value.footer.de).toBeUndefined();
     expect(saved.value.help).toBeNull();
@@ -1952,8 +1947,11 @@ test.describe('site-settings', () => {
   });
 
   // #81-rest: the default image (`site.image.update`) has its own form and version beside the
-  // logo, and the theme form carries the drop cap so a later theme save keeps a chosen `off`.
-  test('the default image and the drop cap are chosen in the settings', async ({ page }) => {
+  // logo, and the theme form carries the drop cap so a later theme save keeps a chosen `off`,
+  // and the caption face, which sets a public caption and credit in monospace.
+  test('the default image, drop cap and caption face are chosen in the settings', async ({
+    page,
+  }) => {
     const principal = systemPrincipal(tenantId, 'e2e');
     const filename = `default-${Date.now()}.png`;
     await login(page, `/admin/${slug}/media`, `site-editor-${slug}@probe.test`);
@@ -1976,7 +1974,7 @@ test.describe('site-settings', () => {
       await dialog.getByRole('radio', { name }).check();
       await dialog.getByRole('button', { name: 'Done' }).click();
       await page.getByRole('button', { name: 'Save image' }).click();
-      await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+      await savedOk(page);
     };
     await page.goto(`/admin/${slug}/site?section=brand`);
     await choose(filename);
@@ -1998,13 +1996,34 @@ test.describe('site-settings', () => {
     await expect(dropCap).toHaveValue('articles');
     await dropCap.selectOption('off');
     await page.getByRole('button', { name: 'Save theme' }).click();
-    await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+    await savedOk(page);
     expect((await theme()).value.dropCap).toBe('off');
     await page.goto(`/admin/${slug}/site?section=theme`);
     await expect(dropCap).toHaveValue('off');
+    await page.getByLabel('Caption typeface').selectOption('mono');
     await page.getByRole('button', { name: 'Save theme' }).click();
-    await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
-    expect((await theme()).value.dropCap).toBe('off');
+    await savedOk(page);
+    expect((await theme()).value).toMatchObject({ dropCap: 'off', captionFont: 'mono' });
+    const image = { mediaId: mediaId!, decorative: true, alt: null, caption: { nl: 'Bij' } };
+    const props = { ...image, credit: { work: null, photographer: 'Maker' } };
+    const blocks = [{ type: 'image' as const, version: 1 as const, props }];
+    await withInvoker(async (invoker) => {
+      const { item, revision } = await invoker.run(useCases.createItem, principal, {
+        slug: 'mono',
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: 'B' },
+          blocks,
+        },
+      });
+      const at = { itemId: item.id, revisionId: revision.id, locale: 'nl' };
+      await invoker.run(useCases.publishItem, principal, at);
+    });
+    await page.goto(`/${slug}/mono`);
+    for (const part of ['figcaption', '.credit'])
+      await expect(page.locator(`.image ${part}`)).toHaveCSS('font-family', CAPTION_MONO);
   });
 
   test('single-locale site saves without another translation', async ({ page }) => {

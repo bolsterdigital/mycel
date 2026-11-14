@@ -235,6 +235,11 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.dropCap.hint': 'Een grote eerste letter aan het begin van de tekst van elk artikel.',
   'admin.site.dropCap.articles': 'Aan',
   'admin.site.dropCap.off': 'Uit',
+  'admin.site.captionFont': 'Lettertype van onderschriften',
+  'admin.site.captionFont.hint':
+    'Het lettertype van onderschriften en naamsvermeldingen bij foto’s, video’s en galerijen.',
+  'admin.site.captionFont.body': 'Zoals de lopende tekst',
+  'admin.site.captionFont.mono': 'Monospace (schrijfmachine)',
   'admin.site.images': 'Beeld',
   'admin.site.defaultImage': 'Standaardbeeld',
   'admin.site.defaultImage.hint':

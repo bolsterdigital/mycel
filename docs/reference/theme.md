@@ -18,6 +18,9 @@ Migration 0027 keeps the two active byte sequences and their metadata in `site_s
 | `headingWeight` | 400, 500, 600, 700 or 800                       | 700        |
 | `fontPair`      | `inter` or `source-serif-inter`                 | `inter`    |
 | `dropCap`       | `articles` or `off`                             | `articles` |
+| `captionFont`   | `body` or `mono`                                | `body`     |
+
+`captionFont` is the face of captions and credits under images, videos and galleries: `body` keeps them in the body font, `mono` sets them in the system's monospace (`ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`). It is a closed choice like `dropCap`, not a font name: no file is self-hosted or preloaded for it, and any other value is refused (`theme.value.not-allowed`). A theme stored before the choice has none and reads as `body`. The admin theme form offers it beside the drop cap.
 
 `fontPair` is currently a closed product catalogue: Inter for headings and body, or Source Serif 4 headings with Inter body. Adding one to this schema is a product change; the managed extension route accepted in ADR 022 has a separate compatibility and effective-style contract.
 
@@ -49,18 +52,19 @@ Ratios are WCAG 2.2 relative luminance, compared unrounded; the report rounds to
 
 `themeCss(theme)` turns a `ResolvedTheme` into custom properties, and `apps/web/src/lib/theme/base.css` reads nothing else:
 
-| Theme value              | Custom property                                                                                                                                                                             |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| each role pair           | `--color-<role>-fg`, `--color-<role>-bg` (`body`, `surface`, `primary`, `accent`, `muted`, `warning`)                                                                                       |
-| `link`, `focus`          | `--color-link`, `--color-focus`                                                                                                                                                             |
-| `cardAccents`            | `--card-1-*` to `--card-4-*` (`fg`, `bg`, `bar`, `active-fg`, `active-bg`): one slot per card position, the accents taken round; `action-row.css` maps `:nth-child(k)` onto slot k          |
-| `fontPair`               | `--font-body` (Inter in both pairs), `--font-heading` (Inter or Source Serif 4), plus the `@font-face` rules of that pair only                                                              |
-| `headingWeight`          | `--heading-weight`                                                                                                                                                                          |
-| `baseSize`, `scaleRatio` | `--step--1` to `--step-4`: `baseSize * scaleRatio^n / 16` in `rem`                                                                                                                          |
-| `measure`                | `--measure` in `ch`; the page column reads it through a registered `<length>` property, so headings share the text's column                                                                 |
-| `radius`                 | `--radius` in `rem`                                                                                                                                                                         |
-| `density`                | `--density`, a factor on the spacing steps                                                                                                                                                  |
-| `dropCap`                | none: an article page carries `data-drop-cap` and `base.css` gives the first letter of its first text block the link colour, the one brand colour checked against the body background (#86) |
+| Theme value              | Custom property                                                                                                                                                                                                                           |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| each role pair           | `--color-<role>-fg`, `--color-<role>-bg` (`body`, `surface`, `primary`, `accent`, `muted`, `warning`)                                                                                                                                     |
+| `link`, `focus`          | `--color-link`, `--color-focus`                                                                                                                                                                                                           |
+| `cardAccents`            | `--card-1-*` to `--card-4-*` (`fg`, `bg`, `bar`, `active-fg`, `active-bg`): one slot per card position, the accents taken round; `action-row.css` maps `:nth-child(k)` onto slot k                                                        |
+| `fontPair`               | `--font-body` (Inter in both pairs), `--font-heading` (Inter or Source Serif 4), plus the `@font-face` rules of that pair only                                                                                                            |
+| `headingWeight`          | `--heading-weight`                                                                                                                                                                                                                        |
+| `baseSize`, `scaleRatio` | `--step--1` to `--step-4`: `baseSize * scaleRatio^n / 16` in `rem`                                                                                                                                                                        |
+| `measure`                | `--measure` in `ch`; the page column reads it through a registered `<length>` property, so headings share the text's column                                                                                                               |
+| `radius`                 | `--radius` in `rem`                                                                                                                                                                                                                       |
+| `density`                | `--density`, a factor on the spacing steps                                                                                                                                                                                                |
+| `dropCap`                | none: an article page carries `data-drop-cap` and `base.css` gives the first letter of its first text block the link colour, the one brand colour checked against the body background (#86)                                               |
+| `captionFont`            | `--font-caption`, only for `mono`; `media-blocks.css` reads it on captions and credits, a cover header's caption included, and otherwise inherits the body face, so a `body` theme's stylesheet, hash and URL stay exactly what they were |
 
 The light palette sits in `:root`, the dark one under `@media (prefers-color-scheme: dark)`; both are explicit. Colour is only used as a validated pair: a link is coloured only on body and surface (the two backgrounds the check measures it against) and inherits the pair's foreground elsewhere, always underlined.
 

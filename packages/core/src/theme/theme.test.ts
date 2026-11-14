@@ -175,6 +175,19 @@ describe('Theme and ThemeInput', () => {
       expect(ThemeInput.safeParse(input).success, JSON.stringify(input)).toBe(false);
   });
 
+  it('sets captions in body by default, takes mono and refuses any other face', () => {
+    expect(resolveTheme(ThemeInput.parse({})).captionFont).toBe('body');
+    expect(resolveTheme(ThemeInput.parse({ captionFont: 'mono' })).captionFont).toBe('mono');
+    expect(Theme.parse({ ...DEFAULT_THEME, captionFont: 'mono' }).captionFont).toBe('mono');
+    for (const captionFont of ['serif', 'Courier New', 'monospace', '', null, 1]) {
+      const r = ThemeInput.safeParse({ captionFont });
+      expect(r.success, String(captionFont)).toBe(false);
+      expect(r.success ? [] : r.error.issues.map((i) => i.message)).toEqual([
+        'theme.value.not-allowed',
+      ]);
+    }
+  });
+
   it('uses catalogue keys as messages', () => {
     const r = ThemeInput.safeParse({ ...withLight({ link: 'red' }), baseSize: 99, css: 'x' });
     expect(r.success).toBe(false);
