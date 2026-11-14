@@ -940,8 +940,9 @@
   .site-footer p {
     margin-block: 0 var(--space-1);
   }
-  /* Until step D lays out columns and buttons (#107): a column title starts its own line in the
-     footer's link row, and the first call to action reads as the primary one. */
+  /* Until the navigation panel lays out columns and buttons (ADR 036 rule 12): a column title
+     starts its own line in the footer's link row, and the first call to action reads as the
+     primary one. */
   .site-footer-title {
     flex-basis: 100%;
     margin: var(--space-1) 0 0;

@@ -580,7 +580,7 @@
       saved={saved('chrome')}
       unsaved={t('admin.site.unsaved')}
     >
-      <!-- The menus moved to the navigation document (ADR 036 rule 10, #107 B2). -->
+      <!-- The menus moved to the navigation document (ADR 036 rule 10, migration 0057). -->
       <p>
         {t('admin.site.chrome.menus')} <a href="{base}/navigation">{t('admin.nav.navigation')}</a>
       </p>

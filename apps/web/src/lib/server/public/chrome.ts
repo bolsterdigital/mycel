@@ -7,7 +7,7 @@
 // Rejected: a preview with only the identity, whose two chrome transitions differed from the
 // site's, and links without an href in the preview, a different element than the site renders.
 //
-// The menus come from the published navigation document (ADR 036, #107 B2), resolved in one
+// The menus come from the published navigation document (ADR 036, migration 0057), resolved in one
 // locale with no implicit fallback (rule 10): a link without a label in this locale is not there.
 // Until step D renders the bar and the panel, the header shows the bar's links (a group or a
 // link's sublinks wait for the panel) and the footer the links of each column.

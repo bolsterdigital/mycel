@@ -1,6 +1,6 @@
-// Menus for a public-site test, the way a site gets them since #107 B2: one navigation revision
-// with a main menu, a legal menu and a footer column of URL links, published in each given
-// locale (ADR 036). Replaces the old chrome fields the tests used to write.
+// Menus for a public-site test, the way a site gets them since migration 0057: one navigation
+// revision with a main menu, calls to action, a legal menu and a footer column, published in each
+// given locale (ADR 036). Replaces the old chrome fields the tests used to write.
 // Rejected: going through the menu editor here; the editor has its own tests.
 import { useCases, type Invoker, type Principal } from '@mycel/core';
 
@@ -63,3 +63,35 @@ export async function publishMenus(
       locale,
     });
 }
+
+/** The chrome fixture's menus in three locales: what the old chrome fields held, plus a call to
+ * action and a footer column title. */
+export const CHROME_FIXTURE_MENUS: Links = {
+  main: [
+    { href: '/home', label: { nl: 'Welkom', en: 'Home', de: 'Startseite' } },
+    { href: '/en/home', label: { nl: 'English', en: 'English', de: 'Englisch' } },
+  ],
+  actions: [
+    {
+      href: 'https://example.org/doneer',
+      label: { nl: 'Doneer nu', en: 'Donate now', de: 'Jetzt spenden' },
+    },
+  ],
+  footerTitle: { nl: 'Contact', en: 'Contact', de: 'Kontakt' },
+  legal: [
+    {
+      href: 'https://example.org/privacy',
+      label: { nl: 'Privacyverklaring', en: 'Privacy policy', de: 'Datenschutz' },
+    },
+  ],
+  footer: [
+    {
+      href: 'https://example.org/support',
+      label: { nl: 'Hulp', en: 'Support', de: 'Unterstützung' },
+    },
+    {
+      href: 'https://example.org/help',
+      label: { nl: 'Vraag', en: 'Help', de: 'Hilfe' },
+    },
+  ],
+};

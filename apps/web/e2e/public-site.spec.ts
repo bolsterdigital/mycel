@@ -49,7 +49,8 @@ import {
 import { login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
-import { publishMenus } from './lib/site-navigation/seed';
+import { exerciseNavigationEtag } from './lib/site-navigation/etag';
+import { CHROME_FIXTURE_MENUS, publishMenus } from './lib/site-navigation/seed';
 import { CAPTION_MONO, themeCss } from '../src/lib/theme/tokens';
 
 const WIDE = { width: 1280, height: 900 };
@@ -1710,40 +1711,7 @@ test.describe('site-settings', () => {
           },
         },
       });
-      await publishMenus(
-        invoker,
-        principal,
-        {
-          main: [
-            { href: '/home', label: { nl: 'Welkom', en: 'Home', de: 'Startseite' } },
-            { href: '/en/home', label: { nl: 'English', en: 'English', de: 'Englisch' } },
-          ],
-          actions: [
-            {
-              href: 'https://example.org/doneer',
-              label: { nl: 'Doneer nu', en: 'Donate now', de: 'Jetzt spenden' },
-            },
-          ],
-          footerTitle: { nl: 'Contact', en: 'Contact', de: 'Kontakt' },
-          legal: [
-            {
-              href: 'https://example.org/privacy',
-              label: { nl: 'Privacyverklaring', en: 'Privacy policy', de: 'Datenschutz' },
-            },
-          ],
-          footer: [
-            {
-              href: 'https://example.org/support',
-              label: { nl: 'Hulp', en: 'Support', de: 'Unterstützung' },
-            },
-            {
-              href: 'https://example.org/help',
-              label: { nl: 'Vraag', en: 'Help', de: 'Hilfe' },
-            },
-          ],
-        },
-        ['nl', 'en', 'de']
-      );
+      await publishMenus(invoker, principal, CHROME_FIXTURE_MENUS, ['nl', 'en', 'de']);
       const single = systemPrincipal(singleTenant.id, 'e2e');
       await invoker.run(useCases.updateSiteChrome, single, {
         baseVersion: 0,
@@ -1770,7 +1738,7 @@ test.describe('site-settings', () => {
         locale === 'nl' ? 'Een onafhankelijke site' : 'An independent site'
       );
       // The call to action after the bar's links; the footer column with its title (the old
-      // support and help links) and then the legal menu (#107 B2).
+      // support and help links) and then the legal menu (migration 0057).
       await expect(
         page
           .getByRole('navigation', { name: locale === 'nl' ? 'Hoofdnavigatie' : 'Main navigation' })
@@ -1860,72 +1828,9 @@ test.describe('site-settings', () => {
 
   // The action row's colours come from the theme, card by card and per mode, and the button on a
   // filled card is its pair inverted (theme.md § Contrast).
-  test('a menu link follows its republished target, and the ETag with it (ADR 036 rule 11)', async ({
+  test('a menu link follows its republished target, and the ETag with it (ADR 036 rule 11)', ({
     request,
-  }) => {
-    const navSlug = `nav-etag-${randomBytes(4).toString('hex')}`;
-    const { id } = await asOwner((owner) =>
-      testTenant(owner, navSlug, {
-        name: 'Navigation ETag',
-        locales: ['nl'],
-        platformDomain: process.env['PLATFORM_DOMAIN']!,
-      })
-    );
-    const principal = systemPrincipal(id, 'e2e');
-    const target = await withInvoker(async (invoker) => {
-      const page = async (slug: string, title: string) => {
-        const { item, revision } = await invoker.run(useCases.createItem, principal, {
-          slug,
-          document: {
-            type: 'page',
-            defaultLocale: 'nl',
-            locales: ['nl'],
-            title: { nl: title },
-            blocks: [],
-          } as never,
-        });
-        await invoker.run(useCases.publishItem, principal, {
-          itemId: item.id,
-          revisionId: revision.id,
-          locale: 'nl',
-        });
-        return item.id;
-      };
-      await page('home', 'Start');
-      const itemId = await page('over', 'Over ons');
-      // No own label: the link reads the target's published title.
-      await publishMenus(invoker, principal, { main: [{ itemId }] }, ['nl']);
-      return itemId;
-    });
-    // The header and the ETag of one fresh response: a browser would reuse its copy for the
-    // freshness window (max-age 60), which rule 11 allows and this test is not about.
-    const bar = async () => {
-      const res = await request.get(`/${navSlug}/home`);
-      const html = await res.text();
-      const nav = html.slice(html.indexOf('aria-label="Hoofdnavigatie"'));
-      const link = /<a href="([^"]+)"[^>]*>([^<]+)<\/a>/.exec(nav);
-      return { etag: res.headers()['etag'], link: link?.slice(1, 3) };
-    };
-    const before = await bar();
-    expect(before.link).toEqual([`/${navSlug}/over`, 'Over ons']);
-    await withInvoker(async (invoker) => {
-      const { item, revision } = await invoker.run(useCases.getItem, principal, { itemId: target });
-      const saved = await invoker.run(useCases.updateItem, principal, {
-        itemId: target,
-        baseRevisionId: item.latestRevisionId,
-        document: { ...revision.document, title: { nl: 'Wie wij zijn' } },
-      });
-      await invoker.run(useCases.publishItem, principal, {
-        itemId: target,
-        revisionId: saved.revision.id,
-        locale: 'nl',
-      });
-    });
-    // The navigation revision did not change; the home page's header and its ETag did.
-    const after = await bar();
-    expect(after.link).toEqual([`/${navSlug}/over`, 'Wie wij zijn']);
-    expect(after.etag).not.toBe(before.etag);
-  });
+  }) => exerciseNavigationEtag(request));
 
   test('an action row walks the theme accents, with the button inverted', async ({ page }) => {
     for (const mode of ['light', 'dark'] as const) {

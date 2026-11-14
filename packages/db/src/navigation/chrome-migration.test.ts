@@ -1,4 +1,4 @@
-// Migration 0057 (ADR 036 rule 10, #107 B2): `site_navigation_from_chrome` turns the retired chrome
+// Migration 0057 (ADR 036 rule 10): `site_navigation_from_chrome` turns the retired chrome
 // fields into the navigation document. The migration ran once, on whatever chrome existed then,
 // so this suite writes chrome rows in the old shape and calls the function the way the import
 // does (as mycel_app inside the tenant's context), then reads the result through the real use

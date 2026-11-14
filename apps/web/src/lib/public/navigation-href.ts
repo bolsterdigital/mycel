@@ -1,6 +1,6 @@
 // The site path of a resolved navigation target (ADR 036 rule 3), shared by the public chrome and
 // the editor's preview, so the preview shows the path the site will link to. Core resolves the
-// target; the path rules live here because `searchPath` is the web app's (#42).
+// target; the path rules live here because `searchPath` is the web app's (site search).
 // Rejected: a path on core's resolved target, which would move the search route into core.
 
 import { contentPath, type ResolvedTarget } from '@mycel/core';
