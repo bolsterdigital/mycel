@@ -8,8 +8,9 @@
 // chrome's language is the path's locale (brief #8c § 8), so a cached page never depends on
 // Accept-Language; elsewhere (`confirm`) it is negotiated like the page itself. The browser's
 // `theme-color` per mode is the theme's `body` background, and the icon is the site's own logo
-// (the chrome's), or none: a site without a logo makes no icon request. Rejected: a generated
-// icon or a platform default, which would show a mark the site never chose.
+// (the chrome's); a site without a logo links an empty icon, so the browser makes no request
+// (not even the implicit `/favicon.ico`). Rejected: a generated icon or a platform default,
+// which would show a mark the site never chose.
 import { negotiateLocale } from '@mycel/core';
 import { chromeModel } from '#lib/server/public/chrome.js';
 import { localeOf } from '#lib/server/public/content-route.js';

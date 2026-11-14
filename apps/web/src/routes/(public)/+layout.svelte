@@ -29,6 +29,8 @@
   {/if}
   {#if data.chrome?.logo}
     <link rel="icon" href={data.chrome.logo.src} type="image/webp" />
+  {:else}
+    <link rel="icon" href="data:," />
   {/if}
 </svelte:head>
 

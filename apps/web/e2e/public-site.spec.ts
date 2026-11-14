@@ -1792,17 +1792,18 @@ test.describe('site-settings', () => {
         locale === 'nl' ? 'Een onafhankelijke site' : 'An independent site'
       );
       await expect(themeLink(page)).toHaveCount(1);
-      // Browser colours from the palettes; without a logo no icon.
+      // Browser colours from the palettes; without a logo an empty icon.
       expect(
         await page
-          .locator('meta[name=theme-color], meta[name=color-scheme], link[rel~=icon]')
+          .locator('meta[name*=color], link[rel~=icon]')
           .evaluateAll((all) =>
-            all.map((e) => [e.getAttribute('media'), e.getAttribute('content')])
+            all.map((e) => ['media', 'content', 'href'].map((a) => e.getAttribute(a)))
           )
       ).toEqual([
-        ['(prefers-color-scheme: light)', light.body.background],
-        ['(prefers-color-scheme: dark)', dark.body.background],
-        [null, 'light dark'],
+        ['(prefers-color-scheme: light)', light.body.background, null],
+        ['(prefers-color-scheme: dark)', dark.body.background, null],
+        [null, 'light dark', null],
+        [null, null, 'data:,'],
       ]);
       const fontSize = await page.evaluate(() => {
         document.documentElement.style.fontSize = '200%';
