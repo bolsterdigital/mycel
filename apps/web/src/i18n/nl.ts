@@ -904,6 +904,10 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.site.brand.delete': 'Logo of lettertype verwijderd',
   'admin.audit.op.site.brand.update': 'Logo of lettertype gewijzigd',
   'admin.audit.op.site.chrome.update': 'Kop en voet gewijzigd',
+  'admin.audit.op.site.navigation.update': 'Navigatie gewijzigd',
+  'admin.audit.op.site.navigation.restore': 'Eerdere navigatie teruggezet',
+  'admin.audit.op.site.navigation.publish': 'Navigatie gepubliceerd',
+  'admin.audit.op.site.navigation.unpublish': 'Navigatie offline gehaald',
   'admin.audit.op.site.general.update': 'Algemene instellingen gewijzigd',
   'admin.audit.op.site.image.update': 'Standaardbeeld gewijzigd',
   'admin.audit.op.site.retention.update': 'Bewaartermijn van inzendingen gewijzigd',
@@ -1084,6 +1088,8 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Dit kon niet worden verwijderd. Laad de pagina opnieuw en probeer het nog eens.',
   'admin.content.delete.referenced':
     'Dit kan niet weg zolang andere items ernaar linken ({count}: {titles}). Haal die links eerst weg.',
+  'admin.content.delete.inNavigation':
+    'Dit kan niet weg zolang een menu ernaar linkt ({count}: {menus}). Haal het eerst uit die menu’s.',
   'admin.content.delete.campaignLanding':
     'Dit is de landingspagina van een campagne. Die kan pas naar de prullenbak als de campagne is gearchiveerd.',
   'admin.content.trash.title': 'Prullenbak',

@@ -57,6 +57,7 @@ import { enterTenant } from './infra/roles.js';
 import { jobScheduler } from './operations/jobs.js';
 import { jobRecoveryRepository } from './infra/recovery.js';
 import { mediaRepository } from './media.js';
+import { navigationRepository } from './navigation.js';
 import {
   apiKeyRepository,
   attentionReadsRepository,
@@ -242,6 +243,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           campaigns: campaignRepository(trx, tenantId),
           bulkPlans: bulkPlanRepository(trx, tenantId),
           presence: presenceRepository(trx, tenantId),
+          navigation: navigationRepository(trx, tenantId),
           siteSettings: siteSettingsRepository(trx, tenantId),
           brandAssets: brandAssetsRepository(trx, tenantId),
           brandProcessor:

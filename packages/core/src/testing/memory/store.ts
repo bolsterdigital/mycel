@@ -9,6 +9,7 @@ import type { BulkPlan, BulkResult } from '../../content/bulk/model.js';
 import type { PresenceEntry } from '../../content/presence/model.js';
 
 import type { AuditEntry } from '../../audit/model.js';
+import type { NavigationRevision } from '../../navigation/ports.js';
 import type { AssistSettings, AssistSuggestion } from '../../assist/ports.js';
 import type { ConnectionAttempt, ConnectionIntent } from '../../connections/intents.js';
 import type { ConnectionRecord } from '../../connections/ports.js';
@@ -72,6 +73,12 @@ export interface TenantStore {
   /** The items in the trash, by id, with when they went there (ADR 030). */
   trashedItems: Map<string, Date>;
   revisions: Map<string, Revision>;
+  /** `site_navigation` and its revisions, locale pointers and refs (0056). */
+  navigation: {
+    head: { latestRevisionId: string; updatedAt: Date } | null;
+    revisions: Map<string, NavigationRevision>;
+    locales: Map<string, { revisionId: string; publishedAt: Date }>;
+  };
   /** `content_block_refs`, keyed by revision id. */
   blockRefs: Map<string, DocumentReference[]>;
   personGroups: Map<string, PersonGroup>;
@@ -154,6 +161,7 @@ const emptyTenant = (): TenantStore => ({
   items: new Map(),
   trashedItems: new Map(),
   revisions: new Map(),
+  navigation: { head: null, revisions: new Map(), locales: new Map() },
   blockRefs: new Map(),
   personGroups: new Map(),
   campaigns: new Map(),
@@ -221,6 +229,8 @@ export class MemoryStore {
   readonly loginAttempts = new Map<string, number>();
   /** The tail of each tenant's `media.lock()` queue. */
   readonly mediaLocks = new Map<string, Promise<void>>();
+  /** The tail of each tenant's `navigation.lock()` queue; shared mode queues too. */
+  readonly navigationLocks = new Map<string, Promise<void>>();
   /** `tenants.entitlements` and `tenants.status` (0010); a tenant without a row has the defaults. */
   readonly access = new Map<string, { entitlements: EntitlementsDocument; status: TenantStatus }>();
 

@@ -14,6 +14,7 @@
 import { seedFormActions } from './form-actions.fixture.js';
 import { checkLegacyPeopleImport, seedGroupedPerson } from './legacy-people.fixture.js';
 import { seedCampaign } from './campaigns.fixture.js';
+import { seedNavigation } from './navigation.fixture.js';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
@@ -266,6 +267,7 @@ describe.skipIf(skip)('tenant export and import', () => {
       });
     });
     await seedCampaign(invoker, operatorDb, admin, email);
+    await seedNavigation(invoker, admin);
   }
   const files = async (dir: string) =>
     Object.fromEntries(
