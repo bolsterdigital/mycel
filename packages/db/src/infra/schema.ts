@@ -275,6 +275,33 @@ export interface Database {
     ref_id: string;
   };
   /** Search tokens of each published, public, indexable locale (0055); no readable text. */
+  /** Site navigation (0056, ADR 036): head, immutable revisions, locale pointers and refs. */
+  site_navigation: {
+    tenant_id: string;
+    latest_revision_id: string;
+    updated_at: Timestamp;
+  };
+  site_navigation_revisions: {
+    tenant_id: string;
+    id: string;
+    document: Json<unknown>;
+    base_revision_id: string | null;
+    merged: Generated<boolean>;
+    restored_from: string | null;
+    created_at: Timestamp;
+  };
+  site_navigation_locales: {
+    tenant_id: string;
+    locale: string;
+    revision_id: string;
+    published_at: Timestamp;
+  };
+  site_navigation_refs: {
+    tenant_id: string;
+    revision_id: string;
+    menu_id: string;
+    item_id: string;
+  };
   content_search: {
     tenant_id: string;
     item_id: string;

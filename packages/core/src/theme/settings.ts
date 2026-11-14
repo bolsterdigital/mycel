@@ -22,7 +22,8 @@ import { SiteRetention } from '../ops/retention.js';
 
 const Localized = z.record(z.string().min(2).max(12), z.string().trim().min(1).max(240));
 const Footer = z.record(z.string().min(2).max(12), z.string().trim().max(500));
-const Href = z
+/** A site-relative path or an `https:` URL; site navigation targets share it (ADR 036 rule 3). */
+export const SiteHref = z
   .string()
   .max(2048)
   .refine((value) => {
@@ -34,14 +35,14 @@ const Href = z
       return false;
     }
   }, 'site.chrome.href.invalid');
-const Link = z.object({ label: Localized, href: Href }).strict();
+const Link = z.object({ label: Localized, href: SiteHref }).strict();
 export const SiteChrome = z
   .object({
     navigation: z.array(Link).max(12),
     footer: Footer,
     legal: z.array(Link).max(8),
-    support: z.object({ label: Localized, href: Href }).strict().nullable(),
-    help: z.object({ label: Localized, href: Href }).strict().nullable(),
+    support: z.object({ label: Localized, href: SiteHref }).strict().nullable(),
+    help: z.object({ label: Localized, href: SiteHref }).strict().nullable(),
   })
   .strict();
 export type SiteChrome = z.infer<typeof SiteChrome>;

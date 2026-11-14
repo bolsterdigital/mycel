@@ -23,6 +23,7 @@ import type {
 import type { DnsResolver, PlatformConfig } from '../../tenants/ports.js';
 import { noopLogger } from '../../util/log.js';
 import { memoryAssist } from './assist.js';
+import { memoryNavigation } from './navigation.js';
 import { memoryAudit } from './audit.js';
 import {
   memoryConnectionIntents,
@@ -105,6 +106,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
     const bulkLock = tenantLock(store.bulkLocks, tenantId);
     const memberLock = tenantLock(store.memberLocks, tenantId);
     const mediaLock = tenantLock(store.mediaLocks, tenantId);
+    const navigationLock = tenantLock(store.navigationLocks, tenantId);
     try {
       return await fn({
         principal,
@@ -126,6 +128,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         campaigns: memoryCampaigns(s),
         bulkPlans: memoryBulkPlans(s, bulkLock.lock),
         presence: memoryPresence(s),
+        navigation: memoryNavigation(s, navigationLock.lock),
         ...memorySite(s),
         assist: memoryAssist(s),
         mailchimpReceipts: memoryMailchimpReceipts(s),
@@ -182,6 +185,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
       bulkLock.release();
       memberLock.release();
       mediaLock.release();
+      navigationLock.release();
     }
   }
 

@@ -15,6 +15,7 @@
 // with different routes), and prose in docs alone (nothing fails when a migration adds a table).
 
 import type { Database } from '../infra/schema.js';
+import { NAVIGATION_STORAGE } from './storage-navigation.js';
 
 /**
  * Whose copy. `supporter`: someone who signed, subscribed or gave, erased on request (ADR 019
@@ -632,6 +633,7 @@ export const STORAGE = {
       why: 'the search tokens of what is published now; the row goes when the locale is unpublished or a new revision is published',
     },
   },
+  ...NAVIGATION_STORAGE,
   tenant_memberships: {
     category: 'access',
     owner: 'tenant',

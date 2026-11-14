@@ -165,6 +165,14 @@ import {
   verifyHostnameUseCase,
 } from './tenants/service.js';
 import { listExports, requestExport } from './tenants/exports.js';
+import {
+  getNavigation,
+  publishNavigation,
+  resolveNavigationUseCase,
+  restoreNavigation,
+  unpublishNavigation,
+  updateNavigation,
+} from './navigation/service.js';
 
 export const useCases = {
   getMailchimpCallback,
@@ -310,6 +318,12 @@ export const useCases = {
   updateSiteTheme,
   getSiteChrome,
   updateSiteChrome,
+  getNavigation,
+  updateNavigation,
+  restoreNavigation,
+  publishNavigation,
+  unpublishNavigation,
+  resolveNavigation: resolveNavigationUseCase,
   getSiteGeneral,
   updateSiteGeneral,
   getSiteImages,

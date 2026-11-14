@@ -105,6 +105,8 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   'media.get',
   'site.brand.get',
   'site.chrome.get',
+  // ADR 036 rule 8: published, public targets only; nothing personalised.
+  'site.navigation.resolve',
   'site.general.get',
   'site.theme.get',
 ]);

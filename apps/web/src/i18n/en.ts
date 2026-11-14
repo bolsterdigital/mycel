@@ -895,6 +895,10 @@ export const en = {
   'admin.audit.op.site.brand.delete': 'Logo or font removed',
   'admin.audit.op.site.brand.update': 'Logo or font changed',
   'admin.audit.op.site.chrome.update': 'Header and footer changed',
+  'admin.audit.op.site.navigation.update': 'Navigation changed',
+  'admin.audit.op.site.navigation.restore': 'Earlier navigation restored',
+  'admin.audit.op.site.navigation.publish': 'Navigation published',
+  'admin.audit.op.site.navigation.unpublish': 'Navigation taken offline',
   'admin.audit.op.site.general.update': 'General settings changed',
   'admin.audit.op.site.image.update': 'Default image changed',
   'admin.audit.op.site.retention.update': 'Retention of form submissions changed',
@@ -1075,6 +1079,8 @@ export const en = {
   'admin.content.delete.refused': 'This could not be deleted. Reload the page and try again.',
   'admin.content.delete.referenced':
     'This cannot be deleted while other items link to it ({count}: {titles}). Remove those links first.',
+  'admin.content.delete.inNavigation':
+    'This cannot be deleted while a menu links to it ({count}: {menus}). Remove it from those menus first.',
   'admin.content.delete.campaignLanding':
     'This is the landing page of a campaign. It can only move to the trash once the campaign is archived.',
   'admin.content.trash.title': 'Trash',
