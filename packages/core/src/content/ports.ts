@@ -106,6 +106,20 @@ export interface PublishedPosition {
   locale: string;
 }
 
+/**
+ * One hit of the site search (`content.published.find`): a published locale whose public,
+ * indexable revision matches, with what the order needs. No text: the use case reads the revision.
+ */
+export interface PublishedHit {
+  itemId: string;
+  type: ContentType;
+  slug: string;
+  revisionId: string;
+  publishedAt: Date;
+  /** The title alone carries every token, which ranks first. */
+  inTitle: boolean;
+}
+
 /** An item in the trash, with the moment it went there (ADR 030). */
 export interface TrashedItem {
   item: ItemRecord;
@@ -158,6 +172,17 @@ export interface ContentRepository {
     after: PublishedPosition | null,
     limit: number
   ): Promise<PublishedEntry[]>;
+  /**
+   * The published locales in `locale`, outside the trash, whose published revision is public and
+   * indexable and matches every token as a prefix (core's `searchEntry` and `matchesSearch`), in
+   * the order of `compareHits`, from row `offset`. Only the revision a publication pointer names
+   * now can match: an older revision, a later draft and an unpublished locale never do.
+   */
+  searchPublished(
+    query: { tokens: readonly string[]; locale: string },
+    offset: number,
+    limit: number
+  ): Promise<PublishedHit[]>;
   /** The item if it is in the trash, locked for the rest of the transaction; else null. */
   lockTrashed(itemId: string): Promise<ItemRecord | null>;
   /** Moves a locked item to the trash and stamps `updatedAt`; its address becomes free. */

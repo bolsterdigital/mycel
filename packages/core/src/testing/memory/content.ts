@@ -5,6 +5,7 @@ import { allBlocks } from '../../content/blocks.js';
 import { documentReferences, type Revision } from '../../content/model.js';
 import { compareItems, matchesItemDocument, matchesItemFilter } from '../../content/listing.js';
 import { comparePublished } from '../../content/published/list.js';
+import { compareHits, matchesSearch, searchEntry } from '../../content/published/search.js';
 import type {
   BulkPlanRepository,
   ContentRepository,
@@ -12,6 +13,7 @@ import type {
   ItemRecord,
   PresenceRepository,
   PublishedEntry,
+  PublishedHit,
 } from '../../content/ports.js';
 import { PRESENCE_READ_LIMIT } from '../../content/presence/model.js';
 import type { TransactionContext } from '../../ports.js';
@@ -55,8 +57,29 @@ function memoryTrash(
 function memoryPublished(
   s: TenantStore,
   kept: () => ItemRecord[]
-): Pick<ContentRepository, 'listPublished'> {
+): Pick<ContentRepository, 'listPublished' | 'searchPublished'> {
   return {
+    async searchPublished({ tokens, locale }, offset, limit) {
+      const hits: PublishedHit[] = kept().flatMap((item) => {
+        const state = item.publication.find((p) => p.locale === locale && p.publishedRevisionId);
+        if (!state) return [];
+        const revision = s.revisions.get(state.publishedRevisionId!)!;
+        const entry = searchEntry(revision.document, locale);
+        const match = entry && matchesSearch(entry, tokens);
+        if (!match) return [];
+        return [
+          {
+            itemId: item.id,
+            type: item.type,
+            slug: item.slug,
+            revisionId: revision.id,
+            publishedAt: new Date(state.publishedAt!.getTime()),
+            inTitle: match.inTitle,
+          },
+        ];
+      });
+      return hits.sort(compareHits).slice(offset, offset + limit);
+    },
     async listPublished({ type, sectionId }, after, limit) {
       const rows: PublishedEntry[] = kept().flatMap((item) => {
         if (type && item.type !== type) return [];

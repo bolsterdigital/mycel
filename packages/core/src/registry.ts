@@ -91,6 +91,9 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   // aggregates; the reason a card is empty is no more than the page itself already withholds.
   'campaign.card.get',
   'content.published.get',
+  // Title and an excerpt of public, indexable published revisions only; restricted
+  // items are left out whole.
+  'content.published.find',
   // Addresses and publication facts of published locales only, no document text.
   'content.published.list',
   'content.public_person.get',
