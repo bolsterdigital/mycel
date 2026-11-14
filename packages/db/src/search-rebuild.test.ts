@@ -1,8 +1,9 @@
 // The rebuild of the site search index (`reindexSearch`, `mycel search rebuild`, and the import of
 // an archive from before 0055). A tenant whose index rows are gone, as for items published before
 // the migration, finds nothing; after the rebuild it finds what a fresh publication would, no more
-// (restricted, `noindex` and drafts stay out), another tenant's rows are untouched, and a second
-// run changes nothing. Real Postgres only: the memory adapter has no index to lose. Skips without
+// (restricted, `noindex` and drafts stay out), another tenant's rows are untouched, a second
+// run changes nothing, and an item first published while the rebuild waits for a row lock keeps
+// its index row (the counterproof of the PR #426 review). Real Postgres only: the memory adapter has no index to lose. Skips without
 // DATABASE_URL; in CI that is a failure.
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -119,5 +120,50 @@ describe.skipIf(skip)('site search rebuild', () => {
     // A second run writes the same rows.
     expect(await reindexSearch(owner, a)).toEqual({ items: 3, rows: 2 });
     expect(await found(a)).toEqual(['open']);
+  });
+
+  it('keeps the row of an item first published while the rebuild waits for a lock', async () => {
+    const admin = systemPrincipal(a, 'test');
+    const open = await invoker.run(useCases.findPublished, admin, { q: word, locale: 'nl' });
+    const openId = open.items[0]!.id;
+    const fresh = await invoker.run(useCases.createItem, admin, {
+      slug: 'nieuw',
+      document: page('nieuw') as never,
+    });
+
+    // Hold the lock of a listed item, so the rebuild has its list and waits on that row.
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    let locked!: () => void;
+    const isLocked = new Promise<void>((r) => (locked = r));
+    const blocker = owner.transaction().execute(async (trx) => {
+      await enterTenant(trx, a);
+      await sql`select id from content_items where id = ${openId} for update`.execute(trx);
+      locked();
+      await held;
+    });
+    await isLocked;
+    const rebuild = reindexSearch(owner, a);
+    let waiting = false;
+    for (let i = 0; i < 100 && !waiting; i++) {
+      const r = await sql<{ n: string }>`
+        select count(*) as n from pg_stat_activity
+        where wait_event_type = 'Lock' and query like '%for update of i%'
+          and pid <> pg_backend_pid()`.execute(owner);
+      waiting = Number(r.rows[0]!.n) > 0;
+      if (!waiting) await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(waiting).toBe(true);
+
+    // First publication of an item the rebuild's list does not hold, committed meanwhile.
+    await invoker.run(useCases.publishItem, admin, {
+      itemId: fresh.item.id,
+      revisionId: fresh.revision.id,
+      locale: 'nl',
+    });
+    release();
+    await blocker;
+    await rebuild;
+    expect(await found(a)).toEqual(['nieuw', 'open']);
   });
 });

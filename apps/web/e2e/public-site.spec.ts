@@ -1969,6 +1969,11 @@ test.describe('site-settings', () => {
     expect((await images()).value.defaultImageId).toBeNull();
 
     const theme = () => withInvoker((invoker) => invoker.run(useCases.getSiteTheme, principal, {}));
+    // The search page has no content of its own to change, so its ETag must follow the theme:
+    // otherwise a 304 confirms the page in the old house style.
+    const searchTag = async () => (await page.request.get(`/${slug}/search`)).headers()['etag'];
+    const searchBefore = await searchTag();
+    expect(searchBefore).toMatch(/^"search:/);
     await page.goto(`/admin/${slug}/site?section=theme`);
     const dropCap = page.getByLabel('Drop cap on articles');
     await expect(dropCap).toHaveValue('articles');
@@ -1982,6 +1987,7 @@ test.describe('site-settings', () => {
     await saveTheme(page);
     await savedOk(page);
     expect((await theme()).value).toMatchObject({ dropCap: 'off', captionFont: 'mono' });
+    expect(await searchTag()).not.toBe(searchBefore);
     const image = { mediaId: mediaId!, decorative: true, alt: null, caption: { nl: 'Bij' } };
     const props = { ...image, credit: { work: null, photographer: 'Maker' } };
     const blocks = [{ type: 'image' as const, version: 1 as const, props }];

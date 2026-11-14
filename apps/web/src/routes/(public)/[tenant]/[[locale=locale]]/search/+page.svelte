@@ -7,7 +7,7 @@
   let { data }: PageProps = $props();
   const t = $derived(ui(data.locale));
   const title = $derived(
-    data.q ? t('public.search.resultsFor').replace('{q}', data.q) : t('public.search.title')
+    data.q ? t('public.search.resultsFor').replace('{q}', () => data.q) : t('public.search.title')
   );
 </script>
 

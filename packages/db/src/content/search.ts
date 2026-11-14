@@ -17,7 +17,10 @@
 // tenant whose items were published before 0055, for an archive from before 0055 (the import
 // calls it when the export has no `content_search`), and for a change of the token rule. It takes
 // the row lock of every item it touches, in id order, as a save does for one, so a publication
-// running meanwhile waits and then writes its own rows over a finished rebuild.
+// running meanwhile waits and then writes its own rows over a finished rebuild. It removes rows
+// per locked item, never per tenant: an item first published while the rebuild waits for a lock
+// is not in its list, and a tenant-wide delete would take that item's fresh row with it. Rejected:
+// one `delete from content_search` for the tenant (lost exactly that row, review of PR #426).
 
 import { sql, type Kysely } from 'kysely';
 import {
@@ -63,8 +66,8 @@ export async function indexPublished(
 }
 
 /**
- * Rebuilds the index of the tenant the transaction entered: every row removed, every published
- * locale indexed again. Returns how many items were looked at and how many rows hold now.
+ * Rebuilds the index of the tenant the transaction entered: the rows of every locked item removed,
+ * every published locale indexed again. Returns how many items were looked at and how many rows hold now.
  */
 export async function rebuildSearchIndex(
   trx: Kysely<Database>,
@@ -77,8 +80,10 @@ export async function rebuildSearchIndex(
        or exists (select 1 from content_search s where s.item_id = i.id)
     order by i.id
     for update of i`.execute(trx);
-  await sql`delete from content_search`.execute(trx);
-  for (const { id } of items) await indexPublished(trx, tenantId, id);
+  for (const { id } of items) {
+    await sql`delete from content_search where item_id = ${id}`.execute(trx);
+    await indexPublished(trx, tenantId, id);
+  }
   const { rows } = await sql<{ n: string }>`select count(*) as n from content_search`.execute(trx);
   return { items: items.length, rows: Number(rows[0]?.n ?? 0) };
 }

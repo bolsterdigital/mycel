@@ -30,6 +30,7 @@ import { searchPath } from '../../public/search-path.js';
 import { refuse } from '../http/refuse.js';
 import { runtime } from '../runtime.js';
 import { sitePath, siteTenant, siteUrls, type Site } from '../site.js';
+import { siteBrand, siteChrome, siteTheme } from './theme.js';
 
 /** Results per page; the use case allows up to 20. */
 export const SEARCH_PAGE_SIZE = 10;
@@ -89,6 +90,15 @@ export async function loadSearchPage(site: Site, locale: string, url: URL) {
     // A search page is never a canonical answer: it points at the empty form of its locale.
     canonical: absolute(searchPath(locale, defaultLocale)),
   };
-  const etag = `"${createHash('sha256').update(JSON.stringify(view)).digest('base64url')}"`;
-  return { view, etag };
+  // The layout around the results is part of the response, as on a profile page: a change of
+  // theme, menu or brand must not be confirmed by a 304 for the old page.
+  const [theme, chrome, brand] = await Promise.all([
+    siteTheme(site),
+    siteChrome(site),
+    siteBrand(site),
+  ]);
+  const digest = createHash('sha256')
+    .update(JSON.stringify({ view, theme: theme.hash, chrome, brand, access: site.access }))
+    .digest('base64url');
+  return { view, etag: `"search:${digest}"` };
 }

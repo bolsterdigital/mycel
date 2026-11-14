@@ -134,6 +134,9 @@ export async function exercisePublicSearch(page: Page) {
   await expect(results.nth(1).locator('time')).toHaveAttribute('datetime', /^\d{4}-/);
   await expect(page.locator('main')).not.toContainText('Niet vinden');
   await expect(page.locator('main')).not.toContainText('Concepttitel');
+  // A replacement pattern in the question is shown as typed, not expanded into the title.
+  await page.goto(`/probe/search?${new URLSearchParams({ q: `${word} $&` })}`);
+  await expect(page.locator('main h1')).toHaveText(`Resultaten voor ‘${word} $&’`);
   expect((await page.goto(`/probe/search?q=${word}draft`))?.status()).toBe(200);
   await expect(results).toHaveCount(0);
   await expect(page.locator('.search-empty')).toHaveText(
