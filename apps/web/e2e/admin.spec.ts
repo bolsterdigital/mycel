@@ -80,6 +80,8 @@ test.describe('admin', () => {
   }) => {
     await login(page, '/admin/probe/leden');
     await expect(page.getByRole('heading', { level: 1, name: 'Team' })).toBeVisible();
+    // One icon, the Mycel mark: the framework default is gone, and a tenant logo is the site's.
+    await expect(page.locator('link[rel~=icon]')).toHaveAttribute('href', /mycel/i);
     await page.locator('.admin-account > summary').click();
     await expect(
       page.locator('.admin-account-actions').getByText('e2e-admin@probe.test')

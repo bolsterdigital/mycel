@@ -20,6 +20,8 @@ export interface SiteTheme {
   preload: string[];
   /** Not in the CSS: the page sets `data-drop-cap`, so the ETag digest carries it (#86). */
   dropCap: DropCap;
+  /** The `body` background per mode, for the browser's `theme-color`; in the CSS hash already. */
+  colors: { light: string; dark: string };
 }
 
 const bySite = new WeakMap<Site, Promise<SiteTheme>>();
@@ -68,12 +70,13 @@ async function loadSiteTheme(site: Site): Promise<SiteTheme> {
       (font.active
         ? `@font-face { font-family: 'Mycel Wordmark'; src: url('../_brand/font/${font.version}.woff2') format('woff2'); font-display: swap; }\n.site-wordmark { font-family: 'Mycel Wordmark', Inter, sans-serif; }\n`
         : '');
-    const { dropCap } = resolveTheme(theme);
+    const { dropCap, palettes } = resolveTheme(theme);
     found = themeHash(css).then((hash) => ({
       css,
       hash,
       preload: preloadFonts(theme.fontPair),
       dropCap,
+      colors: { light: palettes.light.body.background, dark: palettes.dark.body.background },
     }));
     // The cache is only an optimization for repeated themes; tenant data is read on each request.
     if (cssCache.size >= 128) cssCache.delete(cssCache.keys().next().value!);

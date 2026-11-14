@@ -15,6 +15,22 @@
       <link rel="preload" href={font} as="font" type="font/woff2" crossorigin="anonymous" />
     {/each}
     <link rel="stylesheet" href={data.theme.href} />
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: light)"
+      content={data.theme.colors.light}
+    />
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: dark)"
+      content={data.theme.colors.dark}
+    />
+    <meta name="color-scheme" content="light dark" />
+  {/if}
+  {#if data.chrome?.logo}
+    <link rel="icon" href={data.chrome.logo.src} type="image/webp" />
+  {:else}
+    <link rel="icon" href="data:," />
   {/if}
 </svelte:head>
 

@@ -51,19 +51,21 @@
       "category": "foundations",
       "level": "recommended",
       "status": "open",
-      "gap": "public pages carry the framework default icon; no tenant icon, /favicon.ico or touch icon"
+      "gap": "the site logo is the icon when the site has one; no /favicon.ico and no touch icon"
     },
     "theme-color": {
       "category": "foundations",
       "level": "recommended",
-      "status": "open",
-      "gap": "no theme-color derived from the tenant theme"
+      "status": "covered",
+      "file": "apps/web/e2e/public-site.spec.ts",
+      "note": "one theme-color per colour scheme, the body background of the light and dark palette"
     },
     "color-scheme": {
       "category": "foundations",
       "level": "recommended",
-      "status": "open",
-      "gap": "no color-scheme declaration matching the tenant theme"
+      "status": "covered",
+      "file": "apps/web/e2e/public-site.spec.ts",
+      "note": "a color-scheme meta beside the theme's light and dark palettes"
     },
     "open-graph": {
       "category": "foundations",

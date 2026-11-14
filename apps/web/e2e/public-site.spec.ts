@@ -48,6 +48,8 @@ import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
 import { CAPTION_MONO, themeCss } from '../src/lib/theme/tokens';
 
+const WIDE = { width: 1280, height: 900 };
+
 // The block renderer on two composed pages (TODO #8c1, brief #8c § 5), seeded by scripts/e2e/e2e.mjs
 // from the registry's own examples: `campagne` (hero cover, rich text, cta card, wide image, FAQ
 // accordion, form card) and `artikel` (hero split, rich text with headings and a footnote,
@@ -634,7 +636,7 @@ test.describe('content-routes', () => {
       [`/probe/articles/${slug}`, 'Een straat die ruimte maakt.', 'Een straat met bomen.'],
       [`/probe/en/articles/${slug}`, 'A street that makes room.', 'A street with trees.'],
     ] as const) {
-      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.setViewportSize(WIDE);
       await page.goto(path);
       await expect(page.locator('main > .lead')).toHaveText(lead);
       const hero = page.locator('main > figure.page-hero img');
@@ -663,7 +665,7 @@ test.describe('content-routes', () => {
     // (#86 PR 2). The unsaved-document route, posted from the edit form as the composition
     // test below does, since an article has no live-preview panel yet.
     if (isA11y()) {
-      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.setViewportSize(WIDE);
       await login(page, `/admin/probe/content/${target.item.id}`);
       // The edit screen shows the hero as described, with the alt of the locale on screen.
       // Its state stands without a click (#158); the line opens for the field.
@@ -679,7 +681,7 @@ test.describe('content-routes', () => {
         await layoutGate(page, `edit screen with a described hero at ${size}`, '#heroAlt');
       }
       await setTextSize(page, '100%');
-      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.setViewportSize(WIDE);
       await postDraftPreview(page, target.item.id);
       await expect(page.locator('main > .lead')).toHaveText('Een straat die ruimte maakt.');
       await expect(page.locator('main > figure.page-hero img')).toHaveAttribute(
@@ -1052,7 +1054,7 @@ test.describe('content-routes', () => {
       expect(fit.past, `unbroken title stays inside the cover at ${size}`).toBe(0);
     }
     await page.reload();
-    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.setViewportSize(WIDE);
     await page.locator('.page-cover-arrow').focus();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/#page-content$/);
@@ -1067,7 +1069,7 @@ test.describe('content-routes', () => {
     await expect(page.locator('main > header.page-cover h1 span')).toBeVisible();
     await page.waitForLoadState('load');
     await layoutGate(page, 'cover header in the draft preview', 'main');
-    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.setViewportSize(WIDE);
     await page.goto(`/admin/probe/content/${target.item.id}`);
     await page.locator('#headerLayout').selectOption('standard');
     await postDraftPreview(page, target.item.id);
@@ -1641,6 +1643,10 @@ test.describe('site-settings', () => {
     withInvoker((invoker) => invoker.run(useCases.getSiteChrome, systemPrincipal(id, 'e2e'), {}));
   const savedOk = (page: Page) =>
     expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+  const themeLink = (page: Page) => page.locator('link[rel=stylesheet][href*="/_theme/"]');
+  const saveTheme = (page: Page) => page.getByRole('button', { name: 'Save theme' }).click();
+  const saveChrome = (p: Page) => p.locator('form[action$="&/chrome"]').getByRole('button').click();
+  const shown = (page: Page) => expect(page.locator('[role="status"]')).toBeVisible();
 
   test.use({
     extraHTTPHeaders: {
@@ -1785,7 +1791,20 @@ test.describe('site-settings', () => {
       await expect(page.getByRole('contentinfo')).toContainText(
         locale === 'nl' ? 'Een onafhankelijke site' : 'An independent site'
       );
-      await expect(page.locator('link[rel=stylesheet][href*="/_theme/"]')).toHaveCount(1);
+      await expect(themeLink(page)).toHaveCount(1);
+      // Browser colours from the palettes; without a logo an empty icon.
+      expect(
+        await page
+          .locator('meta[name*=color], link[rel~=icon]')
+          .evaluateAll((all) =>
+            all.map((e) => ['media', 'content', 'href'].map((a) => e.getAttribute(a)))
+          )
+      ).toEqual([
+        ['(prefers-color-scheme: light)', light.body.background, null],
+        ['(prefers-color-scheme: dark)', dark.body.background, null],
+        [null, 'light dark', null],
+        [null, null, 'data:,'],
+      ]);
       const fontSize = await page.evaluate(() => {
         document.documentElement.style.fontSize = '200%';
         return parseFloat(getComputedStyle(document.documentElement).fontSize);
@@ -1870,9 +1889,7 @@ test.describe('site-settings', () => {
     context,
   }) => {
     await page.goto(`/${slug}/home`);
-    const oldCss = await page
-      .locator('link[rel=stylesheet][href*="/_theme/"]')
-      .getAttribute('href');
+    const oldCss = await themeLink(page).getAttribute('href');
     await login(page, `/admin/${slug}/site?section=theme`, `site-editor-${slug}@probe.test`);
     await page.locator('select[name="fontPair"]').selectOption('inter');
     // The action row's card colours are rows of the colour table: a third light card
@@ -1884,7 +1901,7 @@ test.describe('site-settings', () => {
     await card('light', 2, 'background').fill('#ffd54f');
     await card('dark', 1, 'foreground').fill('');
     await card('dark', 1, 'background').fill('');
-    await page.getByRole('button', { name: 'Save theme' }).click();
+    await saveTheme(page);
     await savedOk(page);
     const theme = (await themeState(tenantId)).value;
     expect(theme.fontPair).toBe('inter');
@@ -1895,7 +1912,7 @@ test.describe('site-settings', () => {
     expect(theme.palettes.dark.cardAccents).toEqual([WALK.dark[0]]);
     // A half-filled card is refused by core, not completed by the form; the light walk stays.
     await card('light', 3, 'background').fill('#123456');
-    await page.getByRole('button', { name: 'Save theme' }).click();
+    await saveTheme(page);
     await expect(page.getByRole('alert')).toContainText('Check the fields and colour contrast.');
     await expect(card('light', 3, 'background')).toHaveValue('#123456');
     expect((await themeState(tenantId)).value.palettes.light.cardAccents).toHaveLength(3);
@@ -1903,7 +1920,7 @@ test.describe('site-settings', () => {
     await stalePage.goto(`/admin/${slug}/site?section=chrome`);
     await page.goto(`/admin/${slug}/site?section=chrome`);
     await page.locator('input[name="footer.en"]').fill('New footer');
-    await page.locator('form[action$="&/chrome"]').getByRole('button').click();
+    await saveChrome(page);
     await savedOk(page);
     let saved = await chromeState(tenantId);
     expect(saved.value.footer).toEqual({
@@ -1916,7 +1933,7 @@ test.describe('site-settings', () => {
     expect(saved.value.support?.label.de).toBe('Unterstützung');
     expect(saved.value.help?.label.de).toBe('Hilfe');
     await stalePage.locator('input[name="footer.en"]').fill('Stale footer');
-    await stalePage.locator('form[action$="&/chrome"]').getByRole('button').click();
+    await saveChrome(stalePage);
     await expect(stalePage.locator('[role="alert"]')).toBeVisible();
     expect((await chromeState(tenantId)).value.footer.en).toBe('New footer');
     await page.goto(`/admin/${slug}/site?section=chrome`);
@@ -1924,7 +1941,7 @@ test.describe('site-settings', () => {
     await expect(page.locator('input[name="footer.de"]')).toHaveValue('Eine unabhängige Website');
     await page.locator('input[name="footer.de"]').fill('');
     await page.locator('input[name="help.href"]').fill('');
-    await page.locator('form[action$="&/chrome"]').getByRole('button').click();
+    await saveChrome(page);
     await savedOk(page);
     saved = await chromeState(tenantId);
     expect(saved.value.footer.de).toBeUndefined();
@@ -1932,9 +1949,7 @@ test.describe('site-settings', () => {
     expect(saved.value.legal[0]?.label.de).toBe('Datenschutz');
     await page.goto(`/${slug}/en/home`);
     await expect(page.getByRole('contentinfo')).toContainText('New footer');
-    const newCss = await page
-      .locator('link[rel=stylesheet][href*="/_theme/"]')
-      .getAttribute('href');
+    const newCss = await themeLink(page).getAttribute('href');
     expect(newCss).not.toBe(oldCss);
     const stale = await request.get(oldCss!, { maxRedirects: 0 });
     expect(stale.status()).toBe(302);
@@ -1995,13 +2010,13 @@ test.describe('site-settings', () => {
     const dropCap = page.getByLabel('Drop cap on articles');
     await expect(dropCap).toHaveValue('articles');
     await dropCap.selectOption('off');
-    await page.getByRole('button', { name: 'Save theme' }).click();
+    await saveTheme(page);
     await savedOk(page);
     expect((await theme()).value.dropCap).toBe('off');
     await page.goto(`/admin/${slug}/site?section=theme`);
     await expect(dropCap).toHaveValue('off');
     await page.getByLabel('Caption typeface').selectOption('mono');
-    await page.getByRole('button', { name: 'Save theme' }).click();
+    await saveTheme(page);
     await savedOk(page);
     expect((await theme()).value).toMatchObject({ dropCap: 'off', captionFont: 'mono' });
     const image = { mediaId: mediaId!, decorative: true, alt: null, caption: { nl: 'Bij' } };
@@ -2035,8 +2050,8 @@ test.describe('site-settings', () => {
     await expect(page.locator('input[name="footer.nl"]')).toHaveValue('Een taal');
     await expect(page.locator('input[name="footer.en"]')).toHaveCount(0);
     await page.locator('input[name="footer.nl"]').fill('Nieuwe tekst');
-    await page.locator('form[action$="&/chrome"]').getByRole('button').click();
-    await expect(page.locator('[role="status"]')).toBeVisible();
+    await saveChrome(page);
+    await shown(page);
     expect((await chromeState(singleTenantId)).value.footer).toEqual({ nl: 'Nieuwe tekst' });
   });
 
@@ -2059,7 +2074,7 @@ test.describe('site-settings', () => {
         ),
     });
     await logo.locator('button[value=upload]').click();
-    await expect(page.locator('[role="status"]')).toBeVisible();
+    await shown(page);
     await font.locator('input[type=file]').setInputFiles({
       name: 'inter.woff2',
       mimeType: 'font/woff2',
@@ -2069,7 +2084,7 @@ test.describe('site-settings', () => {
     });
     await font.locator('input[name=licence]').fill('SIL Open Font License 1.1');
     await font.locator('button[value=upload]').click();
-    await expect(page.locator('[role="status"]')).toBeVisible();
+    await shown(page);
   };
 
   test('native brand upload, public derivative and removal stay tenant scoped', async ({
@@ -2118,6 +2133,7 @@ test.describe('site-settings', () => {
     await expect(identity.locator('img')).toBeVisible();
     const logoUrl = await identity.locator('img').getAttribute('src');
     expect(logoUrl).toBeTruthy();
+    await expect(page.locator('link[rel=icon]')).toHaveAttribute('href', logoUrl!);
     const logoResponse = await request.get(logoUrl!);
     expect(logoResponse.status()).toBe(200);
     expect(logoResponse.headers()['content-type']).toBe('image/webp');
@@ -2127,9 +2143,7 @@ test.describe('site-settings', () => {
     expect(previewLogo.status()).toBe(200);
     expect(previewLogo.headers()['cache-control']).toBe('no-store');
     expect((await request.get(`/${singleSlug}/_brand/logo/1.webp`)).status()).toBe(404);
-    const stylesheet = await page
-      .locator('link[rel=stylesheet][href*="/_theme/"]')
-      .getAttribute('href');
+    const stylesheet = await themeLink(page).getAttribute('href');
     const css = await (await request.get(stylesheet!)).text();
     expect(css).toContain("font-family: 'Mycel Wordmark'");
     expect(css).toContain('font-display: swap');
@@ -2144,7 +2158,7 @@ test.describe('site-settings', () => {
       .first()
       .getByRole('button', { name: 'Remove' })
       .click();
-    await expect(page.locator('[role="status"]')).toBeVisible();
+    await shown(page);
     expect((await request.get(logoUrl!)).status()).toBe(404);
     const freshPage = await request.get(`/${slug}/home`, {
       headers: { 'if-none-match': activeEtag! },
