@@ -166,6 +166,7 @@ import {
 } from './tenants/service.js';
 import { listExports, requestExport } from './tenants/exports.js';
 import {
+  checkNavigationUseCase,
   getNavigation,
   publishNavigation,
   resolveNavigationUseCase,
@@ -324,6 +325,7 @@ export const useCases = {
   publishNavigation,
   unpublishNavigation,
   resolveNavigation: resolveNavigationUseCase,
+  checkNavigation: checkNavigationUseCase,
   getSiteGeneral,
   updateSiteGeneral,
   getSiteImages,

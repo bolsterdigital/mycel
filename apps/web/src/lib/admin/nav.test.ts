@@ -54,6 +54,7 @@ describe('admin navigation data (#114)', () => {
         'Theme',
         'Logo and wordmark',
         'Menus and footer',
+        'Navigation',
       ]);
       expect(manage!.current).toBe(false);
     }

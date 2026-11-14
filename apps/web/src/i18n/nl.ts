@@ -335,6 +335,107 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.manage.hint.theme': 'Kleuren, letters en ruimte.',
   'admin.manage.hint.brand': 'Logo, woordmerk en standaardbeeld.',
   'admin.manage.hint.menus': 'Het publieke menu en de footer.',
+  'admin.nav.navigation': 'Navigatie',
+  'admin.manage.hint.navigation': "De menu's van de site en hun items.",
+  'admin.navigation.title': 'Navigatie',
+  'admin.navigation.intro':
+    "De menu's van je site. Bouw hier een menu; hetzelfde menu kan straks in de kop en in de footer staan.",
+  'admin.navigation.notLive':
+    "Deze menu's staan nog niet op de site. Tot de overstap zien bezoekers de links onder",
+  'admin.navigation.menus': "Menu's",
+  'admin.navigation.newMenu': 'Nieuw menu',
+  'admin.navigation.newMenu.intro':
+    'Geef het menu eerst een naam; de items voeg je op het volgende scherm toe.',
+  'admin.navigation.newMenu.submit': 'Menu aanmaken',
+  'admin.navigation.empty': "Nog geen menu's",
+  'admin.navigation.empty.body':
+    'Een menu is een lijst links, zoals het hoofdmenu of de links in de footer.',
+  'admin.navigation.column.name': 'Menu',
+  'admin.navigation.column.items': 'Items',
+  'admin.navigation.column.used': 'Gebruikt in',
+  'admin.navigation.placement.main': 'Hoofdnavigatie',
+  'admin.navigation.placement.actions': 'Actieknoppen',
+  'admin.navigation.placement.footer': 'Footer',
+  'admin.navigation.placement.legal': 'Juridische links',
+  'admin.navigation.notPlaced': 'Niet geplaatst',
+  'admin.navigation.notPlaced.long': 'Dit menu staat nog nergens op de site.',
+  'admin.navigation.usedIn':
+    'Gebruikt in: {places}. Een wijziging hier is na publicatie op al die plekken te zien.',
+  'admin.navigation.items': 'Items',
+  'admin.navigation.items.intro':
+    'In de volgorde waarin bezoekers ze zien, met de tekst die ze lezen in {locale}.',
+  'admin.navigation.items.empty': 'Dit menu heeft nog geen items',
+  'admin.navigation.items.empty.body':
+    'Voeg een link naar een pagina toe, of een groep om links onder te zetten.',
+  'admin.navigation.subItemsOf': 'Subitems van {name}',
+  'admin.navigation.addLink': 'Link toevoegen',
+  'admin.navigation.addGroup': 'Groep toevoegen',
+  'admin.navigation.editLink': 'Link bewerken',
+  'admin.navigation.editGroup': 'Groep bewerken',
+  'admin.navigation.edit': 'Bewerken',
+  'admin.navigation.save': 'Opslaan',
+  'admin.navigation.saved':
+    'Opgeslagen als concept. Op de site verandert niets tot de navigatie is gepubliceerd.',
+  'admin.navigation.merged':
+    'Opgeslagen, samen met een wijziging die iemand anders intussen maakte.',
+  'admin.navigation.rename': 'Naam opslaan',
+  'admin.navigation.remove': 'Verwijderen',
+  'admin.navigation.remove.question': 'Dit item uit het menu verwijderen?',
+  'admin.navigation.remove.questionSub':
+    'Dit item en de subitems eronder uit het menu verwijderen?',
+  'admin.navigation.remove.confirm': 'Ja, verwijderen',
+  'admin.navigation.delete': 'Menu verwijderen',
+  'admin.navigation.delete.question': 'Dit menu met al zijn items verwijderen?',
+  'admin.navigation.delete.confirm': 'Ja, menu verwijderen',
+  'admin.navigation.delete.placed':
+    'Dit menu is in gebruik op de site. Kies eerst een ander menu voor die plekken.',
+  'admin.navigation.move.up': 'Omhoog',
+  'admin.navigation.move.down': 'Omlaag',
+  'admin.navigation.move.in': 'Maak subitem',
+  'admin.navigation.move.out': 'Naar hoofdniveau',
+  'admin.navigation.kind.group': 'Groep',
+  'admin.navigation.leadsTo': 'Gaat naar {target}',
+  'admin.navigation.noLabel': '(geen tekst)',
+  'admin.navigation.system.home': 'Startpagina',
+  'admin.navigation.system.search': 'Zoekpagina',
+  'admin.navigation.source.own': 'Eigen menutekst',
+  'admin.navigation.source.featured': 'Uitgelichte titel van de pagina',
+  'admin.navigation.source.title': 'Paginatitel',
+  'admin.navigation.source.system': 'Standaardnaam',
+  'admin.navigation.state.unpublished': 'Pagina niet gepubliceerd',
+  'admin.navigation.state.restricted': 'Alleen voor leden: niet getoond',
+  'admin.navigation.state.missing': 'Pagina bestaat niet meer',
+  'admin.navigation.state.noLabel': 'Geen tekst in {locale}',
+  'admin.navigation.field.name': 'Naam',
+  'admin.navigation.field.name.hint': 'Voor jou en je team; bezoekers zien hem nooit.',
+  'admin.navigation.field.label': 'Menutekst',
+  'admin.navigation.field.label.in': 'Menutekst ({locale})',
+  'admin.navigation.field.label.hint':
+    'Laat leeg om de titel van de pagina te gebruiken. Een adres heeft een eigen tekst nodig.',
+  'admin.navigation.field.label.inherits':
+    'Laat leeg om de titel van de pagina te gebruiken: "{title}".',
+  'admin.navigation.field.label.groupHint': 'De tekst boven de subitems.',
+  'admin.navigation.field.url.hint': 'Begint met / voor een plek op deze site, of met https://.',
+  'admin.navigation.group.intro':
+    'Een groep is een tekst zonder eigen link. Voeg links toe en maak ze daarna subitem van de groep.',
+  'admin.navigation.error.conflict':
+    'Niet opgeslagen: iemand heeft hetzelfde deel van de navigatie intussen gewijzigd. Laad de pagina opnieuw om die wijziging te zien en probeer het dan nog eens.',
+  'admin.navigation.error.invalid':
+    'Niet opgeslagen: met wat intussen is gewijzigd past dit niet meer. Laad de pagina opnieuw en probeer het nog eens.',
+  'admin.navigation.error.nameRequired': 'Geef het menu een naam.',
+  'admin.navigation.error.labelRequired':
+    'Een groep en een adres hebben geen titel om over te nemen: vul de menutekst in.',
+  'admin.navigation.error.address': 'Vul een adres in dat begint met / of https://.',
+  'admin.navigation.error.targetRequired': 'Kies waar de link naartoe gaat.',
+  'admin.navigation.error.targetGone': 'Die pagina bestaat niet meer. Kies een andere.',
+  'admin.navigation.error.menuPlaced':
+    'Dit menu is in gebruik op de site. Kies eerst een ander menu voor die plekken.',
+  'admin.navigation.error.menuPublished':
+    'Dit menu staat in een gepubliceerde taal op de site. Haal het eerst van zijn plek en publiceer dat.',
+  'admin.navigation.error.budget':
+    "Niet opgeslagen: de navigatie heeft het maximale aantal menu's of items bereikt.",
+  'admin.navigation.error.actions':
+    'Niet opgeslagen: de actieknoppen bevatten hooguit twee links, zonder subitems of groepen.',
   'admin.dashboard.title': 'Dashboard',
   'admin.dashboard.recent': 'Laatst bewerkt',
   'admin.dashboard.scheduled': 'Ingepland',

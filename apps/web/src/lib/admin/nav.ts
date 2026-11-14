@@ -134,6 +134,12 @@ export const SETTINGS: NavSection = {
       needs: 'content:write',
       hint: 'admin.manage.hint.menus',
     },
+    {
+      path: 'navigation',
+      label: 'admin.nav.navigation',
+      needs: 'content:write',
+      hint: 'admin.manage.hint.navigation',
+    },
   ],
 };
 

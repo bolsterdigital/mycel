@@ -1,0 +1,44 @@
+/* The items of a menu in the menu editor: an ordered list, sub-items as a list inside their
+   parent, as the menu itself is built. Each item is a card with what it shows and, under it, its
+   steps as a wrapping row of whole buttons (`Actions`), so at 320 CSS px and 200% text they stack
+   instead of clipping (skill ui-action-layout). A file of its own because ui.css is at its
+   ceiling (scripts/gates/file-size); same layer and tokens.
+   Rejected: a table (a menu is a nested list, and six actions per row do not fit the table's
+   row-action widths) and indenting sub-items with padding alone (the nesting would be visual
+   only). */
+@layer tokens, base, components;
+
+@layer components {
+  .ui-menu-list,
+  .ui-menu-list ol {
+    display: grid;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ui-menu-list ol {
+    margin-block-start: var(--space-1);
+    padding-inline-start: min(var(--space-4), 8vw);
+  }
+  .ui-menu-item {
+    padding: var(--space-2);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+  }
+  .ui-menu-item-label {
+    margin: 0;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .ui-menu-item-facts {
+    margin: var(--space-0) 0 0;
+    color: var(--color-muted-fg);
+    overflow-wrap: anywhere;
+  }
+  .ui-menu-item .ui-actions-host {
+    margin-block-end: 0;
+  }
+}

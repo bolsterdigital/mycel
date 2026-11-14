@@ -28,6 +28,7 @@ import {
   navigationIssues,
   navigationReferences,
 } from './model.js';
+import { checkNavigation, targetIds } from './check.js';
 import type { NavigationHead, NavigationRevision } from './ports.js';
 import {
   BLOCKING_PROBLEMS,
@@ -235,12 +236,18 @@ export const getNavigation = defineUseCase({
   name: 'site.navigation.get',
   kind: 'query',
   description:
-    'Read the latest navigation draft (every menu and placement), which revision each locale publishes, and the newest revisions.',
+    'Read the latest navigation draft (every menu and placement), which revision each locale publishes, and the newest revisions. With `revisionId`, `document` is that revision instead: what an editor saw when they started, or an older one before restoring it.',
   requires: 'content:read',
-  input: z.object({}).strict(),
+  input: z.object({ revisionId: RevisionId.optional() }).strict(),
   output: NavigationState,
   examples: [{ input: {} }],
-  handler: async (ctx) => state(ctx, await ctx.navigation.head()),
+  async handler(ctx, { revisionId }) {
+    const latest = await state(ctx, await ctx.navigation.head());
+    if (!revisionId || revisionId === latest.revisionId) return latest;
+    const revision = await ctx.navigation.revision(revisionId);
+    if (!revision) throw notFound('navigation revision');
+    return { ...latest, revisionId: revision.id, document: revision.document };
+  },
 });
 
 export const updateNavigation = defineUseCase({
@@ -412,6 +419,46 @@ export const unpublishNavigation = defineUseCase({
     if (!(await ctx.navigation.unpublish(locale)))
       throw notFound('published navigation', `locale "${locale}"`);
     return state(ctx, await ctx.navigation.head());
+  },
+});
+
+export const checkNavigationUseCase = defineUseCase({
+  name: 'site.navigation.check',
+  kind: 'query',
+  description:
+    'What every node of the latest navigation draft (or of `revisionId`) would show visitors in one locale: its text, whether that is its own text or the published featured title or title of its target, and whether a content target is published publicly there. Covers every menu, placed or not.',
+  requires: 'content:read',
+  input: z.object({ locale: Locale, revisionId: RevisionId.optional() }).strict(),
+  output: z.object({
+    /** Null before the first save. */
+    revisionId: RevisionId.nullable(),
+    nodes: z.array(
+      z.object({
+        menuId: z.string(),
+        nodeId: z.string(),
+        label: z.string().nullable(),
+        source: z.enum(['own', 'featured', 'title', 'system']).nullable(),
+        target: z.enum(['ok', 'unpublished', 'restricted', 'missing']).nullable(),
+      })
+    ),
+  }),
+  examples: [{ input: { locale: 'nl' } }],
+  async handler(ctx, { locale, revisionId }) {
+    const id = revisionId ?? (await ctx.navigation.head())?.latestRevisionId;
+    if (!id) return { revisionId: null, nodes: [] };
+    const revision = await ctx.navigation.revision(id);
+    if (!revision) throw notFound('navigation revision');
+    const ids = targetIds(revision.document);
+    const [targets, existing] = ids.length
+      ? await Promise.all([
+          ctx.navigation.publishedTargets(ids, locale),
+          ctx.navigation.existingItems(ids),
+        ])
+      : [new Map(), new Set<string>()];
+    return {
+      revisionId: revision.id,
+      nodes: checkNavigation(revision.document, locale, targets, existing),
+    };
   },
 });
 

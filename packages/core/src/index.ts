@@ -60,6 +60,7 @@ export * from './theme/ports.js';
 export * from './theme/presets.js';
 export * from './theme/service.js';
 export * from './theme/settings.js';
+export * from './navigation/check.js';
 export * from './navigation/model.js';
 export * from './navigation/ports.js';
 export * from './navigation/resolve.js';
