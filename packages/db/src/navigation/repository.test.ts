@@ -16,8 +16,8 @@ import {
   navOffline,
   runSuffix,
 } from '@mycel/core/testing';
-import { createDb, createUnitOfWork, uuidv7Ids } from './index.js';
-import { migrateSchema, requireDatabase, testTenant } from './testing.js';
+import { createDb, createUnitOfWork, uuidv7Ids } from '../index.js';
+import { migrateSchema, requireDatabase, testTenant } from '../testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 

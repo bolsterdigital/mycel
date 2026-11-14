@@ -57,7 +57,7 @@ import { enterTenant } from './infra/roles.js';
 import { jobScheduler } from './operations/jobs.js';
 import { jobRecoveryRepository } from './infra/recovery.js';
 import { mediaRepository } from './media.js';
-import { navigationRepository } from './navigation.js';
+import { navigationRepository } from './navigation/repository.js';
 import {
   apiKeyRepository,
   attentionReadsRepository,

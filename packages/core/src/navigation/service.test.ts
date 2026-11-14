@@ -1,7 +1,7 @@
 // Site navigation over the memory adapter (ADR 036): the fixtures `nav-basic`, `nav-labels`,
 // `nav-offline` and `nav-concurrency` through the registry, so capabilities, merge, publication,
 // references and public resolution are tested where every front calls them.
-// packages/db/src/navigation.test.ts holds the Postgres adapter to the same behaviour.
+// packages/db/src/navigation/repository.test.ts holds the Postgres adapter to the same behaviour.
 
 import { describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';

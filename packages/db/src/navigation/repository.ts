@@ -18,8 +18,8 @@ import {
   type NavigationRevision,
   type PublishedTarget,
 } from '@mycel/core';
-import type { Database } from './infra/schema.js';
-import { advisoryLock, advisoryLockShared } from './infra/roles.js';
+import type { Database } from '../infra/schema.js';
+import { advisoryLock, advisoryLockShared } from '../infra/roles.js';
 
 type Trx = Kysely<Database>;
 

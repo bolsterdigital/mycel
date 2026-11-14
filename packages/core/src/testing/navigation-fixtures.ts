@@ -1,4 +1,4 @@
-// The navigation fixtures of #107 (brief § 8b): one document per fixture, built around item ids
+// The site navigation fixtures (ADR 036): one document per fixture, built around item ids
 // the suite created, so the core suites over memory and the database suites over Postgres read
 // the same menus. `nav-migration` and `nav-space` belong to B2 and D.
 

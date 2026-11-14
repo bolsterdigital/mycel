@@ -1,4 +1,4 @@
--- 0056: site navigation as one revisioned document per tenant (ADR 036, TODO #107 B1).
+-- 0056: site navigation as one revisioned document per tenant (ADR 036).
 --
 -- `site_navigation` is the head of the aggregate: one row per tenant naming its latest revision.
 -- `site_navigation_revisions` holds every saved document, immutable like `content_revisions`
@@ -9,7 +9,7 @@
 -- transaction that inserts the revision (core's `navigationReferences`), so `content.item.delete`
 -- can refuse an item the draft or a published revision points at (ADR 036 rule 9).
 --
--- A revision stores no actor: who saved is in the audit log, so an operator's erasure (#224)
+-- A revision stores no actor: who saved is in the audit log, so an operator's erasure
 -- has no copy to reach here. B1 adds the tables beside the site chrome; the four chrome fields
 -- move in a later migration (B2), once the menu editor exists.
 --

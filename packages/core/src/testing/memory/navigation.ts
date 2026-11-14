@@ -1,4 +1,4 @@
-// The navigation repository in memory (ADR 036, the twin of packages/db/src/navigation.ts). The
+// The navigation repository in memory (ADR 036, the twin of packages/db/src/navigation/repository.ts). The
 // lock is the per-tenant queue of `tenantLock`; shared mode queues as well, which only makes two
 // memory deletes wait for each other, never the order of a lock that matters.
 
