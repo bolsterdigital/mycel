@@ -85,6 +85,7 @@ const IMPORT_RULE = {
   assist_settings: 'as-exported',
   content_item_locales: 'as-exported',
   content_block_refs: 'as-exported',
+  content_search: 'as-exported',
   tenant_memberships: 'as-invitation',
   audit_log: 'as-exported',
   erasures: 'as-exported',

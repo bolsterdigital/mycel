@@ -274,6 +274,15 @@ export interface Database {
     type: 'form' | 'item' | 'author' | 'section' | 'media' | 'person' | 'person_group' | 'campaign';
     ref_id: string;
   };
+  /** Search tokens of each published, public, indexable locale (0055); no readable text. */
+  content_search: {
+    tenant_id: string;
+    item_id: string;
+    revision_id: string;
+    locale: string;
+    title: string;
+    body: string;
+  };
   content_item_locales: {
     tenant_id: string;
     item_id: string;

@@ -29,6 +29,7 @@ import {
 } from '@mycel/core';
 import type { Database } from './infra/schema.js';
 import { listPublished } from './content/published.js';
+import { indexPublished, searchPublished } from './content/search.js';
 import { toIso } from './infra/dates.js';
 
 type Trx = Kysely<Database>;
@@ -145,6 +146,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         item.publication.map((s) => s.locale)
       )
       .execute();
+    await indexPublished(trx, tenantId, item.id);
   }
 
   const insertRevision = async (r: Revision) => {
@@ -451,6 +453,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
       };
     },
     listPublished: listPublished(trx),
+    searchPublished: searchPublished(trx),
     async liveReferences(ref) {
       const row = await trx
         .selectFrom('content_item_locales as l')

@@ -620,6 +620,18 @@ export const STORAGE = {
     copies: [INERT_PERSON_ID('ref_id')],
     retention: SITE_KEPT,
   },
+  content_search: {
+    category: 'content',
+    owner: 'tenant',
+    copies: [
+      FREE_TEXT('title', ['content.item.publish', 'content.item.unpublish']),
+      FREE_TEXT('body', ['content.item.publish', 'content.item.unpublish']),
+    ],
+    retention: {
+      kind: 'kept',
+      why: 'the search tokens of what is published now; the row goes when the locale is unpublished or a new revision is published',
+    },
+  },
   tenant_memberships: {
     category: 'access',
     owner: 'tenant',

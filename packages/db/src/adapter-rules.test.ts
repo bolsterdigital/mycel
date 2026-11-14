@@ -3,7 +3,8 @@
 // admission seat of a signup that was never ingested under core's key, and which items a content
 // list matches and in what order (`core/content/listing.ts`), and likewise a media list
 // (`core/media/listing.ts`), and which published locales the public list of published content returns and in
-// what order (`core/content/published/list.ts`). One scenario, one
+// what order (`core/content/published/list.ts`), and what the site search finds
+// (`core/content/published/search.ts`, scenario in `content/search-rule.ts`). One scenario, one
 // expected record, run once over the memory adapter and once over Postgres; a rule that one
 // adapter keeps on its own shows up as a difference here. Rejected: a suite per adapter, which
 // is how memory came to block a `resolved` intent while Postgres kept it.
@@ -38,6 +39,7 @@ import {
   runSuffix,
 } from '@mycel/core/testing';
 import { applyErasures, createDb, createUnitOfWork, migrate, uuidv7, uuidv7Ids } from './index.js';
+import { expectedSearch, observeSearch } from './content/search-rule.js';
 import { closeTenantWork, requireDatabase, testTenant } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -676,6 +678,12 @@ async function observe({ uow, clock, tenant, apply }: Adapter) {
     systemPrincipal(await tenant(), 'adapter-rules'),
     clock
   );
+  const search = await observeSearch(
+    invoker,
+    systemPrincipal(await tenant(), 'adapter-rules'),
+    systemPrincipal(await tenant(), 'adapter-rules'),
+    clock
+  );
   return {
     readmission,
     credential,
@@ -685,6 +693,7 @@ async function observe({ uow, clock, tenant, apply }: Adapter) {
     listing,
     mediaListing,
     publishedList,
+    search,
   };
 }
 
@@ -805,6 +814,7 @@ const expected = {
     offset: 'uitgelicht zomaar',
     pastTheEnd: { n: 0, total: 11 },
   },
+  search: expectedSearch,
   publishedList: {
     // Not `ingetrokken:nl` (unpublished), not `gepland` (its pin has not run).
     all: 'eerste:en eerste:nl ingetrokken:en leden:nl twee:nl verborgen:nl',
