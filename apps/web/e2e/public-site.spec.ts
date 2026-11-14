@@ -1718,6 +1718,13 @@ test.describe('site-settings', () => {
             { href: '/home', label: { nl: 'Welkom', en: 'Home', de: 'Startseite' } },
             { href: '/en/home', label: { nl: 'English', en: 'English', de: 'Englisch' } },
           ],
+          actions: [
+            {
+              href: 'https://example.org/doneer',
+              label: { nl: 'Doneer nu', en: 'Donate now', de: 'Jetzt spenden' },
+            },
+          ],
+          footerTitle: { nl: 'Contact', en: 'Contact', de: 'Kontakt' },
           legal: [
             {
               href: 'https://example.org/privacy',
@@ -1762,7 +1769,18 @@ test.describe('site-settings', () => {
       await expect(page.getByRole('contentinfo')).toContainText(
         locale === 'nl' ? 'Een onafhankelijke site' : 'An independent site'
       );
-      // The footer column (the old support and help links) and then the legal menu (#107 B2).
+      // The call to action after the bar's links; the footer column with its title (the old
+      // support and help links) and then the legal menu (#107 B2).
+      await expect(
+        page
+          .getByRole('navigation', { name: locale === 'nl' ? 'Hoofdnavigatie' : 'Main navigation' })
+          .getByRole('link')
+      ).toHaveText(
+        locale === 'nl' ? ['Welkom', 'English', 'Doneer nu'] : ['Home', 'English', 'Donate now']
+      );
+      await expect(page.getByRole('contentinfo').getByRole('heading', { level: 2 })).toHaveText(
+        'Contact'
+      );
       await expect(
         page
           .getByRole('navigation', { name: locale === 'nl' ? 'Voettekst' : 'Footer' })

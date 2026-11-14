@@ -9,8 +9,11 @@ type Label = Record<string, string>;
 type Link = { href: string; label: Label } | { itemId: string; label?: Label };
 interface Links {
   main?: Link[];
+  actions?: Link[];
   legal?: Link[];
   footer?: Link[];
+  /** The footer column's title. */
+  footerTitle?: Label;
 }
 
 export async function publishMenus(
@@ -19,7 +22,7 @@ export async function publishMenus(
   links: Links,
   locales: string[]
 ) {
-  const menu = (key: keyof Links) =>
+  const menu = (key: 'main' | 'actions' | 'legal' | 'footer') =>
     links[key]?.length
       ? [
           {
@@ -37,8 +40,8 @@ export async function publishMenus(
           },
         ]
       : [];
-  const menus = [...menu('main'), ...menu('legal'), ...menu('footer')];
-  const has = (key: keyof Links) => menus.some((m) => m.id === key);
+  const menus = [...menu('main'), ...menu('actions'), ...menu('legal'), ...menu('footer')];
+  const has = (key: string) => menus.some((m) => m.id === key);
   const current = await invoker.run(useCases.getNavigation, principal, {});
   const saved = await invoker.run(useCases.updateNavigation, principal, {
     baseRevisionId: current.revisionId,
@@ -46,8 +49,10 @@ export async function publishMenus(
       menus,
       placements: {
         main: has('main') ? { menuId: 'main', bar: menus[0]!.nodes.map((n) => n.id) } : null,
-        actions: null,
-        footer: has('footer') ? [{ menuId: 'footer' }] : [],
+        actions: has('actions') ? { menuId: 'actions' } : null,
+        footer: has('footer')
+          ? [{ menuId: 'footer', ...(links.footerTitle ? { title: links.footerTitle } : {}) }]
+          : [],
         legal: has('legal') ? { menuId: 'legal' } : null,
       },
     },
