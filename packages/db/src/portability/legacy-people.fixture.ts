@@ -1,4 +1,6 @@
 // An archive made before the table rename must round-trip, including its original row digest.
+// Such an archive also predates the site search index (0055): the import builds `content_search`
+// from the imported publication rows, so a published page is found on the new installation.
 // Kept beside the portability suite instead of lengthening its already broad fixture setup.
 import { expect } from 'vitest';
 import { createHash } from 'node:crypto';
@@ -7,6 +9,7 @@ import { join } from 'node:path';
 import { sql, type Kysely } from 'kysely';
 import { EXAMPLE_PNG, systemPrincipal, useCases, type BlobStore, type Invoker } from '@mycel/core';
 import { createTenant } from '../platform.js';
+import { enterTenant } from '../infra/roles.js';
 import { uuidv7 } from '../infra/ids.js';
 import type { Database } from '../infra/schema.js';
 import { exportTenant } from './export.js';
@@ -36,8 +39,27 @@ export async function checkLegacyPeopleImport(options: {
     name: 'Legacy',
     email: 'internal@example.org',
   });
+  const admin = systemPrincipal(source.id, 'test');
+  const { item, revision } = await invoker.run(useCases.createItem, admin, {
+    slug: 'vindbaar',
+    document: {
+      type: 'page',
+      defaultLocale: 'nl',
+      locales: ['nl'],
+      title: { nl: 'Vindbaar' },
+      blocks: [],
+    } as never,
+  });
+  await invoker.run(useCases.publishItem, admin, {
+    itemId: item.id,
+    revisionId: revision.id,
+    locale: 'nl',
+  });
   const dir = join(root, slug);
   const manifest = await exportTenant({ operatorDb, blobs, slug, out: dir, mycelVersion: 'test' });
+  expect(manifest.tables['content_search']?.rows).toBe(1);
+  await rm(join(dir, manifest.tables['content_search']!.file));
+  delete manifest.tables['content_search'];
   const entry = manifest.tables['people']!;
   const newColumns = ['role', 'organisation', 'public_email', 'phone', 'page_policy'];
   const original = await readFile(join(dir, entry.file), 'utf8');
@@ -76,6 +98,14 @@ export async function checkLegacyPeopleImport(options: {
   const row = JSON.parse((await readFile(join(restored, 'tables/people.ndjson'), 'utf8')).trim());
   expect(report.differences).toEqual([]);
   expect(report.lines).toContainEqual(expect.stringMatching(/^people: 1 imported/));
+  expect(report.lines).toContain(
+    'content_search: not in the export (older schema), rebuilt, 1 rows'
+  );
+  const indexed = await targetDb.transaction().execute(async (trx) => {
+    await enterTenant(trx, source.id);
+    return (await sql<{ item_id: string }>`select item_id from content_search`.execute(trx)).rows;
+  });
+  expect(indexed).toEqual([{ item_id: item.id }]);
   expect(row).toMatchObject({
     id: person.id,
     email: 'internal@example.org',

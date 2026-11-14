@@ -107,6 +107,7 @@ export {
 } from './infra/recovery.js';
 export { deleteExpiredAudit } from './audit.js';
 export { APPLY_BATCH, applyErasures, erasureStatus } from './erasures.js';
+export { reindexSearch } from './content/search.js';
 export { expireExports, runExportJob, type ExportJobDeps } from './portability/tenant-exports.js';
 export {
   EXPORT_FORMAT,

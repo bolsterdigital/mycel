@@ -103,3 +103,44 @@ export function expectPreviewChrome(preview: Rails, site: Rails, base: string) {
   for (const href of preview.links)
     if (href?.startsWith('/')) expect(href).toMatch(new RegExp(`^${base}(/|$)`));
 }
+
+/** The rails of a composed page: its measure, prose, wide and full blocks, title and floats. */
+export async function compositionMetrics(page: Page) {
+  await page.evaluate(() => document.fonts.ready);
+  return page.evaluate(() => {
+    const box = (selector: string) => {
+      const el = document.querySelector(selector);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.x, width: r.width, bottom: r.bottom, top: r.top };
+    };
+    return {
+      viewport: document.documentElement.clientWidth,
+      overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      font: getComputedStyle(document.body).fontFamily,
+      fontSize: getComputedStyle(document.body).fontSize,
+      measure: getComputedStyle(document.querySelector('.page')!).getPropertyValue(
+        '--content-width'
+      ),
+      prose: box('.page .rich-text'),
+      wide: box('.page .layout-wide'),
+      full: box('.page .layout-full'),
+      title: box('.page h1'),
+      floats: [...document.querySelectorAll('.page [class*="layout-float-"]')].map(
+        (el) => getComputedStyle(el).float
+      ),
+    };
+  });
+}
+
+/** The item title sits centred in its own 52rem rail (brief 46C-1 rule 8): never narrower
+ *  than the reading column, never wider than the rail, its centre on the viewport's. */
+export function expectTitleRail(
+  title: { x: number; width: number },
+  prose: { width: number },
+  viewport: number
+) {
+  expect(title.width).toBeGreaterThanOrEqual(prose.width - 1);
+  expect(title.width).toBeLessThanOrEqual(52 * 16 + 1);
+  expect(Math.abs(title.x + title.width / 2 - viewport / 2)).toBeLessThanOrEqual(1);
+}

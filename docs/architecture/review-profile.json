@@ -88,6 +88,9 @@
         "apps/web/src/routes/(public)/[tenant]/robots.txt/**",
         "apps/web/src/lib/public/structured-data.ts",
         "apps/web/src/lib/server/public/person-page.ts",
+        "apps/web/src/lib/server/public/search-page.ts",
+        "apps/web/src/routes/(public)/[tenant]/[[locale=locale]]/search/**",
+        "packages/db/src/content/search.ts",
         "apps/web/src/lib/server/forms/**"
       ],
       "adrs": ["002", "009", "011", "014", "016", "019", "024"],
@@ -122,7 +125,8 @@
         "apps/web/src/routes/(public)/**",
         "apps/web/src/lib/server/public/content-route*",
         "docs/reference/content-model.md",
-        "apps/web/src/lib/public/person-path.ts"
+        "apps/web/src/lib/public/person-path.ts",
+        "apps/web/src/lib/public/search-path.ts"
       ],
       "adrs": ["004", "012", "017", "020"],
       "gates": [

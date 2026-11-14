@@ -264,6 +264,7 @@ describe('routes and tags (brief #8a § 2)', () => {
     'tags',
     'assets',
     'healthz',
+    'search',
     'nl',
     'en',
     'pt',
