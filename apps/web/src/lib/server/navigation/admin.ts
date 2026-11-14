@@ -95,6 +95,9 @@ export async function saveNavigation(
     }));
   } catch (e) {
     const { status, body } = failureOf(refusalOf(e), action, COPY);
+    // After a conflict the form shows what is saved now, and what this editor typed only beside
+    // it: refilled, a second Save would replace the other editor's text without either seeing it.
+    if (status === 409) return fail(status, { ...body, mine: posted(data) });
     return fail(status, { ...body, values: posted(data) });
   }
   const path = to(data);
@@ -145,8 +148,9 @@ export function nodeFromForm(
               : {}),
           }
   );
+  // An address that does not parse is a wrong address; nothing chosen and nothing typed is no target.
   if (!target.success)
-    return choice === 'url' || !choice
+    return choice === 'url' || (!choice && text(data, 'url').trim())
       ? 'admin.navigation.error.address'
       : 'admin.navigation.error.targetRequired';
   if (target.data.kind === 'url' && !own) return 'admin.navigation.error.labelRequired';

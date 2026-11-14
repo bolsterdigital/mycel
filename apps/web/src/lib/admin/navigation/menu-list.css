@@ -41,4 +41,11 @@
   .ui-menu-item .ui-actions-host {
     margin-block-end: 0;
   }
+  /* A footer column of the preview: its heading and menu, then its items. */
+  .ui-menu-column + .ui-menu-column {
+    margin-block-start: var(--space-3);
+  }
+  .ui-menu-column h3 {
+    margin: 0;
+  }
 }

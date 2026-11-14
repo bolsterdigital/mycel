@@ -59,7 +59,11 @@
 </svelte:head>
 
 {#snippet notices()}
-  {#if form?.error}<Notice tone="error">{t(form.error)}</Notice
+  {#if form?.error}<Notice tone="error"
+      >{t(form.error)}
+      {#if form.mine?.['name']}{fill(t('admin.navigation.error.yours'), {
+          text: form.mine['name'],
+        })}{/if}</Notice
     >{:else if page.url.searchParams.has('merged')}<Notice tone="success"
       >{t('admin.navigation.merged')}</Notice
     >{:else if page.url.searchParams.has('saved')}<Notice tone="success"

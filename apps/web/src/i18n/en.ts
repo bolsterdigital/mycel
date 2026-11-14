@@ -414,7 +414,7 @@ export const en = {
   'admin.navigation.group.intro':
     'A group is a text without a link of its own. Add links, then make them sub-items of the group.',
   'admin.navigation.error.conflict':
-    'Not saved: someone changed the same part of the navigation in the meantime. Reload the page to see their change, then try again.',
+    'Not saved: someone changed the same part of the navigation in the meantime. What they saved is shown now; check it, then try again.',
   'admin.navigation.error.invalid':
     'Not saved: with what was changed in the meantime this no longer fits. Reload the page and try again.',
   'admin.navigation.error.nameRequired': 'Give the menu a name.',
@@ -431,6 +431,103 @@ export const en = {
     'Not saved: the navigation has reached its maximum number of menus or items.',
   'admin.navigation.error.actions':
     'Not saved: the action buttons take at most two links, without sub-items or groups.',
+  'admin.navigation.error.yours': 'What you typed: {text}',
+  'admin.navigation.error.publish':
+    'Not published: first fix what is marked "Blocks publication" below.',
+  'admin.navigation.error.revisionGone': 'That version of the navigation does not exist.',
+  'admin.navigation.overview.published': 'Published in {locale}.',
+  'admin.navigation.overview.offline': 'Taken offline in {locale}.',
+  'admin.navigation.overview.restored':
+    'Restored as the draft. Nothing changes on the site until you publish it.',
+  'admin.navigation.placements': 'Placements',
+  'admin.navigation.placements.intro':
+    'Where the draft shows each menu. The same menu can stand in several places.',
+  'admin.navigation.placements.edit': 'Change placements',
+  'admin.navigation.placements.submit': 'Save placements',
+  'admin.navigation.placements.none': 'None',
+  'admin.navigation.placements.noMenus': 'Make a menu first; then choose where it appears.',
+  'admin.navigation.placements.main.hint':
+    'The whole menu opens as a panel. The items ticked below also stand in the bar when there is room.',
+  'admin.navigation.placements.bar': 'In the bar',
+  'admin.navigation.placements.bar.hint':
+    'Top-level items of {menu}. After choosing another menu, save first, then tick its items.',
+  'admin.navigation.placements.bar.empty': 'This menu has no items yet.',
+  'admin.navigation.placements.actions.hint':
+    'A menu of at most two links without sub-items: the first is the main button, the second the other.',
+  'admin.navigation.placements.footer.hint':
+    'Up to four columns, in this order. Leave a column on "None" to skip it.',
+  'admin.navigation.placements.column': 'Column {n}',
+  'admin.navigation.placements.column.menu': 'Menu of column {n}',
+  'admin.navigation.placements.column.title': 'Title of column {n} ({locale})',
+  'admin.navigation.placements.column.title.hint': 'Optional; stands above the column.',
+  'admin.navigation.placements.legal.hint': 'Privacy, terms and other legal links, in small print.',
+  'admin.navigation.publication': 'Publication',
+  'admin.navigation.publication.intro':
+    'Per language: which version visitors get once the site uses these menus, and whether the draft has changes since.',
+  'admin.navigation.column.language': 'Language',
+  'admin.navigation.column.live': 'Live',
+  'admin.navigation.column.draft': 'Draft',
+  'admin.navigation.live.none': 'Not published',
+  'admin.navigation.draft.same': 'Same as live',
+  'admin.navigation.draft.ahead': 'Has changes',
+  'admin.navigation.draft.blocked': 'Cannot be published yet',
+  'admin.navigation.previewIn': 'Preview {locale}',
+  'admin.navigation.revisions': 'Versions',
+  'admin.navigation.revisions.intro':
+    'The newest versions of the draft, newest first. Every saved step makes one.',
+  'admin.navigation.revisions.all': 'All versions',
+  'admin.navigation.column.when': 'Saved',
+  'admin.navigation.column.notes': 'Notes',
+  'admin.navigation.revision.current': 'Current draft',
+  'admin.navigation.revision.merged': 'Merged with a change made at the same time',
+  'admin.navigation.revision.restoredFrom': 'Restored from the version of {when}',
+  'admin.navigation.revision.restored': 'Restored from an older version',
+  'admin.navigation.revision.liveIn': 'Live in {locales}',
+  'admin.navigation.revision.view': 'View',
+  'admin.navigation.revision.title': 'Version of {when}',
+  'admin.navigation.revision.intro':
+    'What this version shows visitors in {locale}, with the pages as they are published now. Restoring copies it into a new draft.',
+  'admin.navigation.revision.isCurrent': 'This is the current draft.',
+  'admin.navigation.restore': 'Restore as draft',
+  'admin.navigation.restore.question':
+    'Make this version the draft? The current draft stays in the list of versions, and nothing goes live until you publish.',
+  'admin.navigation.restore.confirm': 'Yes, restore',
+  'admin.navigation.preview.title': 'Preview in {locale}',
+  'admin.navigation.preview.intro':
+    'What visitors in {locale} will see when this draft is published: only published pages, with their published titles.',
+  'admin.navigation.preview.live': 'Live in {locale}: the version of {when}.',
+  'admin.navigation.preview.notLive': 'Not published in {locale} yet.',
+  'admin.navigation.preview.same': 'The draft is what is live.',
+  'admin.navigation.preview.ahead': 'The draft has changes that are not live.',
+  'admin.navigation.preview.nothing': 'Nothing is placed here.',
+  'admin.navigation.preview.empty': 'Shows nothing in this language.',
+  'admin.navigation.preview.bar': 'In the bar',
+  'admin.navigation.preview.primary': 'Main button',
+  'admin.navigation.preview.secondary': 'Other button',
+  'admin.navigation.preview.untitled': 'Column without a title',
+  'admin.navigation.preview.menu': 'Menu: {menu}',
+  'admin.navigation.problems': 'Left out',
+  'admin.navigation.problems.intro':
+    'Items of placed menus that visitors in {locale} will not see.',
+  'admin.navigation.problems.none': 'Every item of the placed menus is shown.',
+  'admin.navigation.problem.blocking': 'Blocks publication',
+  'admin.navigation.problem.where': '{item} in {menu}',
+  'admin.navigation.problem.label-missing':
+    'It has no text in {locale}; add one before publishing.',
+  'admin.navigation.problem.target-unavailable': 'Its page is not published publicly in {locale}.',
+  'admin.navigation.problem.children-unreachable':
+    'Its page is not shown and it has no text of its own in {locale}, so its sub-items are left out too.',
+  'admin.navigation.problem.anchor-missing':
+    'The part of the page it pointed to is gone; it leads to the top of the page.',
+  'admin.navigation.problem.target-unknown':
+    'Its page no longer exists; choose another one before publishing.',
+  'admin.navigation.publish': 'Publish in {locale}',
+  'admin.navigation.publish.noRight':
+    'Publishing needs the right to publish. Someone who has it can put this draft live.',
+  'admin.navigation.unpublish': 'Take offline in {locale}',
+  'admin.navigation.unpublish.question':
+    'Take the menus offline in this language? Visitors then see no menus there until you publish again.',
+  'admin.navigation.unpublish.confirm': 'Yes, take offline',
   'admin.dashboard.title': 'Dashboard',
   'admin.dashboard.recent': 'Recently edited',
   'admin.dashboard.scheduled': 'Scheduled',
