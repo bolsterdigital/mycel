@@ -18,7 +18,7 @@ import {
 } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { exampleId } from '../util/ids.js';
-import type { NavigationDocument } from './model.js';
+import { EMPTY_NAVIGATION, type NavigationDocument } from './model.js';
 
 const OTHER = exampleId(0xbbbb);
 
@@ -278,6 +278,90 @@ describe('nav-labels', () => {
     // with its en title (no featured title in en): never another locale's text.
     const en = await t.run('resolveNavigation', { locale: 'en' }, t.visitor);
     expect(en.main.nodes.map((n: { label: string }) => n.label)).toEqual(['Long title']);
+    // The editor's read says the same per node, with where the text comes from and why not.
+    const facts = async (locale: string) =>
+      (await t.run('checkNavigation', { locale }, t.writer)).nodes.map(
+        (n: { label: string | null; source: string | null; target: string | null }) =>
+          [n.label, n.source, n.target].join(' | ')
+      );
+    expect(await facts('nl')).toEqual([
+      'Eigen tekst | own | ok',
+      'Kort | featured | ok',
+      'Gepubliceerd | title | ok',
+    ]);
+    expect(await facts('en')).toEqual([
+      ' |  | unpublished',
+      'Long title | title | ok',
+      ' |  | unpublished',
+    ]);
+    // A draft's check is not a public read.
+    await expect(t.run('checkNavigation', { locale: 'nl' }, t.visitor)).rejects.toMatchObject({
+      code: 'forbidden',
+    });
+  });
+
+  it('checks groups, addresses, system pages and a target that is gone, in unplaced menus too', async () => {
+    const t = setup();
+    const page = await t.page('verdwenen', { title: { nl: 'Verdwenen' } });
+    const { revisionId } = await t.save({
+      menus: [
+        {
+          id: 'loose',
+          name: 'Not placed',
+          nodes: [
+            { id: 'g', kind: 'group', label: { nl: 'Groep' }, children: [] },
+            { id: 'u', kind: 'link', target: { kind: 'url', href: '/elders' } },
+            { id: 's', kind: 'link', target: { kind: 'system', page: 'search' } },
+            { id: 'c', kind: 'link', target: { kind: 'content', itemId: page.id } },
+          ],
+        },
+      ],
+      placements: { main: null, actions: null, footer: [], legal: null },
+    });
+    await t.run('unpublishItem', { itemId: page.id, locale: 'nl' });
+    const { nodes, revisionId: checked } = await t.run('checkNavigation', { locale: 'nl' });
+    expect(checked).toBe(revisionId);
+    expect(nodes.map((n: { nodeId: string }) => n.nodeId)).toEqual(['g', 'u', 's', 'c']);
+    expect(nodes.map((n: { source: string | null }) => n.source)).toEqual([
+      'own',
+      null,
+      'system',
+      null,
+    ]);
+    expect(nodes[3].target).toBe('unpublished');
+    expect((await t.run('checkNavigation', { locale: 'en' })).nodes[0].label).toBeNull();
+    await expect(
+      t.run('checkNavigation', { locale: 'nl', revisionId: OTHER })
+    ).rejects.toMatchObject({ code: 'not_found' });
+  });
+
+  it('reads an older revision by id, and none of another site', async () => {
+    const t = setup();
+    const menu = (name: string): NavigationDocument => ({
+      ...EMPTY_NAVIGATION,
+      menus: [{ id: 'm', name, nodes: [] }],
+    });
+    const first = await t.save(menu('First'));
+    const second = await t.save(menu('Second'), first.revisionId);
+    const old = await t.run('getNavigation', { revisionId: first.revisionId }, t.writer);
+    expect(old.revisionId).toBe(first.revisionId);
+    expect(old.document.menus[0].name).toBe('First');
+    const latest = await t.run('getNavigation', {});
+    expect([latest.revisionId, latest.document.menus[0].name]).toEqual([
+      second.revisionId,
+      'Second',
+    ]);
+    await expect(t.run('getNavigation', { revisionId: OTHER })).rejects.toMatchObject({
+      code: 'not_found',
+    });
+  });
+
+  it('checks nothing before the first save', async () => {
+    const t = setup();
+    expect(await t.run('checkNavigation', { locale: 'nl' })).toEqual({
+      revisionId: null,
+      nodes: [],
+    });
   });
 });
 
