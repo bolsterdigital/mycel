@@ -1070,6 +1070,8 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Dit kon niet worden verwijderd. Laad de pagina opnieuw en probeer het nog eens.',
   'admin.content.delete.referenced':
     'Dit kan niet weg zolang andere items ernaar linken ({count}: {titles}). Haal die links eerst weg.',
+  'admin.content.delete.campaignLanding':
+    'Dit is de landingspagina van een campagne. Die kan pas naar de prullenbak als de campagne is gearchiveerd.',
   'admin.content.trash.title': 'Prullenbak',
   'admin.content.trash.intro':
     'Verwijderde pagina’s en artikelen blijven hier staan tot je ze herstelt. Ze zijn offline en hun adres is vrij.',

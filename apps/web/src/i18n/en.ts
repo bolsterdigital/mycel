@@ -1061,6 +1061,8 @@ export const en = {
   'admin.content.delete.refused': 'This could not be deleted. Reload the page and try again.',
   'admin.content.delete.referenced':
     'This cannot be deleted while other items link to it ({count}: {titles}). Remove those links first.',
+  'admin.content.delete.campaignLanding':
+    'This is the landing page of a campaign. It can only move to the trash once the campaign is archived.',
   'admin.content.trash.title': 'Trash',
   'admin.content.trash.intro':
     'Deleted pages and articles stay here until you restore them. They are offline and their address is free.',

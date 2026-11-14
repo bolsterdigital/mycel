@@ -448,6 +448,44 @@ test('a campaign card: live on page, article and scheduled page; nothing when un
   await expect(page.getByText('Meedoen kan niet meer: deze campagne is gesloten.')).toBeVisible();
 });
 
+// ADR 033 rule 9: a campaign's landing page leaves only after the campaign is archived. Deleting
+// it from the list under Content is refused, and the sentence says why: not the sentence about
+// linking items, whose count and titles this refusal does not carry.
+test('a landing page is refused the trash with its own reason while its campaign runs', async ({
+  page,
+}) => {
+  const slug = `landing-${test.info().project.name}-${Date.now()}`;
+  const editor = systemPrincipal(await tenantId(), 'e2e-campaign-landing');
+  const campaign = await withInvoker((invoker) =>
+    invoker.run(useCases.composeCampaign, editor, {
+      kind: 'petition',
+      title: { nl: `Landing ${slug}` },
+      defaultLocale: 'nl',
+      locales: ['nl'],
+      slug,
+      goal: { target: 100, milestones: [] },
+    })
+  );
+  await login(page, `/admin/probe/content?type=page&q=${slug}`);
+  const row = page.locator(`[id="item-${campaign.landingItemId}"]`);
+  await row.hover();
+  const actions = row.locator('.ui-row-actions.inline');
+  await actions.locator('summary', { hasText: 'Verwijderen' }).click();
+  await actions.getByRole('button', { name: /^Ja, naar de prullenbak/ }).click();
+
+  await expect(
+    page.getByText(
+      'Dit is de landingspagina van een campagne. Die kan pas naar de prullenbak als de campagne is gearchiveerd.'
+    )
+  ).toBeVisible();
+  await expect(page.locator('main')).not.toContainText('{count}');
+  await expect(page.locator('main')).not.toContainText('{titles}');
+  await expect(page.locator('main')).not.toContainText('andere items ernaar linken');
+  expect(page.url()).not.toContain('done=deleted');
+  await expect(page.locator(`[id="item-${campaign.landingItemId}"]`)).toBeVisible();
+  if (isA11y()) await expectNoAxeViolations(page, { label: 'landing page delete refused' });
+});
+
 test.describe('in English', () => {
   // A Dutch browser on the English path: the path decides, not Accept-Language.
   test.use({ locale: 'nl-NL' });
