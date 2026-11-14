@@ -1,6 +1,6 @@
 <!-- The menus of a site on the overview pattern: per menu its name (to its editor), how many
      items it holds and where the draft shows it. One primary action: a new menu. Native links and
-     a plain table; nothing needs JavaScript. Until the site reads this navigation (#107 B2) a
+     a plain table; nothing needs JavaScript. Until the site reads this navigation a
      notice says so, because the old links under Settings are still what visitors see. -->
 <script lang="ts">
   import { Button, Notice, OverviewPage, Table } from '#lib/admin/ui/index.js';

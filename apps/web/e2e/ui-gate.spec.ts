@@ -962,6 +962,7 @@ test.describe('admin-shell', () => {
       'Theme',
       'Logo and wordmark',
       'Menus and footer',
+      'Navigation',
     ]);
     await expect(sections.getByRole('link', { name: 'General' })).toHaveAttribute(
       'aria-current',
