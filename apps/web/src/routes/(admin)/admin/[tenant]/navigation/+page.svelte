@@ -56,10 +56,6 @@
       }}
 >
   {#snippet notices()}
-    <Notice tone="info" live={false}
-      >{t('admin.navigation.notLive')}
-      <a href="{base}/site?section=chrome">{t('admin.nav.menus')}</a></Notice
-    >
     {#if page.url.searchParams.has('restored')}<Notice tone="success"
         >{t('admin.navigation.overview.restored')}</Notice
       >{:else if page.url.searchParams.has('merged')}<Notice tone="success"

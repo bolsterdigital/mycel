@@ -19,8 +19,12 @@ import { SiteHref } from '../theme/settings.js';
 /** A stable id of a menu or node: the block-id alphabet, so merge paths and refs can carry it. */
 export const NavigationId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, 'site.navigation.id.invalid');
 
-/** A localised label; a locale without a value has none (inherit, or an empty group label). */
-export const NavigationLabel = z.record(Locale, z.string().trim().min(1).max(120));
+/**
+ * A localised label; a locale without a value has none (inherit, or an empty group label). At
+ * most 240 characters, the limit of the chrome labels that migration 0057 turns into own labels,
+ * so no migrated label becomes invalid.
+ */
+export const NavigationLabel = z.record(Locale, z.string().trim().min(1).max(240));
 export type NavigationLabel = z.infer<typeof NavigationLabel>;
 
 /** ADR 036 rule 3: content by id (an optional block id as anchor), a URL, or a platform page. */

@@ -116,7 +116,7 @@
     locale={data.locale}
     required={data.kind === 'group'}
     invalid={labelMissing}
-    maxlength={120}
+    maxlength={240}
     value={value('label')}
   />
 </FormPage>

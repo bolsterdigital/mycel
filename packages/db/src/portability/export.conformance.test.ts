@@ -149,13 +149,7 @@ describe.skipIf(skip)('tenant export and import', () => {
     });
     await invoker.run(useCases.updateSiteChrome, admin, {
       baseVersion: 0,
-      chrome: {
-        navigation: [],
-        footer: { nl: 'Voettekst', en: 'Footer' },
-        legal: [],
-        support: null,
-        help: null,
-      },
+      chrome: { footer: { nl: 'Voettekst', en: 'Footer' } },
     });
     await invoker.run(useCases.putBrandAsset, admin, {
       kind: 'logo',

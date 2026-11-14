@@ -30,7 +30,7 @@ import { searchPath } from '../../public/search-path.js';
 import { refuse } from '../http/refuse.js';
 import { runtime } from '../runtime.js';
 import { sitePath, siteTenant, siteUrls, type Site } from '../site.js';
-import { siteBrand, siteChrome, siteTheme } from './theme.js';
+import { siteBrand, siteChrome, siteNavigation, siteTheme } from './theme.js';
 
 /** Results per page; the use case allows up to 20. */
 export const SEARCH_PAGE_SIZE = 10;
@@ -92,13 +92,16 @@ export async function loadSearchPage(site: Site, locale: string, url: URL) {
   };
   // The layout around the results is part of the response, as on a profile page: a change of
   // theme, menu or brand must not be confirmed by a 304 for the old page.
-  const [theme, chrome, brand] = await Promise.all([
+  const [theme, chrome, navigation, brand] = await Promise.all([
     siteTheme(site),
     siteChrome(site),
+    siteNavigation(site, locale),
     siteBrand(site),
   ]);
   const digest = createHash('sha256')
-    .update(JSON.stringify({ view, theme: theme.hash, chrome, brand, access: site.access }))
+    .update(
+      JSON.stringify({ view, theme: theme.hash, chrome, navigation, brand, access: site.access })
+    )
     .digest('base64url');
   return { view, etag: `"search:${digest}"` };
 }

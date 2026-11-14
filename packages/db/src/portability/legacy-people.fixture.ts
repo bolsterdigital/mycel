@@ -1,6 +1,8 @@
 // An archive made before the table rename must round-trip, including its original row digest.
 // Such an archive also predates the site search index (0055): the import builds `content_search`
-// from the imported publication rows, so a published page is found on the new installation.
+// from the imported publication rows, so a published page is found on the new installation. And
+// it predates the navigation document (0056/0057): its menus are still in the chrome, and the
+// import moves them with the migration's own function (ADR 036 rule 10).
 // Kept beside the portability suite instead of lengthening its already broad fixture setup.
 import { expect } from 'vitest';
 import { createHash } from 'node:crypto';
@@ -55,8 +57,46 @@ export async function checkLegacyPeopleImport(options: {
     revisionId: revision.id,
     locale: 'nl',
   });
+  await invoker.run(useCases.updateSiteChrome, admin, {
+    baseVersion: 0,
+    chrome: { footer: { nl: 'Voet' } },
+  });
   const dir = join(root, slug);
   const manifest = await exportTenant({ operatorDb, blobs, slug, out: dir, mycelVersion: 'test' });
+  // The chrome as it was stored before 0057, and no navigation tables at all.
+  for (const table of [
+    'site_navigation',
+    'site_navigation_revisions',
+    'site_navigation_locales',
+    'site_navigation_refs',
+  ]) {
+    const nav = manifest.tables[table];
+    if (nav) await rm(join(dir, nav.file));
+    delete manifest.tables[table];
+  }
+  const settings = manifest.tables['site_settings']!;
+  const settingsText =
+    (await readFile(join(dir, settings.file), 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => {
+        const row = JSON.parse(line) as { chrome: unknown };
+        const chrome = typeof row.chrome === 'string' ? JSON.parse(row.chrome) : row.chrome;
+        const old = {
+          ...(chrome as object),
+          navigation: [{ href: '/vindbaar', label: { nl: 'Vindbaar' } }],
+          legal: [],
+          support: null,
+          help: null,
+        };
+        return JSON.stringify({
+          ...row,
+          chrome: typeof row.chrome === 'string' ? JSON.stringify(old) : old,
+        });
+      })
+      .join('\n') + '\n';
+  await writeFile(join(dir, settings.file), settingsText);
+  settings.sha256 = createHash('sha256').update(settingsText).digest('hex');
   expect(manifest.tables['content_search']?.rows).toBe(1);
   await rm(join(dir, manifest.tables['content_search']!.file));
   delete manifest.tables['content_search'];
@@ -106,6 +146,27 @@ export async function checkLegacyPeopleImport(options: {
     return (await sql<{ item_id: string }>`select item_id from content_search`.execute(trx)).rows;
   });
   expect(indexed).toEqual([{ item_id: item.id }]);
+  expect(report.lines).toContain('site_navigation: menus moved from the older chrome');
+  // On the target installation: one published revision holding the old link as a placed menu.
+  const moved = await targetDb.transaction().execute(async (trx) => {
+    await enterTenant(trx, source.id);
+    return (
+      await sql<{ document: { placements: { main: unknown } }; locale: string }>`
+        select r.document, l.locale from site_navigation n
+          join site_navigation_revisions r on r.id = n.latest_revision_id
+          join site_navigation_locales l on l.revision_id = r.id`.execute(trx)
+    ).rows;
+  });
+  expect(moved).toEqual([
+    expect.objectContaining({
+      locale: 'nl',
+      document: expect.objectContaining({
+        placements: expect.objectContaining({
+          main: { menuId: 'chrome-main', bar: ['chrome-main-1'] },
+        }),
+      }),
+    }),
+  ]);
   expect(row).toMatchObject({
     id: person.id,
     email: 'internal@example.org',

@@ -20,7 +20,6 @@ import { imageIssue } from '../content/service.js';
 import '../media/ports.js';
 import { SiteRetention } from '../ops/retention.js';
 
-const Localized = z.record(z.string().min(2).max(12), z.string().trim().min(1).max(240));
 const Footer = z.record(z.string().min(2).max(12), z.string().trim().max(500));
 /** A site-relative path or an `https:` URL; site navigation targets share it (ADR 036 rule 3). */
 export const SiteHref = z
@@ -35,24 +34,16 @@ export const SiteHref = z
       return false;
     }
   }, 'site.chrome.href.invalid');
-const Link = z.object({ label: Localized, href: SiteHref }).strict();
-export const SiteChrome = z
-  .object({
-    navigation: z.array(Link).max(12),
-    footer: Footer,
-    legal: z.array(Link).max(8),
-    support: z.object({ label: Localized, href: SiteHref }).strict().nullable(),
-    help: z.object({ label: Localized, href: SiteHref }).strict().nullable(),
-  })
-  .strict();
+/**
+ * The site chrome keeps the footer text only. Navigation, legal links and the support and help
+ * links moved to the navigation document in migration 0057 (ADR 036 rule 10), and the strict
+ * schema refuses them, so this setter, which writes live with `content:write`, can never bypass
+ * the navigation's publication. Rejected: accepting and ignoring the old fields, which would let
+ * an old client believe it changed the menu.
+ */
+export const SiteChrome = z.object({ footer: Footer }).strict();
 export type SiteChrome = z.infer<typeof SiteChrome>;
-export const DEFAULT_CHROME: SiteChrome = {
-  navigation: [],
-  footer: {},
-  legal: [],
-  support: null,
-  help: null,
-};
+export const DEFAULT_CHROME: SiteChrome = { footer: {} };
 /**
  * The general settings of a site (#88): today its time zone, in which the admin plans and
  * labels times unless an operator chose their own. A document like theme and chrome, so the next
@@ -136,7 +127,7 @@ export const updateSiteTheme = defineUseCase({
 export const getSiteChrome = defineUseCase({
   name: 'site.chrome.get',
   kind: 'query',
-  description: 'Read public navigation, footer and help links.',
+  description: 'Read the footer text of the public site; menus are `site.navigation.*`.',
   requires: 'content:read',
   input: z.object({}).strict(),
   output: ChromeState,
@@ -146,7 +137,7 @@ export const getSiteChrome = defineUseCase({
 export const updateSiteChrome = defineUseCase({
   name: 'site.chrome.update',
   kind: 'command',
-  description: 'Replace public site chrome at a known version.',
+  description: 'Replace the footer text of the public site at a known version.',
   requires: 'content:write',
   input: z.object({ baseVersion: version, chrome: SiteChrome }).strict(),
   output: ChromeState,

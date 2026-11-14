@@ -65,7 +65,7 @@ export function placementsFrom(
     if (!slot.menuId) return [];
     const before = was.footer[i]?.menuId === slot.menuId ? was.footer[i]?.title : undefined;
     const { [locale]: _old, ...rest } = before ?? {};
-    const title = slot.title.trim() ? { ...rest, [locale]: slot.title.trim().slice(0, 120) } : rest;
+    const title = slot.title.trim() ? { ...rest, [locale]: slot.title.trim().slice(0, 240) } : rest;
     return [{ menuId: slot.menuId, ...(Object.keys(title).length ? { title } : {}) }];
   });
   return {

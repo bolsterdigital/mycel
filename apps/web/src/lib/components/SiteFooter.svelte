@@ -15,11 +15,13 @@
 
 <footer class="site-footer">
   {#if chrome.footer}<p>{chrome.footer}</p>{/if}
-  {#if chrome.legal.length || chrome.support || chrome.help}
+  {#if chrome.columns.length || chrome.legal.length}
     <nav aria-label={t('public.footerNavigation')}>
-      {#each chrome.legal as item (item.href)}<a href={item.href}>{item.label}</a>{/each}
-      {#if chrome.support}<a href={chrome.support.href}>{chrome.support.label}</a>{/if}
-      {#if chrome.help}<a href={chrome.help.href}>{chrome.help.label}</a>{/if}
+      {#each chrome.columns as column, c (c)}
+        {#if column.title}<h2 class="site-footer-title">{column.title}</h2>{/if}
+        {#each column.links as item, i (i)}<a href={item.href}>{item.label}</a>{/each}
+      {/each}
+      {#each chrome.legal as item, i (i)}<a href={item.href}>{item.label}</a>{/each}
     </nav>
   {/if}
   {#if credit}<MycelCredit {...credit} />{/if}

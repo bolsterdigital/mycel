@@ -197,6 +197,7 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
   const tenantId = manifest.tenant.id;
   const lines: string[] = [];
   const started = new Date();
+  let movedChrome = false;
   const written: string[] = [];
 
   try {
@@ -248,6 +249,14 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
         const index = await rebuildSearchIndex(trx, tenantId);
         lines.push(`content_search: not in the export (older schema), rebuilt, ${index.rows} rows`);
       }
+      // An archive from before 0057 keeps its menus in the chrome of `site_settings`; the
+      // migration's own function moves them into the navigation document (ADR 036 rule 10), so
+      // an old export and an upgraded installation end in the same menus.
+      const moved = await sql<{ moved: boolean }>`
+        select site_navigation_from_chrome(${tenantId}::uuid, ${manifest.tenant.locales}::text[])
+          as moved`.execute(trx);
+      movedChrome = moved.rows[0]?.moved === true;
+      if (movedChrome) lines.push('site_navigation: menus moved from the older chrome');
       for (const table of RETIRED_TABLES) {
         const entry =
           manifest.tables[table] ?? (table === 'people' ? manifest.tables['authors'] : undefined);
@@ -269,7 +278,7 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
     throw e;
   }
 
-  const differences = await compare(operatorDb, dir, manifest, started);
+  const differences = await compare(operatorDb, dir, manifest, started, movedChrome);
   lines.push(
     differences.length
       ? `fingerprint: ${differences.length} difference(s) with the manifest`
@@ -374,13 +383,16 @@ async function importTable(
 
 /**
  * The imported tenant read back as an export and held to the manifest: equal per table, except
- * the hostnames (only the custom names must match) and the import's own audit row.
+ * the hostnames (only the custom names must match) and the import's own audit row. When the
+ * import moved an older chrome's menus (0057), `site_settings` is held to the archive's rows with
+ * those four fields removed, the one change the move makes there.
  */
 async function compare(
   operatorDb: Kysely<Database>,
   dir: string,
   manifest: ExportManifest,
-  started: Date
+  started: Date,
+  movedChrome: boolean
 ): Promise<string[]> {
   const hashes = new Map<ExportTable, { hash: ReturnType<typeof createHash>; rows: number }>();
   const custom: string[] = [];
@@ -425,7 +437,19 @@ async function compare(
     }
     const got = hashes.get(table);
     const sha = got?.hash.digest('hex') ?? sha256('');
-    if (sha !== expected.sha256)
+    let want = expected.sha256;
+    if (table === 'site_settings' && movedChrome) {
+      const hash = createHash('sha256');
+      for await (const line of linesOf(join(dir, expected.file))) {
+        const { rows } = await sql<{ line: string }>`
+          select jsonb_set(${line}::jsonb, '{chrome}',
+            (${line}::jsonb -> 'chrome') - ${['navigation', 'legal', 'support', 'help']}::text[]
+          )::text as line`.execute(operatorDb);
+        hash.update(rows[0]!.line + '\n');
+      }
+      want = hash.digest('hex');
+    }
+    if (sha !== want)
       differences.push(`${table}: ${expected.rows} rows exported, ${got?.rows ?? 0} after import`);
   }
   return differences;
