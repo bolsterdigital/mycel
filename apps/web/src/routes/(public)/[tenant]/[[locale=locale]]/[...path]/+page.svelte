@@ -13,6 +13,18 @@
   let { data, form }: PageProps = $props();
 
   const hasProblem = $derived(!!form && (form.errors.length > 0 || !!form.message));
+  // A refused post whose form the page no longer shows (ADR 033 rule 3: a campaign closed while
+  // the visitor was filling it in, on its landing page or in a card): the form would have printed
+  // the refusal, so the page does, above the blocks.
+  const orphanMessage = $derived(
+    form?.message &&
+      data.view === 'item' &&
+      !data.model.blocks.some(
+        (b) => (b.type === 'form' || b.type === 'campaign-card') && b.form?.formId === form.formId
+      )
+      ? form.message
+      : null
+  );
 </script>
 
 <svelte:head>
@@ -60,6 +72,12 @@
 {:else}
   <main class="page" data-drop-cap={data.dropCap ? '' : undefined}>
     <Intro intro={data.intro} model={data.model} />
+    {#if orphanMessage}
+      <div class="block error-summary" role="alert" aria-labelledby="summary-refused">
+        <h2 id="summary-refused">{data.model.copy.summaryTitle}</h2>
+        <p>{orphanMessage}</p>
+      </div>
+    {/if}
     <Blocks model={data.model} formState={form ?? null} eagerFirstImage={!data.intro.hero} />
   </main>
 {/if}

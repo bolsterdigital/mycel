@@ -25,6 +25,7 @@ import {
 } from '@mycel/core';
 import { testTenant } from '@mycel/db/testing';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
+import { campaignCardFixture } from './lib/blocks/campaigns';
 
 /**
  * A form page ships proof of work, plus conditional display only when its definition needs it.
@@ -266,7 +267,16 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
   await expect(panel.getByText('Campagne gestart.')).toBeVisible();
   await expect(panel.getByText('0 van 500')).toBeVisible();
 
-  // Publishing the page opens nothing (rule 2): the form refuses until participation opens.
+  // The preview of the draft page keeps the form, which does not post there, and says that the
+  // site does not show it yet: an editor checks a form without opening participation (rule 2).
+  await page.goto(`/admin/probe/preview/item/${itemId}?locale=nl`);
+  await expect(
+    page.getByText('Alleen in dit voorbeeld: de pagina van deze campagne is nog niet gepubliceerd')
+  ).toBeVisible();
+  await expect(page.getByLabel('E-mailadres')).toBeDisabled();
+  await page.goto(`/admin/probe/content/${itemId}`);
+
+  // Publishing the page opens nothing (rule 2): the page offers no form until participation opens.
   const editor = systemPrincipal(await tenantId(), 'e2e-campaign');
   await withInvoker(async (invoker) => {
     const { item } = await invoker.run(useCases.getItem, editor, { itemId });
@@ -283,10 +293,8 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
     await visitor.getByRole('button', { name: 'Versturen' }).click();
   };
   await visitor.goto(`/probe/${slug}`);
-  await sign(`e2e-draft-${Date.now()}@example.org`);
-  await expect(
-    visitor.getByText('Deze campagne neemt op dit moment geen deelname aan.')
-  ).toBeVisible();
+  await expect(visitor.getByText('Meedoen kan nog niet.')).toBeVisible();
+  await expect(visitor.getByRole('button', { name: 'Versturen' })).toHaveCount(0);
 
   await page.goto(`/admin/probe/content/${itemId}`);
   await panel.getByRole('button', { name: 'Deelname openen' }).click();
@@ -304,7 +312,9 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
   // Signed without consent and without JavaScript in the no-js project: the thanks and the
   // confirmation speak of taking part, never of a subscription (B2 review R1).
   const email = `e2e-petition-${Date.now()}@example.org`;
+  // The closed page was cacheable for a minute (ADR 033 rule 6: a display delay); revalidate.
   await visitor.goto(`/probe/${slug}`);
+  await visitor.reload();
   await sign(email);
   await expect(visitor.getByText('bevestig je handtekening')).toBeVisible();
   const link = /https?:\/\/\S+\/confirm\?token=\S+/.exec((await waitForMail(email)).text)![0];
@@ -330,10 +340,12 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
   await stale.goto(`/admin/probe/content/${itemId}`);
   await panel.getByRole('button', { name: 'Deelname sluiten' }).click();
   await expect(panel.getByText('Deelname is gesloten.')).toBeVisible();
+  // The server refuses (rule 3); the page it answers with shows the closed campaign, no form.
   await sign(`e2e-late-${Date.now()}@example.org`);
   await expect(
-    visitor.getByText('Deze campagne neemt op dit moment geen deelname aan.')
+    visitor.getByText('Meedoen kan niet meer: deze campagne is gesloten.')
   ).toBeVisible();
+  await expect(visitor.getByRole('button', { name: 'Versturen' })).toHaveCount(0);
   await stale.locator('#campaign').getByRole('button', { name: 'Campagne opslaan' }).click();
   await expect(stale).toHaveURL(/\?campaign=conflict#campaign$/);
   await expect(
@@ -346,6 +358,94 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
   await expect(row).toContainText('Gesloten');
   await expect(row).toContainText('Gepubliceerd (nl)');
   await expect(row).toContainText('1 van 500');
+});
+
+// ADR 033 rule 4 (the campaign card): a card is a live reference. It shows the campaign as its landing page
+// and participation are when the host is read, on a page and an article, twice on one page, on a
+// host published by its schedule; it shows nothing for a draft, archived or untranslated campaign;
+// a full card carries the form only while participation is open, once per page.
+test('a campaign card: live on page, article and scheduled page; nothing when unavailable', async ({
+  page,
+}) => {
+  const stamp = `${test.info().project.name}-${Date.now()}`;
+  const { campaignAction, publishOnSchedule } = await campaignCardFixture(stamp);
+  const host = `/probe/gast-${stamp}`;
+  const cards = page.locator('.campaign-card');
+
+  // Not open yet: two cards for the one campaign, none for the draft or archived one, no form.
+  let response = await page.goto(host);
+  await expect(cards).toHaveCount(2);
+  await expect(cards.first()).toContainText('Petitie · nog niet open');
+  await expect(cards.first()).toContainText(`Kaart kaart-${stamp}`);
+  await expect(page.getByRole('link', { name: 'Bekijk de campagne' })).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Versturen' })).toHaveCount(0);
+  expect(response?.headers()['etag']).toBeTruthy();
+  // Published in Dutch only: the English host shows no card for it.
+  await page.goto(`/probe/en/gast-${stamp}`);
+  await expect(cards).toHaveCount(0);
+
+  // Open: the full card carries the form, the compact one invites; the page is a form page.
+  await campaignAction('openCampaign');
+  // The page before was cacheable for a minute (rule 6: a display delay); revalidate it.
+  await page.goto(host);
+  response = await page.reload();
+  await expect(cards.first().getByRole('button', { name: 'Versturen' })).toBeVisible();
+  await expect(cards.nth(1).getByRole('link', { name: 'Teken de petitie' })).toBeVisible();
+  await expect(page.locator('form.signup')).toHaveCount(1);
+  expect(response?.headers()['cache-control']).toContain('no-store');
+  expect(response?.headers()['etag']).toBeUndefined();
+  if (isA11y()) {
+    await expectNoAxeViolations(page, { label: 'campaign cards' });
+    for (const width of [320, 768, 1440])
+      for (const size of TEXT_SIZES) {
+        await page.setViewportSize({ width, height: 900 });
+        await setTextSize(page, size === '100%' ? '16px' : size);
+        const path = test.info().outputPath(`campaign-card-${width}-${size}.png`);
+        await page.screenshot({ path, fullPage: true });
+        await test.info().attach(`cards ${width}px ${size}`, { path, contentType: 'image/png' });
+        await layoutGate(page, `campaign cards at ${width}px ${size}`, 'main');
+      }
+    await setTextSize(page, '16px');
+  }
+  // Signed from the card on the host: the host's thank-you page, as from any form.
+  await pastMinimumFillTime(page);
+  await cards.first().getByLabel('E-mailadres').fill(`e2e-card-${stamp}@example.org`);
+  await cards.first().getByRole('button', { name: 'Versturen' }).click();
+  await expect(page.getByText('bevestig je handtekening')).toBeVisible();
+
+  await page.goto(`/probe/articles/gast-artikel-${stamp}`);
+  await expect(cards).toHaveCount(1);
+  await expect(cards).toContainText('Petitie · open');
+
+  // A tab on the host opened while the card had its form, posted after closing: the server
+  // refuses (rule 3), and the page says so although the card no longer has a form to say it in.
+  const stale = await page.context().newPage();
+  await stale.goto(host);
+  await pastMinimumFillTime(stale);
+  await stale
+    .locator('.campaign-card')
+    .first()
+    .getByLabel('E-mailadres')
+    .fill(`e2e-card-late-${stamp}@example.org`);
+
+  // The scheduled host publishes the revision it pinned, and the card still shows the campaign
+  // as it is then: closed, under the landing page's newer title.
+  await campaignAction('closeCampaign');
+  await stale.locator('.campaign-card').first().getByRole('button', { name: 'Versturen' }).click();
+  await expect(
+    stale.getByRole('alert').getByText('Deze campagne neemt op dit moment geen deelname aan.')
+  ).toBeVisible();
+  await expect(stale.getByRole('button', { name: 'Versturen' })).toHaveCount(0);
+  await expect(stale.locator('.campaign-card').first()).toContainText('Petitie · gesloten');
+  await stale.close();
+  await publishOnSchedule(`Gesloten ${stamp}`);
+  await page.goto(`/probe/gast-gepland-${stamp}`);
+  await expect(cards).toContainText('Petitie · gesloten');
+  await expect(cards).toContainText(`Gesloten ${stamp}`);
+  await page.goto(host);
+  await expect(page.getByRole('button', { name: 'Versturen' })).toHaveCount(0);
+  await page.goto(`/probe/kaart-${stamp}`);
+  await expect(page.getByText('Meedoen kan niet meer: deze campagne is gesloten.')).toBeVisible();
 });
 
 test.describe('in English', () => {

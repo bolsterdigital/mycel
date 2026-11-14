@@ -267,6 +267,8 @@ export function blockReferences(blocks: readonly BlockInput[]): {
   documents: string[];
   /** Media in a sound slot, with its own rule too. */
   audio: string[];
+  /** Campaigns a card shows (ADR 033 rule 4). */
+  campaigns: string[];
 } {
   // Input blocks may lack an id; the sets do not need one.
   const refs = allBlocks(blocks.map((b) => ({ ...b, id: b.id ?? '-' }) as Block)).flatMap((b) =>
@@ -283,6 +285,7 @@ export function blockReferences(blocks: readonly BlockInput[]): {
     media: of((r) => r.type === 'media' && !r.document && !r.audio),
     documents: of((r) => r.type === 'media' && !!r.document),
     audio: of((r) => r.type === 'media' && !!r.audio),
+    campaigns: of((r) => r.type === 'campaign'),
   };
 }
 

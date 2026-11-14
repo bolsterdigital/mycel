@@ -983,6 +983,22 @@ export const nl: Partial<Record<UiKey, string>> = {
   'block.credit.other': 'Beeld: {name}',
   'block.meta.by': 'door {names}',
   'block.cover.toContent': 'Naar de inhoud',
+  'block.campaign.kind.petition': 'Petitie',
+  'block.campaign.kind.signup': 'Inschrijfactie',
+  'block.campaign.kind.fundraiser': 'Inzamelingsactie',
+  'block.campaign.phase.upcoming': 'nog niet open',
+  'block.campaign.phase.open': 'open',
+  'block.campaign.phase.closed': 'gesloten',
+  'block.campaign.unit.petition': 'Handtekeningen',
+  'block.campaign.unit.signup': 'Aanmeldingen',
+  'block.campaign.unit.fundraiser': 'Opgehaald',
+  'block.campaign.ofTarget': '{n} van {target}',
+  'block.campaign.act.petition': 'Teken de petitie',
+  'block.campaign.act.signup': 'Meld je aan',
+  'block.campaign.act.fundraiser': 'Doneer',
+  'block.campaign.more': 'Bekijk de campagne',
+  'block.campaign.notOpen.upcoming': 'Meedoen kan nog niet.',
+  'block.campaign.notOpen.closed': 'Meedoen kan niet meer: deze campagne is gesloten.',
   'block.lightbox.enlarge': 'grotere versie',
   'block.lightbox.dialog': 'Beeld groter bekijken',
   'block.lightbox.close': 'Sluiten',
@@ -1664,6 +1680,41 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.block.type.quote': 'Citaat',
   'admin.block.type.video-embed': 'Video',
   'admin.block.type.form': 'Formulier',
+  'admin.block.type.campaign-card': 'Campagnekaart',
+  'admin.block.field.campaignId': 'Campagne',
+  'admin.block.option.compact': 'Compact',
+  'admin.block.option.variant.full': 'Met formulier',
+  'admin.block.campaign.choose': 'Campagne',
+  'admin.block.campaign.unknown': 'Ontbrekende campagne ({id})',
+  'admin.block.campaign.manage': 'Campagnes beheren',
+  'admin.block.campaign.live':
+    'Live verwijzing: de kaart toont steeds wat de campagne nu toont, ook op een ingeplande pagina.',
+  'admin.block.campaign.reason.unknown': 'Deze campagne bestaat niet (meer) op deze site.',
+  'admin.block.campaign.reason.archived': 'Deze campagne is gearchiveerd; de kaart toont niets.',
+  'admin.block.campaign.reason.landing-missing':
+    'De pagina van deze campagne staat in de prullenbak; de kaart toont niets.',
+  'admin.block.campaign.reason.draft':
+    'De pagina van deze campagne is nog niet gepubliceerd; de kaart toont niets.',
+  'admin.block.campaign.reason.locale-unpublished':
+    'De pagina van deze campagne is in deze taal niet gepubliceerd; de kaart toont hier niets.',
+  'admin.block.campaign.reason.restricted':
+    'De pagina van deze campagne is afgeschermd; de kaart toont niets.',
+  'admin.block.campaign.form.upcoming':
+    'Alleen in dit voorbeeld: de deelname is nog niet geopend, dus de site toont hier "Meedoen kan nog niet" in plaats van het formulier.',
+  'admin.block.campaign.form.closed':
+    'Alleen in dit voorbeeld: de deelname is gesloten, dus de site toont hier de stand in plaats van het formulier.',
+  'admin.block.campaign.form.draft':
+    'Alleen in dit voorbeeld: de pagina van deze campagne is nog niet gepubliceerd, dus de site toont dit formulier nog niet.',
+  'admin.block.campaign.form.locale-unpublished':
+    'Alleen in dit voorbeeld: de pagina van deze campagne is in deze taal niet gepubliceerd, dus de site toont dit formulier hier niet.',
+  'admin.block.campaign.form.archived':
+    'Alleen in dit voorbeeld: deze campagne is gearchiveerd, dus de site toont dit formulier niet.',
+  'admin.block.campaign.form.landing-missing':
+    'Alleen in dit voorbeeld: de pagina van deze campagne staat in de prullenbak, dus de site toont dit formulier niet.',
+  'admin.block.campaign.form.restricted':
+    'Alleen in dit voorbeeld: de pagina van deze campagne is afgeschermd, dus de site toont dit formulier niet.',
+  'admin.block.campaign.form.unknown':
+    'Alleen in dit voorbeeld: de site toont dit formulier nu niet.',
   'admin.block.field.text': 'Tekst',
   'admin.block.field.formId': 'Formulier-id',
   'admin.block.field.content': 'Tekst',

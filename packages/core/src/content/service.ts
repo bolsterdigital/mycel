@@ -57,6 +57,7 @@ import { freeSlug, slugFollowingTitle, slugTaken } from './address/slugs.js';
 import { preserveTranslationReview } from './translation-review.js';
 import './ports.js';
 import '../theme/ports.js';
+import '../campaigns/ports.js';
 import { finalize, assertBase, prepareItemSave } from './merge/prepare.js';
 export { finalize, assertBase, requireBlockTypes, prepareItemSave } from './merge/prepare.js';
 import { newRevision, storeRevision } from './revisions/write.js';
@@ -199,6 +200,11 @@ export async function blockReferenceIssues(
   for (const id of refs.items)
     if (!(await ctx.content.get(id)))
       issues.push({ path, message: 'content.reference.item-unknown', params: { id } });
+  // Another tenant's campaign is not found under RLS, like any unknown reference (ADR 033 rule
+  // 10). An archived one may stay in a draft: it renders nothing and the editor says why.
+  for (const id of refs.campaigns)
+    if (!(await ctx.campaigns.get(id)))
+      issues.push({ path, message: 'content.reference.campaign-unknown', params: { id } });
   for (const id of refs.media) {
     const issue = await imageIssue(ctx, id, path);
     if (issue) issues.push(issue);

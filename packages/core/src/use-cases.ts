@@ -50,6 +50,7 @@ import {
   withdrawParticipation,
 } from './campaigns/service.js';
 import { composeCampaign } from './campaigns/compose.js';
+import { getCampaignCard } from './campaigns/card.js';
 import {
   createConnection,
   disconnectConnection,
@@ -241,6 +242,7 @@ export const useCases = {
   archiveCampaign,
   getCampaign,
   getLandingCampaign,
+  getCampaignCard,
   listCampaigns,
   withdrawParticipation,
   createPersonGroup,

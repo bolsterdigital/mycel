@@ -5,7 +5,7 @@
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 1178,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.svelte": 1464,
     "packages/core/src/content/block-types.ts": 1210,
-    "packages/core/src/testing/demo-content.ts": 1339
+    "packages/core/src/testing/demo-content.ts": 1314
   },
   "exempt": {
     "apps/web/src/i18n/en.ts": "copy catalogue: one entry per string, found by key, never read top to bottom",

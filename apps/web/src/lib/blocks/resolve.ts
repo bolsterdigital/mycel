@@ -9,6 +9,11 @@
 //     A document slot has the same rule for a document: the entry is left out, and a block with
 //     no file left renders nothing.
 //   - forms: `form.get` with a fresh `startedToken`, as the probe did; unknown is null.
+//   - campaigns: `campaign.card.get`, the landing page's published revision in this locale with
+//     the participation phase now and the public count (ADR 033 rule 4); an unavailable campaign
+//     is null and its card renders nothing, with the reason only for the admin preview. A form
+//     bound to a campaign that does not accept participation now renders where the campaign
+//     stands instead of its fields (rule 2); the submit path decides anyway (rule 3).
 //   - items: a public path only if the item is published in this locale and its published
 //     revision is `access.level: public`, the rules of `content.published.get`; otherwise null,
 //     so an action without a target is dropped and a text link becomes text. The path follows
@@ -28,6 +33,8 @@ import {
   resolveCreditPerson,
   type BlockProps,
   type ArticleHeader,
+  type CampaignCard,
+  formCampaignCard,
   type ProofChallenge,
   type Invoker,
   type MediaView,
@@ -51,6 +58,7 @@ import type {
   BlockCopy,
   RenderAction,
   RenderBlock,
+  RenderCampaign,
   RenderForm,
   RenderImage,
   RenderIntro,
@@ -71,6 +79,10 @@ export interface ResolveSource {
   } | null>;
   media(id: string): Promise<MediaView | null>;
   itemPath(itemId: string, locale: string): Promise<string | null>;
+  /** A campaign as a card shows it; absent in fixtures without campaigns. */
+  campaignCard?(campaignId: string, locale: string): Promise<CampaignCard>;
+  /** The card of the campaign a form is bound to, or null when it is bound to none. */
+  formCampaign?(formId: string, locale: string): Promise<CampaignCard | null>;
 }
 
 /** The input: one locale of one published revision, already projected by the core. */
@@ -117,6 +129,10 @@ export function runtimeSource(deps: {
         throw e;
       }
     },
+    campaignCard: (campaignId, locale) =>
+      invoker.run(useCases.getCampaignCard, reader, { campaignId, locale }),
+    formCampaign: (formId, locale) =>
+      uow.run(reader, (ctx) => formCampaignCard(ctx, formId, locale)),
     itemPath: (itemId, locale) =>
       uow.run(reader, async (ctx) => {
         const item = await ctx.content.get(itemId);
@@ -159,6 +175,34 @@ export function blockCopy(locale: string): BlockCopy {
     },
     honeypotLabel: t('form.honeypot.label'),
     summaryTitle: t('error.summary.title'),
+    campaign: {
+      kind: {
+        petition: t('block.campaign.kind.petition'),
+        signup: t('block.campaign.kind.signup'),
+        fundraiser: t('block.campaign.kind.fundraiser'),
+      },
+      phase: {
+        upcoming: t('block.campaign.phase.upcoming'),
+        open: t('block.campaign.phase.open'),
+        closed: t('block.campaign.phase.closed'),
+      },
+      unit: {
+        petition: t('block.campaign.unit.petition'),
+        signup: t('block.campaign.unit.signup'),
+        fundraiser: t('block.campaign.unit.fundraiser'),
+      },
+      ofTarget: t('block.campaign.ofTarget'),
+      act: {
+        petition: t('block.campaign.act.petition'),
+        signup: t('block.campaign.act.signup'),
+        fundraiser: t('block.campaign.act.fundraiser'),
+      },
+      more: t('block.campaign.more'),
+      notOpen: {
+        upcoming: t('block.campaign.notOpen.upcoming'),
+        closed: t('block.campaign.notOpen.closed'),
+      },
+    },
   };
 }
 
@@ -300,6 +344,12 @@ export async function resolveDocument(
     base: string;
     /** Form copy falls back to the tenant's default locale, as the probe did. */
     fallbackLocale: string;
+    /**
+     * Keep why a campaign card shows nothing, and keep a campaign's form with the reason the
+     * public page withholds it (`diagnosis`): the admin preview only. The public page never
+     * carries it, so its HTML and data say nothing about a draft or archived campaign.
+     */
+    diagnose?: boolean;
   }
 ): Promise<RenderModel> {
   const { locale } = projection;
@@ -312,6 +362,31 @@ export async function resolveDocument(
   for (const b of blocks)
     for (const ref of referencesOf(b).filter((ref) => ['media', 'form', 'item'].includes(ref.type)))
       (ref.type === 'media' ? mediaIds : ref.type === 'form' ? formIds : itemIds).add(ref.refId);
+  // Campaign cards first: an available one adds its image to the media and, on a `full` card
+  // while participation is open, its form to the forms. A form block asks whether its form is
+  // bound to a campaign that does not accept participation now.
+  const cards = new Map<string, CampaignCard>();
+  for (const b of blocks) {
+    if (b.type !== 'campaign-card' || cards.has(b.props.campaignId)) continue;
+    const card = source.campaignCard
+      ? await source.campaignCard(b.props.campaignId, locale)
+      : ({ available: false, campaignId: b.props.campaignId, reason: 'unknown' } as const);
+    cards.set(b.props.campaignId, card);
+    if (card.available && card.landing.imageId) mediaIds.add(card.landing.imageId);
+  }
+  for (const b of blocks)
+    if (b.type === 'campaign-card' && b.props.variant === 'full') {
+      const card = cards.get(b.props.campaignId);
+      if (card?.available && card.formId) formIds.add(card.formId);
+    }
+  const gates = new Map<string, CampaignCard | null>();
+  for (const b of blocks)
+    if ((b.type === 'form' || b.type === 'signup-form') && !gates.has(b.props.formId)) {
+      const gate = (await source.formCampaign?.(b.props.formId, locale)) ?? null;
+      gates.set(b.props.formId, gate);
+      if (gate?.available && gate.phase !== 'open' && gate.landing.imageId)
+        mediaIds.add(gate.landing.imageId);
+    }
   const grids = new Map<string, PublicPersonCard[]>();
   for (const b of blocks) {
     if (b.type !== 'people-grid') continue;
@@ -369,6 +444,52 @@ export async function resolveDocument(
     forms.set(id, toRenderForm(await source.form(id), locale, options.fallbackLocale));
   const links: Record<string, string | null> = {};
   for (const id of itemIds) links[id] = await source.itemPath(id, locale);
+
+  const defaultLocale = source.defaultLocale ?? options.fallbackLocale;
+  const campaign = (card: CampaignCard | null | undefined): RenderCampaign | null =>
+    card?.available
+      ? {
+          campaignId: card.campaignId,
+          kind: card.kind,
+          phase: card.phase,
+          href: contentPath(card.landing, locale, defaultLocale),
+          title: card.landing.title,
+          summary: card.landing.summary,
+          image: card.landing.imageId
+            ? renderImage(
+                media.get(card.landing.imageId) ?? null,
+                { decorative: true, alt: null },
+                locale
+              )
+            : null,
+          counter: card.counter,
+          revisionId: card.landing.revisionId,
+        }
+      : null;
+  // One form per definition per page: element ids derive from the form id, so a card whose form
+  // a form block or an earlier card already shows renders as compact (ADR 033 rule 4).
+  const shownForms = new Set(
+    blocks.flatMap((b) => (b.type === 'form' || b.type === 'signup-form' ? [b.props.formId] : []))
+  );
+  /** The bound form while participation is not open is replaced by where it stands (rule 2). */
+  const formBlock = (
+    id: string,
+    formId: string,
+    variant: 'default' | 'card',
+    width: 'content' | 'wide' | 'full'
+  ): RenderBlock => {
+    const gate = gates.get(formId) ?? null;
+    const form = forms.get(formId) ?? null;
+    if (!gate || (gate.available && gate.phase === 'open'))
+      return { id, type: 'form', variant, width, form };
+    // The admin preview keeps the form, which does not post there, and says what the public page
+    // shows instead: an editor checks a form before opening participation, never by opening it.
+    if (options.diagnose) {
+      const diagnosis = gate.available ? (gate.phase as 'upcoming' | 'closed') : gate.reason;
+      return { id, type: 'form', variant, width, form, diagnosis };
+    }
+    return { id, type: 'form', variant, width, form: null, campaign: campaign(gate) };
+  };
 
   const text = (v: Partial<Record<string, string>> | undefined) => v?.[locale] ?? null;
   const actions = (
@@ -554,22 +675,27 @@ export async function resolveDocument(
           width: b.props.width,
         };
       case 'form':
-        return {
-          id,
-          type: 'form',
-          variant: b.props.variant,
-          width: b.props.width,
-          form: forms.get(b.props.formId) ?? null,
-        };
+        return formBlock(id, b.props.formId, b.props.variant, b.props.width);
       case 'signup-form':
         // The legacy type renders as a default form: one form component for both (brief § 2).
+        return formBlock(id, b.props.formId, 'default', 'content');
+      case 'campaign-card': {
+        const card = cards.get(b.props.campaignId);
+        const formId =
+          card?.available && b.props.variant === 'full' && !shownForms.has(card.formId ?? '')
+            ? card.formId
+            : null;
+        if (formId) shownForms.add(formId);
         return {
           id,
-          type: 'form',
-          variant: 'default',
-          width: 'content',
-          form: forms.get(b.props.formId) ?? null,
+          type: 'campaign-card',
+          variant: b.props.variant,
+          width: b.props.width,
+          campaign: campaign(card),
+          form: formId ? (forms.get(formId) ?? null) : null,
+          ...(options.diagnose && card && !card.available ? { diagnosis: card.reason } : {}),
         };
+      }
       default:
         return b satisfies never;
     }

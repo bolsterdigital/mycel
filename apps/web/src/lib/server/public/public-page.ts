@@ -12,6 +12,12 @@
 // footer credit off also changes the tag. Rejected: the brief's three parts alone (a 304 would
 // keep a link to an item that is no longer public), and hashing the HTML.
 //
+// A campaign card or a form bound to a campaign (ADR 033 rule 6) is in the model with the landing
+// page's published revision, its phase and the count it showed, so the digest moves when any of
+// them does: a newer landing revision, opening or closing (a window boundary passing included,
+// since the phase is evaluated when the page is read) or one more participant. A `full` card
+// that renders its form makes the page an item with a form.
+//
 // An item with a form has no ETag at all, and the route makes it `no-store` (#30A, brief
 // form-intake § 5): its HTML carries a signed timing token per render, a 304 would keep an old
 // one alive past its 24 hours (a real visitor then posts as spam), and the age of a shared token
@@ -30,6 +36,7 @@ import {
   type TenantInfo,
 } from '@mycel/core';
 import type { RenderIntro, RenderModel } from '../../blocks/model.js';
+import { hasForm } from './has-form.js';
 import { renderMeta, resolveDocument, resolveIntro, runtimeSource } from '../../blocks/resolve.js';
 import type { ContentRoute } from './content-route.js';
 import { runtime } from '../runtime.js';
@@ -231,12 +238,4 @@ async function shareImage(
     type: 'image/webp',
     alt,
   };
-}
-
-/**
- * Whether the page renders a form. The render model is flat: a pattern is copied into the item
- * as plain blocks (content/patterns.ts), so there is no nesting left to walk.
- */
-export function hasForm(model: RenderModel): boolean {
-  return model.blocks.some((b) => b.type === 'form' && b.form !== null);
 }

@@ -50,6 +50,11 @@
 
 <main class="page" data-drop-cap={data.dropCap ? '' : undefined}>
   <Intro intro={data.intro} model={data.model} />
-  <Blocks model={data.model} preview={data.formNote} eagerFirstImage={!data.intro.hero} />
+  <Blocks
+    model={data.model}
+    preview={data.formNote}
+    campaignNotes={data.campaignNotes}
+    eagerFirstImage={!data.intro.hero}
+  />
 </main>
 <SiteFooter chrome={data.chrome} credit={data.credit} locale={data.locale} />

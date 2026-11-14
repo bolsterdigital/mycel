@@ -19,6 +19,17 @@
     max-width: var(--content-width);
     margin-inline: auto;
   }
+  /* What the preview says about a campaign card (ADR 033 rule 4): live, or why it is empty. */
+  .preview-note {
+    padding: var(--space-1) var(--space-2);
+    border-inline-start: 4px solid var(--color-accent-bg);
+    background: var(--color-surface-bg);
+    color: var(--color-surface-fg);
+  }
+  .preview-note-warning {
+    border-inline-start-style: dashed;
+    font-weight: 600;
+  }
   .preview-selectable > :hover {
     outline: 2px solid var(--color-accent-bg);
     outline-offset: 2px;

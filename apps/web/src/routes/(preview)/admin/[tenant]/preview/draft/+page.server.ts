@@ -19,6 +19,7 @@ import { text } from '#lib/server/admin/admin-actions.js';
 import { valuesFromForm } from '#lib/server/content/content-admin.js';
 import { formDocument } from '#lib/server/content/edit-form.js';
 import {
+  campaignNotes,
   PREVIEW_HEADERS,
   previewBase,
   previewSite,
@@ -92,7 +93,7 @@ export const actions: Actions = {
       resolveDocument(
         source,
         { locale, ...projectDocument(doc, locale) },
-        { base, fallbackLocale: tenant.defaultLocale }
+        { base, fallbackLocale: tenant.defaultLocale, diagnose: true }
       ),
       introOf(principal, doc, locale, live).then((intro) => resolveIntro(source, intro, locale)),
       siteTheme(site),
@@ -109,6 +110,7 @@ export const actions: Actions = {
       theme: { href: `${base}/_theme/${theme.hash}.css`, preload: theme.preload },
       ...(await chromeModel(site, locale, base)),
       formNote: ui(admin)('admin.content.preview.form'),
+      campaignNotes: campaignNotes(admin),
     };
   },
 };
