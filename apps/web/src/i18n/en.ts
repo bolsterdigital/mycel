@@ -1125,6 +1125,8 @@ export const en = {
   'admin.content.new.locales': 'Languages of this item',
   'admin.content.new.pattern': 'Start from a pattern',
   'admin.content.new.noPattern': 'Empty',
+  'admin.content.new.standard': 'Standard',
+  'admin.content.new.longRead': 'Long read',
   'admin.content.new.submit': 'Create draft',
   'admin.content.new.page': 'New page',
   'admin.content.new.article': 'New article',

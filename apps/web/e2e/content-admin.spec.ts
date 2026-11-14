@@ -37,6 +37,11 @@ import {
 // Tenant isolation of the item itself is the database's (RLS on content_items, asserted by
 // rls.conformance); here the preview routes prove that a session without a membership of the
 // site gets nothing, not even the theme.
+/** A draft made over the HTTP API; its item. */
+const created = async (request: APIRequestContext, slug: string, document: object) =>
+  (await callApi<{ item: { id: string } }>(request, 'content.item.create', { slug, document }))
+    .item;
+
 test.describe('content-admin', () => {
   const SITE = 'http://probe.localhost:4173';
   const LIVE_ADMIN = 'live-preview-admin@probe.test';
@@ -69,6 +74,12 @@ test.describe('content-admin', () => {
     },
   });
 
+  const liveLogin = async (page: Page) => {
+    onlyA11y('the live preview is a JavaScript enhancement');
+    await ensureLiveAdmin();
+    await login(page, '/admin/probe', LIVE_ADMIN);
+  };
+
   const address = () => `198.51.100.${Math.floor(Math.random() * 250) + 1}`;
 
   /** Another browser, as the test's own: same origin, headers and JavaScript setting. */
@@ -90,6 +101,12 @@ test.describe('content-admin', () => {
 
   const showTab = showEditorTab;
   const save = (page: Page) => page.getByRole('button', { name: 'Opslaan' }).click();
+  /** Submits the new-item form; the path of the draft it opens. */
+  const createDraft = async (page: Page) => {
+    await page.getByRole('button', { name: 'Concept maken' }).click();
+    await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
+    return new URL(page.url()).pathname;
+  };
 
   test('new content opens a draft immediately and chooses a pattern in the empty column', async ({
     page,
@@ -576,15 +593,12 @@ test.describe('content-admin', () => {
         },
       },
     ]).flat();
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: slugFor('long'),
-      document: {
-        type: 'page',
-        defaultLocale: 'nl',
-        locales: ['nl', 'en'],
-        title: { nl: 'Lange pagina', en: 'Long page' },
-        blocks,
-      },
+    const item = await created(request, slugFor('long'), {
+      type: 'page',
+      defaultLocale: 'nl',
+      locales: ['nl', 'en'],
+      title: { nl: 'Lange pagina', en: 'Long page' },
+      blocks,
     });
     return `/admin/probe/content/${item.id}`;
   }
@@ -655,9 +669,7 @@ test.describe('content-admin', () => {
   test('a preview says what it shows, and a refused draft keeps the last image and says so', async ({
     page,
   }) => {
-    onlyA11y('the live preview is a JavaScript enhancement');
-    await ensureLiveAdmin();
-    await login(page, '/admin/probe', LIVE_ADMIN);
+    await liveLogin(page);
     await newPage(page, slugFor('behind'), 'Eerste');
     await page.setViewportSize({ width: 1600, height: 900 });
     await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
@@ -699,9 +711,7 @@ test.describe('content-admin', () => {
   test('a draft that lands on an unreadable page keeps the last image and says it is behind', async ({
     page,
   }) => {
-    onlyA11y('the live preview is a JavaScript enhancement');
-    await ensureLiveAdmin();
-    await login(page, '/admin/probe', LIVE_ADMIN);
+    await liveLogin(page);
     await newPage(page, slugFor('expired'), 'Eerste');
     await page.setViewportSize({ width: 1600, height: 900 });
     await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
@@ -775,17 +785,14 @@ test.describe('content-admin', () => {
     const second = await author(`Tweede ${run}`);
     // The directory lists `second` before `first`; the document has them the other way round.
     const authorIds = [first.id, second.id, old.id];
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: run,
-      document: {
-        type: 'article',
-        title: { nl: 'Met auteurs' },
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        blocks: [],
-        authorIds,
-        sectionId: oldSection.id,
-      },
+    const item = await created(request, run, {
+      type: 'article',
+      title: { nl: 'Met auteurs' },
+      defaultLocale: 'nl',
+      locales: ['nl'],
+      blocks: [],
+      authorIds,
+      sectionId: oldSection.id,
     });
     const saved = async () =>
       (
@@ -880,16 +887,13 @@ test.describe('content-admin', () => {
       'e2e-ver-auteur'
     );
     const fresh = await author('Müller');
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: run,
-      document: {
-        type: 'article',
-        title: { nl: 'Veel auteurs' },
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        blocks: [],
-        authorIds: [old.id],
-      },
+    const item = await created(request, run, {
+      type: 'article',
+      title: { nl: 'Veel auteurs' },
+      defaultLocale: 'nl',
+      locales: ['nl'],
+      blocks: [],
+      authorIds: [old.id],
     });
     await page.setViewportSize({ width: 1280, height: 720 });
     await login(page, `/admin/probe/content/${item.id}`);
@@ -950,6 +954,23 @@ test.describe('content-admin', () => {
     await page.getByRole('button', { name: 'Concept maken' }).click();
     await expect(page.getByRole('alert')).toContainText('De site gebruikt deze slug zelf');
     await expect(page.getByLabel('Titel (nl)')).toHaveValue('Mag niet');
+    await expectNoAxeViolations(page);
+  });
+
+  // ADR 012 rule 8: an article starts from the standard long read, in its chosen locales.
+  test('a new article starts from the standard long read', async ({ page, request }) => {
+    await login(page, '/admin/probe/content/new?type=article');
+    await page.getByLabel('Titel (nl)').fill('Lang');
+    await page.getByRole('checkbox', { name: 'en', exact: true }).uncheck();
+    const chooser = page.getByLabel('Begin met een patroon');
+    await expect(chooser.locator('optgroup').first()).toHaveAttribute('label', 'Standaard');
+    await chooser.selectOption({ label: 'Longread' });
+    const itemId = (await createDraft(page)).split('/').at(-1);
+    for (const text of ['Begin met de kern', 'Een zin uit het verhaal', 'Schrijf hier het'])
+      await expect(page.getByText(text).filter({ visible: true }).first()).toBeVisible();
+    const { blocks } = (await callApi(request, 'content.item.get', { itemId })).revision.document;
+    expect(blocks.map((b: { type: string }) => b.type).join()).toBe('rich-text,quote,rich-text');
+    expect(Object.keys(blocks[1].props.text)).toEqual(['nl']);
     await expectNoAxeViolations(page);
   });
 
@@ -1103,9 +1124,7 @@ test.describe('content-admin', () => {
     const title = `Alleen NL ${slugFor('nl')}`;
     await login(page, '/admin/probe/content/new?type=page');
     await page.getByLabel('Titel (nl)').fill(title);
-    await page.getByRole('button', { name: 'Concept maken' }).click();
-    await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
-    const edit = new URL(page.url()).pathname;
+    const edit = await createDraft(page);
     const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     // Only the Dutch fields; English is one line in the side column, behind.
     await expect(page.locator('[name="title.en"]')).toHaveCount(0);
@@ -1263,9 +1282,7 @@ test.describe('content-admin', () => {
     await login(page, '/admin/probe/content/new?type=page');
     await page.getByLabel('Titel (nl)').fill(title);
     await page.getByRole('checkbox', { name: 'en', exact: true }).uncheck();
-    await page.getByRole('button', { name: 'Concept maken' }).click();
-    await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
-    const edit = new URL(page.url()).pathname;
+    const edit = await createDraft(page);
     await page.locator('#lead\\.nl').fill('Een korte kern.');
     await save(page);
     await expect(page).toHaveURL(`${edit}?saved`);
@@ -1561,6 +1578,8 @@ test.describe('content-admin', () => {
       await page.getByLabel('E-mail').fill(email);
       await page.getByRole('button', { name: 'Sign in' }).click();
     };
+    const saveBar = (page: Page) =>
+      page.locator('.ui-item-bar').getByRole('button', { name: 'Opslaan' }).click();
     // Not the hidden copy session-restore.js posts to `recover` for a moment during the restore.
     const title = (page: Page) => page.locator('input[name="title.nl"]:not([type="hidden"])');
     const saveState = (page: Page) => page.locator('[data-save-state]');
@@ -1570,7 +1589,7 @@ test.describe('content-admin', () => {
       await title(page).fill(typed);
       await expect(page.locator('form#item-edit')).toHaveAttribute('data-has-unsaved', '');
       await expire(page);
-      await page.locator('.ui-item-bar').getByRole('button', { name: 'Opslaan' }).click();
+      await saveBar(page);
       await expect(page.locator('main')).toContainText('of je sessie is verlopen');
     };
 
@@ -1605,7 +1624,7 @@ test.describe('content-admin', () => {
       await typeAndExpire(page, edit, 'Teruggezet en bewaard');
       await loginAgain(page);
       await expect(title(page)).toHaveValue('Teruggezet en bewaard');
-      await page.locator('.ui-item-bar').getByRole('button', { name: 'Opslaan' }).click();
+      await saveBar(page);
       await expect(page.getByRole('status').filter({ hasText: 'Opgeslagen' })).toBeVisible();
       await page.goto(edit);
       await expect(title(page)).toHaveValue('Teruggezet en bewaard');
@@ -1625,7 +1644,7 @@ test.describe('content-admin', () => {
       const second = await other.newPage();
       await login(second, edit);
       await title(second).fill('Andermans versie');
-      await second.locator('.ui-item-bar').getByRole('button', { name: 'Opslaan' }).click();
+      await saveBar(second);
       await expect(second.getByRole('status').filter({ hasText: 'Opgeslagen' })).toBeVisible();
       const newest = await second.locator('input[name="baseRevisionId"]').inputValue();
       await other.close();
@@ -1659,7 +1678,7 @@ test.describe('content-admin', () => {
       const edit = await newPage(page, slugFor('restore-nojs'), 'Herstel');
       await title(page).fill('Zonder script');
       await expire(page);
-      await page.locator('.ui-item-bar').getByRole('button', { name: 'Opslaan' }).click();
+      await saveBar(page);
       await expect(page.locator('main')).toContainText('of je sessie is verlopen');
       await loginAgain(page);
       await expect(page).toHaveURL(new RegExp(`${edit}\\?/save&locale=nl$`));
@@ -1812,17 +1831,27 @@ test.describe('block card details', () => {
     blocks: object[]
   ): Promise<string> => {
     requireApi();
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `${slug}-${Date.now()}`,
-      document: {
-        type: 'page',
-        defaultLocale: 'nl',
-        locales,
-        title: Object.fromEntries(locales.map((locale) => [locale, 'Kaarten'])),
-        blocks,
-      },
+    const item = await created(request, `${slug}-${Date.now()}`, {
+      type: 'page',
+      defaultLocale: 'nl',
+      locales,
+      title: Object.fromEntries(locales.map((locale) => [locale, 'Kaarten'])),
+      blocks,
     });
     return `/admin/probe/content/${item.id}`;
+  };
+  const saving = (page: Page) => page.getByRole('button', { name: 'Opslaan', exact: true });
+  /** Signed in, a new block `label` at the end of the `kind` test page; its card. */
+  const insert = async (page: Page, kind: string, label: string) => {
+    await login(page, '/admin/probe');
+    await blockPage(page, kind);
+    await editorReady(page);
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: label, exact: true })
+      .click();
+    return page.locator('#block-new');
   };
 
   // A document slot's picker offers documents only; the public link fetches the file itself.
@@ -1830,20 +1859,11 @@ test.describe('block card details', () => {
     page,
     request,
   }) => {
-    await login(page, '/admin/probe');
-    await blockPage(page, 'files');
-    await editorReady(page);
-    await page
-      .locator('[data-block-picker]')
-      .last()
-      .getByRole('button', { name: 'Bestanden', exact: true })
-      .click();
-    const fresh = page.locator('#block-new');
+    const fresh = await insert(page, 'files', 'Bestanden');
     await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Bestanden');
     await editorReady(page);
     await fresh.getByLabel('Naam', { exact: true }).first().fill('Jaarverslag');
-    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
-    await saving.click();
+    await saving(page).click();
     await expect(page.getByRole('listitem').filter({ hasText: 'kies een bestand' })).toBeVisible();
 
     await page.locator('#block-new').getByRole('button', { name: 'Bestand kiezen' }).click();
@@ -1851,7 +1871,7 @@ test.describe('block card details', () => {
     await expect(dialog.getByRole('radio', { name: 'malieveld.jpg' })).toHaveCount(0);
     await dialog.getByRole('radio', { name: 'jaarverslag.pdf' }).first().check();
     await dialog.getByRole('button', { name: 'Klaar' }).click();
-    await saving.click();
+    await saving(page).click();
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
 
     await page.goto('/probe/blok-file-download-one');
@@ -1863,19 +1883,10 @@ test.describe('block card details', () => {
   });
 
   test('a new sound block wants a sound file; its picker offers only those', async ({ page }) => {
-    await login(page, '/admin/probe');
-    await blockPage(page, 'sound');
-    await editorReady(page);
-    await page
-      .locator('[data-block-picker]')
-      .last()
-      .getByRole('button', { name: 'Geluid', exact: true })
-      .click();
-    const fresh = page.locator('#block-new');
+    const fresh = await insert(page, 'sound', 'Geluid');
     await editorReady(page);
     await fresh.getByLabel('Titel', { exact: true }).fill('Het gesprek');
-    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
-    await saving.click();
+    await saving(page).click();
     await expect(
       page.getByRole('listitem').filter({ hasText: 'kies een geluidsbestand' })
     ).toBeVisible();
@@ -1884,7 +1895,7 @@ test.describe('block card details', () => {
     await expect(dialog.getByRole('radio', { name: 'jaarverslag.pdf' })).toHaveCount(0);
     await dialog.getByRole('radio', { name: 'gesprek.mp3' }).first().check();
     await dialog.getByRole('button', { name: 'Klaar' }).click();
-    await saving.click();
+    await saving(page).click();
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
   });
 
@@ -1892,19 +1903,10 @@ test.describe('block card details', () => {
   test('a new gallery wants an image per row, refuses a PDF in the picker and saves', async ({
     page,
   }) => {
-    await login(page, '/admin/probe');
-    await blockPage(page, 'gallery');
-    await editorReady(page);
-    await page
-      .locator('[data-block-picker]')
-      .last()
-      .getByRole('button', { name: 'Fotogalerij', exact: true })
-      .click();
-    const fresh = page.locator('#block-new');
+    const fresh = await insert(page, 'gallery', 'Fotogalerij');
     await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Fotogalerij');
     await editorReady(page);
-    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
-    await saving.click();
+    await saving(page).click();
     await expect(
       page.getByRole('listitem').filter({ hasText: 'vul minstens twee afbeeldingen in' })
     ).toBeVisible();
@@ -1921,7 +1923,7 @@ test.describe('block card details', () => {
     };
     await fill(1, 'bomen.jpg');
     await fill(2, 'plein.jpg');
-    await saving.click();
+    await saving(page).click();
     await expect(
       page.getByRole('status').filter({ hasText: 'Opgeslagen als nieuwe revisie' })
     ).toContainText('Opgeslagen als nieuwe revisie');
@@ -1941,19 +1943,10 @@ test.describe('block card details', () => {
 
   // Dates by a native control, without a script; a row without one is refused by name.
   test('a new timeline wants two events with a date and saves', async ({ page }) => {
-    await login(page, '/admin/probe');
-    await blockPage(page, 'timeline');
-    await editorReady(page);
-    await page
-      .locator('[data-block-picker]')
-      .last()
-      .getByRole('button', { name: 'Tijdlijn', exact: true })
-      .click();
-    const fresh = page.locator('#block-new');
+    const fresh = await insert(page, 'timeline', 'Tijdlijn');
     await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Tijdlijn');
     await editorReady(page);
-    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
-    await saving.click();
+    await saving(page).click();
     await expect(
       page.getByRole('listitem').filter({ hasText: 'vul minstens twee gebeurtenissen in' })
     ).toBeVisible();
@@ -1965,10 +1958,10 @@ test.describe('block card details', () => {
     };
     await fill(1, '', 'Later');
     await fill(2, '2026-03-02', 'Eerder');
-    await saving.click();
+    await saving(page).click();
     await expect(page.getByRole('listitem').filter({ hasText: 'kies een datum' })).toBeVisible();
     await fill(1, '2026-05-19', 'Later');
-    await saving.click();
+    await saving(page).click();
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
   });
 
@@ -2067,28 +2060,25 @@ test.describe('an editor with unsaved rich text survives a look at the list', ()
 
   const WRITER = '.writing-surface .ProseMirror';
   const article = async (request: APIRequestContext, word: string) => {
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: word,
-      document: {
-        type: 'article',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        title: { nl: `Terugknop ${word}` },
-        blocks: [
-          {
-            type: 'rich-text',
-            version: 1,
-            props: {
-              content: {
-                nl: {
-                  type: 'doc',
-                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Begin.' }] }],
-                },
+    const item = await created(request, word, {
+      type: 'article',
+      defaultLocale: 'nl',
+      locales: ['nl'],
+      title: { nl: `Terugknop ${word}` },
+      blocks: [
+        {
+          type: 'rich-text',
+          version: 1,
+          props: {
+            content: {
+              nl: {
+                type: 'doc',
+                content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Begin.' }] }],
               },
             },
           },
-        ],
-      },
+        },
+      ],
     });
     return item.id;
   };

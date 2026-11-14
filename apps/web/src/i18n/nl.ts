@@ -1134,6 +1134,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.new.locales': 'Talen van dit item',
   'admin.content.new.pattern': 'Begin met een patroon',
   'admin.content.new.noPattern': 'Leeg',
+  'admin.content.new.standard': 'Standaard',
+  'admin.content.new.longRead': 'Longread',
   'admin.content.new.submit': 'Concept maken',
   'admin.content.new.page': 'Nieuwe pagina',
   'admin.content.new.article': 'Nieuw artikel',
