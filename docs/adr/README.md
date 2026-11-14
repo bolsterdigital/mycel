@@ -40,3 +40,4 @@ The contract the code is built against. How a decision gets here, and when one i
 | 033 | [A campaign is a participation entity with one landing page and referencing cards](033-campaign-identity-and-participation.md)         | accepted |
 | 034 | [A person is erased by explicit id; a name beside an erased id is scrubbed everywhere](034-person-erasure.md)                          | accepted |
 | 035 | [An operator account is erased by the installation; a stored actor carries an id, never an address](035-operator-erasure.md)           | accepted |
+| 036 | [Site navigation is a revisioned aggregate of menus and placements, published per locale](036-site-navigation.md)                      | accepted |
