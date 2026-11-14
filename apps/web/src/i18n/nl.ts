@@ -419,7 +419,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.navigation.group.intro':
     'Een groep is een tekst zonder eigen link. Voeg links toe en maak ze daarna subitem van de groep.',
   'admin.navigation.error.conflict':
-    'Niet opgeslagen: iemand heeft hetzelfde deel van de navigatie intussen gewijzigd. Laad de pagina opnieuw om die wijziging te zien en probeer het dan nog eens.',
+    'Niet opgeslagen: iemand heeft hetzelfde deel van de navigatie intussen gewijzigd. Wat die persoon opsloeg, staat er nu; bekijk het en probeer het dan nog eens.',
   'admin.navigation.error.invalid':
     'Niet opgeslagen: met wat intussen is gewijzigd past dit niet meer. Laad de pagina opnieuw en probeer het nog eens.',
   'admin.navigation.error.nameRequired': 'Geef het menu een naam.',
@@ -436,6 +436,105 @@ export const nl: Partial<Record<UiKey, string>> = {
     "Niet opgeslagen: de navigatie heeft het maximale aantal menu's of items bereikt.",
   'admin.navigation.error.actions':
     'Niet opgeslagen: de actieknoppen bevatten hooguit twee links, zonder subitems of groepen.',
+  'admin.navigation.error.yours': 'Wat jij had ingevuld: {text}',
+  'admin.navigation.error.publish':
+    'Niet gepubliceerd: los eerst op wat hieronder "Blokkeert publicatie" heeft.',
+  'admin.navigation.error.revisionGone': 'Die versie van de navigatie bestaat niet.',
+  'admin.navigation.overview.published': 'Gepubliceerd in {locale}.',
+  'admin.navigation.overview.offline': 'Offline gehaald in {locale}.',
+  'admin.navigation.overview.restored':
+    'Teruggezet als concept. Op de site verandert niets tot je het publiceert.',
+  'admin.navigation.placements': 'Plaatsingen',
+  'admin.navigation.placements.intro':
+    'Waar het concept elk menu toont. Hetzelfde menu mag op meerdere plekken staan.',
+  'admin.navigation.placements.edit': 'Plaatsingen wijzigen',
+  'admin.navigation.placements.submit': 'Plaatsingen opslaan',
+  'admin.navigation.placements.none': 'Geen',
+  'admin.navigation.placements.noMenus': 'Maak eerst een menu; kies daarna waar het staat.',
+  'admin.navigation.placements.main.hint':
+    'Het hele menu opent als paneel. De items die je hieronder aanvinkt, staan ook in de balk als er ruimte is.',
+  'admin.navigation.placements.bar': 'In de balk',
+  'admin.navigation.placements.bar.hint':
+    'Items op het hoofdniveau van {menu}. Kies je een ander menu, sla dan eerst op en vink daarna de items aan.',
+  'admin.navigation.placements.bar.empty': 'Dit menu heeft nog geen items.',
+  'admin.navigation.placements.actions.hint':
+    'Een menu van hooguit twee links zonder subitems: de eerste is de hoofdknop, de tweede de andere.',
+  'admin.navigation.placements.footer.hint':
+    'Hooguit vier kolommen, in deze volgorde. Laat een kolom op "Geen" staan om hem over te slaan.',
+  'admin.navigation.placements.column': 'Kolom {n}',
+  'admin.navigation.placements.column.menu': 'Menu van kolom {n}',
+  'admin.navigation.placements.column.title': 'Titel van kolom {n} ({locale})',
+  'admin.navigation.placements.column.title.hint': 'Mag leeg blijven; staat boven de kolom.',
+  'admin.navigation.placements.legal.hint':
+    'Privacy, voorwaarden en andere juridische links, in kleine letters.',
+  'admin.navigation.publication': 'Publicatie',
+  'admin.navigation.publication.intro':
+    "Per taal: welke versie bezoekers krijgen zodra de site deze menu's gebruikt, en of het concept sindsdien is gewijzigd.",
+  'admin.navigation.column.language': 'Taal',
+  'admin.navigation.column.live': 'Live',
+  'admin.navigation.column.draft': 'Concept',
+  'admin.navigation.live.none': 'Niet gepubliceerd',
+  'admin.navigation.draft.same': 'Gelijk aan live',
+  'admin.navigation.draft.ahead': 'Gewijzigd',
+  'admin.navigation.draft.blocked': 'Kan nog niet gepubliceerd worden',
+  'admin.navigation.previewIn': 'Voorbeeld {locale}',
+  'admin.navigation.revisions': 'Versies',
+  'admin.navigation.revisions.intro':
+    'De nieuwste versies van het concept, nieuwste eerst. Elke opgeslagen stap maakt er een.',
+  'admin.navigation.revisions.all': 'Alle versies',
+  'admin.navigation.column.when': 'Opgeslagen',
+  'admin.navigation.column.notes': 'Bijzonderheden',
+  'admin.navigation.revision.current': 'Huidig concept',
+  'admin.navigation.revision.merged': 'Samengevoegd met een gelijktijdige wijziging',
+  'admin.navigation.revision.restoredFrom': 'Teruggezet uit de versie van {when}',
+  'admin.navigation.revision.restored': 'Teruggezet uit een oudere versie',
+  'admin.navigation.revision.liveIn': 'Live in {locales}',
+  'admin.navigation.revision.view': 'Bekijken',
+  'admin.navigation.revision.title': 'Versie van {when}',
+  'admin.navigation.revision.intro':
+    'Wat deze versie bezoekers in {locale} toont, met de pagina’s zoals ze nu gepubliceerd zijn. Terugzetten kopieert hem naar een nieuw concept.',
+  'admin.navigation.revision.isCurrent': 'Dit is het huidige concept.',
+  'admin.navigation.restore': 'Terugzetten als concept',
+  'admin.navigation.restore.question':
+    'Deze versie het concept maken? Het huidige concept blijft in de lijst met versies, en er gaat niets live tot je publiceert.',
+  'admin.navigation.restore.confirm': 'Ja, terugzetten',
+  'admin.navigation.preview.title': 'Voorbeeld in {locale}',
+  'admin.navigation.preview.intro':
+    'Wat bezoekers in {locale} zien als dit concept gepubliceerd wordt: alleen gepubliceerde pagina’s, met hun gepubliceerde titels.',
+  'admin.navigation.preview.live': 'Live in {locale}: de versie van {when}.',
+  'admin.navigation.preview.notLive': 'Nog niet gepubliceerd in {locale}.',
+  'admin.navigation.preview.same': 'Het concept is wat live staat.',
+  'admin.navigation.preview.ahead': 'Het concept heeft wijzigingen die nog niet live staan.',
+  'admin.navigation.preview.nothing': 'Hier staat niets.',
+  'admin.navigation.preview.empty': 'Toont niets in deze taal.',
+  'admin.navigation.preview.bar': 'In de balk',
+  'admin.navigation.preview.primary': 'Hoofdknop',
+  'admin.navigation.preview.secondary': 'Andere knop',
+  'admin.navigation.preview.untitled': 'Kolom zonder titel',
+  'admin.navigation.preview.menu': 'Menu: {menu}',
+  'admin.navigation.problems': 'Weggelaten',
+  'admin.navigation.problems.intro':
+    "Items van geplaatste menu's die bezoekers in {locale} niet zien.",
+  'admin.navigation.problems.none': "Elk item van de geplaatste menu's wordt getoond.",
+  'admin.navigation.problem.blocking': 'Blokkeert publicatie',
+  'admin.navigation.problem.where': '{item} in {menu}',
+  'admin.navigation.problem.label-missing':
+    'Het heeft geen tekst in {locale}; vul die in voor je publiceert.',
+  'admin.navigation.problem.target-unavailable':
+    'De pagina is niet openbaar gepubliceerd in {locale}.',
+  'admin.navigation.problem.children-unreachable':
+    'De pagina wordt niet getoond en het item heeft geen eigen tekst in {locale}, dus de subitems vallen ook weg.',
+  'admin.navigation.problem.anchor-missing':
+    'Het deel van de pagina waar het naar wees, is weg; het gaat naar het begin van de pagina.',
+  'admin.navigation.problem.target-unknown':
+    'De pagina bestaat niet meer; kies een andere voor je publiceert.',
+  'admin.navigation.publish': 'Publiceren in {locale}',
+  'admin.navigation.publish.noRight':
+    'Publiceren vraagt het recht om te publiceren. Iemand die dat heeft, kan dit concept live zetten.',
+  'admin.navigation.unpublish': 'Offline halen in {locale}',
+  'admin.navigation.unpublish.question':
+    "De menu's in deze taal offline halen? Bezoekers zien daar dan geen menu's tot je opnieuw publiceert.",
+  'admin.navigation.unpublish.confirm': 'Ja, offline halen',
   'admin.dashboard.title': 'Dashboard',
   'admin.dashboard.recent': 'Laatst bewerkt',
   'admin.dashboard.scheduled': 'Ingepland',

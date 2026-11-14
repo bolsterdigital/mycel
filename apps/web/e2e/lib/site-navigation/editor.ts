@@ -23,7 +23,7 @@ interface Navigation {
   };
 }
 
-async function measure(page: Page, label: string) {
+export async function measure(page: Page, label: string) {
   if (!isA11y()) return;
   await expectNoAxeViolations(page, { label });
   await page.setViewportSize(NARROW);
@@ -130,7 +130,8 @@ export async function exerciseMenuEditor(page: Page, request: APIRequestContext)
   await expect(items).not.toContainText('Eigen tekst');
 
   // Someone else gives the same link another text while this window has its form open: the
-  // stale save is refused, and what they saved stands.
+  // stale save is refused, what they saved stands and is what the form shows now, with this
+  // editor's own text beside it, so a second Save cannot replace theirs unseen.
   await page.getByRole('link', { name: `Edit: ${title}` }).click();
   const before = await callApi<Navigation>(request, 'site.navigation.get', {});
   const relabel = (label: string) => ({
@@ -148,7 +149,8 @@ export async function exerciseMenuEditor(page: Page, request: APIRequestContext)
   await page.locator('#item-label').fill('Van mij');
   await save();
   await expect(page.getByRole('alert')).toContainText('someone changed the same part');
-  await expect(page.locator('#item-label')).toHaveValue('Van mij');
+  await expect(page.getByRole('alert')).toContainText('What you typed: Van mij');
+  await expect(page.locator('#item-label')).toHaveValue('Van hen');
   const after = await callApi<Navigation>(request, 'site.navigation.get', {});
   expect(after.document.menus.find((m) => m.id === menuId)).toEqual(
     relabel('Van hen').menus.find((m) => m.id === menuId)

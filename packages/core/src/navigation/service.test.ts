@@ -186,6 +186,55 @@ describe('nav-basic', () => {
     ]);
   });
 
+  it('previews a draft for content:read as publishing it would put it live', async () => {
+    const t = setup();
+    const ids = await basic(t);
+    const doc = navBasic(ids);
+    const group = doc.menus[0]!.nodes[3]!;
+    if (group.kind === 'group') group.label = { nl: 'Thema’s' };
+    const { revisionId } = await t.save(doc);
+    const reader = principal({ capabilities: ['content:read'] });
+    // nl: nothing refuses it, and the preview is exactly what the published locale resolves to.
+    const nl = await t.run('checkNavigation', { locale: 'nl' }, reader);
+    expect(nl.problems).toEqual([]);
+    await t.run('publishNavigation', { revisionId, locale: 'nl' });
+    const { revisionId: _id, ...live } = await t.run(
+      'resolveNavigation',
+      { locale: 'nl' },
+      t.visitor
+    );
+    expect(nl.preview).toEqual(live);
+    // en: the group without a label refuses publication; the preview says so before trying.
+    const en = await t.run('checkNavigation', { locale: 'en', revisionId }, reader);
+    expect(en.problems).toEqual([
+      { menuId: 'main', nodeId: 'themes', code: 'label-missing', blocking: true },
+    ]);
+    expect(en.preview.main.nodes.map((n: { id: string }) => n.id)).toEqual([
+      'about',
+      'donate',
+      'search',
+    ]);
+    expect((await refusal(t.run('publishNavigation', { revisionId, locale: 'en' }))).code).toBe(
+      'invalid_input'
+    );
+  });
+
+  it('previews a placed link to an item that is gone as blocking, once', async () => {
+    const t = setup();
+    const ids = await basic(t);
+    const { revisionId } = await t.save(navBasic(ids));
+    // Drop the legal link, trash the item, then restore the revision that had it.
+    const without = navBasic(ids);
+    without.menus[4]!.nodes = [];
+    const next = await t.save(without, revisionId);
+    await t.run('deleteItem', { itemId: ids.privacy });
+    await t.run('restoreNavigation', { revisionId, baseRevisionId: next.revisionId });
+    const { problems } = await t.run('checkNavigation', { locale: 'nl' });
+    expect(problems).toEqual([
+      { menuId: 'legal', nodeId: 'privacy', code: 'target-unknown', blocking: true },
+    ]);
+  });
+
   it('refuses a new link to an item that does not exist, or is in the trash', async () => {
     const t = setup();
     const ids = await basic(t);
@@ -361,6 +410,8 @@ describe('nav-labels', () => {
     expect(await t.run('checkNavigation', { locale: 'nl' })).toEqual({
       revisionId: null,
       nodes: [],
+      preview: { main: null, actions: [], footer: [], legal: null },
+      problems: [],
     });
   });
 });

@@ -24,18 +24,12 @@ import { mergeConflict } from '../content/merge/save.js';
 import {
   EMPTY_NAVIGATION,
   NavigationDocument,
-  menuNodes,
   navigationIssues,
   navigationReferences,
 } from './model.js';
-import { checkNavigation, targetIds } from './check.js';
-import type { NavigationHead, NavigationRevision } from './ports.js';
-import {
-  BLOCKING_PROBLEMS,
-  placedTargetIds,
-  resolveNavigation,
-  type NavigationProblem,
-} from './resolve.js';
+import { checkNavigation, previewProblems, publicationCheck, targetIds } from './check.js';
+import type { NavigationHead, NavigationRevision, PublishedTarget } from './ports.js';
+import { BLOCKING_PROBLEMS, placedTargetIds, resolveNavigation } from './resolve.js';
 import './ports.js';
 
 const RevisionId = z.string().guid();
@@ -332,11 +326,34 @@ export const restoreNavigation = defineUseCase({
   },
 });
 
-/** The problems of one revision in one locale, read as the public would resolve it. */
-async function problemsOf(ctx: TransactionContext, document: NavigationDocument, locale: string) {
-  const targets = await ctx.navigation.publishedTargets(placedTargetIds(document), locale);
-  return resolveNavigation(document, locale, targets).problems;
+/** What publishing `document` in `locale` would show and what refuses it, in two batched reads. */
+async function publicationOf(
+  ctx: TransactionContext,
+  document: NavigationDocument,
+  locale: string
+) {
+  const ids = placedTargetIds(document);
+  const [targets, existing] = ids.length
+    ? await Promise.all([
+        ctx.navigation.publishedTargets(ids, locale),
+        ctx.navigation.existingItems(ids),
+      ])
+    : [new Map<string, PublishedTarget>(), new Set<string>()];
+  return publicationCheck(document, locale, targets, existing);
 }
+
+const PROBLEM_CODES = [
+  'label-missing',
+  'target-unavailable',
+  'children-unreachable',
+  'anchor-missing',
+] as const;
+const Problem = z.object({
+  menuId: z.string(),
+  nodeId: z.string(),
+  code: z.enum(PROBLEM_CODES),
+  children: z.array(z.string()).optional(),
+});
 
 const PublishInput = z.object({ revisionId: RevisionId, locale: Locale }).strict();
 
@@ -349,50 +366,28 @@ export const publishNavigation = defineUseCase({
   effect: 'publish',
   input: PublishInput,
   output: NavigationState.extend({
-    problems: z.array(
-      z.object({
-        menuId: z.string(),
-        nodeId: z.string(),
-        code: z.enum([
-          'label-missing',
-          'target-unavailable',
-          'children-unreachable',
-          'anchor-missing',
-        ]),
-        children: z.array(z.string()).optional(),
-      })
-    ),
+    problems: z.array(Problem),
   }),
   examples: [{ input: { revisionId: exampleId(0x7a1), locale: 'nl' } }],
   async handler(ctx, { revisionId, locale }) {
     const { head } = await lockedHead(ctx);
     const revision = await ctx.navigation.revision(revisionId);
     if (!head || !revision) throw notFound('navigation revision');
-    const doc = revision.document;
-    const problems: NavigationProblem[] = await problemsOf(ctx, doc, locale);
-    const issues: Issue[] = problems
-      .filter((p) => BLOCKING_PROBLEMS.has(p.code))
-      .map((p) => ({
+    const { problems, unknown } = await publicationOf(ctx, revision.document, locale);
+    const issues: Issue[] = [
+      ...problems
+        .filter((p) => BLOCKING_PROBLEMS.has(p.code))
+        .map((p) => ({
+          path: 'revisionId',
+          message: `site.navigation.${p.code}`,
+          params: { menuId: p.menuId, nodeId: p.nodeId, locale },
+        })),
+      ...unknown.map((u) => ({
         path: 'revisionId',
-        message: `site.navigation.${p.code}`,
-        params: { menuId: p.menuId, nodeId: p.nodeId, locale },
-      }));
-    // An item that no longer exists (deleted, or never was) is a broken menu, not an offline page.
-    const ids = placedTargetIds(doc);
-    const existing = ids.length ? await ctx.navigation.existingItems(ids) : new Set<string>();
-    for (const menu of doc.menus)
-      for (const node of menuNodes(menu))
-        if (
-          node.kind === 'link' &&
-          node.target.kind === 'content' &&
-          ids.includes(node.target.itemId) &&
-          !existing.has(node.target.itemId)
-        )
-          issues.push({
-            path: 'revisionId',
-            message: 'site.navigation.target.unknown',
-            params: { menuId: menu.id, nodeId: node.id, itemId: node.target.itemId },
-          });
+        message: 'site.navigation.target.unknown',
+        params: { menuId: u.menuId, nodeId: u.nodeId, itemId: u.itemId },
+      })),
+    ];
     if (issues.length)
       throw new UseCaseError(
         'invalid_input',
@@ -419,46 +414,6 @@ export const unpublishNavigation = defineUseCase({
     if (!(await ctx.navigation.unpublish(locale)))
       throw notFound('published navigation', `locale "${locale}"`);
     return state(ctx, await ctx.navigation.head());
-  },
-});
-
-export const checkNavigationUseCase = defineUseCase({
-  name: 'site.navigation.check',
-  kind: 'query',
-  description:
-    'What every node of the latest navigation draft (or of `revisionId`) would show visitors in one locale: its text, whether that is its own text or the published featured title or title of its target, and whether a content target is published publicly there. Covers every menu, placed or not.',
-  requires: 'content:read',
-  input: z.object({ locale: Locale, revisionId: RevisionId.optional() }).strict(),
-  output: z.object({
-    /** Null before the first save. */
-    revisionId: RevisionId.nullable(),
-    nodes: z.array(
-      z.object({
-        menuId: z.string(),
-        nodeId: z.string(),
-        label: z.string().nullable(),
-        source: z.enum(['own', 'featured', 'title', 'system']).nullable(),
-        target: z.enum(['ok', 'unpublished', 'restricted', 'missing']).nullable(),
-      })
-    ),
-  }),
-  examples: [{ input: { locale: 'nl' } }],
-  async handler(ctx, { locale, revisionId }) {
-    const id = revisionId ?? (await ctx.navigation.head())?.latestRevisionId;
-    if (!id) return { revisionId: null, nodes: [] };
-    const revision = await ctx.navigation.revision(id);
-    if (!revision) throw notFound('navigation revision');
-    const ids = targetIds(revision.document);
-    const [targets, existing] = ids.length
-      ? await Promise.all([
-          ctx.navigation.publishedTargets(ids, locale),
-          ctx.navigation.existingItems(ids),
-        ])
-      : [new Map(), new Set<string>()];
-    return {
-      revisionId: revision.id,
-      nodes: checkNavigation(revision.document, locale, targets, existing),
-    };
   },
 });
 
@@ -489,6 +444,62 @@ const ResolvedNode = z.discriminatedUnion('kind', [
     children: z.array(ResolvedLink),
   }),
 ]);
+/** The placed menus of one revision in one locale, as visitors would see them. */
+const ResolvedPlacements = z.object({
+  main: z.object({ nodes: z.array(ResolvedNode), bar: z.array(z.string()) }).nullable(),
+  actions: z.array(ResolvedLink),
+  footer: z.array(z.object({ title: z.string().nullable(), nodes: z.array(ResolvedNode) })),
+  legal: z.object({ nodes: z.array(ResolvedNode) }).nullable(),
+});
+
+export const checkNavigationUseCase = defineUseCase({
+  name: 'site.navigation.check',
+  kind: 'query',
+  description:
+    'What every node of the latest navigation draft (or of `revisionId`) would show visitors in one locale: its text, whether that is its own text or the published featured title or title of its target, and whether a content target is published publicly there. Covers every menu, placed or not. `preview` is what publishing that revision in the locale would put live, and `problems` what it leaves out and why; a blocking problem refuses `site.navigation.publish`.',
+  requires: 'content:read',
+  input: z.object({ locale: Locale, revisionId: RevisionId.optional() }).strict(),
+  output: z.object({
+    /** Null before the first save. */
+    revisionId: RevisionId.nullable(),
+    nodes: z.array(
+      z.object({
+        menuId: z.string(),
+        nodeId: z.string(),
+        label: z.string().nullable(),
+        source: z.enum(['own', 'featured', 'title', 'system']).nullable(),
+        target: z.enum(['ok', 'unpublished', 'restricted', 'missing']).nullable(),
+      })
+    ),
+    preview: ResolvedPlacements,
+    problems: z.array(
+      Problem.extend({ code: z.enum([...PROBLEM_CODES, 'target-unknown']), blocking: z.boolean() })
+    ),
+  }),
+  examples: [{ input: { locale: 'nl' } }],
+  async handler(ctx, { locale, revisionId }) {
+    const id = revisionId ?? (await ctx.navigation.head())?.latestRevisionId;
+    const nothing = { main: null, actions: [], footer: [], legal: null };
+    if (!id) return { revisionId: null, nodes: [], preview: nothing, problems: [] };
+    const revision = await ctx.navigation.revision(id);
+    if (!revision) throw notFound('navigation revision');
+    const ids = targetIds(revision.document);
+    const [targets, existing] = ids.length
+      ? await Promise.all([
+          ctx.navigation.publishedTargets(ids, locale),
+          ctx.navigation.existingItems(ids),
+        ])
+      : [new Map(), new Set<string>()];
+    // The targets of every menu cover the placed ones the preview needs: no second read.
+    const publication = publicationCheck(revision.document, locale, targets, existing);
+    return {
+      revisionId: revision.id,
+      nodes: checkNavigation(revision.document, locale, targets, existing),
+      preview: publication.navigation,
+      problems: previewProblems(publication),
+    };
+  },
+});
 
 export const resolveNavigationUseCase = defineUseCase({
   name: 'site.navigation.resolve',
@@ -497,13 +508,7 @@ export const resolveNavigationUseCase = defineUseCase({
     'The published navigation of one locale as visitors see it: labels and targets of the placed menus, without anything that is offline, restricted or not published in that locale. Empty when the locale publishes no navigation.',
   requires: 'content:read',
   input: z.object({ locale: Locale }).strict(),
-  output: z.object({
-    revisionId: RevisionId.nullable(),
-    main: z.object({ nodes: z.array(ResolvedNode), bar: z.array(z.string()) }).nullable(),
-    actions: z.array(ResolvedLink),
-    footer: z.array(z.object({ title: z.string().nullable(), nodes: z.array(ResolvedNode) })),
-    legal: z.object({ nodes: z.array(ResolvedNode) }).nullable(),
-  }),
+  output: ResolvedPlacements.extend({ revisionId: RevisionId.nullable() }),
   examples: [{ input: { locale: 'nl' } }],
   async handler(ctx, { locale }) {
     const empty = { revisionId: null, main: null, actions: [], footer: [], legal: null };

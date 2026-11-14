@@ -2,7 +2,8 @@
      select of pages and articles, the home and search pages, or an address; with JavaScript one
      search field) and an optional menu text of its own in the content locale, which when left
      empty follows the page's published title. A group: only its text. Native controls; the picker
-     is an enhancement. -->
+     is an enhancement. After a conflict the fields hold what is saved now, and the notice repeats
+     what this editor had typed, so a second Save is a choice made with both in view. -->
 <script lang="ts">
   import TargetPicker from '#lib/admin/block-fields/TargetPicker.svelte';
   import { Field, FormPage, Notice, Select } from '#lib/admin/ui/index.js';
@@ -25,6 +26,10 @@
     )
   );
   const value = (key: 'label' | 'target' | 'url') => form?.values?.[key] ?? data.values[key];
+  // After a conflict the fields show what is saved now; what this editor typed stands in the notice.
+  const yours = $derived(
+    [form?.mine?.['label'], form?.mine?.['url']].filter((v) => v?.trim()).join(' · ')
+  );
   const refused = $derived(
     form?.error === 'admin.navigation.error.address' ||
       form?.error === 'admin.navigation.error.targetRequired' ||
@@ -56,7 +61,10 @@
   cancel={{ href: back, label: data.menu.name }}
 >
   {#snippet notices()}
-    {#if form?.error}<Notice tone="error">{t(form.error)}</Notice>{/if}
+    {#if form?.error}<Notice tone="error"
+        >{t(form.error)}
+        {#if yours}{fill(t('admin.navigation.error.yours'), { text: yours })}{/if}</Notice
+      >{/if}
   {/snippet}
   <input type="hidden" name="baseRevisionId" value={data.baseRevisionId ?? ''} />
   <input type="hidden" name="kind" value={data.kind} />

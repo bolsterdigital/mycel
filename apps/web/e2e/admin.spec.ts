@@ -20,6 +20,7 @@ import { ADMIN, login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { editorReady } from './lib/editor';
 import { exerciseMenuEditor } from './lib/site-navigation/editor';
+import { exerciseNavigationPublication as publication } from './lib/site-navigation/publication';
 import { settingsEvidence } from './lib/evidence/settings';
 import { callApi, requireApi } from './lib/api';
 import { randomUUID } from 'node:crypto';
@@ -2194,3 +2195,5 @@ for (const locale of ['nl', 'en']) {
 test('the menu editor builds, orders and nests a menu', async ({ page, request }) => {
   await exerciseMenuEditor(page, request);
 });
+test('the menu editor places, previews, publishes and restores', ({ page, request }) =>
+  publication(page, request));
