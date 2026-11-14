@@ -18,6 +18,7 @@ import { createHash } from 'node:crypto';
 import {
   anonymousPrincipal,
   contentPath,
+  PUBLISHED_CURSOR,
   useCases,
   type Principal,
   type PublishedListEntry,
@@ -38,8 +39,6 @@ const xml = (s: string) =>
     /[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]!
   );
-
-const CURSOR = /^\d{1,15}\.[0-9a-f-]{36}\.[a-z]{2,3}(?:-[A-Z]{2})?$/;
 
 /** Up to SEGMENT rows of the list after `after`, and the cursor past them (null: the end). */
 async function segment(reader: Principal, after: string | undefined) {
@@ -111,7 +110,7 @@ export const GET: RequestHandler = async ({ locals, url }) => {
   const absolute = await siteUrls(site);
   const { defaultLocale } = site.tenant;
   const from = url.searchParams.get('from');
-  if (from !== null && from !== 'start' && !CURSOR.test(from)) refuse(404);
+  if (from !== null && from !== 'start' && !PUBLISHED_CURSOR.test(from)) refuse(404);
 
   const first = await segment(reader, from && from !== 'start' ? from : undefined);
   const content = first.rows

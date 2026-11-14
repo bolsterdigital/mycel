@@ -527,6 +527,20 @@ async function observePublishedList(
     otherSection: (await list({ sectionId: uuidv7() })).items.length,
     otherTenant: (await list({}, other)).items.map(row).join(' '),
     pastTheEnd: (await list({ after: `0.${uuidv7()}.nl` })).items.length,
+    // An id that is not a lowercase uuid is refused as input, before either adapter runs: a
+    // looser grammar let Postgres answer `22P02` where memory answered an empty page.
+    malformedCursors: await Promise.all(
+      [
+        '0.------------------------------------.nl',
+        '0.ffffffffffffffffffffffffffffffffffff.nl',
+        `0.${uuidv7().toUpperCase()}.nl`,
+      ].map((after) =>
+        list({ after }).then(
+          () => 'answered',
+          (e: { code?: string }) => e.code
+        )
+      )
+    ),
   };
 }
 
@@ -822,6 +836,7 @@ const expected = {
     otherSection: 0,
     otherTenant: 'elders:nl',
     pastTheEnd: 0,
+    malformedCursors: ['invalid_input', 'invalid_input', 'invalid_input'],
   },
 };
 

@@ -40,12 +40,21 @@ export const PublishedListEntry = z.object({
 });
 export type PublishedListEntry = z.infer<typeof PublishedListEntry>;
 
-const CURSOR = /^(\d{1,15})\.([0-9a-f-]{36})\.([a-z]{2,3}(?:-[A-Z]{2})?)$/;
+/**
+ * The cursor grammar, which every reader of a cursor shares (the sitemap route too): epoch
+ * milliseconds, a real uuid in lowercase (the form both adapters write and order by, so a cursor
+ * never reaches the database's `::uuid` cast without parsing) and a locale. Rejected: a looser id
+ * (`[0-9a-f-]{36}` let a string of hyphens through, and Postgres answered it with an error where
+ * memory answered an empty page) and uppercase hex (Postgres would accept it, but the memory
+ * adapter compares ids as strings, so the two would place it differently).
+ */
+export const PUBLISHED_CURSOR =
+  /^(\d{1,15})\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.([a-z]{2,3}(?:-[A-Z]{2})?)$/;
 
-const PublishedCursor = z.string().regex(CURSOR, 'content.published.cursor.invalid');
+const PublishedCursor = z.string().regex(PUBLISHED_CURSOR, 'content.published.cursor.invalid');
 
 function positionOf(cursor: string): PublishedPosition {
-  const [, ms, itemId, locale] = CURSOR.exec(cursor)!;
+  const [, ms, itemId, locale] = PUBLISHED_CURSOR.exec(cursor)!;
   return { publishedAt: new Date(Number(ms)), itemId: itemId!, locale: locale! };
 }
 

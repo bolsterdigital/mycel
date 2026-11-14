@@ -49,6 +49,7 @@ export async function exercisePublishedRepresentations(page: Page) {
     hidden: `seo-noindex-${id}`,
     plain: `seo-gewoon-${id}`,
     canonical: `seo-canonical-${id}`,
+    canonicalArticle: `seo-canonical-artikel-${id}`,
     draft: `seo-concept-${id}`,
     never: `seo-nooit-${id}`,
     members: `seo-leden-${id}`,
@@ -64,6 +65,13 @@ export async function exercisePublishedRepresentations(page: Page) {
       slugs.canonical,
       doc(slugs.canonical, { seo: { canonical: elsewhere } }),
       ['nl', 'en']
+    );
+    await make(
+      invoker,
+      principal,
+      slugs.canonicalArticle,
+      doc(slugs.canonicalArticle, { type: 'article', seo: { canonical: elsewhere } }),
+      ['nl']
     );
     await make(invoker, principal, slugs.never, doc(slugs.never), []);
     await make(
@@ -91,7 +99,8 @@ export async function exercisePublishedRepresentations(page: Page) {
   await page.goto(`/probe/${slugs.plain}`);
   await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
 
-  // (b) An explicit canonical replaces the canonical link and og:url, not the alternates.
+  // (b) An explicit canonical replaces the canonical link, og:url and on an article the JSON-LD
+  // `url`, not the alternates.
   await page.goto(`/probe/en/${slugs.canonical}`);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', elsewhere);
   await expect(page.locator('meta[property="og:url"]')).toHaveAttribute('content', elsewhere);
@@ -100,6 +109,15 @@ export async function exercisePublishedRepresentations(page: Page) {
     .evaluateAll((links) => links.map((l) => l.getAttribute('href')));
   expect(alternates).toHaveLength(3);
   for (const href of alternates) expect(href).toMatch(new RegExp(`/${slugs.canonical}$`));
+  // On an article the JSON-LD `url` follows it too: canonical link, og:url and NewsArticle name
+  // one address, so search never reads two answers to "which URL is this".
+  await page.goto(`/probe/articles/${slugs.canonicalArticle}`);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', elsewhere);
+  const ld = JSON.parse(
+    (await page.locator('script[type="application/ld+json"]').first().textContent()) ?? '{}'
+  ) as { '@type'?: string; url?: string };
+  expect(ld['@type']).toBe('NewsArticle');
+  expect(ld.url).toBe(elsewhere);
 
   // (c) The sitemap: published locales with lastmod and alternates; a later draft keeps the
   // published lastmod; an unpublished translation, an unpublished item and noindex are absent;
@@ -145,6 +163,15 @@ export async function exercisePublishedRepresentations(page: Page) {
   const after = await sitemap();
   expect(entry(after, `/${slugs.draft}`)).toContain(`<lastmod>${lastmod}</lastmod>`);
   expect(after).not.toContain('Later concept');
+  // A part address the cursor grammar refuses is a 404, never a database error.
+  for (const from of [
+    '0.------------------------------------.nl',
+    '0.ffffffffffffffffffffffffffffffffffff.nl',
+    'page-2',
+  ]) {
+    const res = await page.request.get(`/probe/sitemap.xml?from=${encodeURIComponent(from)}`);
+    expect(res.status(), from).toBe(404);
+  }
 
   // (d) robots.txt on the primary hostname names the absolute sitemap; an alias redirects to it.
   const site = 'probe.localhost:4173';
@@ -154,7 +181,10 @@ export async function exercisePublishedRepresentations(page: Page) {
   const text = await robots.text();
   expect(text).toMatch(/^Sitemap: https?:\/\/probe\.localhost:4173\/sitemap\.xml$/m);
   expect(text).toMatch(/^Disallow: \/admin$/m);
-  expect(text).toMatch(/^Disallow: \/_theme$/m);
+  expect(text).toMatch(/^Disallow: \/confirm$/m);
+  // The stylesheet, logo and font stay crawlable: a crawler that renders the page needs them.
+  expect(text).not.toMatch(/^Disallow: \/_theme/m);
+  expect(text).not.toMatch(/^Disallow: \/_brand/m);
   const alias = await page.request.get('/robots.txt', {
     headers: { host: 'e2e-alias.example' },
     maxRedirects: 0,

@@ -184,6 +184,9 @@ export async function loadPublicItem(
     ),
   };
 
+  // The JSON-LD `url` is the same canonical as the link and og:url, explicit or not: three
+  // answers to "which address is this" must agree. Rejected: the item's own address here, which
+  // would tell search one URL in the link and another in the structured data.
   const structured = articleData(item, head.canonical, locale, tenant.defaultLocale, url);
   const page = { tenant, item, locale, model, intro, dropCap, head, structured };
   if (hasForm(model)) return { ...page, etag: null };
