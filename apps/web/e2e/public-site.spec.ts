@@ -6,7 +6,8 @@
 
 import { exercisePeopleGrid } from './lib/people/grid';
 import { exercisePublicPeople } from './lib/people/public';
-import { exercisePublishedRepresentations } from './lib/published-representations';
+import { exercisePublishedRepresentations } from './lib/published/representations';
+import { exercisePublicSearch } from './lib/published/search';
 import { openPublication, closePublication } from './lib/publication';
 import { randomBytes } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -38,6 +39,8 @@ import {
 } from './lib/layout';
 import {
   chromeRails,
+  compositionMetrics,
+  expectTitleRail,
   expectChromeOnWideRail,
   expectChromeTransitions,
   expectPreviewChrome,
@@ -1202,46 +1205,6 @@ test.describe('grid-compositions', () => {
         await layoutGate(page, `${width}px ${size}`, 'main');
       });
 
-  async function metrics(page: Page) {
-    await page.evaluate(() => document.fonts.ready);
-    return page.evaluate(() => {
-      const box = (selector: string) => {
-        const el = document.querySelector(selector);
-        if (!el) return null;
-        const r = el.getBoundingClientRect();
-        return { x: r.x, width: r.width, bottom: r.bottom, top: r.top };
-      };
-      return {
-        viewport: document.documentElement.clientWidth,
-        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-        font: getComputedStyle(document.body).fontFamily,
-        fontSize: getComputedStyle(document.body).fontSize,
-        measure: getComputedStyle(document.querySelector('.page')!).getPropertyValue(
-          '--content-width'
-        ),
-        prose: box('.page .rich-text'),
-        wide: box('.page .layout-wide'),
-        full: box('.page .layout-full'),
-        title: box('.page h1'),
-        floats: [...document.querySelectorAll('.page [class*="layout-float-"]')].map(
-          (el) => getComputedStyle(el).float
-        ),
-      };
-    });
-  }
-
-  /** The item title sits centred in its own 52rem rail (brief 46C-1 rule 8): never narrower
-   *  than the reading column, never wider than the rail, its centre on the viewport's. */
-  function expectTitleRail(
-    title: { x: number; width: number },
-    prose: { width: number },
-    viewport: number
-  ) {
-    expect(title.width).toBeGreaterThanOrEqual(prose.width - 1);
-    expect(title.width).toBeLessThanOrEqual(52 * 16 + 1);
-    expect(Math.abs(title.x + title.width / 2 - viewport / 2)).toBeLessThanOrEqual(1);
-  }
-
   for (const entry of compositions)
     for (const width of [320, 768, 1440])
       test(`${entry.slug}: composition at ${width}px`, async ({ page }) => {
@@ -1250,7 +1213,7 @@ test.describe('grid-compositions', () => {
         const path = `/probe/${entry.type === 'article' ? 'articles/' : ''}${entry.slug}`;
         expect((await page.goto(path))?.status()).toBe(200);
         await expect(page.locator('main h1')).toHaveText(entry.title);
-        const measured = await metrics(page);
+        const measured = await compositionMetrics(page);
         await test.info().attach('rails.json', {
           body: JSON.stringify(measured),
           contentType: 'application/json',
@@ -1288,7 +1251,7 @@ test.describe('grid-compositions', () => {
       const edit = page.url();
       const href = await page.locator('a[data-preview-link="nl"]').getAttribute('href');
       await page.goto(href!);
-      const savedMetrics = await metrics(page);
+      const savedMetrics = await compositionMetrics(page);
       expect(savedMetrics.overflow).toBe(false);
       expect(savedMetrics.prose!.width).toBeGreaterThanOrEqual(680);
       expectTitleRail(savedMetrics.title!, savedMetrics.prose!, savedMetrics.viewport);
@@ -1302,7 +1265,7 @@ test.describe('grid-compositions', () => {
         // Measured once the site's stylesheet applies: before \`load\` the prose has the 40rem of
         // the unstyled fallback (640px), which made this a load-timing flake (#66 PR 3).
         await page.waitForLoadState('load');
-        const draft = await metrics(page);
+        const draft = await compositionMetrics(page);
         expect(draft.overflow).toBe(false);
         expect(draft.prose!.width).toBeCloseTo(savedMetrics.prose!.width, 0);
         await test.info().attach('article-draft-rails.json', {
@@ -1338,7 +1301,7 @@ test.describe('grid-compositions', () => {
       });
       await page.setViewportSize({ width: live.width, height: 900 });
       await page.goto(`/probe/${entry.type === 'article' ? 'articles/' : ''}${entry.slug}`);
-      expect((await metrics(page)).prose!.width).toBeCloseTo(live.prose, 0);
+      expect((await compositionMetrics(page)).prose!.width).toBeCloseTo(live.prose, 0);
       // A narrow frame on a wide screen keeps the site's chrome.
       expectPreviewChrome(liveChrome, await chromeRails(page), '/admin/probe/preview');
     });
@@ -1435,7 +1398,7 @@ test.describe('grid-compositions', () => {
       sheet.replaceSync('.page { max-width: 400px; margin-inline: auto; }');
       document.adoptedStyleSheets.push(sheet);
     });
-    const measured = await metrics(page);
+    const measured = await compositionMetrics(page);
     expect(measured.floats).toEqual(['none', 'none']);
     expect(measured.full!.width).toBe(400);
     expect(measured.prose!.width).toBeGreaterThan(360);
@@ -1494,7 +1457,7 @@ test.describe('grid-compositions', () => {
         await api.tabs.setZoom(tab.id, 2);
       });
       await expect.poll(() => page.evaluate(() => devicePixelRatio)).toBe(before.ratio * 2);
-      const after = await metrics(page);
+      const after = await compositionMetrics(page);
       expect(after.viewport).toBeCloseTo(before.width / 2, 0);
       expect(after.overflow).toBe(false);
       expectTitleRail(after.title!, after.prose!, after.viewport);
@@ -2237,6 +2200,10 @@ test('public profiles share policy across HTML, bylines and discovery', async ({
 
 test('noindex, canonical, sitemap and robots.txt follow publication', async ({ page }) => {
   await exercisePublishedRepresentations(page);
+});
+
+test('site search finds what a visitor may read, without JavaScript', async ({ page }) => {
+  await exercisePublicSearch(page);
 });
 
 test('authored people grids show teams without exposing internal email or unavailable links', async ({

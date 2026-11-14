@@ -5,8 +5,8 @@
 import { expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { systemPrincipal, useCases, type Invoker, type Principal } from '@mycel/core';
-import { tenantId, withInvoker } from './invoker';
-import { requireApi } from './api';
+import { tenantId, withInvoker } from '../invoker';
+import { requireApi } from '../api';
 
 const doc = (slug: string, over: Record<string, unknown> = {}) => ({
   type: 'page' as const,

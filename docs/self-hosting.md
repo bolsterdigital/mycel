@@ -79,6 +79,8 @@ Stdio is the transport this release ships; the agent sees exactly the tools and 
 
 Pin `MYCEL_IMAGE` to the new release, check out the same release of this repository, then `docker compose pull && docker compose up -d`. `migrate` runs before the other services start; migrations only move forward. Which versions may be skipped and what a rollback can and cannot do: [upgrading.md](upgrading.md).
 
+The site search finds a page from its publication onwards. After the upgrade that brings it (migration 0055), pages published before it are found only after their next save, unless you index them once: `docker compose run --rm worker mycel search rebuild` (every site, or `--tenant <slug>` for one). Running it again is harmless.
+
 ## Backups
 
 The `backup` service takes the database and the media files into one encrypted [restic](https://restic.net) snapshot, applies the retention policy and exits ([`docker/backup/backup.sh`](../docker/backup/backup.sh)). Run as `backup erasures`, it takes only the register of erased supporters, in seconds, so that an erasure is in a backup within 15 minutes rather than a day. It has no schedule of its own: the host runs both, so a failed run is a failed cron job or timer that you see, not a container that quietly restarts.

@@ -13,6 +13,7 @@
 @import './media-blocks.css' layer(base);
 @import './forms.css' layer(base);
 @import './people.css' layer(base);
+@import './search.css' layer(base);
 @import './action-row.css' layer(components);
 @import './hero.css' layer(components);
 @import './campaign-card.css' layer(components);

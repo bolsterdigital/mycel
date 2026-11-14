@@ -108,6 +108,14 @@ describe('parseCommand', () => {
     });
   });
 
+  it('reads search rebuild for every tenant or one', () => {
+    expect(parseCommand(['search', 'rebuild'])).toEqual({ kind: 'search.rebuild' });
+    expect(parseCommand(['search', 'rebuild', '--tenant', 'demo'])).toEqual({
+      kind: 'search.rebuild',
+      slug: 'demo',
+    });
+  });
+
   it('refuses what it does not know instead of guessing', () => {
     for (const argv of [
       [],
@@ -128,6 +136,8 @@ describe('parseCommand', () => {
       ['erasures'],
       ['erasures', 'apply', 'demo'],
       ['erasures', 'status', 'demo'],
+      ['search'],
+      ['search', 'rebuild', 'demo'],
     ])
       expect(() => parseCommand(argv), argv.join(' ')).toThrow(UsageError);
   });

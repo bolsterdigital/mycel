@@ -20,8 +20,8 @@ import type { LayoutServerLoad } from './$types';
 
 export const csr = false;
 
-/** The route of every content path (`[[locale=locale]]/[...path]`). */
-const CONTENT_ROUTE = /\/\[\[locale=locale\]\]\/(?:\[\.\.\.path\]|people\/\[slug\])$/;
+/** The routes whose language is in the path: content, profiles and the site search. */
+const CONTENT_ROUTE = /\/\[\[locale=locale\]\]\/(?:\[\.\.\.path\]|people\/\[slug\]|search)$/;
 
 export const load: LayoutServerLoad = async ({ locals, request, params, route, setHeaders }) => {
   const site = locals.site;

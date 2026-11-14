@@ -12,6 +12,12 @@
 // (letters and digits only, see `searchTokens`), and a configuration would fold them a second
 // time, differently per database locale. Rejected: `plainto_tsquery('simple', q)` (no prefix
 // match, and the parser splits `2024-11` where core does not).
+//
+// `rebuildSearchIndex` writes the index of a whole tenant again from its publication rows: for a
+// tenant whose items were published before 0055, for an archive from before 0055 (the import
+// calls it when the export has no `content_search`), and for a change of the token rule. It takes
+// the row lock of every item it touches, in id order, as a save does for one, so a publication
+// running meanwhile waits and then writes its own rows over a finished rebuild.
 
 import { sql, type Kysely } from 'kysely';
 import {
@@ -22,6 +28,7 @@ import {
   type PublishedHit,
 } from '@mycel/core';
 import type { Database } from '../infra/schema.js';
+import { enterTenant } from '../infra/roles.js';
 
 /** Brings the index rows of one item in line with its publication rows, already written. */
 export async function indexPublished(
@@ -53,6 +60,38 @@ export async function indexPublished(
               array_to_tsvector(${entry.title}::text[]), array_to_tsvector(${entry.all}::text[]))
     `.execute(trx);
   }
+}
+
+/**
+ * Rebuilds the index of the tenant the transaction entered: every row removed, every published
+ * locale indexed again. Returns how many items were looked at and how many rows hold now.
+ */
+export async function rebuildSearchIndex(
+  trx: Kysely<Database>,
+  tenantId: string
+): Promise<{ items: number; rows: number }> {
+  const { rows: items } = await sql<{ id: string }>`
+    select i.id from content_items i
+    where exists (select 1 from content_item_locales l
+                  where l.item_id = i.id and l.published_revision_id is not null)
+       or exists (select 1 from content_search s where s.item_id = i.id)
+    order by i.id
+    for update of i`.execute(trx);
+  await sql`delete from content_search`.execute(trx);
+  for (const { id } of items) await indexPublished(trx, tenantId, id);
+  const { rows } = await sql<{ n: string }>`select count(*) as n from content_search`.execute(trx);
+  return { items: items.length, rows: Number(rows[0]?.n ?? 0) };
+}
+
+/** `rebuildSearchIndex` for one tenant in a transaction of its own, as `mycel_app`. */
+export async function reindexSearch(
+  operatorDb: Kysely<Database>,
+  tenantId: string
+): Promise<{ items: number; rows: number }> {
+  return operatorDb.transaction().execute(async (trx) => {
+    await enterTenant(trx, tenantId);
+    return rebuildSearchIndex(trx, tenantId);
+  });
 }
 
 interface Row {
