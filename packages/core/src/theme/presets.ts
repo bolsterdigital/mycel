@@ -38,6 +38,7 @@ export const DEFAULT_THEME: ResolvedTheme = {
   density: 1,
   headingWeight: 700,
   dropCap: 'articles',
+  captionFont: 'body',
 };
 
 export const THEME_PRESETS = {
@@ -74,6 +75,7 @@ export const THEME_PRESETS = {
     density: 1.1,
     headingWeight: 600,
     dropCap: 'articles',
+    captionFont: 'body',
   },
   /** Bold green and yellow, larger steps and rounder corners: for campaign pages. */
   campaign: {
@@ -108,5 +110,6 @@ export const THEME_PRESETS = {
     density: 1,
     headingWeight: 800,
     dropCap: 'articles',
+    captionFont: 'body',
   },
 } as const satisfies Record<string, ResolvedTheme>;

@@ -14,6 +14,7 @@
      General also holds, for `tenant:admin` only, how long form submissions are kept. -->
 <script lang="ts">
   import {
+    CAPTION_FONTS,
     DROP_CAPS,
     FONT_PAIRS,
     MAX_SUBMISSION_RETENTION_MONTHS,
@@ -456,6 +457,19 @@
           hint={t('admin.site.dropCap.hint')}
           options={DROP_CAPS.map((d) => ({ value: d, label: t(`admin.site.dropCap.${d}`) }))}
           value={value('dropCap', data.theme.value.dropCap ?? 'articles')}
+        />
+        <Select
+          id="site-captionFont"
+          name="captionFont"
+          label={t('admin.site.captionFont')}
+          locale={data.locale}
+          size="m"
+          hint={t('admin.site.captionFont.hint')}
+          options={CAPTION_FONTS.map((f) => ({
+            value: f,
+            label: t(`admin.site.captionFont.${f}`),
+          }))}
+          value={value('captionFont', data.theme.value.captionFont ?? 'body')}
         />
         {#each numericFields as key (key)}
           <Field

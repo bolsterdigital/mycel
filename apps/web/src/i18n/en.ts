@@ -235,6 +235,11 @@ export const en = {
   'admin.site.dropCap.hint': 'A large first letter at the start of the text of every article.',
   'admin.site.dropCap.articles': 'On',
   'admin.site.dropCap.off': 'Off',
+  'admin.site.captionFont': 'Caption typeface',
+  'admin.site.captionFont.hint':
+    'The typeface of captions and credits under photos, videos and galleries.',
+  'admin.site.captionFont.body': 'As the body text',
+  'admin.site.captionFont.mono': 'Monospace (typewriter)',
   'admin.site.images': 'Images',
   'admin.site.defaultImage': 'Default image',
   'admin.site.defaultImage.hint':

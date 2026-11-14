@@ -81,6 +81,21 @@ describe('site settings', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' });
   });
+  it('stores a monospace caption face and refuses one outside the choice', async () => {
+    const site = '01900000-0000-7000-8000-00000000cc11';
+    const system = systemPrincipal(site, 'test');
+    await expect(
+      invoker.run(useCases.updateSiteTheme, system, {
+        baseVersion: 0,
+        theme: { ...DEFAULT_THEME, captionFont: 'Courier New' as 'mono' },
+      })
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+    await invoker.run(useCases.updateSiteTheme, system, {
+      baseVersion: 0,
+      theme: { ...DEFAULT_THEME, captionFont: 'mono' },
+    });
+    expect((await invoker.run(useCases.getSiteTheme, system, {})).value.captionFont).toBe('mono');
+  });
 });
 
 // #86: the site's default image is the last link of an item's featured and share image chain.

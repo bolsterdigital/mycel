@@ -17,6 +17,12 @@
   color: var(--color-caption-fg, var(--color-muted-fg));
 }
 
+/* A cover header's caption stands under the cover as a paragraph, not in a figure (base.css), but
+     it is the same line about the same image, so it takes the same face. */
+.page > .page-cover-caption {
+  font-family: var(--font-caption, inherit);
+}
+
 /* The video's caption stands on the surface colour, which the caption colour was not checked
      against. */
 .video figcaption {
