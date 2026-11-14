@@ -95,6 +95,7 @@ import {
 } from './content/operations.js';
 import { convertHero, getHeroConversion } from './content/header/hero-conversion.js';
 import { getPublished } from './content/public.js';
+import { listPublished } from './content/published/list.js';
 import { getPublicPerson, listPublicPeople } from './content/people/public.js';
 import {
   approveTranslation,
@@ -208,6 +209,7 @@ export const useCases = {
   dismissSuggestion,
   acceptSuggestion,
   getPublished,
+  listPublished,
   getPublicPerson,
   listPublicPeople,
   createItem,

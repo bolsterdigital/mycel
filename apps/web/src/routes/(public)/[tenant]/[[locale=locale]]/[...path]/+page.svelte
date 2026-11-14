@@ -33,6 +33,7 @@
   {:else}
     <title>{hasProblem ? `${data.errorPrefix} ` : ''}{data.head.title}</title>
     {#if data.head.description}<meta name="description" content={data.head.description} />{/if}
+    {#if data.head.noindex}<meta name="robots" content="noindex" />{/if}
     <link rel="canonical" href={data.head.canonical} />
     {#each data.head.alternates as alt (alt.hreflang)}
       <link rel="alternate" hreflang={alt.hreflang} href={alt.href} />

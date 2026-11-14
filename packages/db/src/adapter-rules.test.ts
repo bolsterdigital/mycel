@@ -2,7 +2,8 @@
 // "disconnected is frozen", what an erasure does to connection intents, that it takes the
 // admission seat of a signup that was never ingested under core's key, and which items a content
 // list matches and in what order (`core/content/listing.ts`), and likewise a media list
-// (`core/media/listing.ts`). One scenario, one
+// (`core/media/listing.ts`), and which published locales the public list of published content returns and in
+// what order (`core/content/published/list.ts`). One scenario, one
 // expected record, run once over the memory adapter and once over Postgres; a rule that one
 // adapter keeps on its own shows up as a difference here. Rejected: a suite per adapter, which
 // is how memory came to block a `resolved` intent while Postgres kept it.
@@ -402,6 +403,133 @@ async function observeMediaListing(invoker: Invoker, uow: UnitOfWork, admin: Pri
   };
 }
 
+/**
+ * The public list (`content.published.list`) in a fresh tenant: one row per published
+ * locale, newest publication first, a tie broken by item id and locale; a draft after publication,
+ * an unpublished locale and a pin that has not run change nothing; `noindex`, the section and a
+ * restricted level come from the published revision; a page of two continues without a repeat or
+ * a gap, also across a tie; a second tenant sees only its own row.
+ */
+async function observePublishedList(
+  invoker: Invoker,
+  admin: Principal,
+  other: Principal,
+  clock: FakeClock
+) {
+  const create = async (slug: string, document: Record<string, unknown>, by = admin) =>
+    (await invoker.run(useCases.createItem, by, { slug, document: document as never })).item;
+  const publish = (item: { id: string; latestRevisionId: string }, locale: string, by = admin) =>
+    invoker.run(useCases.publishItem, by, {
+      itemId: item.id,
+      revisionId: item.latestRevisionId,
+      locale,
+    });
+  const buurt = await invoker.run(useCases.createSection, admin, {
+    slug: 'buurt',
+    title: { nl: 'Buurt' },
+  });
+  clock.advance(1000);
+  const een = await create('eerste', pageDocument());
+  const twee = await create('twee', pageDocument({ locales: ['nl'], title: { nl: 'Twee' } }));
+  // One moment for three rows: the order falls to item id, then locale.
+  await publish(een, 'nl');
+  await publish(een, 'en');
+  await publish(twee, 'nl');
+  clock.advance(1000);
+  const verborgen = await create('verborgen', pageDocument({ seo: { noindex: true } }));
+  await publish(verborgen, 'nl');
+  clock.advance(1000);
+  const leden = await create('leden', {
+    type: 'article',
+    defaultLocale: 'nl',
+    locales: ['nl'],
+    title: { nl: 'Leden' },
+    lead: { nl: 'Alleen voor leden.' },
+    sectionId: buurt.id,
+    access: { level: 'members' },
+    blocks: [],
+  });
+  await publish(leden, 'nl');
+  clock.advance(1000);
+  const weg = await create('ingetrokken', pageDocument());
+  await publish(weg, 'nl');
+  await publish(weg, 'en');
+  clock.advance(1000);
+  await invoker.run(useCases.unpublishItem, admin, { itemId: weg.id, locale: 'nl' });
+  const gepland = await create('gepland', pageDocument());
+  await invoker.run(useCases.scheduleItem, admin, {
+    itemId: gepland.id,
+    revisionId: gepland.latestRevisionId,
+    locale: 'nl',
+    at: new Date(clock.now().getTime() + 3_600_000).toISOString(),
+  });
+  // A draft after publication: the row keeps the published revision and its save.
+  clock.advance(1000);
+  const draft = await invoker.run(useCases.updateItem, admin, {
+    itemId: twee.id,
+    baseRevisionId: twee.latestRevisionId,
+    document: pageDocument({
+      locales: ['nl'],
+      title: { nl: 'Twee, herzien' },
+      seo: { noindex: true },
+    }) as never,
+  });
+  const elders = await create('elders', pageDocument(), other);
+  await publish(elders, 'nl', other);
+
+  type Input = z.input<typeof useCases.listPublished.input>;
+  const list = (input: Input, by = admin) => invoker.run(useCases.listPublished, by, input);
+  const row = (r: { slug: string; locale: string }) => `${r.slug}:${r.locale}`;
+  const all = (await list({ limit: 100 })).items;
+  const walked: string[] = [];
+  const cursors: (string | null)[] = [];
+  let after: string | undefined;
+  do {
+    const page = await list({ limit: 2, ...(after ? { after } : {}) });
+    walked.push(...page.items.map(row));
+    cursors.push(page.next === null ? null : 'cursor');
+    after = page.next ?? undefined;
+  } while (after);
+  const tied = all.filter((r) => r.slug === 'eerste' || r.slug === 'twee');
+  const article = all.find((r) => r.slug === 'leden')!;
+  const twoRow = all.find((r) => r.slug === 'twee')!;
+  return {
+    all: all.map(row).sort().join(' '),
+    newestFirst: all.slice(0, 3).map(row).join(' '),
+    walkedIsAll: walked.join(' ') === all.map(row).join(' '),
+    pages: cursors.length,
+    lastPageHasNoCursor: cursors.at(-1) === null,
+    tieByItemId:
+      tied.map((r) => r.id).join() ===
+      [...tied]
+        .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.locale < b.locale ? -1 : 1))
+        .map((r) => r.id)
+        .join(),
+    locales: Object.fromEntries(all.map((r) => [row(r), r.locales.join(' ')])),
+    noindex: all
+      .filter((r) => r.noindex)
+      .map(row)
+      .join(' '),
+    article: {
+      type: article.type,
+      access: article.access,
+      inSection: article.sectionId === buurt.id,
+    },
+    draftKeepsPublished: {
+      revision: twoRow.revisionId === twee.latestRevisionId,
+      notTheDraft: twoRow.revisionId !== draft.revision.id,
+      noindex: twoRow.noindex,
+      savedBeforeTheDraft: Date.parse(twoRow.updatedAt) < Date.parse(draft.revision.createdAt),
+    },
+    articles: (await list({ type: 'article' })).items.map(row).join(' '),
+    pagesOnly: (await list({ type: 'page' })).items.length,
+    section: (await list({ sectionId: buurt.id })).items.map(row).join(' '),
+    otherSection: (await list({ sectionId: uuidv7() })).items.length,
+    otherTenant: (await list({}, other)).items.map(row).join(' '),
+    pastTheEnd: (await list({ after: `0.${uuidv7()}.nl` })).items.length,
+  };
+}
+
 async function observeReadmission(uow: UnitOfWork, admin: Principal, clock: FakeClock) {
   const email = 'lifecycle@example.org';
   const first = uuidv7();
@@ -528,6 +656,12 @@ async function observe({ uow, clock, tenant, apply }: Adapter) {
   const invoker = new Invoker(buildRegistry(), uow);
   const listing = await observeListing(invoker, admin, clock);
   const mediaListing = await observeMediaListing(invoker, uow, admin);
+  const publishedList = await observePublishedList(
+    invoker,
+    systemPrincipal(await tenant(), 'adapter-rules'),
+    systemPrincipal(await tenant(), 'adapter-rules'),
+    clock
+  );
   return {
     readmission,
     credential,
@@ -536,6 +670,7 @@ async function observe({ uow, clock, tenant, apply }: Adapter) {
     seat: { ...seat, after: await seated() },
     listing,
     mediaListing,
+    publishedList,
   };
 }
 
@@ -656,6 +791,38 @@ const expected = {
     offset: 'uitgelicht zomaar',
     pastTheEnd: { n: 0, total: 11 },
   },
+  publishedList: {
+    // Not `ingetrokken:nl` (unpublished), not `gepland` (its pin has not run).
+    all: 'eerste:en eerste:nl ingetrokken:en leden:nl twee:nl verborgen:nl',
+    newestFirst: 'ingetrokken:en leden:nl verborgen:nl',
+    walkedIsAll: true,
+    pages: 3,
+    lastPageHasNoCursor: true,
+    tieByItemId: true,
+    locales: {
+      'eerste:en': 'nl en',
+      'eerste:nl': 'nl en',
+      'ingetrokken:en': 'en',
+      'leden:nl': 'nl',
+      'twee:nl': 'nl',
+      'verborgen:nl': 'nl',
+    },
+    noindex: 'verborgen:nl',
+    article: { type: 'article', access: 'members', inSection: true },
+    // The later draft sets `noindex`; the published revision does not have it.
+    draftKeepsPublished: {
+      revision: true,
+      notTheDraft: true,
+      noindex: false,
+      savedBeforeTheDraft: true,
+    },
+    articles: 'leden:nl',
+    pagesOnly: 5,
+    section: 'leden:nl',
+    otherSection: 0,
+    otherTenant: 'elders:nl',
+    pastTheEnd: 0,
+  },
 };
 
 it('keeps an intent whose state says what happened, and blocks the rest', () => {
@@ -713,7 +880,9 @@ describe.skipIf(skip)('adapter rules, postgres', () => {
       uow,
       clock,
       async tenant() {
-        const { id } = await testTenant(operatorDb, `rules-${run}`, { name: 'Rules' });
+        const { id } = await testTenant(operatorDb, `rules-${run}-${tenants.length}`, {
+          name: 'Rules',
+        });
         tenants.push(id);
         return id;
       },

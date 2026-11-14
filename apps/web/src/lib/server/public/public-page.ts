@@ -2,7 +2,8 @@
 // one published locale of the item (`content.published.get`, the locale from the path), the
 // resolver fetches every reference the blocks make once, up front, and this module adds what the
 // document head and the cache need: the canonical URL, one `hreflang` per published locale plus
-// `x-default`, a description, the Open Graph title and share image (#66), and a strong ETag. The public pages ship no client-side JavaScript
+// `x-default`, a description, the Open Graph title and share image (#66), the editor's
+// `noindex` and explicit canonical, and a strong ETag. The public pages ship no client-side JavaScript
 // at all, and nothing here reads a cookie or Accept-Language: the response is a function of the
 // URL, which is what makes it cacheable in a shared cache (ADR 018 rule 8).
 //
@@ -49,7 +50,10 @@ import { siteBrand, siteChrome, siteTheme } from './theme.js';
 import { refuse } from '#lib/server/http/refuse.js';
 
 export interface PublicHead {
+  /** The item's own address, or the editor's explicit canonical URL (`seo.canonical`). */
   canonical: string;
+  /** `seo.noindex`: the page is served but asks search engines not to index it. */
+  noindex: boolean;
   /** One per published locale, then `x-default`. */
   alternates: { hreflang: string; href: string }[];
   description: string | null;
@@ -156,7 +160,10 @@ export async function loadPublicItem(
   const { images } = item.effective;
   const shared = ogLocales(locale, item.locales);
   const head: PublicHead = {
-    canonical: href(locale),
+    // An explicit canonical replaces only this link: the alternates stay the item's own paths,
+    // since they name its translations here, not the address the editor points search to.
+    canonical: item.seo.canonical ?? href(locale),
+    noindex: item.seo.noindex,
     alternates: [
       ...item.locales.map((l) => ({ hreflang: l, href: href(l) })),
       { hreflang: 'x-default', href: href(fallback) },
