@@ -1,4 +1,4 @@
--- 0055: the site search index (TODO #42A; ADR 012 rule 7, ADR 018 rule 9).
+-- 0055: the site search index (ADR 012 rule 7, ADR 018 rule 9).
 --
 -- `content_search` is a read model of what a site publishes for everyone: one row per locale
 -- of an item whose published revision is public and indexable, holding the search tokens of that
@@ -17,7 +17,7 @@
 -- written on every save like `content_block_refs` (an index of every draft, of which only the
 -- published one may ever match), and a backfill in SQL (it would be a second tokenizer in
 -- PL/pgSQL; an item published before this migration enters the index at its next save or
--- publication, and #42A's second PR brings the rebuild).
+-- publication, and the rebuild comes with the public search route).
 
 create table content_search (
   tenant_id    uuid not null references tenants(id),

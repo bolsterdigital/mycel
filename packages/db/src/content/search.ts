@@ -1,4 +1,4 @@
-// The site search over Postgres (TODO #42A): `content_search` (0055) holds, per published locale
+// The site search over Postgres: `content_search` (0055) holds, per published locale
 // of an item, the tokens core derives from the published revision (`searchEntry`), as config-free
 // `tsvector`s. Kept out of content.ts so that file stays one adapter object.
 //

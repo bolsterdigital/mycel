@@ -21,7 +21,7 @@ const pageDocument = <T extends Record<string, unknown>>(over: T = {} as T) => (
 });
 
 /**
- * The site search (`content.published.find`, #42A): a question finds only what a visitor may read
+ * The site search (`content.published.find`): a question finds only what a visitor may read
  * now. Prefixes and folded accents match, every token must; a title hit ranks first, then the
  * newest publication; the other locale, a draft after publication, an unpublished locale, a
  * scheduled pin, a restricted item, `noindex`, the trash and another tenant are never found, and a

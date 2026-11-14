@@ -1,4 +1,4 @@
-// Site search for visitors (TODO #42A): what a site publishes for everyone, found by words.
+// Site search for visitors: what a site publishes for everyone, found by words.
 //
 // One text rule, here, for every adapter. `searchTokens` folds text to tokens (NFKD, combining
 // marks dropped, lower case, split on everything that is no letter or digit); a document gives a
@@ -11,7 +11,7 @@
 // `noindex`, so neither adapter can find one; the use case then reads each hit's published revision
 // again and drops it unless it is public and indexable. Title, lead and excerpt come from that
 // revision, never from an index: the index holds tokens, no readable text. Restricted items are
-// left out whole, title included; reader results are #42B, after reader access (#19).
+// left out whole, title included; reader results follow reader access (ADR 016).
 //
 // Order: hits whose title carries every token first, then newest publication, then item id. A
 // page is a number, capped at `MAX_SEARCH_PAGE`: a visitor reads the first pages, and a cursor
