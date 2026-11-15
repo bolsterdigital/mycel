@@ -43,7 +43,7 @@ export async function chromeRails(page: Page | Frame) {
       wide: rail('layout-wide'),
       header: box(document.querySelector('.site-header')),
       identity: box(document.querySelector('.site-header .site-identity')),
-      nav: box(document.querySelector('.site-header nav')),
+      tools: box(document.querySelector('.site-header .site-tools')),
       footer: box(document.querySelector('.site-footer')),
       footerParts: [...(document.querySelector('.site-footer')?.children ?? [])].map(box),
       links: [...document.querySelectorAll('.site-header a, .site-footer a')].map((a) =>
@@ -58,22 +58,17 @@ export async function chromeRails(page: Page | Frame) {
 
 export type Rails = Awaited<ReturnType<typeof chromeRails>>;
 
-/** Header and footer content start and end on the wide rail. The navigation ends on the rail in
- *  the logo's row, or starts on it under the logo; `oneRow` demands the first, without it the
- *  row the browser chose is checked. */
+/** Header and footer content start and end on the wide rail. The tools (call to action and Menu)
+ *  end on the rail, in the logo's row or under it; `oneRow` demands the first, without it the row
+ *  the browser chose is checked. */
 export function expectChromeOnWideRail(m: Rails, oneRow?: boolean) {
-  const { wide, identity, nav } = m;
+  const { wide, identity, tools } = m;
   expect(Math.abs(identity!.left - wide.left)).toBeLessThanOrEqual(1);
-  if (nav) {
-    oneRow ??= nav.top < identity!.bottom;
-    expect(nav.right).toBeLessThanOrEqual(wide.right + 1);
-    if (oneRow) {
-      expect(nav.top).toBeLessThan(identity!.bottom);
-      expect(Math.abs(nav.right - wide.right)).toBeLessThanOrEqual(1);
-    } else {
-      expect(nav.top).toBeGreaterThanOrEqual(identity!.bottom);
-      expect(Math.abs(nav.left - wide.left)).toBeLessThanOrEqual(1);
-    }
+  if (tools) {
+    oneRow ??= tools.top < identity!.bottom;
+    expect(Math.abs(tools.right - wide.right)).toBeLessThanOrEqual(1);
+    if (oneRow) expect(tools.top).toBeLessThan(identity!.bottom);
+    else expect(tools.top).toBeGreaterThanOrEqual(identity!.bottom);
   }
   for (const part of m.footerParts) {
     expect(Math.abs(part!.left - wide.left)).toBeLessThanOrEqual(1);
@@ -94,11 +89,11 @@ export function expectChromeTransitions(m: Rails) {
  *  same width: the same parts, header height, rails and transitions, and every site link under
  *  the preview's `base`, so following one never leaves the platform origin by itself (ADR 014). */
 export function expectPreviewChrome(preview: Rails, site: Rails, base: string) {
-  const parts = (m: Rails) => [!m.nav, m.footerParts.length, m.links.length];
+  const parts = (m: Rails) => [!m.tools, m.footerParts.length, m.links.length];
   const height = (m: Rails) => m.header!.bottom - m.header!.top;
   expect(parts(preview)).toEqual(parts(site));
   expect(height(preview)).toBeCloseTo(height(site), 0);
-  expectChromeOnWideRail(preview, site.nav ? site.nav.top < site.identity!.bottom : undefined);
+  expectChromeOnWideRail(preview, site.tools ? site.tools.top < site.identity!.bottom : undefined);
   expectChromeTransitions(preview);
   for (const href of preview.links)
     if (href?.startsWith('/')) expect(href).toMatch(new RegExp(`^${base}(/|$)`));

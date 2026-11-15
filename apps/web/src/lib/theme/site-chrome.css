@@ -1,0 +1,210 @@
+/* The site header, its menu panel and the footer (docs/architecture/content-layout.md § Site chrome,
+   ADR 036 rule 12). Apart from base.css, which stands at its size ceiling,
+   against the same theme properties; imported into the `components` layer.
+
+   This is the baseline without JavaScript. The header is the logo and, at the end of the wide rail,
+   the tools: the first call to action and Menu. They stay one row while they fit beside the logo,
+   else the tools move under it as a whole and keep to the end, where Menu was; a tool that does not
+   fit beside the other wraps the same way. Rejected: a breakpoint, which a long label or 200% text
+   overruns.
+
+   Menu is a native `details`. Open, its panel lies under the header on the wide rail's end, and
+   everything after the header leaves the page: the panel never covers content that can take focus
+   (WCAG 2.4.11), Menu stays where it was, and the page scrolls through a long menu. Without `:has()`
+   the panel lies over the content, and every link still works. The enhancement (step D2) turns the
+   panel into a modal dialog from the right instead. Rejected: a panel in the flow of the header,
+   which moves Menu on opening, and a fixed overlay, which leaves the page behind it focusable. */
+
+.site-header,
+.site-footer {
+  padding: var(--space-2) var(--wide-inset);
+  border-block: 1px solid var(--color-surface-bg);
+}
+.site-header {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+.site-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--tap);
+  max-width: 100%;
+  font-weight: 700;
+}
+.site-identity img {
+  display: block;
+  max-width: min(12rem, 45vw);
+  max-height: 4rem;
+  width: auto;
+  height: auto;
+}
+.site-header a,
+.site-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+}
+.site-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-inline-start: auto;
+  max-width: 100%;
+}
+
+/* Menu: a visible word beside the burger, never the icon alone. */
+.site-menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding-inline: var(--space-1);
+  border-radius: var(--radius);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.site-menu-toggle::-webkit-details-marker {
+  display: none;
+}
+/* Three lines that become a cross: borders, not backgrounds, so forced colours keep them. */
+.site-burger {
+  --burger-gap: 0.3125em;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 1.125em;
+  height: calc(2 * var(--burger-gap) + 2px);
+}
+.site-burger > span {
+  border-block-start: 2px solid currentColor;
+  transform-origin: center;
+  transition:
+    transform 180ms ease-out,
+    opacity 140ms ease-out;
+}
+.site-menu[open] .site-burger > span:first-child {
+  transform: translateY(var(--burger-gap)) rotate(45deg);
+}
+.site-menu[open] .site-burger > span:nth-child(2) {
+  opacity: 0;
+}
+.site-menu[open] .site-burger > span:last-child {
+  transform: translateY(calc(-1 * var(--burger-gap))) rotate(-45deg);
+}
+
+.site-panel {
+  position: absolute;
+  z-index: 5;
+  inset-block-start: 100%;
+  inset-inline-end: var(--wide-inset);
+  width: min(30rem, 100% - 2 * var(--gutter));
+  padding-block: var(--space-2) var(--space-4);
+  color: var(--color-body-fg);
+  background: var(--color-body-bg);
+}
+.site-header:has(.site-menu[open]) ~ * {
+  display: none;
+}
+.site-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A placed menu: a list of links, a link's sublinks indented under it, a group as a disclosure. */
+.site-tree,
+.site-tree ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.site-tree ul {
+  padding-inline-start: var(--space-2);
+}
+.site-tree a {
+  min-width: var(--tap);
+}
+.site-panel .site-tree a {
+  display: flex;
+}
+.site-tree a[aria-current='page'] {
+  font-weight: 700;
+  text-decoration-thickness: 0.15em;
+}
+.site-group > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--tap);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.site-group > summary::-webkit-details-marker {
+  display: none;
+}
+/* A chevron in borders, which forced colours keep: down when closed, up when open. */
+.site-group > summary::after {
+  content: '';
+  flex: none;
+  width: 0.5em;
+  height: 0.5em;
+  margin-block-start: -0.25em;
+  border-inline-end: 2px solid currentColor;
+  border-block-end: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 140ms ease-out;
+}
+.site-group[open] > summary::after {
+  margin-block-start: 0.25em;
+  transform: rotate(-135deg);
+}
+.site-panel .site-tree > li {
+  border-block-end: 1px solid var(--color-surface-bg);
+}
+.site-panel .site-tree > li > .site-group > summary,
+.site-panel .site-tree > li > a {
+  font-size: var(--step-1);
+}
+.site-panel .site-tree a {
+  text-decoration: none;
+}
+.site-panel .site-tree a:is(:hover, [aria-current='page']) {
+  text-decoration: underline;
+}
+
+/* The footer: its text, then the placed columns side by side as far as they fit, then the legal
+   menu in one row. Every group stays open: a footer hides nothing. */
+.site-footer > p {
+  margin-block: 0 var(--space-1);
+}
+.site-footer > nav {
+  display: grid;
+  gap: var(--space-2);
+}
+.site-footer-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--space-2) var(--space-3);
+}
+.site-footer-title {
+  margin: 0;
+  font-size: 1em;
+}
+.site-footer-legal .site-tree {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-3);
+}

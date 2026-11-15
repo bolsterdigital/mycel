@@ -98,6 +98,11 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
       '.ui-choice',
       '.admin-sidebar a',
       '.admin-sidebar summary',
+      // The site chrome (ADR 036 rule 12, 44 px targets): Menu, the menu's links and groups.
+      '.site-identity',
+      '.site-menu-toggle',
+      '.site-tree a',
+      '.site-group > summary',
     ];
     for (const root of document.querySelectorAll(scope))
       for (const b of root.querySelectorAll(actions.join(', '))) {
@@ -124,12 +129,12 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
         // "Dashboar|d" at 320 CSS px and 200% text passed (#66 PR 2).
         if (
           !b.matches(
-            'button, .ui-button, .ui-block-card-action, .ui-navgroup a, .ui-navgroup summary'
+            'button, .ui-button, .ui-block-card-action, .ui-navgroup a, .ui-navgroup summary, .site-menu-toggle'
           )
         )
           continue;
         if (
-          !b.matches('.ui-navgroup a, .ui-navgroup summary') &&
+          !b.matches('.ui-navgroup a, .ui-navgroup summary, .site-menu-toggle') &&
           getComputedStyle(b).hyphens === 'auto'
         )
           continue;
