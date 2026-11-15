@@ -156,7 +156,8 @@ export async function exerciseNavigationPublication(page: Page, request: APIRequ
   await page.getByRole('button', { name: 'Yes, restore' }).click();
   await expect(page).toHaveURL(/\/navigation\?restored=1$/);
   const restored = await get(request);
-  expect(restored.revisions[0]?.restoredFrom).toBe(wide);
+  // Another test may save right after the restore, so the restore need not be the newest.
+  expect(restored.revisions.some((r) => r.restoredFrom === wide)).toBe(true);
   expect(restored.publication.find((p) => p.locale === 'nl')?.revisionId).not.toBe(
     restored.revisionId
   );

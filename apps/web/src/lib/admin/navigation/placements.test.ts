@@ -1,9 +1,9 @@
 // The placements form gives a document core accepts: the bar follows the menu's order and only
-// changes for the menu that was placed, footer titles keep their other locales, and a removed
-// menu is refused rather than placed.
+// changes for the menu that was placed, footer titles keep their other locales, also when their
+// menu moves to another slot, and a removed menu is refused rather than placed.
 import { describe, expect, it } from 'vitest';
 import { NavigationDocument, navigationIssues, type NavigationDocument as Doc } from '@mycel/core';
-import { formOf, placementsFrom } from './placements.js';
+import { changedChoices, formOf, placementsFrom, postedForm } from './placements.js';
 
 const link = (id: string) =>
   ({ id, kind: 'link', target: { kind: 'url', href: `/${id}` }, label: { nl: id } }) as const;
@@ -55,7 +55,7 @@ describe('placementsFrom', () => {
     const placements = placementsFrom(d, form, 'nl')!;
     expect(placements.footer).toEqual([
       { menuId: 'main' },
-      { menuId: 'other', title: { nl: 'Meer' } },
+      { menuId: 'other', title: { nl: 'Meer', en: 'About' } },
     ]);
     expect(placements.legal).toEqual({ menuId: 'other' });
     expect(valid({ ...d, placements })).toEqual([]);
@@ -72,6 +72,41 @@ describe('placementsFrom', () => {
     expect(placementsFrom(d, form, 'nl')?.footer[0]?.title).toEqual({ nl: 'Nieuw', en: 'About' });
   });
 
+  it('takes the titles in other locales along when a menu moves to another slot', () => {
+    const d = doc();
+    const form = formOf(d.placements, 'nl');
+    form.footer = [
+      { menuId: 'main', title: '' },
+      { menuId: '', title: '' },
+      { menuId: 'other', title: 'Over' },
+      { menuId: '', title: '' },
+    ];
+    expect(placementsFrom(d, form, 'nl')?.footer).toEqual([
+      { menuId: 'main' },
+      { menuId: 'other', title: { nl: 'Over', en: 'About' } },
+    ]);
+  });
+
+  it('swaps two columns with their titles, and gives a second copy of a menu none', () => {
+    const d = doc();
+    d.placements.footer = [
+      { menuId: 'other', title: { nl: 'Over', en: 'About' } },
+      { menuId: 'main', title: { nl: 'Menu', en: 'Menu en' } },
+    ];
+    const form = formOf(d.placements, 'nl');
+    form.footer = [
+      { menuId: 'main', title: 'Menu' },
+      { menuId: 'other', title: 'Over' },
+      { menuId: 'other', title: '' },
+      { menuId: '', title: '' },
+    ];
+    expect(placementsFrom(d, form, 'nl')?.footer).toEqual([
+      { menuId: 'main', title: { nl: 'Menu', en: 'Menu en' } },
+      { menuId: 'other', title: { nl: 'Over', en: 'About' } },
+      { menuId: 'other' },
+    ]);
+  });
+
   it('refuses a menu the document no longer has, and empties what is set to none', () => {
     const d = doc();
     expect(placementsFrom(d, { ...formOf(d.placements, 'nl'), actions: 'gone' }, 'nl')).toBeNull();
@@ -82,5 +117,52 @@ describe('placementsFrom', () => {
       footer: [],
       legal: null,
     });
+  });
+});
+
+describe('changedChoices', () => {
+  it('reads a posted form back as the form it showed', () => {
+    const d = doc();
+    const shown = formOf(d.placements, 'nl');
+    expect(
+      postedForm({
+        main: 'main',
+        barShown: '1',
+        'bar:a': 'on',
+        actions: '',
+        footer0: 'other',
+        footer0Title: 'Over',
+        footer1: '',
+        footer1Title: '',
+        legal: '',
+      })
+    ).toEqual(shown);
+    expect(postedForm({ main: 'other' }).bar).toBeNull();
+  });
+
+  it('names only what the refused form chose differently, in the order of the form', () => {
+    const saved = formOf(doc().placements, 'nl');
+    const mine = structuredClone(saved);
+    expect(changedChoices(mine, saved)).toEqual([]);
+    mine.bar = ['a', 'b'];
+    mine.footer[0]!.title = ' Meer ';
+    mine.footer[2] = { menuId: 'main', title: '' };
+    mine.legal = 'other';
+    expect(changedChoices(mine, saved)).toEqual([
+      { place: 'bar', ids: ['a', 'b'] },
+      { place: 'footer', slot: 1, menuId: 'other', title: 'Meer' },
+      { place: 'footer', slot: 3, menuId: 'main', title: '' },
+      { place: 'legal', menuId: 'other' },
+    ]);
+  });
+
+  it('leaves out the bar of another main menu and says "none" as an empty choice', () => {
+    const saved = formOf(doc().placements, 'nl');
+    const mine = { ...structuredClone(saved), main: 'other', bar: ['x'], actions: '' };
+    mine.footer[0] = { menuId: '', title: 'ignored' };
+    expect(changedChoices(mine, saved)).toEqual([
+      { place: 'main', menuId: 'other' },
+      { place: 'footer', slot: 1, menuId: '', title: '' },
+    ]);
   });
 });

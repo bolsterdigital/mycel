@@ -21,15 +21,6 @@
       zone: data.timeZone,
       relative: data.dateFormat !== 'absolute',
     });
-  type LocaleRow = (typeof data.locales)[number];
-  const draft = (l: LocaleRow) =>
-    t(
-      l.blocked
-        ? 'admin.navigation.draft.blocked'
-        : l.ahead
-          ? 'admin.navigation.draft.ahead'
-          : 'admin.navigation.draft.same'
-    );
 </script>
 
 <svelte:head>
@@ -100,7 +91,9 @@
                       title={w.full}>{w.text}</time
                     >{:else}{t('admin.navigation.live.none')}{/if}
                 </td>
-                <td data-label={t('admin.navigation.column.draft')}>{draft(l)}</td>
+                <td data-label={t('admin.navigation.column.draft')}
+                  >{t(`admin.navigation.draft.${l.draft}`)}</td
+                >
               </tr>
             {/each}
           {/snippet}

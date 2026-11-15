@@ -3,6 +3,7 @@
      controls, one submit. The same menu may be chosen for several places; nothing here overrides
      a menu's texts or order (ADR 036 rule 4). -->
 <script lang="ts">
+  import { changedChoices, postedForm, type Choice } from '#lib/admin/navigation/placements.js';
   import { Checkbox, Field, Fieldset, FormPage, Notice, Select } from '#lib/admin/ui/index.js';
   import { fill, ui } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -18,6 +19,25 @@
   const value = (key: string, saved: string) => form?.values?.[key] ?? saved;
   const ticked = (id: string) =>
     form?.values ? `bar:${id}` in form.values : (data.form.bar ?? []).includes(id);
+  // After a conflict the fields show what is saved now; what this editor chose stands in the notice.
+  const menuName = (id: string) =>
+    id
+      ? (data.menus.find((m) => m.value === id)?.label ?? id)
+      : t('admin.navigation.placements.none');
+  const itemName = (id: string) => data.bar?.items.find((i) => i.id === id)?.label ?? id;
+  const said = (c: Choice) =>
+    c.place === 'bar'
+      ? `${t('admin.navigation.placements.bar')}: ${
+          c.ids.map(itemName).join(', ') || t('admin.navigation.placements.none')
+        }`
+      : c.place === 'footer'
+        ? `${fill(t('admin.navigation.placements.column'), { n: c.slot })}: ${menuName(c.menuId)}${
+            c.title ? ` ("${c.title}")` : ''
+          }`
+        : `${t(`admin.navigation.placement.${c.place}`)}: ${menuName(c.menuId)}`;
+  const yours = $derived(
+    form?.mine ? changedChoices(postedForm(form.mine), data.form).map(said).join('; ') : ''
+  );
 </script>
 
 <svelte:head>
@@ -37,7 +57,10 @@
   cancel={{ href: base, label: t('admin.navigation.title') }}
 >
   {#snippet notices()}
-    {#if form?.error}<Notice tone="error">{t(form.error)}</Notice>{/if}
+    {#if form?.error}<Notice tone="error"
+        >{t(form.error)}
+        {#if yours}{fill(t('admin.navigation.error.yoursChoices'), { choices: yours })}{/if}</Notice
+      >{/if}
     {#if !data.menus.length}<Notice tone="info" live={false}
         >{t('admin.navigation.placements.noMenus')}</Notice
       >{/if}
@@ -68,6 +91,9 @@
                 ? t(`admin.navigation.system.${item.system}`)
                 : t('admin.navigation.noLabel'))}
             checked={ticked(item.id)}
+            hint={item.state && item.state !== 'ok'
+              ? t(`admin.navigation.state.${item.state}`)
+              : undefined}
           />
         {:else}
           <p>{t('admin.navigation.placements.bar.empty')}</p>

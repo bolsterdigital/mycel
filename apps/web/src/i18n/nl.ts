@@ -411,6 +411,8 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Laat leeg om de titel van de pagina te gebruiken. Een adres heeft een eigen tekst nodig.',
   'admin.navigation.field.label.inherits':
     'Laat leeg om de titel van de pagina te gebruiken: "{title}".',
+  'admin.navigation.field.label.inheritsRestricted':
+    'Laat leeg om de titel van de pagina te gebruiken: "{title}". De pagina is alleen voor leden, dus bezoekers zien deze link niet.',
   'admin.navigation.field.label.groupHint': 'De tekst boven de subitems.',
   'admin.navigation.field.url.hint': 'Begint met / voor een plek op deze site, of met https://.',
   'admin.navigation.field.anchor': 'Waar op de pagina',
@@ -444,6 +446,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.navigation.error.actions':
     'Niet opgeslagen: de actieknoppen bevatten hooguit twee links, zonder subitems of groepen.',
   'admin.navigation.error.yours': 'Wat jij had ingevuld: {text}',
+  'admin.navigation.error.yoursChoices': 'Wat jij had gekozen: {choices}.',
   'admin.navigation.error.publish':
     'Niet gepubliceerd: los eerst op wat hieronder "Blokkeert publicatie" heeft.',
   'admin.navigation.error.revisionGone': 'Die versie van de navigatie bestaat niet.',

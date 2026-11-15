@@ -406,6 +406,8 @@ export const en = {
   'admin.navigation.field.label.hint':
     'Leave empty to use the title of the page. An address needs a text of its own.',
   'admin.navigation.field.label.inherits': 'Leave empty to use the title of the page: "{title}".',
+  'admin.navigation.field.label.inheritsRestricted':
+    'Leave empty to use the title of the page: "{title}". The page is for members only, so visitors do not see this link.',
   'admin.navigation.field.label.groupHint': 'The text above the sub-items.',
   'admin.navigation.field.url.hint': 'Starts with / for a place on this site, or with https://.',
   'admin.navigation.field.anchor': 'Where on the page',
@@ -439,6 +441,7 @@ export const en = {
   'admin.navigation.error.actions':
     'Not saved: the action buttons take at most two links, without sub-items or groups.',
   'admin.navigation.error.yours': 'What you typed: {text}',
+  'admin.navigation.error.yoursChoices': 'What you chose: {choices}.',
   'admin.navigation.error.publish':
     'Not published: first fix what is marked "Blocks publication" below.',
   'admin.navigation.error.revisionGone': 'That version of the navigation does not exist.',

@@ -66,6 +66,8 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     anchors,
     /** What the link shows without a text of its own: the target's published title, if any. */
     inherited: check && check.source !== 'own' ? check.label : null,
+    /** The target is published for members only: visitors get no link to it (ADR 036 rule 8). */
+    restricted: check?.target === 'restricted',
   };
 };
 

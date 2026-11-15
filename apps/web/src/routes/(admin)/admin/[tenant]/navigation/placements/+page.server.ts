@@ -4,12 +4,12 @@
 // form was loaded with, so core merges it per placement with what was saved since.
 import { can, useCases } from '@mycel/core';
 import {
-  FOOTER_SLOTS,
   formOf,
   placementsFrom,
+  postedForm,
   type PlacementsForm,
 } from '#lib/admin/navigation/placements.js';
-import { loaded, text } from '#lib/server/admin/admin-actions.js';
+import { loaded } from '#lib/server/admin/admin-actions.js';
 import { refuse } from '#lib/server/http/refuse.js';
 import { saveNavigation } from '#lib/server/navigation/admin.js';
 import { runtime } from '#lib/server/runtime.js';
@@ -31,18 +31,23 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
         })
       )
     : { nodes: [] };
-  const label = new Map(nodes.map((n) => [n.nodeId, n.label]));
+  const check = new Map(nodes.map((n) => [n.nodeId, n]));
   return {
     baseRevisionId: state.revisionId,
     menus: state.document.menus.map((m) => ({ value: m.id, label: m.name })),
     form: formOf(state.document.placements, contentLocale),
-    /** The top-level items of the placed main menu, with what visitors read in the content locale. */
+    /**
+     * The top-level items of the placed main menu with their text in the content locale, and
+     * whether their page is not shown there (members only, unpublished, gone): a members-only
+     * page has a title, but visitors do not read it.
+     */
     bar: placed
       ? {
           menu: placed.name,
           items: placed.nodes.map((n) => ({
             id: n.id,
-            label: label.get(n.id) ?? null,
+            label: check.get(n.id)?.label ?? null,
+            state: check.get(n.id)?.target ?? null,
             system: n.kind === 'link' && n.target.kind === 'system' ? n.target.page : null,
           })),
         }
@@ -51,20 +56,10 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
 };
 
 /** What the form posted, in the shape `placementsFrom` reads. */
-function posted(data: FormData): PlacementsForm {
-  return {
-    main: text(data, 'main'),
-    bar: text(data, 'barShown')
-      ? [...data.keys()].filter((k) => k.startsWith('bar:')).map((k) => k.slice(4))
-      : null,
-    actions: text(data, 'actions'),
-    footer: Array.from({ length: FOOTER_SLOTS }, (_, i) => ({
-      menuId: text(data, `footer${i}`),
-      title: text(data, `footer${i}Title`),
-    })),
-    legal: text(data, 'legal'),
-  };
-}
+const posted = (data: FormData): PlacementsForm =>
+  postedForm(
+    Object.fromEntries([...data].flatMap(([k, v]) => (typeof v === 'string' ? [[k, v]] : [])))
+  );
 
 export const actions: Actions = {
   default: (event) =>

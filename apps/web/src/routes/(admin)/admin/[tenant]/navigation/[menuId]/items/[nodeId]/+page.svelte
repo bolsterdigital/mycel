@@ -150,7 +150,14 @@
     hint={data.kind === 'group'
       ? t('admin.navigation.field.label.groupHint')
       : data.inherited
-        ? fill(t('admin.navigation.field.label.inherits'), { title: data.inherited })
+        ? fill(
+            t(
+              data.restricted
+                ? 'admin.navigation.field.label.inheritsRestricted'
+                : 'admin.navigation.field.label.inherits'
+            ),
+            { title: data.inherited }
+          )
         : t('admin.navigation.field.label.hint')}
     hintInline
     locale={data.locale}
