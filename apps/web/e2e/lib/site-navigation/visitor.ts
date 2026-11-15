@@ -265,6 +265,11 @@ async function searchAndLanguages(page: Page, locale: 'nl' | 'en') {
       await Promise.all(d.getAnimations().map((a) => a.finished));
     });
   const panel = page.locator('.site-panel');
+  if (isA11y()) {
+    const close = page.locator('.site-dialog-close');
+    expect(await close.evaluate((el) => el.getBoundingClientRect().top)).toBeLessThan(200);
+    await expect(panel.getByRole('searchbox')).toBeInViewport();
+  }
   await layoutGate(
     page,
     'panel search at 320px and 200% text',
