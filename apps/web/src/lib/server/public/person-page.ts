@@ -9,7 +9,7 @@ import { refuse } from '../http/refuse.js';
 import { runtime } from '../runtime.js';
 import { sitePath, siteTenant, siteUrls, type Site } from '../site.js';
 import { ogLocales } from './share-locale.js';
-import { siteBrand, siteChrome, siteTheme } from './theme.js';
+import { siteBrand, siteChrome, siteNavigation, siteTheme } from './theme.js';
 
 export async function loadPersonPage(site: Site, slug: string, locale: string, offset: number) {
   const { invoker, uow } = runtime();
@@ -82,13 +82,16 @@ export async function loadPersonPage(site: Site, slug: string, locale: string, o
     previous: offset ? pageHref(Math.max(0, offset - 9)) : null,
     next: result.nextOffset === null ? null : pageHref(result.nextOffset),
   };
-  const [theme, chrome, brand] = await Promise.all([
+  const [theme, chrome, navigation, brand] = await Promise.all([
     siteTheme(site),
     siteChrome(site),
+    siteNavigation(site, locale),
     siteBrand(site),
   ]);
   const digest = createHash('sha256')
-    .update(JSON.stringify({ view, theme: theme.hash, chrome, brand, access: site.access }))
+    .update(
+      JSON.stringify({ view, theme: theme.hash, chrome, navigation, brand, access: site.access })
+    )
     .digest('base64url');
   return { view, etag: `"person:${digest}"` };
 }

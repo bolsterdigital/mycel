@@ -12,11 +12,7 @@ import { DEFAULT_CHROME, SITE_IMAGES_REF } from './settings.js';
 
 const a = '01900000-0000-7000-8000-00000000aa11';
 const b = '01900000-0000-7000-8000-00000000bb11';
-const chrome = {
-  ...DEFAULT_CHROME,
-  navigation: [{ href: '/en/about', label: { nl: 'Over', en: 'About' } }],
-  footer: { nl: 'Voet', en: 'Footer' },
-};
+const chrome = { ...DEFAULT_CHROME, footer: { nl: 'Voet', en: 'Footer' } };
 
 describe('site settings', () => {
   const invoker = new Invoker(buildRegistry(), new MemoryUnitOfWork());
@@ -52,13 +48,16 @@ describe('site settings', () => {
       })
     ).resolves.toMatchObject({ version: 1 });
   });
-  it('rejects unsafe links and contrast failures at the use-case boundary', async () => {
-    await expect(
-      invoker.run(useCases.updateSiteChrome, systemPrincipal(b, 'test'), {
-        baseVersion: 0,
-        chrome: { ...chrome, navigation: [{ href: 'javascript:alert(1)', label: { en: 'Bad' } }] },
-      })
-    ).rejects.toMatchObject({ code: 'invalid_input' });
+  it('refuses the menu fields that moved to the navigation document (ADR 036 rule 10)', async () => {
+    for (const retired of ['navigation', 'legal', 'support', 'help'])
+      await expect(
+        invoker.run(useCases.updateSiteChrome, systemPrincipal(b, 'test'), {
+          baseVersion: 0,
+          chrome: { ...chrome, [retired]: retired === 'support' || retired === 'help' ? null : [] },
+        })
+      ).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+  it('rejects contrast failures at the use-case boundary', async () => {
     await expect(
       invoker.run(useCases.updateSiteTheme, systemPrincipal(b, 'test'), {
         baseVersion: 0,

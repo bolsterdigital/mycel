@@ -130,9 +130,9 @@ export const SETTINGS: NavSection = {
     },
     {
       path: 'site?section=chrome',
-      label: 'admin.nav.menus',
+      label: 'admin.nav.footer',
       needs: 'content:write',
-      hint: 'admin.manage.hint.menus',
+      hint: 'admin.manage.hint.footer',
     },
     {
       path: 'navigation',

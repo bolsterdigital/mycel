@@ -6,14 +6,22 @@ export interface ChromeLink {
   href: string;
 }
 
+/** A footer column (ADR 036 rule 4): a placed menu with an optional title. */
+export interface ChromeColumn {
+  title: string | null;
+  links: ChromeLink[];
+}
+
 export interface ChromeModel {
   name: string;
   home: string;
   logo: { src: string; width: number; height: number } | null;
   wordmark: boolean;
+  /** The bar of the main navigation; the full panel with groups and sublinks is step D. */
   navigation: ChromeLink[];
-  legal: ChromeLink[];
+  /** At most two calls to action, the first primary. */
+  actions: ChromeLink[];
   footer: string;
-  support: ChromeLink | null;
-  help: ChromeLink | null;
+  columns: ChromeColumn[];
+  legal: ChromeLink[];
 }

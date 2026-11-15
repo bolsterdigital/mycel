@@ -230,7 +230,6 @@ export const en = {
   'admin.site.replace': 'Replace',
   'admin.site.remove': 'Remove',
   'admin.site.theme': 'Theme',
-  'admin.site.chrome': 'Public navigation and footer',
   'admin.site.foreground': 'Text colour',
   'admin.site.background': 'Background colour',
   'admin.site.colours.role': 'Role',
@@ -254,7 +253,6 @@ export const en = {
   'admin.site.defaultImage.hint':
     'The image a page or article without its own featured or share image uses, for instance when shared on social media.',
   'admin.site.defaultImage.save': 'Save image',
-  'admin.site.url': 'URL',
   'admin.site.mode.light': 'Light colours',
   'admin.site.mode.dark': 'Dark colours',
   'admin.site.role.body': 'Body',
@@ -275,14 +273,12 @@ export const en = {
   'admin.site.field.density': 'Spacing density',
   'admin.site.field.headingWeight': 'Heading weight',
   'admin.site.saveTheme': 'Save theme',
-  'admin.site.saveChrome': 'Save navigation and footer',
-  'admin.site.navigation': 'Navigation links',
+  'admin.site.chrome': 'Footer text',
+  'admin.site.saveChrome': 'Save footer text',
+  'admin.site.chrome.menus': 'The menus of the header and footer are set under',
+  'admin.nav.footer': 'Footer text',
+  'admin.manage.hint.footer': 'The text at the bottom of every page.',
   'admin.site.footer': 'Footer text',
-  'admin.site.legal': 'Legal links',
-  'admin.site.support': 'Support link',
-  'admin.site.help': 'Help link',
-  'admin.site.linkHint':
-    'One link per line: URL|{locales}. Enter labels in the listed locale order. Use a site path or an HTTPS URL.',
   'public.notFound.title': 'Page not found',
   'public.notFound.body':
     'This page does not exist, or it has moved. Check the address or go to the home page.',
@@ -292,6 +288,8 @@ export const en = {
   'public.skip': 'Skip to content',
   'public.navigation': 'Main navigation',
   'public.footerNavigation': 'Footer',
+  'public.navigation.home': 'Home',
+  'public.navigation.search': 'Search',
   'admin.site.conflict':
     'These settings changed in another session. Review your values and reload before saving.',
   'admin.site.invalid': 'Check the fields and colour contrast.',
@@ -317,7 +315,6 @@ export const en = {
   'admin.nav.export': 'Export',
   'admin.nav.status': 'Status',
   'admin.nav.manage': 'Manage',
-  'admin.nav.menus': 'Menus and footer',
   'admin.manage.title': 'Manage',
   'admin.manage.lead':
     'Who works on this site, what it is connected to and whether it runs. How the site looks is under Settings.',
@@ -334,14 +331,11 @@ export const en = {
   'admin.manage.hint.general': 'Name, languages and time zone.',
   'admin.manage.hint.theme': 'Colours, type and spacing.',
   'admin.manage.hint.brand': 'Logo, wordmark and default image.',
-  'admin.manage.hint.menus': 'The public menu and footer.',
   'admin.nav.navigation': 'Navigation',
   'admin.manage.hint.navigation': 'The menus of the site and their items.',
   'admin.navigation.title': 'Navigation',
   'admin.navigation.intro':
     'The menus of your site. Build a menu here; the same menu can later be shown in the header and in the footer.',
-  'admin.navigation.notLive':
-    'These menus are not on the site yet. Until the switch, visitors see the links under',
   'admin.navigation.menus': 'Menus',
   'admin.navigation.newMenu': 'New menu',
   'admin.navigation.newMenu.intro': 'Name the menu first; you add its items on the next screen.',

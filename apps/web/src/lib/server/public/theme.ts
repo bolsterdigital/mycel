@@ -26,6 +26,9 @@ export interface SiteTheme {
 
 const bySite = new WeakMap<Site, Promise<SiteTheme>>();
 const chromeBySite = new WeakMap<Site, Promise<SiteChrome>>();
+/** What `site.navigation.resolve` returns: the published navigation of one locale. */
+export type SiteNavigation = Awaited<ReturnType<(typeof useCases.resolveNavigation)['handler']>>;
+const navigationBySite = new WeakMap<Site, Map<string, Promise<SiteNavigation>>>();
 const brandBySite = new WeakMap<
   Site,
   Promise<{
@@ -105,6 +108,29 @@ export function siteChrome(site: Site): Promise<SiteChrome> {
       )
       .then(({ value }) => value);
     chromeBySite.set(site, found);
+  }
+  return found;
+}
+
+/**
+ * The published navigation of `site` in `locale` as visitors see it (ADR 036 rules 5 and 8), read
+ * once per request like the chrome. The public layout renders it and the ETags hash it (rule 11),
+ * so a republished target title or slug changes both.
+ */
+export function siteNavigation(site: Site, locale: string): Promise<SiteNavigation> {
+  let perLocale = navigationBySite.get(site);
+  if (!perLocale) {
+    perLocale = new Map();
+    navigationBySite.set(site, perLocale);
+  }
+  let found = perLocale.get(locale);
+  if (!found) {
+    found = runtime().invoker.run(
+      useCases.resolveNavigation,
+      anonymousPrincipal(siteTenant(site), ['content:read']),
+      { locale }
+    );
+    perLocale.set(locale, found);
   }
   return found;
 }

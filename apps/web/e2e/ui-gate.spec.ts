@@ -961,7 +961,7 @@ test.describe('admin-shell', () => {
       'General',
       'Theme',
       'Logo and wordmark',
-      'Menus and footer',
+      'Footer text',
       'Navigation',
     ]);
     await expect(sections.getByRole('link', { name: 'General' })).toHaveAttribute(

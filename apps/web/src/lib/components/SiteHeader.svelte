@@ -19,9 +19,14 @@
       />{/if}
     <span class:site-wordmark={chrome.wordmark}>{chrome.name}</span>
   </a>
-  {#if chrome.navigation.length}
+  {#if chrome.navigation.length || chrome.actions.length}
     <nav aria-label={t('public.navigation')}>
-      {#each chrome.navigation as item (item.href)}<a href={item.href}>{item.label}</a>{/each}
+      {#each chrome.navigation as item, i (i)}<a href={item.href}>{item.label}</a>{/each}
+      {#each chrome.actions as item, i (i)}<a
+          class="site-action"
+          class:site-action-primary={i === 0}
+          href={item.href}>{item.label}</a
+        >{/each}
     </nav>
   {/if}
 </header>

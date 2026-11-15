@@ -230,7 +230,6 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.replace': 'Vervangen',
   'admin.site.remove': 'Verwijderen',
   'admin.site.theme': 'Thema',
-  'admin.site.chrome': 'Publieke navigatie en voettekst',
   'admin.site.foreground': 'Tekstkleur',
   'admin.site.background': 'Achtergrondkleur',
   'admin.site.colours.role': 'Rol',
@@ -254,7 +253,6 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.defaultImage.hint':
     'Het beeld dat een pagina of artikel zonder eigen uitgelicht beeld of deelbeeld gebruikt, bijvoorbeeld bij delen op sociale media.',
   'admin.site.defaultImage.save': 'Beeld opslaan',
-  'admin.site.url': 'URL',
   'admin.site.mode.light': 'Lichte kleuren',
   'admin.site.mode.dark': 'Donkere kleuren',
   'admin.site.role.body': 'Lopende tekst',
@@ -275,14 +273,12 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.field.density': 'Ruimte tussen elementen',
   'admin.site.field.headingWeight': 'Kopdikte',
   'admin.site.saveTheme': 'Thema opslaan',
-  'admin.site.saveChrome': 'Navigatie en voettekst opslaan',
-  'admin.site.navigation': 'Navigatielinks',
+  'admin.site.chrome': 'Voettekst',
+  'admin.site.saveChrome': 'Voettekst opslaan',
+  'admin.site.chrome.menus': "De menu's van kop en voet stel je in onder",
+  'admin.nav.footer': 'Voettekst',
+  'admin.manage.hint.footer': 'De tekst onderaan elke pagina.',
   'admin.site.footer': 'Voettekst',
-  'admin.site.legal': 'Juridische links',
-  'admin.site.support': 'Supportlink',
-  'admin.site.help': 'Helplink',
-  'admin.site.linkHint':
-    'Eén link per regel: URL|{locales}. Vul labels in die taalvolgorde in. Gebruik een sitepad of HTTPS-URL.',
   'public.notFound.title': 'Pagina niet gevonden',
   'public.notFound.body':
     'Deze pagina bestaat niet of is verhuisd. Controleer het adres of ga naar de homepage.',
@@ -292,6 +288,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'public.skip': 'Ga naar inhoud',
   'public.navigation': 'Hoofdnavigatie',
   'public.footerNavigation': 'Voettekst',
+  'public.navigation.home': 'Home',
+  'public.navigation.search': 'Zoeken',
   'admin.site.conflict':
     'Deze instellingen zijn elders gewijzigd. Controleer je invoer en laad opnieuw voordat je opslaat.',
   'admin.site.invalid': 'Controleer de velden en het kleurcontrast.',
@@ -317,7 +315,6 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.nav.export': 'Exporteren',
   'admin.nav.status': 'Status',
   'admin.nav.manage': 'Beheer',
-  'admin.nav.menus': "Menu's en footer",
   'admin.manage.title': 'Beheer',
   'admin.manage.lead':
     'Wie aan deze site werkt, waaraan hij gekoppeld is en of alles loopt. Hoe de site eruitziet staat onder Instellingen.',
@@ -334,14 +331,11 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.manage.hint.general': 'Naam, talen en tijdzone.',
   'admin.manage.hint.theme': 'Kleuren, letters en ruimte.',
   'admin.manage.hint.brand': 'Logo, woordmerk en standaardbeeld.',
-  'admin.manage.hint.menus': 'Het publieke menu en de footer.',
   'admin.nav.navigation': 'Navigatie',
   'admin.manage.hint.navigation': "De menu's van de site en hun items.",
   'admin.navigation.title': 'Navigatie',
   'admin.navigation.intro':
     "De menu's van je site. Bouw hier een menu; hetzelfde menu kan straks in de kop en in de footer staan.",
-  'admin.navigation.notLive':
-    "Deze menu's staan nog niet op de site. Tot de overstap zien bezoekers de links onder",
   'admin.navigation.menus': "Menu's",
   'admin.navigation.newMenu': 'Nieuw menu',
   'admin.navigation.newMenu.intro':

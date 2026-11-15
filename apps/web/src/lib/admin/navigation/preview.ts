@@ -11,8 +11,8 @@
 // would make this screen wait for them), and links in the preview (their paths are the site's,
 // not the admin's; following one would leave the editor).
 
-import { contentPath, type NavigationDocument, type useCases } from '@mycel/core';
-import { searchPath } from '#lib/public/search-path.js';
+import type { NavigationDocument, useCases } from '@mycel/core';
+import { navigationHref as hrefOf } from '#lib/public/navigation-href.js';
 
 type Check = Awaited<ReturnType<(typeof useCases.checkNavigation)['handler']>>;
 type Resolved = Check['preview'];
@@ -41,18 +41,6 @@ export interface Preview {
   actions: PreviewPlacement | null;
   footer: PreviewPlacement[];
   legal: PreviewPlacement | null;
-}
-
-function hrefOf(target: Link['target'], locale: string, defaultLocale: string): string {
-  if (target.kind === 'url') return target.href;
-  if (target.kind === 'system')
-    return target.page === 'search'
-      ? searchPath(locale, defaultLocale)
-      : locale === defaultLocale
-        ? '/'
-        : `/${locale}`;
-  const path = contentPath(target, target.locale, defaultLocale);
-  return target.anchor ? `${path}#${target.anchor}` : path;
 }
 
 export function previewOf(

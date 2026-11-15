@@ -6,13 +6,22 @@
 // never runs on a tenant hostname (ADR 014). The footer credit follows ADR 015 rule 5 in both.
 // Rejected: a preview with only the identity, whose two chrome transitions differed from the
 // site's, and links without an href in the preview, a different element than the site renders.
-import { anonymousPrincipal, entitled, pickAny } from '@mycel/core';
+//
+// The menus come from the published navigation document (ADR 036, migration 0057), resolved in one
+// locale with no implicit fallback (rule 10): a link without a label in this locale is not there.
+// Until step D renders the bar and the panel, the header shows the bar's links (a group or a
+// link's sublinks wait for the panel) and the footer the links of each column.
+import { anonymousPrincipal, entitled } from '@mycel/core';
 import { withBase } from '../../blocks/rich-text.js';
 import type { ChromeLink, ChromeModel } from '../../components/chrome.js';
+import { navigationHref } from '../../public/navigation-href.js';
 import { ui } from '../../../i18n/index.js';
 import { runtime } from '../runtime.js';
 import { siteTenant, type Site } from '../site.js';
-import { brandPath, siteBrand, siteChrome } from './theme.js';
+import { brandPath, siteBrand, siteChrome, siteNavigation, type SiteNavigation } from './theme.js';
+
+type ResolvedLink = SiteNavigation['actions'][number];
+type ResolvedNode = NonNullable<SiteNavigation['main']>['nodes'][number];
 
 /** The chrome of `site` in `locale`, its site-relative links and assets under `base`. */
 export async function chromeModel(
@@ -20,12 +29,27 @@ export async function chromeModel(
   locale: string,
   base: string
 ): Promise<{ chrome: ChromeModel; credit: ChromeLink | null }> {
-  const [chrome, brand] = await Promise.all([siteChrome(site), siteBrand(site)]);
+  const [chrome, brand, navigation] = await Promise.all([
+    siteChrome(site),
+    siteBrand(site),
+    siteNavigation(site, locale),
+  ]);
   const fallback = site.tenant.defaultLocale;
-  const link = (item: { label: Record<string, string>; href: string }): ChromeLink => ({
-    label: pickAny(item.label, locale, fallback) ?? '',
-    href: withBase(base, item.href),
+  const t = ui(locale);
+  const link = (l: ResolvedLink): ChromeLink => ({
+    label:
+      l.label ??
+      t(
+        l.target.kind === 'system' && l.target.page === 'search'
+          ? 'public.navigation.search'
+          : 'public.navigation.home'
+      ),
+    href: withBase(base, navigationHref(l.target, locale, fallback)),
   });
+  // A column lists every link of its menu, sublinks after their parent; a group adds its links.
+  const links = (nodes: ResolvedNode[]): ChromeLink[] =>
+    nodes.flatMap((n) => [...(n.kind === 'link' ? [link(n)] : []), ...n.children.map(link)]);
+  const bar = new Set(navigation.main?.bar ?? []);
   return {
     chrome: {
       name: site.tenant.name,
@@ -38,11 +62,13 @@ export async function chromeModel(
           }
         : null,
       wordmark: brand.font.active,
-      navigation: chrome.navigation.map(link),
-      legal: chrome.legal.map(link),
+      navigation: (navigation.main?.nodes ?? []).flatMap((n) =>
+        n.kind === 'link' && bar.has(n.id) ? [link(n)] : []
+      ),
+      actions: navigation.actions.map(link),
       footer: chrome.footer[locale] ?? chrome.footer[fallback] ?? '',
-      support: chrome.support ? link(chrome.support) : null,
-      help: chrome.help ? link(chrome.help) : null,
+      columns: navigation.footer.map((c) => ({ title: c.title, links: links(c.nodes) })),
+      legal: links(navigation.legal?.nodes ?? []),
     },
     credit: entitled(anonymousPrincipal(siteTenant(site), []), 'remove_branding')
       ? null

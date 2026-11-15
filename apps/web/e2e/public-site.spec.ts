@@ -49,6 +49,8 @@ import {
 import { login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
+import { exerciseNavigationEtag } from './lib/site-navigation/etag';
+import { CHROME_FIXTURE_MENUS, publishMenus } from './lib/site-navigation/seed';
 import { CAPTION_MONO, themeCss } from '../src/lib/theme/tokens';
 
 const WIDE = { width: 1280, height: 900 };
@@ -1702,41 +1704,22 @@ test.describe('site-settings', () => {
       await invoker.run(useCases.updateSiteChrome, principal, {
         baseVersion: 0,
         chrome: {
-          navigation: [
-            { href: '/home', label: { nl: 'Welkom', en: 'Home', de: 'Startseite' } },
-            { href: '/en/home', label: { nl: 'English', en: 'English', de: 'Englisch' } },
-          ],
           footer: {
             nl: 'Een onafhankelijke site',
             en: 'An independent site',
             de: 'Eine unabhängige Website',
           },
-          legal: [
-            {
-              href: 'https://example.org/privacy',
-              label: { nl: 'Privacyverklaring', en: 'Privacy policy', de: 'Datenschutz' },
-            },
-          ],
-          support: {
-            href: 'https://example.org/support',
-            label: { nl: 'Hulp', en: 'Support', de: 'Unterstützung' },
-          },
-          help: {
-            href: 'https://example.org/help',
-            label: { nl: 'Vraag', en: 'Help', de: 'Hilfe' },
-          },
         },
       });
-      await invoker.run(useCases.updateSiteChrome, systemPrincipal(singleTenant.id, 'e2e'), {
+      await publishMenus(invoker, principal, CHROME_FIXTURE_MENUS, ['nl', 'en', 'de']);
+      const single = systemPrincipal(singleTenant.id, 'e2e');
+      await invoker.run(useCases.updateSiteChrome, single, {
         baseVersion: 0,
-        chrome: {
-          navigation: [{ href: '/home', label: { nl: 'Welkom' } }],
-          footer: { nl: 'Een taal' },
-          legal: [],
-          support: null,
-          help: null,
-        },
+        chrome: { footer: { nl: 'Een taal' } },
       });
+      await publishMenus(invoker, single, { main: [{ href: '/home', label: { nl: 'Welkom' } }] }, [
+        'nl',
+      ]);
     });
   });
   for (const locale of ['nl', 'en'])
@@ -1753,6 +1736,27 @@ test.describe('site-settings', () => {
       ).toHaveText(locale === 'nl' ? 'Welkom' : 'Home');
       await expect(page.getByRole('contentinfo')).toContainText(
         locale === 'nl' ? 'Een onafhankelijke site' : 'An independent site'
+      );
+      // The call to action after the bar's links; the footer column with its title and then the
+      // legal menu.
+      await expect(
+        page
+          .getByRole('navigation', { name: locale === 'nl' ? 'Hoofdnavigatie' : 'Main navigation' })
+          .getByRole('link')
+      ).toHaveText(
+        locale === 'nl' ? ['Welkom', 'English', 'Doneer nu'] : ['Home', 'English', 'Donate now']
+      );
+      await expect(page.getByRole('contentinfo').getByRole('heading', { level: 2 })).toHaveText(
+        'Contact'
+      );
+      await expect(
+        page
+          .getByRole('navigation', { name: locale === 'nl' ? 'Voettekst' : 'Footer' })
+          .getByRole('link')
+      ).toHaveText(
+        locale === 'nl'
+          ? ['Hulp', 'Vraag', 'Privacyverklaring']
+          : ['Support', 'Help', 'Privacy policy']
       );
       await expect(themeLink(page)).toHaveCount(1);
       // Browser colours from the palettes; without a logo an empty icon.
@@ -1824,6 +1828,10 @@ test.describe('site-settings', () => {
 
   // The action row's colours come from the theme, card by card and per mode, and the button on a
   // filled card is its pair inverted (theme.md § Contrast).
+  test('a menu link follows its republished target, and the ETag with it (ADR 036 rule 11)', ({
+    request,
+  }) => exerciseNavigationEtag(request));
+
   test('an action row walks the theme accents, with the button inverted', async ({ page }) => {
     for (const mode of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme: mode });
@@ -1891,10 +1899,6 @@ test.describe('site-settings', () => {
       en: 'New footer',
       de: 'Eine unabhängige Website',
     });
-    expect(saved.value.navigation[0]?.label.de).toBe('Startseite');
-    expect(saved.value.legal[0]?.label.de).toBe('Datenschutz');
-    expect(saved.value.support?.label.de).toBe('Unterstützung');
-    expect(saved.value.help?.label.de).toBe('Hilfe');
     await stalePage.locator('input[name="footer.en"]').fill('Stale footer');
     await saveChrome(stalePage);
     await expect(stalePage.locator('[role="alert"]')).toBeVisible();
@@ -1903,13 +1907,12 @@ test.describe('site-settings', () => {
     await expect(page.locator('input[name="footer.en"]')).toHaveValue('New footer');
     await expect(page.locator('input[name="footer.de"]')).toHaveValue('Eine unabhängige Website');
     await page.locator('input[name="footer.de"]').fill('');
-    await page.locator('input[name="help.href"]').fill('');
+    // The menus moved to the navigation (ADR 036 rule 10): the form has only the footer text.
+    await expect(page.locator('textarea, input[name$=".href"]')).toHaveCount(0);
     await saveChrome(page);
     await savedOk(page);
     saved = await chromeState(tenantId);
-    expect(saved.value.footer.de).toBeUndefined();
-    expect(saved.value.help).toBeNull();
-    expect(saved.value.legal[0]?.label.de).toBe('Datenschutz');
+    expect(saved.value).toEqual({ footer: { nl: 'Een onafhankelijke site', en: 'New footer' } });
     await page.goto(`/${slug}/en/home`);
     await expect(page.getByRole('contentinfo')).toContainText('New footer');
     const newCss = await themeLink(page).getAttribute('href');
@@ -2143,8 +2146,8 @@ test.describe('site-settings', () => {
   });
 
   for (const [locale, language, title, actions] of [
-    ['nl', 'nl-NL', 'Site-instellingen', ['Thema opslaan', 'Navigatie en voettekst opslaan']],
-    ['en', 'en-US', 'Site settings', ['Save theme', 'Save navigation and footer']],
+    ['nl', 'nl-NL', 'Site-instellingen', ['Thema opslaan', 'Voettekst opslaan']],
+    ['en', 'en-US', 'Site settings', ['Save theme', 'Save footer text']],
   ] as const) {
     test.describe(`${locale} admin site settings gate`, () => {
       test.use({ locale: language });

@@ -53,7 +53,7 @@ describe('admin navigation data (#114)', () => {
         'General',
         'Theme',
         'Logo and wordmark',
-        'Menus and footer',
+        'Footer text',
         'Navigation',
       ]);
       expect(manage!.current).toBe(false);
