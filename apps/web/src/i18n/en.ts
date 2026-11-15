@@ -288,6 +288,8 @@ export const en = {
   'public.skip': 'Skip to content',
   'public.navigation': 'Main navigation',
   'public.menu': 'Menu',
+  'public.menu.close': 'Close',
+  'public.menu.sublinks': '{label}: sublinks',
   'public.footerNavigation': 'Footer',
   'public.navigation.home': 'Home',
   'public.navigation.search': 'Search',

@@ -49,7 +49,7 @@ import { login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
 import { exerciseNavigationEtag } from './lib/site-navigation/etag';
-import { exerciseChromeMenus } from './lib/site-navigation/visitor';
+import { exerciseChromeMenus, exerciseEnhancedBar } from './lib/site-navigation/visitor';
 import { WALK, seedSiteSettings } from './lib/site-navigation/settings-fixture';
 import { CAPTION_MONO, themeCss } from '../src/lib/theme/tokens';
 
@@ -1655,6 +1655,15 @@ test.describe('site-settings', () => {
       expect(zoomed).toBe(true);
       await expectNoAxeViolations(page);
     });
+
+  test('the enhanced bar shows what fits and opens sublinks (ADR 036 rule 12)', async ({
+    page,
+  }) => {
+    onlyA11y('the bar is measured by the enhancement script');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/${slug}/home`);
+    await exerciseEnhancedBar(page);
+  });
 
   // Header, body and footer share the wide rail; a page that is only a title and one that ends
   // on a wide row sit the same distance from the chrome (content-layout.md).

@@ -9,7 +9,8 @@
 //
 // The menus come from the published navigation document (ADR 036, migration 0057), resolved in one
 // locale with no implicit fallback (rule 10): a link without a label in this locale is not there.
-// They keep their two levels here; which top-level links the measured bar shows is step D2's.
+// They keep their two levels here. The bar holds the top-level nodes the editor placed there; how
+// many of them show is measured in the browser (`static/_site/navigation.js`).
 import { anonymousPrincipal, entitled } from '@mycel/core';
 import { withBase } from '../../blocks/rich-text.js';
 import type { ChromeLink, ChromeModel, ChromeNode } from '../../components/chrome.js';
@@ -45,6 +46,7 @@ export async function chromeModel(
       ),
     href: withBase(base, navigationHref(l.target, locale, fallback)),
   });
+  const bar = new Set(navigation.main?.bar ?? []);
   const tree = (nodes: ResolvedNode[]): ChromeNode[] =>
     nodes.map((n) =>
       n.kind === 'link'
@@ -64,6 +66,7 @@ export async function chromeModel(
         : null,
       wordmark: brand.font.active,
       main: tree(navigation.main?.nodes ?? []),
+      bar: tree((navigation.main?.nodes ?? []).filter((n) => bar.has(n.id))),
       actions: navigation.actions.map(link),
       footer: chrome.footer[locale] ?? chrome.footer[fallback] ?? '',
       columns: navigation.footer.map((c) => ({ title: c.title, nodes: tree(c.nodes) })),

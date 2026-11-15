@@ -27,6 +27,8 @@ export interface ChromeModel {
   wordmark: boolean;
   /** The whole main menu, which the panel shows (ADR 036 rule 4). */
   main: ChromeNode[];
+  /** The top-level nodes the editor placed in the bar, in menu order; how many show is measured. */
+  bar: ChromeNode[];
   /** At most two calls to action, the first primary. */
   actions: ChromeLink[];
   footer: string;
