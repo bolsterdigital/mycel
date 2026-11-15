@@ -257,13 +257,8 @@ async function eraseRows(
   tenantId: string,
   lockedHashes: ReadonlySet<string>
 ): Promise<number> {
-  const evidence = await lifecycleEvidence(trx);
-  const registrations = evidence.registrations.filter((r) => lockedHashes.has(r.emailHash));
-  const lifecycles = evidence.lifecycles;
-  // Against the whole register, as when every registration was locked: a lifecycle that a
-  // registration outside this batch ended protects nothing in it either.
-  const live = new Map(
-    lifecycles.filter((l) => liveLifecycle(l, evidence.registrations)).map((l) => [l.id, l])
+  const registrations = (await lifecycleEvidence(trx)).registrations.filter((r) =>
+    lockedHashes.has(r.emailHash)
   );
   if (!registrations.length) return 0;
   const ids = new Set(registrations.map((r) => r.supporterId));
@@ -309,6 +304,21 @@ async function eraseRows(
   for (const row of byId.events) await consider(row.email, row.supporter_id);
   const keys = new Set(hashes);
   for (const a of addresses) keys.add(await emailKey(tenantId, a, 'erasure'));
+  // An address those rows carry beside the registered one (an older address on the id's events)
+  // is erased too, so its signup lock is taken as well before liveness is read: a readmission on
+  // it holds that lock until commit, and its lifecycle must be judged after that, not on
+  // evidence from before. These locks come after the batch's sorted ones; a deadlock with another
+  // apply holding one of them rolls this batch back for the next run.
+  for (const key of [...keys].filter((k) => !lockedHashes.has(k)).sort())
+    await advisoryLock(trx, 'supporter', tenantId, key);
+  const evidence = await lifecycleEvidence(trx);
+  // Against the whole register, as when every registration was locked: a lifecycle that a
+  // registration outside this batch ended protects nothing in it either.
+  const live = new Map(
+    evidence.lifecycles
+      .filter((l) => liveLifecycle(l, evidence.registrations))
+      .map((l) => [l.id, l])
+  );
   const keyList = [...keys];
   const v = (column: string) => sql.ref(column);
   // Under the `or`, Postgres cannot turn the `in` into a join it might plan as a nested loop; it
