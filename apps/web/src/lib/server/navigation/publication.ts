@@ -27,13 +27,21 @@ export interface LocaleState {
   locale: string;
   /** The live revision of the locale; null when it publishes no navigation. */
   live: { revisionId: string; publishedAt: string } | null;
-  /** The draft is another revision than the live one (or there is none live). */
-  ahead: boolean;
-  /** Something in the draft refuses its publication in this locale. */
-  blocked: boolean;
+  /**
+   * Where the draft stands: `same` when it is the live revision (or there is none at all),
+   * `ahead` when it is another one that may be published, `blocked` when it is another one that
+   * something refuses.
+   */
+  draft: 'same' | 'ahead' | 'blocked';
 }
 
-/** Per locale of the site, what is live and where the draft stands; one check per locale. */
+/**
+ * Per locale of the site, what is live and where the draft stands; one check per locale whose
+ * draft is ahead. A draft that is live has nothing to publish: a target that went offline since
+ * makes it "cannot be published" only for a new revision, so it stays `same` (the preview still
+ * lists what no longer shows). Rejected: checking every locale and letting `blocked` win, which
+ * told an editor whose live menu lost a page that the menu "cannot be published yet".
+ */
 export async function localeStates(
   principal: Principal,
   state: State,
@@ -42,17 +50,16 @@ export async function localeStates(
   const { invoker } = runtime();
   const draft = state.revisionId;
   return Promise.all(
-    locales.map(async (locale) => {
+    locales.map(async (locale): Promise<LocaleState> => {
       const live = state.publication.find((p) => p.locale === locale) ?? null;
-      const check = draft
-        ? await invoker.run(useCases.checkNavigation, principal, { locale, revisionId: draft })
-        : null;
-      return {
+      const shown = live && { revisionId: live.revisionId, publishedAt: live.publishedAt };
+      if (!draft || live?.revisionId === draft) return { locale, live: shown, draft: 'same' };
+      const check = await invoker.run(useCases.checkNavigation, principal, {
         locale,
-        live: live && { revisionId: live.revisionId, publishedAt: live.publishedAt },
-        ahead: !!draft && live?.revisionId !== draft,
-        blocked: !!check?.problems.some((p) => p.blocking),
-      };
+        revisionId: draft,
+      });
+      const blocked = check.problems.some((p) => p.blocking);
+      return { locale, live: shown, draft: blocked ? 'blocked' : 'ahead' };
     })
   );
 }

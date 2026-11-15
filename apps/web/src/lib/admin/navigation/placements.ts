@@ -7,7 +7,7 @@
 // The bar is chosen per item of the menu that is placed now: a form without JavaScript cannot
 // show the items of a menu the editor has only just selected, so a new main menu starts with all
 // its top-level items in the bar (as the migration of rule 10 does) and is narrowed after saving.
-// A footer column keeps its title in other locales while it shows the same menu.
+// A footer column's titles in other locales follow its menu, also when it moves to another slot.
 // Rejected: a per-placement order or label (rule 4 forbids a hidden override), and a reorder step
 // per footer column (four numbered slots say the order without a second kind of control).
 
@@ -26,6 +26,59 @@ export interface PlacementsForm {
   legal: string;
 }
 
+/** The form `fields` posted (each field as text), in the shape `placementsFrom` reads. */
+export function postedForm(fields: Readonly<Record<string, string>>): PlacementsForm {
+  const field = (key: string) => fields[key] ?? '';
+  return {
+    main: field('main'),
+    bar: field('barShown')
+      ? Object.keys(fields)
+          .filter((k) => k.startsWith('bar:'))
+          .map((k) => k.slice(4))
+      : null,
+    actions: field('actions'),
+    footer: Array.from({ length: FOOTER_SLOTS }, (_, i) => ({
+      menuId: field(`footer${i}`),
+      title: field(`footer${i}Title`),
+    })),
+    legal: field('legal'),
+  };
+}
+
+/** One place where a refused form asked for something else than is saved now. */
+export type Choice =
+  | { place: 'main' | 'actions' | 'legal'; menuId: string }
+  | { place: 'bar'; ids: string[] }
+  | { place: 'footer'; slot: number; menuId: string; title: string };
+
+/**
+ * What `mine` (a form refused after a conflict) chose differently from `saved` (the form as it
+ * is saved now), in the order of the form. After a conflict the fields show what is saved, so a
+ * second Save cannot replace the other editor's choice unseen; these are what the editor redoes
+ * by hand. The bar counts only for the main menu both forms show; empty is "none".
+ */
+export function changedChoices(mine: PlacementsForm, saved: PlacementsForm): Choice[] {
+  const out: Choice[] = [];
+  if (mine.main !== saved.main) out.push({ place: 'main', menuId: mine.main });
+  const ticked = new Set(mine.bar ?? []);
+  const was = new Set(saved.bar ?? []);
+  if (
+    mine.bar &&
+    mine.main === saved.main &&
+    (ticked.size !== was.size || [...ticked].some((id) => !was.has(id)))
+  )
+    out.push({ place: 'bar', ids: mine.bar });
+  if (mine.actions !== saved.actions) out.push({ place: 'actions', menuId: mine.actions });
+  mine.footer.forEach((slot, i) => {
+    const now = saved.footer[i] ?? { menuId: '', title: '' };
+    const title = slot.menuId ? slot.title.trim() : '';
+    if (slot.menuId !== now.menuId || (slot.menuId && title !== now.title))
+      out.push({ place: 'footer', slot: i + 1, menuId: slot.menuId, title });
+  });
+  if (mine.legal !== saved.legal) out.push({ place: 'legal', menuId: mine.legal });
+  return out;
+}
+
 /** The form fields of `placements`, for a form that shows them again. */
 export function formOf(placements: Placements, locale: string): PlacementsForm {
   const { main, actions, footer, legal } = placements;
@@ -39,6 +92,26 @@ export function formOf(placements: Placements, locale: string): PlacementsForm {
     })),
     legal: legal?.menuId ?? '',
   };
+}
+
+/**
+ * Per slot of `form`, the column of `was` whose titles it keeps: the same slot while it shows the
+ * same menu, else the first column of that menu that no slot kept, so a menu moved to another
+ * slot takes its titles in other locales along. Undefined for a menu that was not in the footer.
+ */
+function columnSources(
+  was: Placements['footer'],
+  form: PlacementsForm['footer']
+): (number | undefined)[] {
+  const stays = form.map((slot, i) => !!slot.menuId && was[i]?.menuId === slot.menuId);
+  const taken = new Set(stays.flatMap((s, i) => (s ? [i] : [])));
+  return form.map((slot, i) => {
+    if (stays[i]) return i;
+    const j = was.findIndex((c, k) => c.menuId === slot.menuId && !taken.has(k));
+    if (!slot.menuId || j < 0) return undefined;
+    taken.add(j);
+    return j;
+  });
 }
 
 /**
@@ -61,9 +134,10 @@ export function placementsFrom(
     const ticked = form.main === was.main?.menuId && form.bar ? new Set(form.bar) : null;
     main = { menuId: form.main, bar: ticked ? top.filter((id) => ticked.has(id)) : top };
   }
+  const from = columnSources(was.footer, form.footer);
   const footer = form.footer.flatMap((slot, i) => {
     if (!slot.menuId) return [];
-    const before = was.footer[i]?.menuId === slot.menuId ? was.footer[i]?.title : undefined;
+    const before = from[i] === undefined ? undefined : was.footer[from[i]]?.title;
     const { [locale]: _old, ...rest } = before ?? {};
     const title = slot.title.trim() ? { ...rest, [locale]: slot.title.trim().slice(0, 120) } : rest;
     return [{ menuId: slot.menuId, ...(Object.keys(title).length ? { title } : {}) }];
