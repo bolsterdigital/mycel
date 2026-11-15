@@ -6,7 +6,7 @@ import { systemPrincipal, useCases } from '@mycel/core';
 import { createBrandProcessor } from '@mycel/media-sharp';
 import { withInvoker } from '../invoker';
 import { expect, test, type Page } from '@playwright/test';
-import { layoutGate, setTextSize } from '../layout';
+import { forcedColorsProblems, layoutGate, setTextSize } from '../layout';
 import { expectNoAxeViolations } from '../axe';
 import { isA11y } from '../project';
 import { publishMenus } from './seed';
@@ -99,89 +99,121 @@ export async function exerciseNavigationStress(
       await route.abort('failed');
     });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  for (const width of widths) {
-    if (width) await page.setViewportSize({ width, height: 900 });
-    for (const text of ['', '200%']) {
-      await page.goto(`http://127.0.0.1:4173/${slug}/${locale === 'en' ? 'en/' : ''}home`);
-      await setTextSize(page, text);
-      const description = `${state.name}/${locale}/${width || 'browser-zoom'}/${text || '100%'}`;
-      const header = page.locator('.site-header');
-      if (isA11y()) await expect(header).toHaveAttribute('data-enhanced', '');
-      await layoutGate(page, description, '.site-header');
-      await layoutGate(page, description, '.site-footer');
-      if (width === widths[0] && text === '200%')
-        await screenshot(page, `${state.name}-${locale}-header`, width);
-      const toggle = header.locator('.site-menu-toggle');
-      await toggle.focus();
-      await page.keyboard.press('Enter');
-      const panel = page.locator('.site-panel');
-      await expect(panel).toBeVisible();
-      if (isA11y())
-        await page.locator('.site-dialog').evaluate(async (d) => {
-          await Promise.all(d.getAnimations().map((a) => a.finished));
-        });
-      if (state.logo)
-        expect(
-          await header
-            .locator('img')
-            .evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)
-        ).toBe(true);
-      const links = panel.locator('.site-tree a, .site-panel-actions a');
-      await expect(links).toHaveCount(state.count);
-      await attachJson(
-        `geometry-${state.name}-${locale}-${width}-${text || 'normal'}.json`,
-        await page.locator('.site-identity, .site-tree a').evaluateAll((els) =>
-          els
-            .filter((e) => e.checkVisibility())
-            .slice(0, 3)
-            .map((e) => ({
-              text: e.textContent,
-              width: e.clientWidth,
-              scroll: e.scrollWidth,
-              font: getComputedStyle(e).fontSize,
-              html: e.outerHTML,
-            }))
-        )
-      );
-      await layoutGate(page, description, isA11y() ? '.site-dialog' : '.site-header');
-      if (width === widths[0] && text === '200%') {
-        await expectNoAxeViolations(page, { label: description });
-        await screenshot(page, `${state.name}-${locale}-panel`, width);
-        if (state.count) {
-          await links.first().scrollIntoViewIfNeeded();
-          await screenshot(page, `${state.name}-${locale}-links`, width);
+  // The separate real-tab-zoom task keeps its existing matrix; this extension covers CSS widths.
+  const colorModes = widths.includes(0) ? (['none'] as const) : (['none', 'active'] as const);
+  for (const colors of colorModes) {
+    await page.emulateMedia({ forcedColors: colors });
+    expect(await page.evaluate(() => matchMedia('(forced-colors: active)').matches)).toBe(
+      colors === 'active'
+    );
+    for (const width of widths) {
+      if (width) await page.setViewportSize({ width, height: 900 });
+      for (const text of ['', '200%']) {
+        await page.goto(`http://127.0.0.1:4173/${slug}/${locale === 'en' ? 'en/' : ''}home`);
+        await setTextSize(page, text);
+        const description = `${state.name}/${locale}/${width || 'browser-zoom'}/${text || '100%'}/${colors}`;
+        const header = page.locator('.site-header');
+        if (isA11y()) await expect(header).toHaveAttribute('data-enhanced', '');
+        await layoutGate(page, description, '.site-header');
+        await layoutGate(page, description, '.site-footer');
+        if (colors === 'active')
+          expect(await forcedColorsProblems(page, '.site-header'), description).toEqual([]);
+        if (width === widths[0] && text === '200%') {
+          // The focus audit may scroll past the logo; capture the complete header again.
+          await header.scrollIntoViewIfNeeded();
+          await screenshot(page, `${state.name}-${locale}-${colors}-header`, width);
         }
-      }
-      expect(
-        await panel.evaluate((el) =>
-          [el, ...el.querySelectorAll('*')].every((node) => {
-            const style = getComputedStyle(node);
-            return (
-              style.transitionDuration.split(',').every((value) => parseFloat(value) === 0) &&
-              style.animationName === 'none'
-            );
-          })
-        )
-      ).toBe(true);
-      if (state.count) {
-        // The final destination must remain keyboard reachable even below a long scroll area.
-        for (let step = 0; step < state.count + 12; step++) {
-          if (await links.last().evaluate((el) => el === document.activeElement)) break;
-          await page.keyboard.press('Tab');
-        }
-        await expect(links.last()).toBeFocused();
-        await page.keyboard.press('Enter');
-        await expect(page).toHaveURL(/\/home\?destination=\d+$/);
-      } else if (isA11y()) {
-        await page.keyboard.press('Escape');
-        await expect(toggle).toBeFocused();
-      } else {
+        const toggle = header.locator('.site-menu-toggle');
         await toggle.focus();
         await page.keyboard.press('Enter');
-        await expect(panel).toBeHidden();
+        const panel = page.locator('.site-panel');
+        await expect(panel).toBeVisible();
+        if (isA11y())
+          await page.locator('.site-dialog').evaluate(async (d) => {
+            await Promise.all(d.getAnimations().map((a) => a.finished));
+          });
+        if (state.logo)
+          expect(
+            await header
+              .locator('img')
+              .evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)
+          ).toBe(true);
+        const links = panel.locator('.site-tree a, .site-panel-actions a');
+        await expect(links).toHaveCount(state.count);
+        await attachJson(
+          `geometry-${state.name}-${locale}-${width}-${text || 'normal'}-${colors}.json`,
+          await page.locator('.site-identity, .site-tree a').evaluateAll((els) =>
+            els
+              .filter((e) => e.checkVisibility())
+              .slice(0, 3)
+              .map((e) => ({
+                text: e.textContent,
+                width: e.clientWidth,
+                scroll: e.scrollWidth,
+                font: getComputedStyle(e).fontSize,
+                html: e.outerHTML,
+              }))
+          )
+        );
+        await layoutGate(page, description, isA11y() ? '.site-dialog' : '.site-header');
+        if (colors === 'active') {
+          // The colour audit walks focus; resume the original opener-to-destination path.
+          const focused = await page.locator(':focus').elementHandle();
+          expect(focused).not.toBeNull();
+          expect(
+            await forcedColorsProblems(page, isA11y() ? '.site-dialog' : '.site-panel'),
+            description
+          ).toEqual([]);
+          await focused!.focus();
+        }
+        if (width === widths[0] && text === '200%') {
+          await expectNoAxeViolations(page, { label: description });
+          await screenshot(page, `${state.name}-${locale}-${colors}-panel`, width);
+          if (state.count) {
+            await links.first().scrollIntoViewIfNeeded();
+            await screenshot(page, `${state.name}-${locale}-${colors}-links`, width);
+          }
+        }
+        expect(
+          await panel.evaluate((el) =>
+            [el, ...el.querySelectorAll('*')].every((node) => {
+              const style = getComputedStyle(node);
+              return (
+                style.transitionDuration.split(',').every((value) => parseFloat(value) === 0) &&
+                style.animationName === 'none'
+              );
+            })
+          )
+        ).toBe(true);
+        if (state.count) {
+          // The final destination must remain keyboard reachable even below a long scroll area.
+          for (let step = 0; step < state.count + 12; step++) {
+            if (await links.last().evaluate((el) => el === document.activeElement)) break;
+            await page.keyboard.press('Tab');
+          }
+          await expect(links.last()).toBeFocused();
+          if (colors === 'active')
+            expect(
+              await links.last().evaluate((el) => {
+                const style = getComputedStyle(el);
+                return style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0;
+              }),
+              `${description}: final destination focus outline`
+            ).toBe(true);
+          await page.keyboard.press('Enter');
+          await expect(page).toHaveURL(/\/home\?destination=\d+$/);
+        } else if (isA11y()) {
+          await page.keyboard.press('Escape');
+          await expect(toggle).toBeFocused();
+        } else {
+          await toggle.focus();
+          await page.keyboard.press('Enter');
+          await expect(panel).toBeHidden();
+        }
       }
     }
   }
+  await page.emulateMedia({ forcedColors: 'none' });
   if (state.fontFailure) {
     expect(failedFonts).toBeGreaterThan(0);
     await page.unroute('**/*.woff2');
@@ -195,6 +227,7 @@ export async function exerciseNavigationStress(
     fixtureHash: createHash('sha256').update(JSON.stringify(state)).digest('hex'),
     route: `/${slug}/${locale === 'en' ? 'en/' : ''}home`,
     reducedMotion: 'reduce',
+    forcedColors: colorModes,
   });
 }
 
