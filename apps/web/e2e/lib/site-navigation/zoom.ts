@@ -5,7 +5,7 @@ import { expect, test, type Page, type Worker } from '@playwright/test';
 import { layoutGate } from '../layout';
 import { expectNoAxeViolations } from '../axe';
 import { seedSiteSettings } from './settings-fixture';
-import { NAVIGATION_STATES, seedNavigationStress, exerciseNavigationStress } from './stress';
+import { setBrowserZoom } from './zoom-context';
 
 export async function exerciseZoomedNavigation(
   page: Page,
@@ -15,20 +15,7 @@ export async function exerciseZoomedNavigation(
   const slug = `chrome-zoom-${Date.now()}`;
   await seedSiteSettings(slug, `${slug}-single`);
   await page.goto(`http://127.0.0.1:4173/${slug}/home`);
-  await worker.evaluate(async () => {
-    const api = (
-      globalThis as unknown as {
-        chrome: {
-          tabs: {
-            query: (query: object) => Promise<{ id: number; url: string }[]>;
-            setZoom: (id: number, factor: number) => Promise<void>;
-          };
-        };
-      }
-    ).chrome;
-    const tab = (await api.tabs.query({})).find((t) => t.url.includes('/chrome-zoom-'))!;
-    await api.tabs.setZoom(tab.id, 4);
-  });
+  await setBrowserZoom(page, worker, 4);
   await expect.poll(() => page.evaluate(() => devicePixelRatio)).toBe(before.ratio * 4);
   for (const locale of ['nl', 'en']) {
     await page.goto(`http://127.0.0.1:4173/${slug}/${locale === 'en' ? 'en/' : ''}home`);
@@ -69,16 +56,5 @@ export async function exerciseZoomedNavigation(
     });
     await page.keyboard.press('Escape');
     await expect(menu).toBeFocused();
-  }
-  // Retain real tab zoom for the boundary states too; a zero width preserves this browser's
-  // physical viewport instead of replacing it with Playwright's CSS viewport emulation.
-  for (const state of NAVIGATION_STATES) {
-    const { slug, hash } = await seedNavigationStress(state);
-    test.info().annotations.push({ type: 'fixture-sha256', description: hash });
-    for (const locale of ['nl', 'en']) {
-      await exerciseNavigationStress(page, state, slug, locale, [0]);
-      expect(await page.evaluate(() => innerWidth)).toBeCloseTo(before.width / 4, 0);
-      expect(await page.evaluate(() => devicePixelRatio)).toBe(before.ratio * 4);
-    }
   }
 }

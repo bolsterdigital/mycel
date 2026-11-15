@@ -10,9 +10,7 @@ import { exercisePublishedRepresentations } from './lib/published/representation
 import { exercisePublicSearch } from './lib/published/search';
 import { openPublication, closePublication } from './lib/publication';
 import { randomBytes } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { readFile, writeFile } from 'node:fs/promises';
 import {
   BLOCK_DEFINITIONS as DEFS,
   type ContentDocument,
@@ -22,7 +20,7 @@ import {
   systemPrincipal,
   useCases,
 } from '@mycel/core';
-import { type APIRequestContext, type Page, chromium, expect, test } from '@playwright/test';
+import { type APIRequestContext, type Page, expect, test } from '@playwright/test';
 import sharp from 'sharp';
 import { expectNoAxeViolations } from './lib/axe';
 import { editorReady, postDraftPreview } from './lib/editor';
@@ -57,6 +55,7 @@ import {
 import { exerciseNavigationEtag } from './lib/site-navigation/etag';
 import { exerciseChromeMenus, exerciseEnhancedBar } from './lib/site-navigation/visitor';
 import { exerciseZoomedNavigation } from './lib/site-navigation/zoom';
+import { withBrowserZoom } from './lib/site-navigation/zoom-context';
 import {
   NAVIGATION_STATES,
   seedNavigationStress,
@@ -1424,63 +1423,17 @@ test.describe('grid-compositions', () => {
   // root font cannot prove this: assert the halved CSS viewport and doubled pixel ratio too.
   test('real Chromium 200% browser zoom reflows the composition', async ({ request }) => {
     onlyA11y('browser zoom measurement');
-    const directory = await mkdtemp(join(tmpdir(), 'mycel-zoom-'));
-    let context;
-    try {
-      await writeFile(
-        join(directory, 'manifest.json'),
-        JSON.stringify({
-          manifest_version: 3,
-          name: 'Mycel layout measurement',
-          version: '1.0',
-          permissions: ['tabs'],
-          background: { service_worker: 'worker.js' },
-        })
-      );
-      await writeFile(
-        join(directory, 'worker.js'),
-        'chrome.runtime.onInstalled.addListener(() => {});'
-      );
-      context = await chromium.launchPersistentContext('', {
-        channel: 'chromium',
-        headless: true,
-        viewport: null,
-        args: [
-          `--disable-extensions-except=${directory}`,
-          `--load-extension=${directory}`,
-          '--window-size=1440,1000',
-        ],
-      });
-      const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
-      const page = await context.newPage();
-      await page.goto('http://127.0.0.1:4173/probe/articles/quality-article-v3');
-      const before = await page.evaluate(() => ({ width: innerWidth, ratio: devicePixelRatio }));
-      await worker.evaluate(async () => {
-        // chrome is provided by this measurement extension, not by application code.
-        const api = (
-          globalThis as unknown as {
-            chrome: {
-              tabs: {
-                query: (q: object) => Promise<{ id: number; url: string }[]>;
-                setZoom: (id: number, factor: number) => Promise<void>;
-              };
-            };
-          }
-        ).chrome;
-        const tab = (await api.tabs.query({})).find((tab) => tab.url.includes('/probe/articles/'))!;
-        await api.tabs.setZoom(tab.id, 2);
-      });
-      await expect.poll(() => page.evaluate(() => devicePixelRatio)).toBe(before.ratio * 2);
+    await withBrowserZoom(2, async ({ page, worker, before }) => {
       const after = await compositionMetrics(page);
       expect(after.viewport).toBeCloseTo(before.width / 2, 0);
       expect(after.overflow).toBe(false);
       expectTitleRail(after.title!, after.prose!, after.viewport);
       await writeFile(
         test.info().outputPath('browser-zoom.json'),
-        JSON.stringify({ before, after, version: context.browser()?.version() })
+        JSON.stringify({ before, after, version: page.context().browser()?.version() })
       );
       await test.info().attach('browser-zoom.json', {
-        body: JSON.stringify({ before, after, version: context.browser()?.version() }),
+        body: JSON.stringify({ before, after, version: page.context().browser()?.version() }),
         contentType: 'application/json',
       });
       await page.screenshot({
@@ -1512,7 +1465,7 @@ test.describe('grid-compositions', () => {
         fullPage: true,
       });
       await test.info().attach('faq-browser-zoom.json', {
-        body: JSON.stringify({ faq, version: context.browser()?.version() }),
+        body: JSON.stringify({ faq, version: page.context().browser()?.version() }),
         contentType: 'application/json',
       });
       // The same origin retains real browser zoom across the admin navigation.
@@ -1552,10 +1505,7 @@ test.describe('grid-compositions', () => {
       await closePublication(page);
       await expect(page.locator('a[href="#publication-panel"]')).toBeFocused();
       await exerciseZoomedNavigation(page, worker, before);
-    } finally {
-      await context?.close();
-      await rm(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   for (const entry of compositions)
@@ -1583,6 +1533,23 @@ for (const state of NAVIGATION_STATES)
       test.info().annotations.push({ type: 'fixture-sha256', description: hash });
       await exerciseNavigationStress(page, state, slug, locale);
     });
+
+// Keep each boundary fixture within the ordinary test budget, independent of the editor flow.
+for (const state of NAVIGATION_STATES)
+  test(`navigation boundaries ${state.name} at real Chromium 400% browser zoom`, async () => {
+    onlyA11y('browser zoom measurement');
+    await withBrowserZoom(4, async ({ page, before }) => {
+      const { slug, hash } = await test.step('publish boundary fixture', () =>
+        seedNavigationStress(state));
+      test.info().annotations.push({ type: 'fixture-sha256', description: hash });
+      for (const locale of ['nl', 'en'])
+        await test.step(`${locale}: normal and 200% text at real 400% zoom`, async () => {
+          await exerciseNavigationStress(page, state, slug, locale, [0]);
+          expect(await page.evaluate(() => innerWidth)).toBeCloseTo(before.width / 4, 0);
+          expect(await page.evaluate(() => devicePixelRatio)).toBe(before.ratio * 4);
+        });
+    });
+  });
 
 // A complete bilingual site: tenant chrome and theme through real use cases and the public
 // renderer, including the no-JavaScript/320 px/200% task gate (#11 E, ADR 009/013).
