@@ -52,12 +52,28 @@ export type Choice =
   | { place: 'footer'; slot: number; menuId: string; title: string };
 
 /**
- * What `mine` (a form refused after a conflict) chose differently from `saved` (the form as it
- * is saved now), in the order of the form. After a conflict the fields show what is saved, so a
+ * What `mine` (a form refused after a conflict) changed from `base` and still differs from
+ * `saved` (the form as it is saved now), in the order of the form. After a conflict the fields show what is saved, so a
  * second Save cannot replace the other editor's choice unseen; these are what the editor redoes
  * by hand. The bar counts only for the main menu both forms show; empty is "none".
  */
-export function changedChoices(mine: PlacementsForm, saved: PlacementsForm): Choice[] {
+export function changedChoices(
+  mine: PlacementsForm,
+  saved: PlacementsForm,
+  base: PlacementsForm
+): Choice[] {
+  const changed = differences(mine, base);
+  return differences(mine, saved).filter((choice) =>
+    changed.some(
+      (before) =>
+        before.place === choice.place &&
+        (before.place !== 'footer' || choice.place !== 'footer' || before.slot === choice.slot)
+    )
+  );
+}
+
+/** Differences per placement; bar membership is a set, footer titles ignore outer whitespace. */
+function differences(mine: PlacementsForm, saved: PlacementsForm): Choice[] {
   const out: Choice[] = [];
   if (mine.main !== saved.main) out.push({ place: 'main', menuId: mine.main });
   const ticked = new Set(mine.bar ?? []);

@@ -21,6 +21,7 @@ import {
   type NodeCheck,
   type Principal,
 } from '@mycel/core';
+import { formOf, type PlacementsForm } from '#lib/admin/navigation/placements.js';
 import { fail, redirect, type RequestEvent } from '@sveltejs/kit';
 import { movesOf, type Move } from '#lib/admin/navigation/menu-edit.js';
 import { failureOf, text, type ActionCopy } from '../admin/admin-actions.js';
@@ -80,6 +81,7 @@ export async function saveNavigation(
   const seen = text(data, 'baseRevisionId') || null;
   const { invoker } = runtime();
   let merged = false;
+  let base: PlacementsForm | undefined;
   try {
     // An editor who saw no navigation at all has no revision to merge from: their step goes on
     // what is there now, so the site's first two menus can be made in two windows at once.
@@ -88,7 +90,9 @@ export async function saveNavigation(
       principal,
       seen ? { revisionId: seen } : {}
     );
-    const next = step(document, data, contentLocale(event.cookies, tenant));
+    const locale = contentLocale(event.cookies, tenant);
+    if (action === 'placements') base = formOf(document.placements, locale);
+    const next = step(document, data, locale);
     if (typeof next === 'string') return fail(400, { action, error: next, values: posted(data) });
     ({ merged } = await invoker.run(useCases.updateNavigation, principal, {
       baseRevisionId: seen ?? revisionId,
@@ -98,7 +102,7 @@ export async function saveNavigation(
     const { status, body } = failureOf(refusalOf(e), action, COPY);
     // After a conflict the form shows what is saved now, and what this editor typed only beside
     // it: refilled, a second Save would replace the other editor's text without either seeing it.
-    if (status === 409) return fail(status, { ...body, mine: posted(data) });
+    if (status === 409) return fail(status, { ...body, mine: posted(data), base });
     return fail(status, { ...body, values: posted(data) });
   }
   const path = to(data);
