@@ -1722,7 +1722,7 @@ test.describe('site-settings', () => {
   // filled card is its pair inverted (theme.md § Contrast).
   test('a menu link follows its republished target, and the ETag with it (ADR 036 rule 11)', ({
     request,
-  }) => exerciseNavigationEtag(request));
+  }, info) => exerciseNavigationEtag(request, info));
 
   test('an action row walks the theme accents, with the button inverted', async ({ page }) => {
     for (const mode of ['light', 'dark'] as const) {
