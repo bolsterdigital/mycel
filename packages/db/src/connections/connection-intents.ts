@@ -1,7 +1,7 @@
 // RLS scopes all intent operations; compare-and-swap fences concurrent and expired workers.
 // Rejected: unconditional completion updates that let an old attempt overwrite a newer one.
 import type { Kysely, Selectable } from 'kysely';
-import type { ConnectionIntent, ConnectionIntents } from '@mycel/core';
+import { storedActorJson, type ConnectionIntent, type ConnectionIntents } from '@mycel/core';
 import type { Database } from '../infra/schema.js';
 function decode(r: Selectable<Database['connection_intents']>): ConnectionIntent {
   return {
@@ -37,7 +37,7 @@ const encode = (r: ConnectionIntent) => ({
   mapping_version: r.mappingVersion,
   supporter_id: r.supporterId,
   scope: r.scope,
-  actor: JSON.stringify(r.actor),
+  actor: JSON.stringify(storedActorJson(r.actor)),
   key: r.key,
   state: r.state,
   failure: r.failure,

@@ -38,6 +38,7 @@ import {
   type Clock,
   type Erasures,
   type Principal,
+  storedActor,
 } from '@mycel/core';
 import { withTenant } from './index.js';
 import type { Database } from './infra/schema.js';
@@ -66,7 +67,7 @@ export function erasureRepository(
           supporter_id: supporterId,
           email_hash: await emailKey(tenantId, email, 'erasure'),
           erased_at: clock.now(),
-          actor: JSON.stringify(principal.actor),
+          actor: JSON.stringify(storedActor(principal.actor)),
         })
         .onConflict((oc) => oc.columns(['tenant_id', 'supporter_id']).doNothing())
         .execute();

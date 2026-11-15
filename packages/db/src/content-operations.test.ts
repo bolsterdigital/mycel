@@ -140,7 +140,7 @@ describe.skipIf(skip)('content operations conformance', () => {
     const target = { itemId: created.item.id };
     const human = principal({
       tenantId: tenantA,
-      actor: { kind: 'operator', operatorId: uuidv7(), email: 'reviewer@probe.test' },
+      actor: { kind: 'operator', operatorId: uuidv7() },
     });
     const split = await invoker.run(useCases.splitInsertBlock, adminOf(tenantA), {
       ...target,

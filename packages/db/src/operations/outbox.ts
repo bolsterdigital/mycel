@@ -14,6 +14,7 @@ import {
   type DomainEvent,
   type EventBus,
   type Subscriber,
+  storedActor,
 } from '@mycel/core';
 import { reportOrLog, type WorkerHooks } from './jobs.js';
 import type { Database } from '../infra/schema.js';
@@ -29,7 +30,7 @@ export function outboxEventBus(trx: Kysely<Database>): EventBus {
           tenant_id: event.tenantId,
           type: event.type,
           occurred_at: event.occurredAt,
-          actor: JSON.stringify(event.actor),
+          actor: JSON.stringify(storedActor(event.actor)),
           props: JSON.stringify(event.props),
         })
         .execute();

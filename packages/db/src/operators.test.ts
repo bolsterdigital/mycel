@@ -431,7 +431,7 @@ describe.skipIf(skip)('operator and key conformance', () => {
       });
       admins.push({
         id: op.id,
-        principal: (await operatorPrincipal(identity, { operatorId: op.id, email }, c))!,
+        principal: (await operatorPrincipal(identity, { operatorId: op.id }, c))!,
       });
     }
     const [x, y] = admins as [(typeof admins)[0], (typeof admins)[0]];
@@ -477,7 +477,7 @@ describe.skipIf(skip)('operator and key conformance', () => {
         });
         admins.push({
           id: op.id,
-          principal: (await operatorPrincipal(identity, { operatorId: op.id, email }, t))!,
+          principal: (await operatorPrincipal(identity, { operatorId: op.id }, t))!,
         });
       }
       const [x, y] = admins as [(typeof admins)[0], (typeof admins)[0]];

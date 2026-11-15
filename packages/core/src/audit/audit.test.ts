@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { UseCaseError } from '../errors.js';
 import { Invoker } from '../invoke.js';
 import type { UnitOfWork } from '../ports.js';
+import type { Actor } from '../principal.js';
 import { UseCaseRegistry, defineUseCase } from '../registry.js';
 import {
   FakeClock,
@@ -162,7 +163,9 @@ describe('the Invoker writes one audit row per command (TODO #17b)', () => {
 
   it('names an operator by id, never by address', async () => {
     const operator = principal({
-      actor: { kind: 'operator', operatorId: 'op-1', email: 'editor@example.org' },
+      // An object may carry more than its type at run time (a decoded session); the audit
+      // still names the id only.
+      actor: { kind: 'operator', operatorId: 'op-1', email: 'editor@example.org' } as Actor,
     });
     await invoker.run(echo, operator, { id: 'x' });
     expect(rows()[0]).toMatchObject({ actorKind: 'operator', actorId: 'op-1' });

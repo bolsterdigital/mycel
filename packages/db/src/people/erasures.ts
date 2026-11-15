@@ -18,6 +18,7 @@ import {
   type Clock,
   type PersonErasureRepository,
   type Principal,
+  storedActor,
 } from '@mycel/core';
 import type { Database } from '../infra/schema.js';
 import { advisoryLock, advisoryLockShared } from '../infra/roles.js';
@@ -42,7 +43,7 @@ export function personErasureRepository(
             tenant_id: tenantId,
             person_id,
             erased_at: at,
-            actor: JSON.stringify(principal.actor),
+            actor: JSON.stringify(storedActor(principal.actor)),
           }))
         )
         .onConflict((oc) => oc.columns(['tenant_id', 'person_id']).doNothing())

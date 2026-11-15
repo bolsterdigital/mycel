@@ -86,7 +86,6 @@ describe.skipIf(skip)('attention conformance', () => {
       actor: {
         kind: 'operator',
         operatorId: invited.operatorId,
-        email: `admin-${run}@example.org`,
       },
     });
   });

@@ -132,7 +132,7 @@ describe('every ai:assist command passes the assistance gate (ADR 015)', () => {
   const assisted = registry.list().filter((u) => u.requires === 'ai:assist');
 
   // An operator, because the hourly throttle counts per operator and passes over system actors.
-  const operator = { kind: 'operator', operatorId: 'op-gate', email: 'gate@example.org' } as const;
+  const operator = { kind: 'operator', operatorId: 'op-gate' } as const;
   async function refusal(useCase: UseCase, entitlements: Principal['entitlements']) {
     const uow = new MemoryUnitOfWork();
     uow.store.addPlatformHostname(probeTenant(TENANT), uow.platform.domain);
@@ -517,7 +517,7 @@ describe('every command leaves exactly one audit row (TODO #17b)', () => {
   // An operator carries an address; the rows must not.
   const operator = (capabilities: Principal['capabilities']): Principal =>
     principal({
-      actor: { kind: 'operator', operatorId: 'op-conformance', email: 'operator@example.org' },
+      actor: { kind: 'operator', operatorId: 'op-conformance' },
       capabilities,
     });
   const noAddress = (rows: unknown[]) =>

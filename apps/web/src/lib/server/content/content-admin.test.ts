@@ -320,15 +320,24 @@ describe('actorLabel (PR #351 review)', () => {
   // Two UUIDv7 ids of the same millisecond: the same time prefix, different random ends.
   const first = '01a1bb4f-8a4d-7000-8000-00000000aaaa';
   const second = '01a1bb4f-8a4d-7000-8000-00000000bbbb';
+  const names = { byId: { [first]: 'Sam' }, teamMember: 'Een teamlid' };
+
+  it('names a current member, and anyone else by the team-member words, never an address (ADR 035)', () => {
+    expect(actorLabel({ kind: 'operator', operatorId: first }, names)).toBe('Sam');
+    expect(actorLabel({ kind: 'operator', operatorId: second }, names)).toBe('Een teamlid');
+    // A stored actor of before migration 0053, read without parsing, still shows no address.
+    const old = { kind: 'operator', operatorId: second, email: 'oud@example.org' } as const;
+    expect(actorLabel(old, names)).toBe('Een teamlid');
+  });
 
   it('tells two keys of the same minute apart', () => {
-    const label = (keyId: string) => actorLabel({ kind: 'api-key', keyId });
+    const label = (keyId: string) => actorLabel({ kind: 'api-key', keyId }, names);
     expect(label(first)).toBe('API key 0000aaaa');
     expect(label(first)).not.toBe(label(second));
   });
 
   it('tells two agents of the same minute apart', () => {
-    const label = (keyId: string) => actorLabel({ kind: 'agent', sessionId: 's', keyId });
+    const label = (keyId: string) => actorLabel({ kind: 'agent', sessionId: 's', keyId }, names);
     expect(label(first)).toBe('MCP 0000aaaa');
     expect(label(first)).not.toBe(label(second));
   });

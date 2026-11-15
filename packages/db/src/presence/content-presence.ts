@@ -2,7 +2,13 @@
 // tab; the actor is in the key, so one account cannot overwrite another's row with a guessed
 // session id.
 import { sql, type Kysely } from 'kysely';
-import { Actor, PRESENCE_READ_LIMIT, auditActor, type PresenceRepository } from '@mycel/core';
+import {
+  Actor,
+  PRESENCE_READ_LIMIT,
+  auditActor,
+  storedActor,
+  type PresenceRepository,
+} from '@mycel/core';
 import type { Database } from '../infra/schema.js';
 
 export function presenceRepository(trx: Kysely<Database>, tenantId: string): PresenceRepository {
@@ -17,7 +23,7 @@ export function presenceRepository(trx: Kysely<Database>, tenantId: string): Pre
           actor_kind: kind,
           actor_id: id ?? '',
           session_id: sessionId,
-          actor: JSON.stringify(actor),
+          actor: JSON.stringify(storedActor(actor)),
           state,
           last_seen_at: lastSeenAt,
         })

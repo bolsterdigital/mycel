@@ -266,7 +266,7 @@ describe('admin media files', () => {
   const operator = (tenantId = TENANT): Principal =>
     principal({
       tenantId,
-      actor: { kind: 'operator', operatorId: 'op-1', email: 'admin@probe.test' },
+      actor: { kind: 'operator', operatorId: 'op-1' },
       capabilities: ['media:read', 'media:write'],
     });
   const signed = async (

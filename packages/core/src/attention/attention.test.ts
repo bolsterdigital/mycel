@@ -45,7 +45,7 @@ describe('attention', () => {
       lastLoginAt: clock.now(),
     });
     return principal({
-      actor: { kind: 'operator', operatorId: OPERATOR, email: 'lid@example.org' },
+      actor: { kind: 'operator', operatorId: OPERATOR },
       capabilities,
     });
   };

@@ -18,10 +18,12 @@ import { createInterface } from 'node:readline';
 import { sql, type Kysely, type RawBuilder } from 'kysely';
 import {
   IMPORTED_HOSTNAME,
+  canonicalJson,
   checkImportSchema,
   checkImportTarget,
   hostnameTravels,
   invitationFromExport,
+  storedActorJson,
   verifyExportManifest,
   type BlobStore,
   type ExportManifest,
@@ -166,6 +168,52 @@ export interface ImportReport {
 
 const BATCH = 500;
 
+/**
+ * Where a table keeps a stored actor, as a path into its export line (ADR 035 rule 4). Import
+ * writes each one as `storedActorJson`, whatever the archive holds (rule 5): an archive made
+ * before migration 0053, which a tenant may already have downloaded, would otherwise put operator
+ * addresses back at rest. storage.conformance.test.ts holds this list to the catalog: every
+ * JSON column of an exported table that is an operator copy is here, or reviewed there.
+ * Rejected: normalising in SQL in the insert (a second spelling of the same rule) and refusing an
+ * archive with an address (the tenant's own older archive must still import).
+ */
+export const ACTOR_FIELDS: Partial<Record<ExportTable, readonly (readonly string[])[]>> = {
+  content_revisions: [['actor']],
+  content_bulk_plans: [['actor']],
+  content_bulk_effects: [['result', 'actor']],
+  form_feed_settings: [['actor']],
+  media: [['created_by']],
+  erasures: [['actor']],
+  person_erasures: [['actor']],
+};
+
+/** Normalise the actors of one export line in place; true when one of them changed. */
+function normaliseActors(table: ExportTable, row: Record<string, unknown>): boolean {
+  let changed = false;
+  for (const path of ACTOR_FIELDS[table] ?? []) {
+    let holder: Record<string, unknown> | undefined = row;
+    for (const key of path.slice(0, -1)) {
+      const next: unknown = holder?.[key];
+      holder =
+        typeof next === 'object' && next !== null ? (next as Record<string, unknown>) : undefined;
+    }
+    const key = path[path.length - 1]!;
+    if (!holder || !(key in holder)) continue;
+    const before = holder[key];
+    const after = storedActorJson(before);
+    if (after !== before && canonicalJson(after) !== canonicalJson(before)) changed = true;
+    holder[key] = after;
+  }
+  return changed;
+}
+
+/** A line of a table with actors, normalised and with its keys in one order, to compare by. */
+const actorLine = (table: ExportTable, line: string): string => {
+  const row = JSON.parse(line) as Record<string, unknown>;
+  normaliseActors(table, row);
+  return canonicalJson(row);
+};
+
 /** `mycel import <path> [--slug <slug>]`. */
 export async function importTenant(options: ImportOptions): Promise<ImportReport> {
   const source = resolve(options.path);
@@ -233,13 +281,18 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
           lines.push(`${table}: not in the export (older schema), 0 rows`);
           continue;
         }
-        const { imported, skipped } = await importTable(
+        const { imported, skipped, normalised } = await importTable(
           trx,
           table,
           join(dir, entry.file),
           entry.columns
         );
-        lines.push(`${table}: ${imported} imported${skipped ? `, ${skipped} skipped` : ''}`);
+        lines.push(
+          `${table}: ${imported} imported${skipped ? `, ${skipped} skipped` : ''}` +
+            (normalised
+              ? `, ${normalised} with an operator address in an actor, stored without`
+              : '')
+        );
       }
       // An archive from before 0055 has no search index; the site search would find none of its
       // published pages until their next save. Built here from the imported publication rows,
@@ -298,9 +351,10 @@ async function importTable(
   table: ExportTable,
   path: string,
   exported: string[]
-): Promise<{ imported: number; skipped: number }> {
+): Promise<{ imported: number; skipped: number; normalised: number }> {
   let imported = 0;
   let skipped = 0;
+  let normalised = 0;
   if (IMPORT_RULE[table] === 'as-invitation') {
     // A pending operator per address, as `inviteMember` makes one; they log in again here.
     for await (const line of linesOf(path)) {
@@ -326,7 +380,7 @@ async function importTable(
       );
       imported++;
     }
-    return { imported, skipped };
+    return { imported, skipped, normalised };
   }
 
   const present = new Set(await columnsOf(trx, table));
@@ -351,6 +405,7 @@ async function importTable(
   };
   for await (const line of linesOf(path)) {
     const row = JSON.parse(line) as Record<string, unknown>;
+    if (normaliseActors(table, row)) normalised++;
     if (IMPORT_RULE[table] === 'custom-only') {
       // This installation's platform hostname came with the tenant; a custom one is unverified
       // until its DNS answers here (the daily check, or Check DNS in the admin).
@@ -369,13 +424,19 @@ async function importTable(
     if (batch.length >= BATCH) await flush();
   }
   await flush();
-  return { imported, skipped };
+  return { imported, skipped, normalised };
 }
 
 /**
  * The imported tenant read back as an export and held to the manifest: equal per table, except
  * the hostnames (only the custom names must match) and the import's own audit row.
  */
+async function normalisedSha(table: ExportTable, path: string): Promise<string> {
+  const hash = createHash('sha256');
+  for await (const line of linesOf(path)) hash.update(actorLine(table, line) + '\n');
+  return hash.digest('hex');
+}
+
 async function compare(
   operatorDb: Kysely<Database>,
   dir: string,
@@ -398,7 +459,7 @@ async function compare(
         if (a.operation === 'platform.tenant.import' && new Date(a.occurred_at) >= started) return;
       }
       const entry = hashes.get(table) ?? { hash: createHash('sha256'), rows: 0 };
-      entry.hash.update(line + '\n');
+      entry.hash.update((ACTOR_FIELDS[table] ? actorLine(table, line) : line) + '\n');
       entry.rows++;
       hashes.set(table, entry);
     },
@@ -425,7 +486,12 @@ async function compare(
     }
     const got = hashes.get(table);
     const sha = got?.hash.digest('hex') ?? sha256('');
-    if (sha !== expected.sha256)
+    // A table with actors is compared after the same normalisation on both sides: the archive may
+    // hold an address the import left out on purpose (ADR 035 rule 5).
+    const want = ACTOR_FIELDS[table]
+      ? await normalisedSha(table, join(dir, expected.file))
+      : expected.sha256;
+    if (sha !== want)
       differences.push(`${table}: ${expected.rows} rows exported, ${got?.rows ?? 0} after import`);
   }
   return differences;

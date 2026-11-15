@@ -21,7 +21,7 @@ const as = (
   principal({
     tenantId,
     capabilities,
-    actor: { kind: 'operator', operatorId, email: `${operatorId}@example.org` },
+    actor: { kind: 'operator', operatorId },
   });
 
 describe('content presence (ADR 029)', () => {

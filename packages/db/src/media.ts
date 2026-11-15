@@ -7,9 +7,11 @@
 
 import { sql, type Kysely, type Selectable, type SelectQueryBuilder } from 'kysely';
 import {
+  Actor,
   MediaCredit,
   MediaFocal,
   StoredVariant,
+  storedActor,
   type MediaContentType,
   type MediaFilter,
   type MediaRecord,
@@ -82,7 +84,7 @@ const toRecord = (r: Row): MediaRecord => ({
   licence: r.licence,
   focal: MediaFocal.parse(r.focal),
   state: r.state,
-  createdBy: r.created_by,
+  createdBy: Actor.parse(r.created_by),
   createdAt: new Date(r.created_at),
   updatedAt: new Date(r.updated_at),
   deletedAt: r.deleted_at ? new Date(r.deleted_at) : null,
@@ -177,7 +179,7 @@ export function mediaRepository(trx: Trx, tenantId: string): MediaRepository {
           licence: m.licence,
           focal: JSON.stringify(m.focal),
           state: m.state,
-          created_by: JSON.stringify(m.createdBy),
+          created_by: JSON.stringify(storedActor(m.createdBy)),
           created_at: m.createdAt,
           updated_at: m.updatedAt,
         })

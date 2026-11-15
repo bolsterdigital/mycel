@@ -29,6 +29,7 @@ import {
   type OperatorRepository,
   DEFAULT_OPERATOR_PREFERENCES,
   OperatorPreferences,
+  storedActor,
 } from '@mycel/core';
 import type { Database } from './infra/schema.js';
 import { advisoryLock, asRole } from './infra/roles.js';
@@ -178,7 +179,7 @@ export function apiKeyRepository(trx: Trx, tenantId: string): ApiKeyRepository {
           prefix: key.prefix,
           key_hash: key.keyHash,
           capabilities: key.capabilities,
-          created_by: JSON.stringify(key.createdBy),
+          created_by: JSON.stringify(storedActor(key.createdBy)),
           created_at: key.createdAt,
         })
         .execute();

@@ -2,7 +2,9 @@
 // is a column, and a column shaped like a person (an address, a phone, an actor, a supporter,
 // person or operator id, a keyed digest of an address) is a listed copy or is reviewed below. A
 // migration that adds such a column fails here until someone has decided whose copy it is and what
-// ends it. storage.test.ts holds the rest of the catalog without a database.
+// ends it. The import's list of stored actors (`ACTOR_FIELDS`, ADR 035 rule 5) is held to the
+// same catalog, so an exported table that gains an actor column cannot be imported unnormalised.
+// storage.test.ts holds the rest of the catalog without a database.
 // Rejected: a check in export.conformance.test.ts, which would push that suite past its size.
 //
 // Skips without DATABASE_URL; in CI that is a failure.
@@ -11,6 +13,8 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
 import { createDb } from '../index.js';
 import { requireDatabase } from '../testing.js';
+import { TABLES } from './export.js';
+import { ACTOR_FIELDS } from './import.js';
 import { STORAGE } from './storage.js';
 
 const { skip, operator: operatorUrl } = requireDatabase();
@@ -62,5 +66,35 @@ describe.skipIf(skip)('storage catalog against the schema', () => {
       .filter((f) => personShaped.test(f.split('.')[1]!) || json.has(f))
       .filter((f) => !listed.has(f) && !reviewed.has(f));
     expect(unlisted, 'person-shaped columns outside the storage catalog').toEqual([]);
+  });
+
+  it('normalises on import every stored actor an exported table carries', async () => {
+    // An operator copy in a JSON column of an exported table is a stored actor, unless reviewed.
+    const reviewed = new Map([
+      ['content_revisions.provenance', 'plan, suggestion and revision ids, no actor object'],
+    ]);
+    const { rows } = await sql<{ rel: string; col: string }>`
+      select c.relname as rel, a.attname as col from pg_class c
+      join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
+      where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+        and format_type(a.atttypid, a.atttypmod) in ('json', 'jsonb')`.execute(operatorDb);
+    const json = new Set(rows.map((r) => `${r.rel}.${r.col}`));
+    const exported = (rel: string) => TABLES[rel as keyof typeof TABLES] === 'export';
+    const actors = Object.entries(STORAGE)
+      .filter(([rel]) => exported(rel))
+      .flatMap(([rel, e]) =>
+        e.copies
+          .filter((c) => c.subject === 'operator' && json.has(`${rel}.${c.field.split('.')[0]}`))
+          .map((c) => `${rel}.${c.field}`)
+      )
+      .filter((f) => !reviewed.has(f));
+    const normalised = Object.entries(ACTOR_FIELDS).flatMap(([rel, paths]) =>
+      paths.map((path) => `${rel}.${path.join('.')}`)
+    );
+    expect(normalised.sort()).toEqual([...new Set(actors)].sort());
+    expect(
+      [...reviewed.keys()].filter((f) => !json.has(f)),
+      'reviewed fields that are no JSON column'
+    ).toEqual([]);
   });
 });
