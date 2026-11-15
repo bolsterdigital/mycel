@@ -17,7 +17,7 @@
 import type { Database } from '../infra/schema.js';
 import { NAVIGATION_STORAGE } from './storage-navigation.js';
 
-export { OFF_TABLE_STORAGE, type OffTableStorage } from './storage-off-table.js';
+export { OFF_TABLE_STORAGE } from './storage-off-table.js';
 
 /**
  * Whose copy. `supporter`: someone who signed, subscribed or gave, erased on request (ADR 019
