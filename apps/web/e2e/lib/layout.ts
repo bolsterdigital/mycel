@@ -101,6 +101,9 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
       // The site chrome (ADR 036 rule 12, 44 px targets): Menu, the menu's links and groups.
       '.site-identity',
       '.site-menu-toggle',
+      '.site-search-link',
+      '.site-languages summary',
+      '.site-language-links a',
       '.site-tree a',
       '.site-group > summary',
       '.site-bar a',

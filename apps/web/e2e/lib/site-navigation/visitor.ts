@@ -6,7 +6,9 @@
 // the same panel as a modal dialog instead: focus on its close button, a sublink button beside the
 // link, Escape back to Menu (`static/_site/navigation.js`). The caller is on the fixture's home page.
 // Rejected: checking the markup alone, which says nothing about what a visitor can reach.
-import { expect, type Locator, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
+import { systemPrincipal, useCases } from '@mycel/core';
+import { withInvoker } from '../invoker';
 import { expectNoAxeViolations } from '../axe';
 import { forcedColorsProblems, layoutGate, setTextSize } from '../layout';
 import { isA11y } from '../project';
@@ -60,6 +62,7 @@ export async function exerciseChromeMenus(page: Page, locale: 'nl' | 'en') {
   await expect(footer.getByRole('heading', { level: 2 })).toHaveText([...copy.columns]);
   await expect(footer.locator('summary')).toHaveText(copy.group[0]);
   await expect(footer.getByRole('link')).toHaveText([...copy.footerLinks, copy.legal]);
+  await searchAndLanguages(page, locale);
 }
 
 type Copy = (typeof COPY)[keyof typeof COPY];
@@ -137,16 +140,46 @@ async function enhancedPanel(page: Page, copy: Copy, toggle: Locator) {
 
 /**
  * The measured bar at a wide viewport (a11y project): every bar candidate fits beside the logo,
- * the second call to action included; a link's sublinks and a group open as a dropdown, Escape
+ * without calls to action; a link's sublinks and a group open as a dropdown, Escape
  * closes it onto its button. At 200% text fewer fit, and what does not is neither shown nor
  * focusable; every shown candidate stays in the logo's row.
  */
-export async function exerciseEnhancedBar(page: Page) {
+export async function exerciseEnhancedBar(page: Page, tenantId: string) {
+  // A separate zero-CTA state leaves space for both kinds of dropdown beside the new reserved
+  // search/language tools. The two-CTA state above proves that overflow stays in the panel.
+  await withInvoker(async (invoker) => {
+    const principal = systemPrincipal(tenantId, 'e2e');
+    const original = await invoker.run(useCases.getNavigation, principal, {});
+    const save = async (document: typeof original.document) => {
+      const current = await invoker.run(useCases.getNavigation, principal, {});
+      const saved = await invoker.run(useCases.updateNavigation, principal, {
+        baseRevisionId: current.revisionId,
+        document,
+      });
+      await invoker.run(useCases.publishNavigation, principal, {
+        revisionId: saved.revisionId!,
+        locale: 'nl',
+      });
+    };
+    await save({
+      ...original.document,
+      placements: { ...original.document.placements, actions: null },
+    });
+    try {
+      await page.reload();
+      await measuredBar(page);
+    } finally {
+      await save(original.document);
+    }
+  });
+}
+
+async function measuredBar(page: Page) {
   const copy = COPY.nl;
   const banner = page.getByRole('banner');
   const bar = banner.getByRole('navigation', { name: copy.main });
   await expect(bar.getByRole('link')).toHaveText([copy.menu[0], copy.menu[2]]);
-  await expect(banner.getByRole('link', { name: copy.actions[1] })).toBeVisible();
+  await expect(banner.getByRole('link', { name: copy.actions[1] })).toHaveCount(0);
   const group = bar.getByRole('button', { name: copy.group[0] });
   await group.click();
   await expect(bar.getByRole('link')).toHaveText([
@@ -186,10 +219,81 @@ export async function exerciseEnhancedBar(page: Page) {
           .some((el) => (el as HTMLElement).checkVisibility()),
       };
     });
-  await expect.poll(async () => (await row()).shown).toBeLessThan(4);
+  await expect.poll(async () => (await row()).shown).toBeLessThan(3);
   expect(await row()).toMatchObject({ inRow: true, hiddenFocusable: false });
   await expect(banner.locator('.site-menu-toggle')).toBeFocused();
   await layoutGate(page, 'enhanced bar at 1440 px and 200% text', '.site-header');
   await setTextSize(page, '');
-  await expect.poll(async () => (await row()).shown).toBe(4);
+  await expect.poll(async () => (await row()).shown).toBe(3);
+}
+
+/** Complete visitor task: switch to a published translation, search in the panel, follow a
+ * result. The German tenant locale has no published home translation and must not be offered. */
+async function searchAndLanguages(page: Page, locale: 'nl' | 'en') {
+  const start = page.url();
+  const search = locale === 'nl' ? 'Zoeken' : 'Search';
+  const query = locale === 'nl' ? 'Welkom' : 'Welcome';
+  const banner = page.getByRole('banner');
+  await expect(banner.locator('.site-search-link')).toHaveText(search);
+  await banner.locator('.site-languages summary').click();
+  const languages = banner.locator('.site-languages nav');
+  await expect(languages.getByRole('link')).toHaveText(['Nederlands', 'English']);
+  await expect(languages.locator('[aria-current]')).toHaveAttribute('hreflang', locale);
+  // Keyboard activation of a real link, not a scripted language replacement.
+  const other = languages.getByRole('link', { name: locale === 'nl' ? 'English' : 'Nederlands' });
+  await other.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('html')).toHaveAttribute('lang', locale === 'nl' ? 'en' : 'nl');
+  await page.goto(start);
+
+  // Widths are CSS widths; 320 px also proves reflow at a 1280 px window’s 400% browser zoom.
+  for (const width of [1440, 768, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await layoutGate(page, `search/language tools at ${width}px`, '.site-header');
+  }
+  await setTextSize(page, '200%');
+  await banner.locator('.site-languages summary').click();
+  await layoutGate(page, 'language choices at 320px and 200% text', '.site-header');
+  await page.screenshot({
+    path: test.info().outputPath(`languages-${locale}.png`),
+    fullPage: true,
+  });
+  await banner.locator('.site-languages summary').click();
+  await banner.locator('.site-menu-toggle').click();
+  if (isA11y())
+    await page.locator('.site-dialog').evaluate(async (d) => {
+      await Promise.all(d.getAnimations().map((a) => a.finished));
+    });
+  const panel = page.locator('.site-panel');
+  await layoutGate(
+    page,
+    'panel search at 320px and 200% text',
+    isA11y() ? '.site-dialog' : '.site-header'
+  );
+  await expectNoAxeViolations(page, { label: 'panel search and languages' });
+  await page.screenshot({
+    path: test.info().outputPath(`search-panel-${locale}.png`),
+    fullPage: true,
+  });
+  const field = panel.getByRole('searchbox');
+  await field.fill(query);
+  await panel.getByRole('button', { name: search, exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/search\\?q=${query}$`));
+  await expect(
+    page.locator('main .search-results').getByRole('link', { name: query, exact: true })
+  ).toBeVisible();
+  await banner.locator('.site-languages summary').click();
+  await banner
+    .locator('.site-languages nav')
+    .getByRole('link', { name: locale === 'nl' ? 'English' : 'Nederlands' })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`/search\\?q=${query}$`));
+  await expect(page.locator('main').getByRole('searchbox')).toHaveValue(query);
+  await page.goto(start);
+  await setTextSize(page, '');
+  // A monolingual publication (the action page) has no language selector, even though its site
+  // supports three locales. This guards against links to unpublished translations.
+  await page.goto(start.replace(/(?:en\/)?home$/, 'acties'));
+  await expect(banner.locator('.site-languages')).toHaveCount(0);
+  await page.goto(start);
 }

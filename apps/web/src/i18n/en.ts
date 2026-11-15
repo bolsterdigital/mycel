@@ -287,6 +287,7 @@ export const en = {
   'public.home': 'Go to the home page',
   'public.skip': 'Skip to content',
   'public.navigation': 'Main navigation',
+  'public.languages': 'Language',
   'public.menu': 'Menu',
   'public.menu.close': 'Close',
   'public.menu.sublinks': '{label}: sublinks',

@@ -1653,9 +1653,10 @@ test.describe('site-settings', () => {
         document.documentElement.style.fontSize = '';
         document.documentElement.style.zoom = '2';
         return (
-          [...document.querySelectorAll('.site-header a, .site-footer a')].every(
-            (node) => node.getBoundingClientRect().right <= innerWidth
-          ) && document.documentElement.scrollWidth <= innerWidth
+          [...document.querySelectorAll('.site-header a, .site-footer a')]
+            .filter((node) => node.checkVisibility())
+            .every((node) => node.getBoundingClientRect().right <= innerWidth) &&
+          document.documentElement.scrollWidth <= innerWidth
         );
       });
       expect(zoomed).toBe(true);
@@ -1668,7 +1669,7 @@ test.describe('site-settings', () => {
     onlyA11y('the bar is measured by the enhancement script');
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/${slug}/home`);
-    await exerciseEnhancedBar(page);
+    await exerciseEnhancedBar(page, tenantId);
   });
 
   // Header, body and footer share the wide rail; a page that is only a title and one that ends

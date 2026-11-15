@@ -14,6 +14,8 @@
 import { anonymousPrincipal, entitled } from '@mycel/core';
 import { withBase } from '../../blocks/rich-text.js';
 import type { ChromeLink, ChromeModel, ChromeNode } from '../../components/chrome.js';
+import { languageLinks } from '../../public/language-links.js';
+import { searchPath } from '../../public/search-path.js';
 import { navigationHref } from '../../public/navigation-href.js';
 import { ui } from '../../../i18n/index.js';
 import { runtime } from '../runtime.js';
@@ -56,7 +58,14 @@ export async function chromeModel(
   return {
     chrome: {
       name: site.tenant.name,
-      home: `${base}/`,
+      home: withBase(base, locale === fallback ? '/' : `/${locale}`),
+      search: withBase(base, searchPath(locale, fallback)),
+      languages: languageLinks(
+        site.tenant.locales.map((l) => ({
+          hreflang: l,
+          href: withBase(base, l === fallback ? '/' : `/${l}`),
+        }))
+      ),
       logo: brand.logo.active
         ? {
             src: withBase(base, brandPath('logo', brand.logo.version)),

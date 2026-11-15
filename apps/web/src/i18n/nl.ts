@@ -287,6 +287,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'public.home': 'Naar de homepage',
   'public.skip': 'Ga naar inhoud',
   'public.navigation': 'Hoofdnavigatie',
+  'public.languages': 'Taal',
   'public.menu': 'Menu',
   'public.menu.close': 'Sluiten',
   'public.menu.sublinks': "{label}: onderliggende pagina's",
