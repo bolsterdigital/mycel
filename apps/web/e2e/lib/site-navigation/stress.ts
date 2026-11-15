@@ -108,6 +108,7 @@ export async function exerciseNavigationStress(
       const header = page.locator('.site-header');
       if (isA11y()) await expect(header).toHaveAttribute('data-enhanced', '');
       await layoutGate(page, description, '.site-header');
+      await layoutGate(page, description, '.site-footer');
       if (width === widths[0] && text === '200%')
         await screenshot(page, `${state.name}-${locale}-header`, width);
       const toggle = header.locator('.site-menu-toggle');
@@ -127,25 +128,21 @@ export async function exerciseNavigationStress(
         ).toBe(true);
       const links = panel.locator('.site-tree a, .site-panel-actions a');
       await expect(links).toHaveCount(state.count);
-      await test
-        .info()
-        .attach(`geometry-${state.name}-${locale}-${width}-${text || 'normal'}.json`, {
-          body: JSON.stringify(
-            await page.locator('.site-identity, .site-tree a').evaluateAll((els) =>
-              els
-                .filter((e) => e.checkVisibility())
-                .slice(0, 3)
-                .map((e) => ({
-                  text: e.textContent,
-                  width: e.clientWidth,
-                  scroll: e.scrollWidth,
-                  font: getComputedStyle(e).fontSize,
-                  html: e.outerHTML,
-                }))
-            )
-          ),
-          contentType: 'application/json',
-        });
+      await attachJson(
+        `geometry-${state.name}-${locale}-${width}-${text || 'normal'}.json`,
+        await page.locator('.site-identity, .site-tree a').evaluateAll((els) =>
+          els
+            .filter((e) => e.checkVisibility())
+            .slice(0, 3)
+            .map((e) => ({
+              text: e.textContent,
+              width: e.clientWidth,
+              scroll: e.scrollWidth,
+              font: getComputedStyle(e).fontSize,
+              html: e.outerHTML,
+            }))
+        )
+      );
       await layoutGate(page, description, isA11y() ? '.site-dialog' : '.site-header');
       if (width === widths[0] && text === '200%') {
         await expectNoAxeViolations(page, { label: description });
@@ -189,15 +186,15 @@ export async function exerciseNavigationStress(
     expect(failedFonts).toBeGreaterThan(0);
     await page.unroute('**/*.woff2');
   }
-  await test.info().attach(`navigation-${state.name}-${locale}.json`, {
-    body: JSON.stringify({
-      state,
-      locale,
-      widths,
-      browser: page.context().browser()?.version(),
-      project: test.info().project.name,
-    }),
-    contentType: 'application/json',
+  await attachJson(`navigation-${state.name}-${locale}.json`, {
+    state,
+    locale,
+    widths,
+    browser: page.context().browser()?.version(),
+    project: test.info().project.name,
+    fixtureHash: createHash('sha256').update(JSON.stringify(state)).digest('hex'),
+    route: `/${slug}/${locale === 'en' ? 'en/' : ''}home`,
+    reducedMotion: 'reduce',
   });
 }
 
@@ -214,4 +211,10 @@ async function screenshot(page: Page, name: string, width: number) {
       await cdp.detach();
     }
   }
+}
+
+async function attachJson(name: string, value: unknown) {
+  const path = test.info().outputPath(name);
+  await writeFile(path, JSON.stringify(value, null, 2));
+  await test.info().attach(name, { path, contentType: 'application/json' });
 }
