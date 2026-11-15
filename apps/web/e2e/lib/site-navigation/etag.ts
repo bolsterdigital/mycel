@@ -5,6 +5,7 @@
 // conditional origin requests prove revalidation, and response headers state the cache window.
 // This is not a deployed shared-cache or purge test.
 import { randomBytes } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
 import { expect, type APIRequestContext, type TestInfo } from '@playwright/test';
 import { systemPrincipal, useCases } from '@mycel/core';
 import { testTenant } from '@mycel/db/testing';
@@ -149,8 +150,13 @@ export async function exerciseNavigationEtag(request: APIRequestContext, info: T
     );
     expect(unchanged).toEqual(navigation);
   } finally {
+    const path = info.outputPath('navigation-origin-validators.json');
+    await writeFile(
+      path,
+      JSON.stringify({ project: info.project.name, navSlug, observations }, null, 2)
+    );
     await info.attach('navigation-origin-validators', {
-      body: JSON.stringify({ project: info.project.name, navSlug, observations }, null, 2),
+      path,
       contentType: 'application/json',
     });
   }
