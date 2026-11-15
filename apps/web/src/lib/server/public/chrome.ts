@@ -9,11 +9,10 @@
 //
 // The menus come from the published navigation document (ADR 036, migration 0057), resolved in one
 // locale with no implicit fallback (rule 10): a link without a label in this locale is not there.
-// Until step D renders the bar and the panel, the header shows the bar's links (a group or a
-// link's sublinks wait for the panel) and the footer the links of each column.
+// They keep their two levels here; which top-level links the measured bar shows is step D2's.
 import { anonymousPrincipal, entitled } from '@mycel/core';
 import { withBase } from '../../blocks/rich-text.js';
-import type { ChromeLink, ChromeModel } from '../../components/chrome.js';
+import type { ChromeLink, ChromeModel, ChromeNode } from '../../components/chrome.js';
 import { navigationHref } from '../../public/navigation-href.js';
 import { ui } from '../../../i18n/index.js';
 import { runtime } from '../runtime.js';
@@ -46,10 +45,12 @@ export async function chromeModel(
       ),
     href: withBase(base, navigationHref(l.target, locale, fallback)),
   });
-  // A column lists every link of its menu, sublinks after their parent; a group adds its links.
-  const links = (nodes: ResolvedNode[]): ChromeLink[] =>
-    nodes.flatMap((n) => [...(n.kind === 'link' ? [link(n)] : []), ...n.children.map(link)]);
-  const bar = new Set(navigation.main?.bar ?? []);
+  const tree = (nodes: ResolvedNode[]): ChromeNode[] =>
+    nodes.map((n) =>
+      n.kind === 'link'
+        ? { kind: 'link', ...link(n), children: n.children.map(link) }
+        : { kind: 'group', label: n.label, children: n.children.map(link) }
+    );
   return {
     chrome: {
       name: site.tenant.name,
@@ -62,13 +63,11 @@ export async function chromeModel(
           }
         : null,
       wordmark: brand.font.active,
-      navigation: (navigation.main?.nodes ?? []).flatMap((n) =>
-        n.kind === 'link' && bar.has(n.id) ? [link(n)] : []
-      ),
+      main: tree(navigation.main?.nodes ?? []),
       actions: navigation.actions.map(link),
       footer: chrome.footer[locale] ?? chrome.footer[fallback] ?? '',
-      columns: navigation.footer.map((c) => ({ title: c.title, links: links(c.nodes) })),
-      legal: links(navigation.legal?.nodes ?? []),
+      columns: navigation.footer.map((c) => ({ title: c.title, nodes: tree(c.nodes) })),
+      legal: tree(navigation.legal?.nodes ?? []),
     },
     credit: entitled(anonymousPrincipal(siteTenant(site), []), 'remove_branding')
       ? null

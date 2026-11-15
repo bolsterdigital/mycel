@@ -2,11 +2,14 @@
   import '#lib/theme/base.css';
   import SiteFooter from '#lib/components/SiteFooter.svelte';
   import SiteHeader from '#lib/components/SiteHeader.svelte';
+  import { page } from '$app/state';
   import { ui } from '../../i18n/index.js';
   import type { LayoutProps } from './$types';
 
   let { children, data }: LayoutProps = $props();
   const t = $derived(ui(data.locale));
+  // The menus mark the page they lead to (`aria-current`), and open its branch in the panel.
+  const current = $derived(page.url.pathname);
 </script>
 
 <svelte:head>
@@ -36,7 +39,12 @@
 
 {#if data.chrome}
   <a class="public-skip" href="#public-main">{t('public.skip')}</a>
-  <SiteHeader chrome={data.chrome} locale={data.locale} />
+  <SiteHeader chrome={data.chrome} locale={data.locale} {current} />
 {/if}
 <div id="public-main">{@render children()}</div>
-{#if data.chrome}<SiteFooter chrome={data.chrome} credit={data.credit} locale={data.locale} />{/if}
+{#if data.chrome}<SiteFooter
+    chrome={data.chrome}
+    credit={data.credit}
+    locale={data.locale}
+    {current}
+  />{/if}

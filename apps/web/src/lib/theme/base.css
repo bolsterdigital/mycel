@@ -17,6 +17,7 @@
 @import './action-row.css' layer(components);
 @import './hero.css' layer(components);
 @import './campaign-card.css' layer(components);
+@import './site-chrome.css' layer(components);
 
 /* A content column measured in the page's own `ch`, inherited as a length, so a heading with a
    larger font has the same column as the text under it. */
@@ -527,7 +528,7 @@
   /* Public buttons and FAQ bars share one checked sRGB path. Only pointer/keyboard/open
      progress animates; theme changes and initial stylesheet application set their pairs at once.
      Without registered-property animation support the feedback changes immediately. */
-  .page:not(.admin) .button,
+  :is(.page:not(.admin), .site-header) .button,
   .faq-accordion summary {
     --action-progress: 0;
     --action-base-fg: var(--color-primary-fg);
@@ -548,17 +549,17 @@
     );
     transition: --action-progress 150ms ease-out;
   }
-  .page:not(.admin) .button.secondary {
+  :is(.page:not(.admin), .site-header) .button.secondary {
     --action-base-fg: var(--color-body-fg);
     --action-base-bg: var(--color-body-bg);
     --action-fg: var(--color-body-active-fg);
     --action-bg: var(--color-body-active-bg);
   }
-  .page:not(.admin) .button:is(:hover, :focus-visible) {
+  :is(.page:not(.admin), .site-header) .button:is(:hover, :focus-visible) {
     --action-progress: 1;
     text-decoration: none;
   }
-  .page:not(.admin) .button:focus-visible {
+  :is(.page:not(.admin), .site-header) .button:focus-visible {
     outline-color: currentColor;
     outline-offset: -0.25rem;
   }
@@ -891,64 +892,5 @@
   }
   .public-skip:focus {
     inset-block-start: 0;
-  }
-  /* The site header and footer are full-width bands on the wide rail (docs/architecture/
-     content-layout.md § Site chrome): logo and navigation start and end where a wide block does.
-     The header is one row while the logo and the whole navigation fit, else the navigation moves
-     under the logo as a whole, aligned at the start: `space-between` places a lone item on a line
-     at the start. Rejected: a breakpoint, which a long label or 200% text overruns. Measuring
-     what fits in a script belongs to an enhanced bar on top of this baseline. */
-  .site-header,
-  .site-footer {
-    padding: var(--space-2) var(--wide-inset);
-    border-block: 1px solid var(--color-surface-bg);
-  }
-  .site-header {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--space-1) var(--space-3);
-  }
-  .site-header nav,
-  .site-footer nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-3);
-  }
-  .site-identity {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    min-height: var(--tap);
-    max-width: 100%;
-    font-weight: 700;
-  }
-  .site-identity img {
-    display: block;
-    max-width: min(12rem, 45vw);
-    max-height: 4rem;
-    width: auto;
-    height: auto;
-  }
-  .site-header a,
-  .site-footer a {
-    display: inline-flex;
-    align-items: center;
-    min-height: var(--tap);
-  }
-  .site-footer p {
-    margin-block: 0 var(--space-1);
-  }
-  /* Until the navigation panel lays out columns and buttons (ADR 036 rule 12): a column title
-     starts its own line in the footer's link row, and the first call to action reads as the
-     primary one. */
-  .site-footer-title {
-    flex-basis: 100%;
-    margin: var(--space-1) 0 0;
-    font-size: 1em;
-  }
-  .site-action-primary {
-    font-weight: 700;
   }
 }

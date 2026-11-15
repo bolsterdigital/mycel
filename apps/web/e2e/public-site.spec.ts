@@ -22,12 +22,11 @@ import {
   systemPrincipal,
   useCases,
 } from '@mycel/core';
-import { testTenant } from '@mycel/db/testing';
 import { type APIRequestContext, type Page, chromium, expect, test } from '@playwright/test';
 import sharp from 'sharp';
 import { expectNoAxeViolations } from './lib/axe';
 import { editorReady, postDraftPreview } from './lib/editor';
-import { asOwner, tenantId, withInvoker } from './lib/invoker';
+import { tenantId, withInvoker } from './lib/invoker';
 import {
   NARROW,
   TEXT_SIZES,
@@ -50,7 +49,8 @@ import { login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
 import { exerciseNavigationEtag } from './lib/site-navigation/etag';
-import { CHROME_FIXTURE_MENUS, publishMenus } from './lib/site-navigation/seed';
+import { exerciseChromeMenus } from './lib/site-navigation/visitor';
+import { WALK, seedSiteSettings } from './lib/site-navigation/settings-fixture';
 import { CAPTION_MONO, themeCss } from '../src/lib/theme/tokens';
 
 const WIDE = { width: 1280, height: 900 };
@@ -1572,24 +1572,7 @@ test.describe('site-settings', () => {
   let singleTenantId = '';
   let homeItemId = '';
   let actiesItemId = '';
-  const WALK = {
-    light: [
-      { foreground: '#ffffff', background: '#d32f2f' },
-      { foreground: '#ffffff', background: '#2e7d32' },
-    ],
-    dark: [
-      { foreground: '#ffffff', background: '#2e7d32' },
-      { foreground: '#ffffff', background: '#c62828' },
-    ],
-  };
   const { light, dark } = THEME_PRESETS.editorial.palettes;
-  const ACCENTED = {
-    ...THEME_PRESETS.editorial,
-    palettes: {
-      light: { ...light, cardAccents: WALK.light },
-      dark: { ...dark, cardAccents: WALK.dark },
-    },
-  };
   const rgb = (hex: string) =>
     `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
   // A button's colour goes through `color-mix`, which Chromium reports as `color(srgb r g b)`.
@@ -1621,142 +1604,20 @@ test.describe('site-settings', () => {
     viewport: { width: 320, height: 720 },
   });
   test.beforeAll(async () => {
-    const [tenant, singleTenant] = await asOwner(async (owner) => [
-      await testTenant(owner, slug, {
-        name: 'Chrome fixture',
-        locales: ['nl', 'en', 'de'],
-        platformDomain: process.env['PLATFORM_DOMAIN']!,
-      }),
-      await testTenant(owner, singleSlug, {
-        name: 'Single-locale fixture',
-        platformDomain: process.env['PLATFORM_DOMAIN']!,
-      }),
-    ]);
-    tenantId = tenant.id;
-    singleTenantId = singleTenant.id;
-    await withInvoker(async (invoker) => {
-      const principal = systemPrincipal(tenant.id, 'e2e');
-      await invoker.run(useCases.inviteMember, principal, {
-        email: `site-editor-${slug}@probe.test`,
-        capabilities: ['content:write', 'content:read', 'media:read', 'media:write'],
-      });
-      await invoker.run(useCases.inviteMember, systemPrincipal(singleTenant.id, 'e2e'), {
-        email: `site-editor-${singleSlug}@probe.test`,
-        capabilities: ['content:write', 'content:read'],
-      });
-      const { item, revision } = await invoker.run(useCases.createItem, principal, {
-        slug: 'home',
-        document: {
-          type: 'page',
-          defaultLocale: 'nl',
-          locales: ['nl', 'en'],
-          title: { nl: 'Welkom', en: 'Welcome' },
-          blocks: [],
-        },
-      });
-      homeItemId = item.id;
-      for (const locale of ['nl', 'en'])
-        await invoker.run(useCases.publishItem, principal, {
-          itemId: item.id,
-          revisionId: revision.id,
-          locale,
-        });
-      await invoker.run(useCases.updateSiteTheme, principal, {
-        baseVersion: 0,
-        theme: ACCENTED,
-      });
-      // An action row of four filled cards walks the theme's two accents per mode.
-      const row = await invoker.run(useCases.createItem, principal, {
-        slug: 'acties',
-        document: {
-          type: 'page',
-          defaultLocale: 'nl',
-          locales: ['nl'],
-          title: { nl: 'Acties' },
-          blocks: [
-            {
-              id: 'row',
-              type: 'cards',
-              version: 1,
-              props: {
-                accent: 'filled',
-                width: 'wide',
-                cards: ['Een', 'Twee', 'Drie', 'Vier'].map((nl) => ({
-                  title: { nl },
-                  actions: [
-                    {
-                      label: { nl: `Naar ${nl}` },
-                      target: { kind: 'url' as const, url: 'https://example.org/' },
-                    },
-                  ],
-                })),
-              },
-            },
-          ],
-        },
-      });
-      actiesItemId = row.item.id;
-      await invoker.run(useCases.publishItem, principal, {
-        itemId: row.item.id,
-        revisionId: row.revision.id,
-        locale: 'nl',
-      });
-      await invoker.run(useCases.updateSiteChrome, principal, {
-        baseVersion: 0,
-        chrome: {
-          footer: {
-            nl: 'Een onafhankelijke site',
-            en: 'An independent site',
-            de: 'Eine unabhängige Website',
-          },
-        },
-      });
-      await publishMenus(invoker, principal, CHROME_FIXTURE_MENUS, ['nl', 'en', 'de']);
-      const single = systemPrincipal(singleTenant.id, 'e2e');
-      await invoker.run(useCases.updateSiteChrome, single, {
-        baseVersion: 0,
-        chrome: { footer: { nl: 'Een taal' } },
-      });
-      await publishMenus(invoker, single, { main: [{ href: '/home', label: { nl: 'Welkom' } }] }, [
-        'nl',
-      ]);
-    });
+    ({ tenantId, singleTenantId, homeItemId, actiesItemId } = await seedSiteSettings(
+      slug,
+      singleSlug
+    ));
   });
-  for (const locale of ['nl', 'en'])
+  for (const locale of ['nl', 'en'] as const)
     test(`${locale} navigation, footer and theme at narrow/large text`, async ({ page }) => {
       await page.goto(`/${slug}${locale === 'en' ? '/en' : ''}/home`);
       await expect(page.getByRole('heading', { level: 1 })).toHaveText(
         locale === 'nl' ? 'Welkom' : 'Welcome'
       );
-      await expect(
-        page
-          .getByRole('navigation', { name: locale === 'nl' ? 'Hoofdnavigatie' : 'Main navigation' })
-          .getByRole('link')
-          .first()
-      ).toHaveText(locale === 'nl' ? 'Welkom' : 'Home');
+      await exerciseChromeMenus(page, locale);
       await expect(page.getByRole('contentinfo')).toContainText(
         locale === 'nl' ? 'Een onafhankelijke site' : 'An independent site'
-      );
-      // The call to action after the bar's links; the footer column with its title and then the
-      // legal menu.
-      await expect(
-        page
-          .getByRole('navigation', { name: locale === 'nl' ? 'Hoofdnavigatie' : 'Main navigation' })
-          .getByRole('link')
-      ).toHaveText(
-        locale === 'nl' ? ['Welkom', 'English', 'Doneer nu'] : ['Home', 'English', 'Donate now']
-      );
-      await expect(page.getByRole('contentinfo').getByRole('heading', { level: 2 })).toHaveText(
-        'Contact'
-      );
-      await expect(
-        page
-          .getByRole('navigation', { name: locale === 'nl' ? 'Voettekst' : 'Footer' })
-          .getByRole('link')
-      ).toHaveText(
-        locale === 'nl'
-          ? ['Hulp', 'Vraag', 'Privacyverklaring']
-          : ['Support', 'Help', 'Privacy policy']
       );
       await expect(themeLink(page)).toHaveCount(1);
       // Browser colours from the palettes; without a logo an empty icon.
