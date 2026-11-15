@@ -109,8 +109,11 @@ export async function exercisePublicSearch(page: Page) {
     'maxlength',
     '200'
   );
-  await page.getByLabel('Zoek op deze site').fill(`  ${word}  `);
-  await page.getByRole('button', { name: 'Zoeken' }).click();
+  await page
+    .locator('main')
+    .getByRole('searchbox', { name: 'Zoek op deze site' })
+    .fill(`  ${word}  `);
+  await page.locator('main').getByRole('button', { name: 'Zoeken' }).click();
   await expect(page).toHaveURL(new RegExp(`/probe/search\\?q=\\+*${word}`));
 
   // (b) Results: the title hit first, the body hit with its match marked; nothing else.

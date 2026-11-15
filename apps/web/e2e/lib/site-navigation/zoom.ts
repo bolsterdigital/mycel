@@ -1,5 +1,6 @@
 // Extends the existing real-browser-zoom proof, using its extension and persistent context.
 // Rejected: CSS zoom or pageScaleFactor, which do not prove a quarter-size CSS viewport.
+import { writeFile } from 'node:fs/promises';
 import { expect, test, type Page, type Worker } from '@playwright/test';
 import { layoutGate } from '../layout';
 import { expectNoAxeViolations } from '../axe';
@@ -46,8 +47,24 @@ export async function exerciseZoomedNavigation(
     });
     await layoutGate(page, `panel ${locale} at real 400% zoom`, '.site-dialog');
     await expectNoAxeViolations(page, { label: `navigation ${locale} at real 400% zoom` });
-    await page.screenshot({
-      path: test.info().outputPath(`navigation-browser-zoom-400-${locale}.png`),
+    // Playwright’s CSS-sized viewport screenshot crops Chromium’s zoomed surface. CDP without
+    // a CSS clip captures the whole physical viewport; retain the geometry alongside it.
+    const cdp = await page.context().newCDPSession(page);
+    const screenshot = await cdp.send('Page.captureScreenshot', { captureBeyondViewport: false });
+    await writeFile(
+      test.info().outputPath(`navigation-browser-zoom-400-${locale}.png`),
+      Buffer.from(screenshot.data, 'base64')
+    );
+    await cdp.detach();
+    await test.info().attach(`navigation-zoom-400-${locale}.json`, {
+      body: JSON.stringify(
+        await page.evaluate(() => ({
+          viewport: innerWidth,
+          height: innerHeight,
+          ratio: devicePixelRatio,
+        }))
+      ),
+      contentType: 'application/json',
     });
     await page.keyboard.press('Escape');
     await expect(menu).toBeFocused();
