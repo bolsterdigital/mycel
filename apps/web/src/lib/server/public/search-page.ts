@@ -26,6 +26,7 @@ import {
   MAX_SEARCH_QUERY,
   useCases,
 } from '@mycel/core';
+import { languageLinks } from '../../public/language-links.js';
 import { searchPath } from '../../public/search-path.js';
 import { refuse } from '../http/refuse.js';
 import { runtime } from '../runtime.js';
@@ -72,6 +73,12 @@ export async function loadSearchPage(site: Site, locale: string, url: URL) {
     `${action}?${new URLSearchParams({ q, ...(n > 1 ? { page: String(n) } : {}) })}`;
   const absolute = await siteUrls(site);
   const view = {
+    navigationLanguages: languageLinks(
+      site.tenant.locales.map((l) => ({
+        hreflang: l,
+        href: `${sitePath(site, searchPath(l, defaultLocale))}${q ? `?${new URLSearchParams({ q })}` : ''}`,
+      }))
+    ),
     q,
     page,
     start: (page - 1) * SEARCH_PAGE_SIZE + 1,

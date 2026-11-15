@@ -101,6 +101,9 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
       // The site chrome (ADR 036 rule 12, 44 px targets): Menu, the menu's links and groups.
       '.site-identity',
       '.site-menu-toggle',
+      '.site-search-link',
+      '.site-languages summary',
+      '.site-language-links a',
       '.site-tree a',
       '.site-group > summary',
       '.site-bar a',
@@ -131,12 +134,14 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
         // "Dashboar|d" at 320 CSS px and 200% text passed (#66 PR 2).
         if (
           !b.matches(
-            'button, .ui-button, .ui-block-card-action, .ui-navgroup a, .ui-navgroup summary, .site-menu-toggle, .site-bar a'
+            'button, .ui-button, .ui-block-card-action, .ui-navgroup a, .ui-navgroup summary, .site-menu-toggle, .site-dialog-close, .site-bar a'
           )
         )
           continue;
         if (
-          !b.matches('.ui-navgroup a, .ui-navgroup summary, .site-menu-toggle, .site-bar a') &&
+          !b.matches(
+            '.ui-navgroup a, .ui-navgroup summary, .site-menu-toggle, .site-dialog-close, .site-bar a'
+          ) &&
           getComputedStyle(b).hyphens === 'auto'
         )
           continue;

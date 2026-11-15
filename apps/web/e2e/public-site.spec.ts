@@ -56,6 +56,7 @@ import {
 } from './lib/site-navigation/anchors';
 import { exerciseNavigationEtag } from './lib/site-navigation/etag';
 import { exerciseChromeMenus, exerciseEnhancedBar } from './lib/site-navigation/visitor';
+import { exerciseZoomedNavigation } from './lib/site-navigation/zoom';
 import { WALK, seedSiteSettings } from './lib/site-navigation/settings-fixture';
 import { CAPTION_MONO, themeCss } from '../src/lib/theme/tokens';
 
@@ -193,7 +194,7 @@ test.describe('blocks', () => {
       page,
     }) => {
       await open(page, '/probe/campagne');
-      const details = page.locator('details').first();
+      const details = page.locator('.faq details').first();
       await expect(details).not.toHaveAttribute('open', '');
       await details.locator('summary').click();
       await expect(details).toHaveAttribute('open', '');
@@ -1235,7 +1236,7 @@ test.describe('grid-compositions', () => {
           expect(measured.prose!.width).toBeLessThanOrEqual(740);
         }
         const chrome = await chromeRails(page);
-        expectChromeOnWideRail(chrome, true);
+        expectChromeOnWideRail(chrome, width > 320 || undefined);
         expectChromeTransitions(chrome);
       });
 
@@ -1498,7 +1499,7 @@ test.describe('grid-compositions', () => {
       expect(faq.scroll).toBeLessThanOrEqual(faq.viewport + 1);
       expect(faq.section).toBe(faq.viewport);
       expect(faq.answer).toBeLessThanOrEqual(faq.section);
-      await page.locator('summary').focus();
+      await page.locator('.faq summary').focus();
       await page.keyboard.press('Enter');
       await expect(page.locator('.faq details')).toHaveAttribute('open', '');
       await page.screenshot({
@@ -1545,6 +1546,7 @@ test.describe('grid-compositions', () => {
       await page.screenshot({ path: test.info().outputPath('publication-browser-zoom-200.png') });
       await closePublication(page);
       await expect(page.locator('a[href="#publication-panel"]')).toBeFocused();
+      await exerciseZoomedNavigation(page, worker, before);
     } finally {
       await context?.close();
       await rm(directory, { recursive: true, force: true });
@@ -1653,9 +1655,10 @@ test.describe('site-settings', () => {
         document.documentElement.style.fontSize = '';
         document.documentElement.style.zoom = '2';
         return (
-          [...document.querySelectorAll('.site-header a, .site-footer a')].every(
-            (node) => node.getBoundingClientRect().right <= innerWidth
-          ) && document.documentElement.scrollWidth <= innerWidth
+          [...document.querySelectorAll('.site-header a, .site-footer a')]
+            .filter((node) => node.checkVisibility())
+            .every((node) => node.getBoundingClientRect().right <= innerWidth) &&
+          document.documentElement.scrollWidth <= innerWidth
         );
       });
       expect(zoomed).toBe(true);
@@ -1668,7 +1671,7 @@ test.describe('site-settings', () => {
     onlyA11y('the bar is measured by the enhancement script');
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/${slug}/home`);
-    await exerciseEnhancedBar(page);
+    await exerciseEnhancedBar(page, tenantId);
   });
 
   // Header, body and footer share the wide rail; a page that is only a title and one that ends

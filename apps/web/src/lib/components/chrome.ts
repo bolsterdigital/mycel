@@ -20,9 +20,16 @@ export interface ChromeColumn {
   nodes: ChromeNode[];
 }
 
+/** A published page translation, or a locale’s home on routes without translations. */
+export interface ChromeLanguage extends ChromeLink {
+  locale: string;
+}
+
 export interface ChromeModel {
   name: string;
   home: string;
+  search: string;
+  languages: ChromeLanguage[];
   logo: { src: string; width: number; height: number } | null;
   wordmark: boolean;
   /** The whole main menu, which the panel shows (ADR 036 rule 4). */

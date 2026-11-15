@@ -332,8 +332,8 @@
 }
 
 /* The panel as a modal dialog from the inline end: the whole height, scrolling inside, the page
-   behind it inert and still. Its close button stands where Menu stood (the script passes Menu's
-   position), so the cross does not jump from one place to another. */
+   behind it inert and still. The close button stays near the top even when the header’s tools
+   wrap: using the opener’s unbounded position would push search below the viewport. */
 .site-dialog {
   --site-dialog-from: 100%;
   position: fixed;
@@ -403,14 +403,18 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding-block-start: var(--site-opener-top, var(--space-2));
-  padding-inline: var(--gutter) min(max(var(--gutter), var(--site-opener-end, 0px)), 50%);
+  flex-wrap: wrap;
+  padding-block-start: min(var(--site-opener-top, var(--space-2)), var(--space-2));
+  padding-inline: var(--gutter);
 }
 .site-dialog-title {
   margin: 0;
   font-size: var(--step-1);
 }
 .site-dialog-close {
+  flex-shrink: 0;
+  white-space: nowrap;
+  hyphens: none;
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
@@ -446,4 +450,45 @@
     opacity: 0;
     translate: 0 -4px;
   }
+}
+
+/* The search and language entrances are reserved tools, never auto-fit candidates. Native
+   disclosure keeps all locale links reachable without JS; whole controls wrap on small rails. */
+.site-languages {
+  position: relative;
+}
+.site-languages > summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding-inline: var(--space-1);
+  cursor: pointer;
+}
+.site-language-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+}
+.site-languages:not([open]) > .site-language-links {
+  display: none;
+}
+.site-languages[open] > .site-language-links {
+  position: absolute;
+  z-index: 5;
+  inset-inline-end: 0;
+  min-inline-size: min(12rem, 80vw);
+  padding: var(--space-1);
+  border: 1px solid currentColor;
+  border-radius: var(--radius);
+  background: var(--color-body-bg);
+}
+.site-panel > search,
+.site-panel > .site-language-links {
+  margin-block-end: var(--space-2);
+}
+.site-language-links a {
+  padding-inline: var(--space-1);
+}
+.site-language-links [aria-current] {
+  font-weight: 700;
 }

@@ -1,5 +1,6 @@
 // The registry owns visibility and the safe locale projection. This adapter only resolves public
 // image variants and URLs; rejected: reading editorial Person records into Svelte page data.
+import { languageLinks } from '../../public/language-links.js';
 import { createHash } from 'node:crypto';
 import { anonymousPrincipal, contentPath, UseCaseError, useCases } from '@mycel/core';
 import { runtimeSource, resolveIntro } from '../../blocks/resolve.js';
@@ -53,6 +54,13 @@ export async function loadPersonPage(site: Site, slug: string, locale: string, o
   const canonical = absolute(path);
   const share = ogLocales(locale, site.tenant.locales);
   const view = {
+    // A language change starts at that profile’s first page; offsets need not exist there.
+    navigationLanguages: languageLinks(
+      site.tenant.locales.map((l) => ({
+        hreflang: l,
+        href: sitePath(site, personPath(slug, l, site.tenant.defaultLocale)),
+      }))
+    ),
     person: result.person,
     portrait,
     articles,

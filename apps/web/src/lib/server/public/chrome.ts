@@ -14,6 +14,8 @@
 import { anonymousPrincipal, entitled } from '@mycel/core';
 import { withBase } from '../../blocks/rich-text.js';
 import type { ChromeLink, ChromeModel, ChromeNode } from '../../components/chrome.js';
+import { languageLinks } from '../../public/language-links.js';
+import { searchPath } from '../../public/search-path.js';
 import { navigationHref } from '../../public/navigation-href.js';
 import { ui } from '../../../i18n/index.js';
 import { runtime } from '../runtime.js';
@@ -27,7 +29,8 @@ type ResolvedNode = NonNullable<SiteNavigation['main']>['nodes'][number];
 export async function chromeModel(
   site: Site,
   locale: string,
-  base: string
+  base: string,
+  locales: readonly string[] = site.tenant.locales
 ): Promise<{ chrome: ChromeModel; credit: ChromeLink | null }> {
   const [chrome, brand, navigation] = await Promise.all([
     siteChrome(site),
@@ -56,7 +59,14 @@ export async function chromeModel(
   return {
     chrome: {
       name: site.tenant.name,
-      home: `${base}/`,
+      home: withBase(base, locale === fallback ? '/' : `/${locale}`),
+      search: withBase(base, searchPath(locale, fallback)),
+      languages: languageLinks(
+        locales.map((l) => ({
+          hreflang: l,
+          href: withBase(base, l === fallback ? '/' : `/${l}`),
+        }))
+      ),
       logo: brand.logo.active
         ? {
             src: withBase(base, brandPath('logo', brand.logo.version)),
