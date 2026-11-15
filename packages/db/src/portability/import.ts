@@ -33,7 +33,7 @@ import {
 } from '@mycel/core';
 import { rebuildSearchIndex } from '../content/search.js';
 import { uuidv7 } from '../infra/ids.js';
-import { erasedOperatorIds } from '../operator-erasure.js';
+import { erasedOperatorIds } from '../operators/erasure.js';
 import { createTenantIn, getTenant, getTenantBySlug, type PlatformActor } from '../platform.js';
 import type { Database } from '../infra/schema.js';
 import { enterTenant, setRole } from '../infra/roles.js';

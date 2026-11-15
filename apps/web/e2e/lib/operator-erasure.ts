@@ -1,19 +1,17 @@
-// A live session of an erased operator (ADR 035 rule 3): the cookie is signed and stateless, so
-// it still verifies after the installation erased the account; the admin reads the account on
-// every request, treats a missing one as no session, and clears the cookie, so the address and
-// name it carries are never shown again. The erasure itself is covered over Postgres in
-// packages/db/src/operator-erasure.conformance.test.ts; this proves the hook in the running app.
-// Rejected: a unit test of the hook with a stubbed runtime (it would not prove the cookie path
-// and the redirect that the browser sees).
+// A live session of an erased operator (ADR 035 rule 3), run by admin.spec.ts: the signed cookie
+// still verifies after the installation erased the account, so the admin reads the account on
+// every request, treats a missing one as no session and clears the cookie; the address it carries
+// is never shown again. The erasure itself: packages/db/src/operators/erasure.conformance.test.ts.
+// Here, apart from the spec, because admin.spec.ts is at its size limit.
 
-import { expect, test } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { eraseOperator } from '@mycel/db';
 import { systemPrincipal, useCases } from '@mycel/core';
 import { FakeInputHasher } from '@mycel/core/testing';
-import { asOwner, tenantId, withInvoker } from './lib/invoker.js';
-import { login } from './lib/login.js';
+import { asOwner, tenantId, withInvoker } from './invoker';
+import { login } from './login';
 
-test('an erased operator loses the session on the next admin request', async ({ page }) => {
+export async function erasedSession(page: Page) {
   const probe = await tenantId();
   const email = `erased-${Math.random().toString(36).slice(2, 8)}@probe.test`;
   const { operatorId } = await withInvoker((invoker) =>
@@ -35,4 +33,4 @@ test('an erased operator loses the session on the next admin request', async ({ 
   await expect(page).toHaveURL(/\/admin\/login/);
   await expect(page.locator('body')).not.toContainText(email);
   expect((await page.context().cookies()).map((c) => c.name)).not.toContain('mycel_session');
-});
+}

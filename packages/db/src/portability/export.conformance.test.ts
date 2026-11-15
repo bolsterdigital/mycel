@@ -721,7 +721,7 @@ describe.skipIf(skip)('tenant export and import', () => {
         );
         expect(revisions).toContain('INTERNAL-EXPORT-NAME');
         expect(revisions).toContain('Internal export name');
-        // Memberships name the new pending operator here (operator-erasure.conformance.test.ts).
+        // Memberships name the new pending operator here (operators/erasure.conformance.test.ts).
         for (const table of EXPORT_ORDER)
           if (!['tenant_hostnames', 'audit_log', 'tenant_memberships'].includes(table))
             expect(again.tables[table]!.sha256, table).toBe(manifestA.tables[table]!.sha256);

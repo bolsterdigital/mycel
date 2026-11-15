@@ -45,3 +45,6 @@ export async function login(
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(new RegExp(`${escape(path)}$`));
 }
+
+// An erased operator's session ends on the next admin request (ADR 035 rule 3; operator-erasure.ts).
+export { erasedSession as erased } from './operator-erasure';

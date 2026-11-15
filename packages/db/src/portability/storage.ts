@@ -31,7 +31,7 @@ export type Subject = 'supporter' | 'person' | 'operator' | 'visitor' | 'anyone'
 /**
  * What ends a copy. `apply`: the erasure register's apply (`packages/db/src/erasures.ts`).
  * `use-case`: an ordinary use case the tenant runs. `platform`: an operation of the installation
- * (`packages/db/src/operator-erasure.ts`), named by its audit operation. `expires`: the retention of the entry removes
+ * (`packages/db/src/operators/erasure.ts`), named by its audit operation. `expires`: the retention of the entry removes
  * the row within its term, which is the accepted route for a short-lived copy. `planned`: no route
  * yet; `open` names the work in `OPEN_WORK` that owes it. `excluded`: kept on purpose, for `reason`.
  */

@@ -16,7 +16,7 @@ import { test } from './lib/evidence/page';
 import { expectNoAxeViolations } from './lib/axe';
 import { asOwner, finishJobs, stuckJob, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
-import { ADMIN, login } from './lib/login';
+import { ADMIN, erased, login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { editorReady } from './lib/editor';
 import * as menus from './lib/site-navigation/admin';
@@ -2197,3 +2197,5 @@ test('the menu editor places, previews, publishes and restores', ({ page, reques
   menus.publication(page, request));
 test('a writer saves the navigation but cannot publish it', ({ page, request }) =>
   menus.writer(page, request));
+
+test('erasure ends a session', ({ page }) => erased(page));

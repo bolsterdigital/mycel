@@ -37,11 +37,11 @@ import {
   type AdminRestoreResult,
   type OperatorErasureResult,
 } from '@mycel/core';
-import { recordPlatformAudit } from './audit.js';
-import { uuidv7 } from './infra/ids.js';
-import type { Database } from './infra/schema.js';
-import { advisoryLock, asRole } from './infra/roles.js';
-import type { PlatformActor } from './platform.js';
+import { recordPlatformAudit } from '../audit.js';
+import { uuidv7 } from '../infra/ids.js';
+import type { Database } from '../infra/schema.js';
+import { advisoryLock, asRole } from '../infra/roles.js';
+import type { PlatformActor } from '../platform.js';
 
 type Trx = Kysely<Database>;
 

@@ -1,6 +1,6 @@
 -- 0054: the installation erases an operator account, and repairs a tenant left without an admin
 -- (ADR 035 rules 1 to 3). Migration 0053 took the address out of every stored actor;
--- this migration adds what the two platform operations in packages/db/src/operator-erasure.ts
+-- this migration adds what the two platform operations in packages/db/src/operators/erasure.ts
 -- need, and nothing for any other role.
 --
 -- `operator_erasures` is the installation register of rule 2: one row per erased operator id and

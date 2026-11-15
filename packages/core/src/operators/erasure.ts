@@ -1,7 +1,7 @@
 // What the installation does to an operator account and to a tenant left without an admin (ADR
 // 035 rules 1 to 3). Both are platform operations, not use cases: the account is
 // installation data that may serve several tenants, and no tenant may remove another tenant's
-// member. packages/db/src/operator-erasure.ts runs them as mycel_platform for the platform API and
+// member. packages/db/src/operators/erasure.ts runs them as mycel_platform for the platform API and
 // the `mycel` command line; the rules they share live here, so both fronts refuse and accept the
 // same things.
 //

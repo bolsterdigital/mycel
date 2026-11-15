@@ -50,10 +50,10 @@ import {
   setEntitlements,
   uuidv7,
   uuidv7Ids,
-} from './index.js';
-import { enterTenant, setRole } from './infra/roles.js';
-import type { Database } from './infra/schema.js';
-import { closeTenantWork, migrateSchema, requireDatabase, testTenant } from './testing.js';
+} from '../index.js';
+import { enterTenant, setRole } from '../infra/roles.js';
+import type { Database } from '../infra/schema.js';
+import { closeTenantWork, migrateSchema, requireDatabase, testTenant } from '../testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl, auth: authUrl } = requireDatabase('app', 'auth');
 
