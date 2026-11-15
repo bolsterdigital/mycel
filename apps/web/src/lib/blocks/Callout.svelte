@@ -4,11 +4,15 @@
   import type { RenderBlock, RenderModel } from './model.js';
   import RichText from './RichText.svelte';
 
-  let { block, model }: { block: Extract<RenderBlock, { type: 'callout' }>; model: RenderModel } =
+  let {
+    block,
+    model,
+    anchor,
+  }: { block: Extract<RenderBlock, { type: 'callout' }>; model: RenderModel; anchor?: string } =
     $props();
 </script>
 
-<div class="block callout callout-{block.variant}" role="note">
+<div id={anchor} class="block callout callout-{block.variant}" role="note">
   <p class="callout-label">{model.copy.callout[block.variant]}</p>
   {#if block.title}<svelte:element this={headingTag(BLOCK_DEPTH)}>{block.title}</svelte:element
     >{/if}

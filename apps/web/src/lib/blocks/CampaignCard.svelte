@@ -17,11 +17,14 @@
     model,
     state,
     preview = null,
+    anchor,
   }: {
     block: Extract<RenderBlock, { type: 'campaign-card' }>;
     model: RenderModel;
     state: FormState | null | undefined;
     preview?: string | null;
+    /** The element id a link to this block lands on (`anchor.ts`). */
+    anchor?: string;
   } = $props();
 
   const copy = $derived(model.copy.campaign);
@@ -36,6 +39,7 @@
 {#if block.campaign}
   {@const c = block.campaign}
   <section
+    id={anchor}
     class="block campaign-card campaign-card-{block.variant} width-{block.width}"
     class:campaign-card-closed={c.phase !== 'open'}
     aria-labelledby="{id}-title"

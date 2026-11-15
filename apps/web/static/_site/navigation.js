@@ -4,7 +4,7 @@
 //
 // - Menu opens the same panel content as a modal `dialog` from the inline end: showModal() makes
 //   the page inert and closes on Escape, the focus starts on the close button and goes back to
-//   Menu, the scroll position stays.
+//   Menu, the scroll position stays, and a page with a classic scrollbar does not shift.
 // - The bar shows the second call to action and then the longest prefix of the main menu's bar
 //   links that fits beside the logo and the tools, measured (`fit` below, a pure function). The
 //   order is the menu's; a short later link never jumps in for a long earlier one. A link that
@@ -128,9 +128,20 @@ function enhance(header) {
     header.append(dialog);
 
     close.addEventListener('click', () => dialog.close());
-    // A click on the backdrop lands on the dialog itself; its content fills the box.
-    dialog.addEventListener('click', (event) => event.target === dialog && dialog.close());
-    dialog.addEventListener('close', () => summary.focus());
+    // A click on the backdrop lands on the dialog itself; its content fills the box. A link to a
+    // part of this page (a menu item with an anchor) only scrolls, so the dialog closes before the
+    // jump and the focus goes with the jump, not back to Menu.
+    let jumped = false;
+    dialog.addEventListener('click', (event) => {
+      const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+      jumped =
+        !!link?.hash && link.origin === location.origin && link.pathname === location.pathname;
+      if (jumped || event.target === dialog) dialog.close();
+    });
+    dialog.addEventListener('close', () => {
+      if (!jumped) summary.focus();
+      jumped = false;
+    });
     summary.addEventListener('click', (event) => {
       event.preventDefault();
       closeDropdowns();
@@ -139,6 +150,10 @@ function enhance(header) {
       const end = rtl ? at.left : document.documentElement.clientWidth - at.right;
       dialog.style.setProperty('--site-opener-top', `${Math.max(0, at.top)}px`);
       dialog.style.setProperty('--site-opener-end', `${Math.max(0, end)}px`);
+      // A classic scrollbar takes room the scroll lock would give back to the page, which then
+      // shifts sideways; the CSS keeps that room only when there is one (`site-chrome.css`).
+      const root = document.documentElement;
+      root.toggleAttribute('data-site-gutter', window.innerWidth > root.clientWidth);
       dialog.showModal();
       close.focus();
     });

@@ -1,12 +1,19 @@
 // One item of a menu (brief site-navigation § 3): a link to a page or article, an address, the
 // home page or the search page, with an optional menu text of its own; or a group, which is only
 // a text above its sub-items. `new` adds one at the end of the menu (`?kind=group` for a group);
-// an id edits that node where it stands, sub-items and the other locales' texts kept.
+// an id edits that node where it stands, sub-items and the other locales' texts kept. A link to a
+// page offers the parts of that page's published revision in the content locale as its anchor.
 import { can, useCases } from '@mycel/core';
 import { editMenu, nodeOf, replaceNode } from '#lib/admin/navigation/menu-edit.js';
 import { loaded, text } from '#lib/server/admin/admin-actions.js';
 import { refuse } from '#lib/server/http/refuse.js';
-import { newId, nodeFromForm, saveNavigation, targetItems } from '#lib/server/navigation/admin.js';
+import {
+  anchorChoices,
+  newId,
+  nodeFromForm,
+  saveNavigation,
+  targetItems,
+} from '#lib/server/navigation/admin.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -23,7 +30,8 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
   const node = found?.node ?? null;
   const kind = node?.kind ?? (url.searchParams.get('kind') === 'group' ? 'group' : 'link');
   const target = node?.kind === 'link' ? node.target : null;
-  const [check, items] = await Promise.all([
+  const content = target?.kind === 'content' ? target : null;
+  const [check, items, anchors] = await Promise.all([
     node
       ? loaded(invoker.run(useCases.checkNavigation, principal, { locale: contentLocale })).then(
           ({ nodes }) => nodes.find((n) => n.menuId === menu.id && n.nodeId === node.id) ?? null
@@ -32,6 +40,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     kind === 'link'
       ? targetItems(principal, target?.kind === 'content' ? [target.itemId] : [], contentLocale)
       : [],
+    content ? anchorChoices(principal, content.itemId, contentLocale) : null,
   ]);
   return {
     baseRevisionId: state.revisionId,
@@ -50,7 +59,11 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
               ? 'url'
               : '',
       url: target?.kind === 'url' ? target.href : '',
+      anchor: content?.anchor ?? '',
     },
+    /** The page the anchor choice belongs to, and its parts; null when it has none to offer. */
+    anchorFor: content?.itemId ?? null,
+    anchors,
     /** What the link shows without a text of its own: the target's published title, if any. */
     inherited: check && check.source !== 'own' ? check.label : null,
   };

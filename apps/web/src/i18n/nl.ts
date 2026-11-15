@@ -413,6 +413,16 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Laat leeg om de titel van de pagina te gebruiken: "{title}".',
   'admin.navigation.field.label.groupHint': 'De tekst boven de subitems.',
   'admin.navigation.field.url.hint': 'Begint met / voor een plek op deze site, of met https://.',
+  'admin.navigation.field.anchor': 'Waar op de pagina',
+  'admin.navigation.field.anchor.hint':
+    'De link opent de pagina bij dit deel. Andere pagina gekozen? Sla eerst op en kies dan een deel ervan.',
+  'admin.navigation.anchor.none': 'Bovenaan',
+  'admin.navigation.anchor.option': '{type}: {text}',
+  'admin.navigation.anchor.gone': 'Een deel dat er niet meer is',
+  'admin.navigation.anchor.unpublished':
+    'Zodra de pagina in {locale} gepubliceerd is, kun je kiezen waar op de pagina de link uitkomt.',
+  'admin.navigation.anchor.later':
+    'Na het opslaan van een link naar een pagina kun je kiezen waar op die pagina hij uitkomt.',
   'admin.navigation.group.intro':
     'Een groep is een tekst zonder eigen link. Voeg links toe en maak ze daarna subitem van de groep.',
   'admin.navigation.error.conflict':

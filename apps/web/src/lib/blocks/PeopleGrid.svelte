@@ -9,10 +9,13 @@
     block,
     model,
     eager = false,
+    anchor,
   }: {
     block: Extract<RenderBlock, { type: 'people-grid' }>;
     model: RenderModel;
     eager?: boolean;
+    /** The element id a link to this block lands on (`anchor.ts`). */
+    anchor?: string;
   } = $props();
   const firstImageId = $derived(block.people.find((p) => p.image)?.id);
   const sizes = $derived(
@@ -21,7 +24,7 @@
 </script>
 
 {#if block.people.length}
-  <div class="block width-wide people-grid people-grid-{block.columns}">
+  <div id={anchor} class="block width-wide people-grid people-grid-{block.columns}">
     {#each block.people as person (person.id)}
       <article class="person-card">
         {#if person.image}

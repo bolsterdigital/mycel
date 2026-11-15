@@ -9,7 +9,11 @@
   import { GALLERY_SIZES } from './sizes.js';
   import { LIGHTBOX_SCRIPT, largerImage, lightboxAttributes } from './lightbox.js';
 
-  let { block, model }: { block: Extract<RenderBlock, { type: 'gallery' }>; model: RenderModel } =
+  let {
+    block,
+    model,
+    anchor,
+  }: { block: Extract<RenderBlock, { type: 'gallery' }>; model: RenderModel; anchor?: string } =
     $props();
 
   const sizes = $derived(
@@ -50,6 +54,7 @@
 
 {#if block.images.length}
   <section
+    id={anchor}
     class="block gallery gallery-{block.variant} width-{block.width}"
     {...opens ? lightboxAttributes(model.copy.lightbox) : {}}
   >

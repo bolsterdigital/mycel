@@ -183,6 +183,33 @@ export function navOffline(ids: {
   };
 }
 
+/**
+ * `nav-anchors`: links into one page, to a block that renders and to its paywall, which renders
+ * nothing, so no anchor lands there. `ANCHOR_PAGE` is that page: a heading, the boundary and a text after it.
+ */
+export const ANCHOR_PAGE = {
+  access: { level: 'public', teaser: 'marker' },
+  blocks: [
+    { id: 'kop', type: 'heading', version: 1, props: { text: { nl: 'Kop' } } },
+    { id: 'muur', type: 'paywall', version: 1, props: {} },
+    { id: 'na', type: 'heading', version: 1, props: { text: { nl: 'Daarna' } } },
+  ],
+};
+
+export function navAnchors(itemId: string): NavigationDocument {
+  const link = (id: string, anchor: string) => ({
+    id,
+    kind: 'link' as const,
+    target: { kind: 'content' as const, itemId, anchor },
+  });
+  return {
+    menus: [
+      { id: 'main', name: 'Hoofdmenu', nodes: [link('to-block', 'kop'), link('to-wall', 'muur')] },
+    ],
+    placements: { main: { menuId: 'main', bar: [] }, actions: null, footer: [], legal: null },
+  };
+}
+
 /** `nav-concurrency`: two menus, so saves on one base can touch different or the same menu. */
 export function navConcurrency(): NavigationDocument {
   const link = (id: string, nl: string) => ({

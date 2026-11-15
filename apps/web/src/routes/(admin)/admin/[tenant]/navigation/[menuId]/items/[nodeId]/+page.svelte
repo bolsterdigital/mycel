@@ -1,7 +1,9 @@
 <!-- The form of one menu item. A link: where it leads (the target picker of the edit screen: a
      select of pages and articles, the home and search pages, or an address; with JavaScript one
-     search field) and an optional menu text of its own in the content locale, which when left
-     empty follows the page's published title. A group: only its text. Native controls; the picker
+     search field), for a page where on it the link lands (the parts of its published revision; a
+     plain select that belongs to the saved page, so another page is saved first) and an optional
+     menu text of its own in the content locale, which when left empty follows the page's
+     published title. A group: only its text. Native controls; the picker
      is an enhancement. After a conflict the fields hold what is saved now, and the notice repeats
      what this editor had typed, so a second Save is a choice made with both in view. -->
 <script lang="ts">
@@ -25,7 +27,26 @@
           : 'admin.navigation.addLink'
     )
   );
-  const value = (key: 'label' | 'target' | 'url') => form?.values?.[key] ?? data.values[key];
+  const value = (key: 'label' | 'target' | 'url' | 'anchor') =>
+    form?.values?.[key] ?? data.values[key];
+  // The anchor the link has, when the page no longer has that part: it stays a choice, so a save
+  // of the text alone does not drop it, and the item says where the link now lands.
+  const gone = $derived(
+    !!data.values.anchor && !!data.anchors && !data.anchors.some((a) => a.id === data.values.anchor)
+  );
+  const anchorOptions = $derived([
+    { value: '', label: t('admin.navigation.anchor.none') },
+    ...(gone ? [{ value: data.values.anchor, label: t('admin.navigation.anchor.gone') }] : []),
+    ...(data.anchors ?? []).map((a) => ({
+      value: a.id,
+      label: a.text
+        ? fill(t('admin.navigation.anchor.option'), {
+            type: t(`admin.block.type.${a.type}` as const),
+            text: a.text,
+          })
+        : t(`admin.block.type.${a.type}` as const),
+    })),
+  ]);
   // After a conflict the fields show what is saved now; what this editor typed stands in the notice.
   const yours = $derived(
     [form?.mine?.['label'], form?.mine?.['url']].filter((v) => v?.trim()).join(' · ')
@@ -65,6 +86,7 @@
         >{t(form.error)}
         {#if yours}{fill(t('admin.navigation.error.yours'), { text: yours })}{/if}</Notice
       >{/if}
+    {#if gone}<Notice tone="warning">{t('admin.navigation.problem.anchor-missing')}</Notice>{/if}
   {/snippet}
   <input type="hidden" name="baseRevisionId" value={data.baseRevisionId ?? ''} />
   <input type="hidden" name="kind" value={data.kind} />
@@ -102,6 +124,24 @@
         value={value('url')}
       />
     </TargetPicker>
+    {#if data.anchors}
+      <input type="hidden" name="anchorFor" value={data.anchorFor} />
+      <Select
+        id="item-anchor"
+        name="anchor"
+        label={t('admin.navigation.field.anchor')}
+        hint={t('admin.navigation.field.anchor.hint')}
+        locale={data.locale}
+        value={value('anchor')}
+        options={anchorOptions}
+      />
+    {:else if data.anchorFor}
+      <p class="ui-hint">
+        {fill(t('admin.navigation.anchor.unpublished'), { locale: data.contentLocale })}
+      </p>
+    {:else if !data.nodeId}
+      <p class="ui-hint">{t('admin.navigation.anchor.later')}</p>
+    {/if}
   {/if}
   <Field
     id="item-label"
