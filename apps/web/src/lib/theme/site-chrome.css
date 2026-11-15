@@ -30,6 +30,7 @@
 }
 .site-identity {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
   min-height: var(--tap);
@@ -136,7 +137,10 @@
 .site-tree ul {
   padding-inline-start: var(--space-2);
 }
+/* Menu labels are prose, not displayed URLs: language-aware hyphenation keeps long words
+   inside the panel at enlarged text sizes, as it does in the document body. */
 .site-tree a {
+  hyphens: auto;
   min-width: var(--tap);
 }
 .site-panel .site-tree a {
