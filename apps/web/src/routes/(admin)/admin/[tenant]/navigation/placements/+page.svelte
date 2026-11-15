@@ -36,7 +36,9 @@
           }`
         : `${t(`admin.navigation.placement.${c.place}`)}: ${menuName(c.menuId)}`;
   const yours = $derived(
-    form?.mine ? changedChoices(postedForm(form.mine), data.form).map(said).join('; ') : ''
+    form?.mine && form.base
+      ? changedChoices(postedForm(form.mine), data.form, form.base).map(said).join('; ')
+      : ''
   );
 </script>
 

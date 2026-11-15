@@ -121,6 +121,20 @@ describe('placementsFrom', () => {
 });
 
 describe('changedChoices', () => {
+  it('omits another editor’s changes and choices already saved by both editors', () => {
+    const base = formOf(doc().placements, 'nl');
+    const mine = structuredClone(base);
+    const saved = structuredClone(base);
+    mine.main = 'other';
+    saved.main = '';
+    saved.actions = 'other';
+    saved.footer[0]!.title = 'Their title';
+    saved.legal = 'other';
+    mine.footer[1] = { menuId: 'main', title: 'Shared' };
+    saved.footer[1] = { menuId: 'main', title: 'Shared' };
+    expect(changedChoices(mine, saved, base)).toEqual([{ place: 'main', menuId: 'other' }]);
+  });
+
   it('reads a posted form back as the form it showed', () => {
     const d = doc();
     const shown = formOf(d.placements, 'nl');
@@ -143,12 +157,12 @@ describe('changedChoices', () => {
   it('names only what the refused form chose differently, in the order of the form', () => {
     const saved = formOf(doc().placements, 'nl');
     const mine = structuredClone(saved);
-    expect(changedChoices(mine, saved)).toEqual([]);
+    expect(changedChoices(mine, saved, saved)).toEqual([]);
     mine.bar = ['a', 'b'];
     mine.footer[0]!.title = ' Meer ';
     mine.footer[2] = { menuId: 'main', title: '' };
     mine.legal = 'other';
-    expect(changedChoices(mine, saved)).toEqual([
+    expect(changedChoices(mine, saved, saved)).toEqual([
       { place: 'bar', ids: ['a', 'b'] },
       { place: 'footer', slot: 1, menuId: 'other', title: 'Meer' },
       { place: 'footer', slot: 3, menuId: 'main', title: '' },
@@ -160,7 +174,7 @@ describe('changedChoices', () => {
     const saved = formOf(doc().placements, 'nl');
     const mine = { ...structuredClone(saved), main: 'other', bar: ['x'], actions: '' };
     mine.footer[0] = { menuId: '', title: 'ignored' };
-    expect(changedChoices(mine, saved)).toEqual([
+    expect(changedChoices(mine, saved, saved)).toEqual([
       { place: 'main', menuId: 'other' },
       { place: 'footer', slot: 1, menuId: '', title: '' },
     ]);
