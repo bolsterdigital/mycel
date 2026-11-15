@@ -118,8 +118,11 @@ export async function exerciseNavigationStress(
         await layoutGate(page, description, '.site-footer');
         if (colors === 'active')
           expect(await forcedColorsProblems(page, '.site-header'), description).toEqual([]);
-        if (width === widths[0] && text === '200%')
+        if (width === widths[0] && text === '200%') {
+          // The focus audit may scroll past the logo; capture the complete header again.
+          await header.scrollIntoViewIfNeeded();
           await screenshot(page, `${state.name}-${locale}-${colors}-header`, width);
+        }
         const toggle = header.locator('.site-menu-toggle');
         await toggle.focus();
         await page.keyboard.press('Enter');
