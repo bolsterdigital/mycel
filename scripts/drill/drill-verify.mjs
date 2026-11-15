@@ -96,8 +96,8 @@ async function blobs({ exports = false } = {}) {
   do {
     const page = await s3.send(new ListObjectsV2Command({ Bucket, ContinuationToken }));
     for (const { Key } of page.Contents ?? []) {
-      // An export archive is a copy with its own retention that no snapshot holds (TODO #28; the
-      // drill checks that on the snapshot itself), so a restore cannot and must not give it back.
+      // An export archive is a copy with its own retention that no snapshot holds (the drill
+      // checks that on the snapshot itself), so a restore cannot and must not give it back.
       if (!exports && Key.startsWith(EXPORTS)) continue;
       const object = await s3.send(new GetObjectCommand({ Bucket, Key }));
       out[Key] = sha256(Buffer.from(await object.Body.transformToByteArray()));

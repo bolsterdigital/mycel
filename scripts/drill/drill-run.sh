@@ -64,6 +64,8 @@ step() { echo "== $*"; }
 # `logged <file> <command...>`: run a check, keep its output in <file> and print it, and fail
 # with it. Rejected: `<command> | tee <file>`, whose status is tee's under sh without pipefail; so
 # `compare` and `absent` could not fail the drill, and a lost export archive went unnoticed.
+# stderr goes into <file> too: every check on it is a positive grep, so an extra line cannot fake
+# a pass, and a failing step leaves its reason next to its output.
 logged() {
   logged_file=$1
   shift
