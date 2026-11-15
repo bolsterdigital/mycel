@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expectNoAxeViolations } from './lib/axe';
-import { isA11y, onlyA11y } from './lib/project';
+import { isA11y, onlyA11y, NAVIGATION_SCRIPT } from './lib/project';
 import { callApi, postUseCase } from './lib/api';
 import { pastMinimumFillTime } from './lib/form';
 import { forwarded, login } from './lib/login';
@@ -40,6 +40,7 @@ async function expectFormScripts(page: Page) {
   const expected = [{ src: '/_form/proof.js', type: 'module', inline: '' }];
   if (await page.locator('form[data-conditions]').count())
     expected.push({ src: '/_form/conditions.js', type: 'module', inline: '' });
+  expected.push({ src: NAVIGATION_SCRIPT, type: 'module', inline: '' });
   expect(scripts).toEqual(expected);
 }
 

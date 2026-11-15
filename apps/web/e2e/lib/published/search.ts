@@ -105,7 +105,7 @@ export async function exercisePublicSearch(page: Page) {
   const empty = await page.goto('/probe/search');
   expect(empty?.status()).toBe(200);
   await expect(page.locator('main h1')).toHaveText('Zoeken');
-  await expect(page.locator('search form[method="get"] input[type="search"]')).toHaveAttribute(
+  await expect(page.locator('main search form[method="get"] input[type="search"]')).toHaveAttribute(
     'maxlength',
     '200'
   );

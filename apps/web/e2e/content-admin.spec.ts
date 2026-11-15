@@ -17,7 +17,7 @@ import { exerciseBlockMove } from './lib/block-move';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { ADMIN, login } from './lib/login';
-import { isA11y, onlyA11y } from './lib/project';
+import { isA11y, onlyA11y, NAVIGATION_SCRIPT } from './lib/project';
 import { callApi, postUseCase, requireApi } from './lib/api';
 import {
   openPublication,
@@ -31,7 +31,7 @@ import {
 // Content admin (TODO #11, brief content-editor § A1): an operator makes a page in two locales,
 // edits it, reads its revisions and their diff, and opens a preview that the public site never
 // serves. A save on an outdated revision is a conflict that keeps what was typed. The admin and
-// the saved preview ship no script (`csr = false`); live preview adds a small optional script.
+// the saved preview have no hydration (`csr = false`); the preview shares the site’s navigation module; live preview adds a small optional script.
 // The `no-js` project proves the native path; `a11y` runs axe and the UI gate.
 //
 // Tenant isolation of the item itself is the database's (RLS on content_items, asserted by
@@ -232,7 +232,9 @@ test.describe('content-admin', () => {
     // It says which version it is (#66 PR 6d): the saved draft, not what visitors see.
     await expect(page.getByRole('heading', { level: 2, name: 'Voorbeeld: Concept' })).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    expect(await page.locator('script').count()).toBe(0);
+    expect(
+      await page.locator('script').evaluateAll((all) => all.map((s) => s.getAttribute('src')))
+    ).toEqual([NAVIGATION_SCRIPT]);
     // The site's own stylesheet, served on the admin origin to members only.
     const css = await page
       .locator('link[rel="stylesheet"][href*="/preview/_theme/"]')

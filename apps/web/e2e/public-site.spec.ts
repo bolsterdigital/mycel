@@ -56,6 +56,7 @@ import {
 } from './lib/site-navigation/anchors';
 import { exerciseNavigationEtag } from './lib/site-navigation/etag';
 import { exerciseChromeMenus, exerciseEnhancedBar } from './lib/site-navigation/visitor';
+import { exerciseZoomedNavigation } from './lib/site-navigation/zoom';
 import { WALK, seedSiteSettings } from './lib/site-navigation/settings-fixture';
 import { CAPTION_MONO, themeCss } from '../src/lib/theme/tokens';
 
@@ -193,7 +194,7 @@ test.describe('blocks', () => {
       page,
     }) => {
       await open(page, '/probe/campagne');
-      const details = page.locator('details').first();
+      const details = page.locator('.faq details').first();
       await expect(details).not.toHaveAttribute('open', '');
       await details.locator('summary').click();
       await expect(details).toHaveAttribute('open', '');
@@ -1498,7 +1499,7 @@ test.describe('grid-compositions', () => {
       expect(faq.scroll).toBeLessThanOrEqual(faq.viewport + 1);
       expect(faq.section).toBe(faq.viewport);
       expect(faq.answer).toBeLessThanOrEqual(faq.section);
-      await page.locator('summary').focus();
+      await page.locator('.faq summary').focus();
       await page.keyboard.press('Enter');
       await expect(page.locator('.faq details')).toHaveAttribute('open', '');
       await page.screenshot({
@@ -1545,6 +1546,7 @@ test.describe('grid-compositions', () => {
       await page.screenshot({ path: test.info().outputPath('publication-browser-zoom-200.png') });
       await closePublication(page);
       await expect(page.locator('a[href="#publication-panel"]')).toBeFocused();
+      await exerciseZoomedNavigation(page, worker, before);
     } finally {
       await context?.close();
       await rm(directory, { recursive: true, force: true });
