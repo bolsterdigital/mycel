@@ -5,6 +5,7 @@ import { expect, test, type Page, type Worker } from '@playwright/test';
 import { layoutGate } from '../layout';
 import { expectNoAxeViolations } from '../axe';
 import { seedSiteSettings } from './settings-fixture';
+import { NAVIGATION_STATES, seedNavigationStress, exerciseNavigationStress } from './stress';
 
 export async function exerciseZoomedNavigation(
   page: Page,
@@ -68,5 +69,16 @@ export async function exerciseZoomedNavigation(
     });
     await page.keyboard.press('Escape');
     await expect(menu).toBeFocused();
+  }
+  // Retain real tab zoom for the boundary states too; a zero width preserves this browser's
+  // physical viewport instead of replacing it with Playwright's CSS viewport emulation.
+  for (const state of NAVIGATION_STATES) {
+    const { slug, hash } = await seedNavigationStress(state);
+    test.info().annotations.push({ type: 'fixture-sha256', description: hash });
+    for (const locale of ['nl', 'en']) {
+      await exerciseNavigationStress(page, state, slug, locale, [0]);
+      expect(await page.evaluate(() => innerWidth)).toBeCloseTo(before.width / 4, 0);
+      expect(await page.evaluate(() => devicePixelRatio)).toBe(before.ratio * 4);
+    }
   }
 }

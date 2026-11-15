@@ -57,6 +57,11 @@ import {
 import { exerciseNavigationEtag } from './lib/site-navigation/etag';
 import { exerciseChromeMenus, exerciseEnhancedBar } from './lib/site-navigation/visitor';
 import { exerciseZoomedNavigation } from './lib/site-navigation/zoom';
+import {
+  NAVIGATION_STATES,
+  seedNavigationStress,
+  exerciseNavigationStress,
+} from './lib/site-navigation/stress';
 import { WALK, seedSiteSettings } from './lib/site-navigation/settings-fixture';
 import { CAPTION_MONO, themeCss } from '../src/lib/theme/tokens';
 
@@ -1570,6 +1575,14 @@ test.describe('grid-compositions', () => {
         }
       });
 });
+
+for (const state of NAVIGATION_STATES)
+  for (const locale of ['nl', 'en'])
+    test(`navigation boundaries ${state.name} ${locale}`, async ({ page }) => {
+      const { slug, hash } = await seedNavigationStress(state);
+      test.info().annotations.push({ type: 'fixture-sha256', description: hash });
+      await exerciseNavigationStress(page, state, slug, locale);
+    });
 
 // A complete bilingual site: tenant chrome and theme through real use cases and the public
 // renderer, including the no-JavaScript/320 px/200% task gate (#11 E, ADR 009/013).

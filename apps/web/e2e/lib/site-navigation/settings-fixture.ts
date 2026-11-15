@@ -27,7 +27,11 @@ const ACCENTED = {
 };
 
 /** Seeds both sites; the members `site-editor-<slug>@probe.test` may write content. */
-export async function seedSiteSettings(slug: string, singleSlug: string) {
+export async function seedSiteSettings(
+  slug: string,
+  singleSlug: string,
+  menus: Parameters<typeof publishMenus>[2] = CHROME_FIXTURE_MENUS
+) {
   const [tenant, singleTenant] = await asOwner(async (owner) => [
     await testTenant(owner, slug, {
       name: 'Chrome fixture',
@@ -114,7 +118,7 @@ export async function seedSiteSettings(slug: string, singleSlug: string) {
         },
       },
     });
-    await publishMenus(invoker, principal, CHROME_FIXTURE_MENUS, ['nl', 'en', 'de']);
+    await publishMenus(invoker, principal, menus, ['nl', 'en', 'de']);
     const single = systemPrincipal(singleTenant.id, 'e2e');
     await invoker.run(useCases.updateSiteChrome, single, {
       baseVersion: 0,
