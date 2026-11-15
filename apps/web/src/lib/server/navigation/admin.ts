@@ -127,7 +127,7 @@ export function nodeFromForm(
   id: string,
   current: AnyNode | null
 ): AnyNode | UiKey {
-  const own = text(data, 'label').trim().slice(0, 240);
+  const own = text(data, 'label').trim().slice(0, 120);
   const label = withLabel(current?.label, locale, own);
   if (kind === 'group') {
     if (!own) return 'admin.navigation.error.labelRequired';

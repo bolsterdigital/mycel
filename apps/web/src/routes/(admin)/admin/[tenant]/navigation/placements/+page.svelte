@@ -109,7 +109,7 @@
           })}
           hint={t('admin.navigation.placements.column.title.hint')}
           hintInline
-          maxlength={240}
+          maxlength={120}
           locale={data.locale}
           value={value(`footer${i}Title`, slot.title)}
         />

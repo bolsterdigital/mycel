@@ -1737,8 +1737,8 @@ test.describe('site-settings', () => {
       await expect(page.getByRole('contentinfo')).toContainText(
         locale === 'nl' ? 'Een onafhankelijke site' : 'An independent site'
       );
-      // The call to action after the bar's links; the footer column with its title (the old
-      // support and help links) and then the legal menu (migration 0057).
+      // The call to action after the bar's links; the footer column with its title and then the
+      // legal menu.
       await expect(
         page
           .getByRole('navigation', { name: locale === 'nl' ? 'Hoofdnavigatie' : 'Main navigation' })

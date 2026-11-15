@@ -35,8 +35,9 @@ export const SiteHref = z
     }
   }, 'site.chrome.href.invalid');
 /**
- * The site chrome keeps the footer text only. Navigation, legal links and the support and help
- * links moved to the navigation document in migration 0057 (ADR 036 rule 10), and the strict
+ * The site chrome keeps the footer text only. Menus live in the navigation document (ADR 036);
+ * migration 0057 removed the old `navigation`, `legal`, `support` and `help` fields without moving
+ * them (rule 10 as amended 2026-11-15: no production sites yet, so no compatibility). The strict
  * schema refuses them, so this setter, which writes live with `content:write`, can never bypass
  * the navigation's publication. Rejected: accepting and ignoring the old fields, which would let
  * an old client believe it changed the menu.

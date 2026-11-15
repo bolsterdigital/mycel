@@ -3,7 +3,8 @@
 - **Status**: accepted
 - **Date**: 2026-11-14
 - **Builds on**: ADR 002 (RLS), ADR 007 (localisation), ADR 009 (HTML first, MCP), ADR 012 (content types, read route), ADR 014 (hostnames and paths), ADR 016 and 018 (access, capabilities, per-locale readiness, caching), ADR 026 and 027 (merge and base on save), ADR 030 (trash and references)
-- **Supersedes**: nothing. The `navigation`, `legal`, `support` and `help` fields of the site chrome document (#11 E, migration 0026) are migrated by rule 10 and then retired; the free footer text, credits and branding stay where they are.
+- **Supersedes**: nothing. The `navigation`, `legal`, `support` and `help` fields of the site chrome document (#11 E, migration 0026) are retired by rule 10, without migration since the amendment of 2026-11-15; the free footer text, credits and branding stay where they are.
+- **Rule 10 amended**: 2026-11-15 (#107 B2, PR #431). Migration 0057 removes the four retired chrome fields without moving them into a navigation document, and an export from before 0057 is not mapped on import: Mycel has no production sites yet, so the maintainer decided that changes are clean cuts without backward compatibility, and no real site carried chrome menus. A site that had them builds its menus again in the menu editor. The rest of rule 10 stands: `site.chrome.get` and `site.chrome.update` keep their names for footer text, credits and branding only, `site.chrome.update` refuses the retired fields, and the public layout reads no implicit locale fallback. The original wording is retained below.
 
 ## Context
 
@@ -54,7 +55,7 @@ A tenant site today has one flat list of at most twelve links in its chrome docu
 ## Consequences
 
 - Build follows the brief's steps: B (model, storage, references, resolver, registry, API, MCP, migration) is `flagship-review` because it adds a publication boundary and a migration; C (menu editor), D (public header, footer, panel) and E (search entry and the integrated test) are workhorse unless they change capabilities, CSP or access.
-- A new migration adds the navigation table, its immutable revisions, per-locale publication pointers and navigation references, all with forced RLS (ADR 002), and moves the four chrome fields.
+- A new migration adds the navigation table, its immutable revisions, per-locale publication pointers and navigation references, all with forced RLS (ADR 002), and removes the four chrome fields (rule 10 as amended).
 - Export and import carry the navigation document with all revisions and pointers; ids are kept, only the tenant changes, as for every other table.
 - The public layout gets one batched navigation resolve per request, without N+1 reads or full bodies.
 - Scheduled publication of navigation, a service bar, social icons, an announcement bar and per-locale menu structures are later decisions.
