@@ -273,7 +273,6 @@ async function searchAndLanguages(page: Page, locale: 'nl' | 'en') {
   await expectNoAxeViolations(page, { label: 'panel search and languages' });
   await page.screenshot({
     path: test.info().outputPath(`search-panel-${locale}.png`),
-    fullPage: true,
   });
   const field = panel.getByRole('searchbox');
   await field.fill(query);

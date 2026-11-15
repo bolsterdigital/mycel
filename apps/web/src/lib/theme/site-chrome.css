@@ -332,8 +332,8 @@
 }
 
 /* The panel as a modal dialog from the inline end: the whole height, scrolling inside, the page
-   behind it inert and still. Its close button stands where Menu stood (the script passes Menu's
-   position), so the cross does not jump from one place to another. */
+   behind it inert and still. The close button stays near the top even when the header’s tools
+   wrap: using the opener’s unbounded position would push search below the viewport. */
 .site-dialog {
   --site-dialog-from: 100%;
   position: fixed;
@@ -403,14 +403,18 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding-block-start: var(--site-opener-top, var(--space-2));
-  padding-inline: var(--gutter) min(max(var(--gutter), var(--site-opener-end, 0px)), 50%);
+  flex-wrap: wrap;
+  padding-block-start: min(var(--site-opener-top, var(--space-2)), var(--space-2));
+  padding-inline: var(--gutter);
 }
 .site-dialog-title {
   margin: 0;
   font-size: var(--step-1);
 }
 .site-dialog-close {
+  flex-shrink: 0;
+  white-space: nowrap;
+  hyphens: none;
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);

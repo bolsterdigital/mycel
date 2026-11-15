@@ -131,7 +131,8 @@
         "docs/reference/content-model.md",
         "apps/web/src/lib/public/person-path.ts",
         "apps/web/src/lib/public/search-path.ts",
-        "apps/web/src/lib/public/navigation-href.ts"
+        "apps/web/src/lib/public/navigation-href.ts",
+        "apps/web/src/lib/public/language-links.ts"
       ],
       "adrs": ["004", "012", "017", "020"],
       "gates": [
