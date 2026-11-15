@@ -86,7 +86,7 @@ describe('previewOf', () => {
     );
     expect(p.main?.items.map((i) => [i.href, i.system, i.inBar])).toEqual([
       ['/en', 'home', false],
-      ['/en/about#b1', null, true],
+      ['/en/about#block-b1', null, true],
     ]);
     expect(p.footer.map((f) => [f.menuId, f.title, f.items.length])).toEqual([
       ['empty', null, 0],

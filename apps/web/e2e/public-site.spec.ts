@@ -45,9 +45,15 @@ import {
   expectPreviewChrome,
   type Rails,
 } from './lib/chrome';
-import { login } from './lib/login';
+import { forwarded, login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
+import {
+  chooseAnchor,
+  followAnchor,
+  scrollLockKeepsWidth,
+  seedAnchors,
+} from './lib/site-navigation/anchors';
 import { exerciseNavigationEtag } from './lib/site-navigation/etag';
 import { exerciseChromeMenus, exerciseEnhancedBar } from './lib/site-navigation/visitor';
 import { WALK, seedSiteSettings } from './lib/site-navigation/settings-fixture';
@@ -2089,4 +2095,24 @@ test('authored people grids show teams without exposing internal email or unavai
   page,
 }) => {
   await exercisePeopleGrid(page);
+});
+
+// Menu items that land on a part of a page, on a site of their own so its published menu meets
+// no other test; the tasks are in lib/site-navigation/anchors.ts.
+test.describe('menu anchors', () => {
+  const slug = `anchor-${Math.random().toString(36).slice(2, 8)}`;
+  const headers = forwarded();
+  let site = { tenantId: '', editor: '' };
+  test.use({ extraHTTPHeaders: headers, viewport: { width: 320, height: 720 } });
+  test.beforeAll(async () => {
+    site = await seedAnchors(slug);
+  });
+  test('an editor points a menu item at a block, and the visitor lands on it', async ({ page }) => {
+    await chooseAnchor(page, slug, site.tenantId, site.editor);
+    await followAnchor(page, slug);
+  });
+  test('the menu dialog locks scrolling without shifting the page', ({ browser, baseURL }) => {
+    onlyA11y('the dialog is the enhancement script');
+    return scrollLockKeepsWidth(browser.browserType(), baseURL!, headers, slug);
+  });
 });

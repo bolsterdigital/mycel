@@ -8,12 +8,16 @@
   import type { RenderBlock, RenderModel } from './model.js';
   import { withBase } from './rich-text.js';
 
-  let { block, model }: { block: Extract<RenderBlock, { type: 'audio' }>; model: RenderModel } =
+  let {
+    block,
+    model,
+    anchor,
+  }: { block: Extract<RenderBlock, { type: 'audio' }>; model: RenderModel; anchor?: string } =
     $props();
 </script>
 
 {#if block.file}
-  <section class="block audio">
+  <section id={anchor} class="block audio">
     <svelte:element this={headingTag(BLOCK_DEPTH)}>{block.title}</svelte:element>
     <audio
       controls

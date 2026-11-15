@@ -10,6 +10,8 @@ import {
   FakeClock,
   MemoryUnitOfWork,
   TENANT,
+  ANCHOR_PAGE,
+  navAnchors,
   navBasic,
   navConcurrency,
   navLabels,
@@ -519,6 +521,23 @@ describe('nav-offline', () => {
         { menuId: 'main', nodeId: 'lonely', code: 'target-unavailable' },
       ])
     );
+  });
+});
+
+describe('nav-anchors', () => {
+  it('keeps an anchor on a block that renders, and drops one on the paywall', async () => {
+    const t = setup();
+    const target = await t.page('anker', { title: { nl: 'Anker' }, ...ANCHOR_PAGE });
+    const { revisionId } = await t.save(navAnchors(target.id));
+    const published = await t.run('publishNavigation', { revisionId, locale: 'nl' });
+    expect(published.problems).toEqual([
+      { menuId: 'main', nodeId: 'to-wall', code: 'anchor-missing' },
+    ]);
+    const nl = await t.run('resolveNavigation', { locale: 'nl' }, t.visitor);
+    expect(nl.main.nodes.map((n: { target: { anchor?: string } }) => n.target.anchor)).toEqual([
+      'kop',
+      undefined,
+    ]);
   });
 });
 

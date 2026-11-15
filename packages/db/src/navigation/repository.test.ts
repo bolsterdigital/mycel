@@ -10,7 +10,9 @@ import {
   FakeDns,
   FakeInputHasher,
   FakeSigner,
+  ANCHOR_PAGE,
   memoryPlatform,
+  navAnchors,
   navBasic,
   navConcurrency,
   navOffline,
@@ -153,6 +155,25 @@ describe.skipIf(skip)('navigation conformance (Postgres)', () => {
       'foreign:link',
     ]);
     expect(nl.main.nodes[2].target.anchor).toBeUndefined();
+  });
+
+  it('nav-anchors: an anchor on a block stays, one on the paywall is missing', async () => {
+    const target = await page(a, 'anker', ANCHOR_PAGE, ['nl']);
+    const saved = await save(a, navAnchors(target));
+    const published = await run('publishNavigation', a, {
+      revisionId: saved.revisionId,
+      locale: 'nl',
+    });
+    expect(published.problems).toEqual([
+      { menuId: 'main', nodeId: 'to-wall', code: 'anchor-missing' },
+    ]);
+    const nl = await run('resolveNavigation', anonymousPrincipal(a.tenantId, ['content:read']), {
+      locale: 'nl',
+    });
+    expect(nl.main.nodes.map((n: { target: { anchor?: string } }) => n.target.anchor)).toEqual([
+      'kop',
+      undefined,
+    ]);
   });
 
   it('nav-concurrency: a save, a publication and a delete that race keep the lock order', async () => {

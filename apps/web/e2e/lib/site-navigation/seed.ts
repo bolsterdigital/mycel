@@ -5,8 +5,8 @@
 import { useCases, type Invoker, type Principal } from '@mycel/core';
 
 type Label = Record<string, string>;
-/** A URL with its own label, or a page by id that may inherit its published title. */
-type Leaf = { href: string; label: Label } | { itemId: string; label?: Label };
+/** A URL with its own label, or a page by id (and a block on it) that may inherit its title. */
+type Leaf = { href: string; label: Label } | { itemId: string; label?: Label; anchor?: string };
 /** A top-level node: a link with optional sublinks, or a group (ADR 036 rule 2). */
 type Link = (Leaf & { children?: Leaf[] }) | { group: Label; children: Leaf[] };
 interface Links {
@@ -23,7 +23,7 @@ interface Links {
 const target = (l: Leaf) =>
   'href' in l
     ? { kind: 'url' as const, href: l.href }
-    : { kind: 'content' as const, itemId: l.itemId };
+    : { kind: 'content' as const, itemId: l.itemId, ...(l.anchor ? { anchor: l.anchor } : {}) };
 const leaf = (l: Leaf, id: string) => ({
   id,
   kind: 'link' as const,

@@ -11,16 +11,19 @@
     id,
     variant,
     width,
+    anchor,
   }: {
     campaign: RenderCampaign;
     model: RenderModel;
     id: string;
     variant: 'default' | 'card';
     width: 'content' | 'wide' | 'full';
+    /** The element id a link to this block lands on (`anchor.ts`). */
+    anchor?: string;
   } = $props();
 </script>
 
-<div class="block form form-{variant} width-{width} campaign-notice">
+<div id={anchor} class="block form form-{variant} width-{width} campaign-notice">
   <p class="campaign-notice-text">
     {model.copy.campaign.notOpen[campaign.phase === 'upcoming' ? 'upcoming' : 'closed']}
   </p>

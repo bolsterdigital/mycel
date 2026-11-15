@@ -6,10 +6,12 @@
   let {
     block,
     model,
-  }: { block: Extract<RenderBlock, { type: 'video-embed' }>; model: RenderModel } = $props();
+    anchor,
+  }: { block: Extract<RenderBlock, { type: 'video-embed' }>; model: RenderModel; anchor?: string } =
+    $props();
 </script>
 
-<figure class="block video width-{block.width}">
+<figure id={anchor} class="block video width-{block.width}">
   <p class="video-link">
     <a href={block.url}>{block.title}</a>
     <span class="video-provider"

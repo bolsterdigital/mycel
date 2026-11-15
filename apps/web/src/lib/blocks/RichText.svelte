@@ -10,6 +10,7 @@
     depth,
     idPrefix,
     class: className = 'block rich-text',
+    anchor,
   }: {
     doc: RichTextDoc;
     model: RenderModel;
@@ -17,6 +18,8 @@
     depth: number;
     idPrefix: string;
     class?: string;
+    /** The element id a link to this block lands on (`anchor.ts`). */
+    anchor?: string;
   } = $props();
 
   const html = $derived(
@@ -31,4 +34,4 @@
   );
 </script>
 
-<div class={className}>{@html html}</div>
+<div id={anchor} class={className}>{@html html}</div>

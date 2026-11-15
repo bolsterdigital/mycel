@@ -45,7 +45,10 @@ export interface PublishedTarget {
   title: string | null;
   featuredTitle: string | null;
   access: 'public' | 'members' | 'tier';
-  /** The top-level block ids of the published revision, for an anchor. */
+  /**
+   * The top-level block ids of the published revision that render an element, for an anchor:
+   * all but `paywall`, which is only the teaser boundary.
+   */
   blockIds: string[];
 }
 

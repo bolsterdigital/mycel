@@ -75,7 +75,7 @@ export function memoryNavigation(s: TenantStore, lock: () => Promise<void>): Nav
           title: doc.title[locale] ?? null,
           featuredTitle: doc.featured?.title?.[locale] ?? null,
           access: doc.access.level,
-          blockIds: doc.blocks.map((b) => b.id),
+          blockIds: doc.blocks.filter((b) => b.type !== 'paywall').map((b) => b.id),
         });
       }
       return out;

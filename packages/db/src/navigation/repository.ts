@@ -192,7 +192,8 @@ export function navigationRepository(trx: Trx, tenantId: string): NavigationRepo
                r.document->'title'->>${locale} as title,
                r.document->'featured'->'title'->>${locale} as featured_title,
                coalesce(r.document->'access'->>'level', 'public') as access,
-               array(select b->>'id' from jsonb_array_elements(r.document->'blocks') b) as block_ids
+               array(select b->>'id' from jsonb_array_elements(r.document->'blocks') b
+                     where b->>'type' <> 'paywall') as block_ids
         from content_items i
         join content_item_locales l
           on l.item_id = i.id and l.locale = ${locale} and l.published_revision_id is not null

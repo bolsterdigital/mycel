@@ -17,6 +17,7 @@
     model,
     state,
     preview = null,
+    anchor,
   }: {
     form: RenderForm;
     variant: 'default' | 'card';
@@ -24,6 +25,8 @@
     model: RenderModel;
     state: FormState | null | undefined;
     preview?: string | null;
+    /** The element id a link to this block lands on (`anchor.ts`). */
+    anchor?: string;
   } = $props();
 
   const mine = $derived(state?.formId === def.formId ? state : null);
@@ -42,7 +45,7 @@
     {#if def.conditionalHelp}<script type="module" src="/_form/conditions.js"></script>{/if}{/if}
 </svelte:head>
 
-<div class="block form form-{variant} width-{width}">
+<div id={anchor} class="block form form-{variant} width-{width}">
   <form
     method="post"
     class="signup"

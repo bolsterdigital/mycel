@@ -408,6 +408,16 @@ export const en = {
   'admin.navigation.field.label.inherits': 'Leave empty to use the title of the page: "{title}".',
   'admin.navigation.field.label.groupHint': 'The text above the sub-items.',
   'admin.navigation.field.url.hint': 'Starts with / for a place on this site, or with https://.',
+  'admin.navigation.field.anchor': 'Where on the page',
+  'admin.navigation.field.anchor.hint':
+    'The link opens the page at this part. Changed the page? Save first, then choose a part of it.',
+  'admin.navigation.anchor.none': 'At the top',
+  'admin.navigation.anchor.option': '{type}: {text}',
+  'admin.navigation.anchor.gone': 'A part that is gone',
+  'admin.navigation.anchor.unpublished':
+    'Once the page is published in {locale}, you can choose where on it the link lands.',
+  'admin.navigation.anchor.later':
+    'After saving a link to a page, you can choose where on that page it lands.',
   'admin.navigation.group.intro':
     'A group is a text without a link of its own. Add links, then make them sub-items of the group.',
   'admin.navigation.error.conflict':

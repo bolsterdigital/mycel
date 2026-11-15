@@ -6,13 +6,17 @@
   import type { RenderBlock, RenderModel } from './model.js';
   import Actions from './Actions.svelte';
 
-  let { block, model }: { block: Extract<RenderBlock, { type: 'timeline' }>; model: RenderModel } =
+  let {
+    block,
+    model,
+    anchor,
+  }: { block: Extract<RenderBlock, { type: 'timeline' }>; model: RenderModel; anchor?: string } =
     $props();
 
   const eventHeading = $derived(headingTag(block.title ? BLOCK_DEPTH + 1 : BLOCK_DEPTH));
 </script>
 
-<section class="block timeline">
+<section id={anchor} class="block timeline">
   {#if block.title}<svelte:element this={headingTag(BLOCK_DEPTH)}>{block.title}</svelte:element
     >{/if}
   <ol class="timeline-list">

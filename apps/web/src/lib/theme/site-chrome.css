@@ -388,8 +388,15 @@
     opacity: 0;
   }
 }
+/* The scroll lock keeps the room of a classic scrollbar, so the page behind the dialog does not
+   shift sideways. The script marks the root when the page has one at opening; without
+   that mark `stable` would add an empty gutter to a page too short to scroll, which then shifts
+   the other way. Rejected: `stable` on `:root` always, an empty gutter on every short page. */
 :root:has(.site-dialog[open]) {
   overflow: hidden;
+}
+:root[data-site-gutter]:has(.site-dialog[open]) {
+  scrollbar-gutter: stable;
 }
 .site-dialog-head {
   display: flex;

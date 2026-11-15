@@ -12,6 +12,7 @@
 import {
   NavigationTarget,
   MAX_PAGE_SIZE,
+  type Block,
   useCases,
   type Menu,
   type NavigationChild,
@@ -25,7 +26,7 @@ import { movesOf, type Move } from '#lib/admin/navigation/menu-edit.js';
 import { failureOf, text, type ActionCopy } from '../admin/admin-actions.js';
 import { requireTenantPrincipal } from '../admin/admin.js';
 import { withAssigned } from '../content/content-admin.js';
-import { itemLabel } from '../content/content-blocks.js';
+import { itemLabel, summaryOf } from '../content/content-blocks.js';
 import { contentLocale } from '../content/content-locale.js';
 import { refusalOf } from '../http/refuse.js';
 import { runtime } from '../runtime.js';
@@ -115,10 +116,23 @@ function withLabel(
 }
 
 /**
+ * The anchor a content link to `choice` gets. The form offers the parts of one page, the one
+ * saved when it was loaded (`anchorFor`); its choice holds while the link still goes there, and
+ * goes with a new page, whose parts it did not show. A form without the choice keeps the anchor
+ * while the target stays. Rejected: refusing a new page with an old anchor, which the editor did
+ * not choose and cannot see.
+ */
+function anchorOf(data: FormData, choice: string, was: NavigationTarget | null): string | null {
+  if (data.has('anchorFor'))
+    return text(data, 'anchorFor') === choice ? text(data, 'anchor') || null : null;
+  return was?.kind === 'content' && was.itemId === choice ? (was.anchor ?? null) : null;
+}
+
+/**
  * The node a form describes: a group with its label, or a link to a page or article, an address,
  * the home page or the search page, with an optional text of its own in `locale`. Other locales
- * keep their text, a node keeps its sub-items, and an anchor stays while the target does. A group
- * and an address have no title to inherit, so they need their own text.
+ * keep their text, a node keeps its sub-items, and an anchor follows `anchorOf`. A group and an
+ * address have no title to inherit, so they need their own text.
  */
 export function nodeFromForm(
   data: FormData,
@@ -135,6 +149,7 @@ export function nodeFromForm(
   }
   const choice = text(data, 'target');
   const was = current?.kind === 'link' ? current.target : null;
+  const anchor = anchorOf(data, choice, was);
   const target = NavigationTarget.safeParse(
     choice === 'url' || (!choice && text(data, 'url').trim())
       ? { kind: 'url', href: text(data, 'url').trim() }
@@ -143,9 +158,7 @@ export function nodeFromForm(
         : {
             kind: 'content',
             itemId: choice,
-            ...(was?.kind === 'content' && was.itemId === choice && was.anchor
-              ? { anchor: was.anchor }
-              : {}),
+            ...(anchor ? { anchor } : {}),
           }
   );
   // An address that does not parse is a wrong address; nothing chosen and nothing typed is no target.
@@ -190,6 +203,39 @@ export async function targetItems(
     },
     (id) => ({ id, label: id })
   );
+}
+
+/** A part of a page a link can land on: a top-level block, named by its type and first text. */
+export interface AnchorChoice {
+  id: string;
+  type: Block['type'];
+  text: string;
+}
+
+/**
+ * The parts of `itemId` a link can land on in `locale`: the top-level blocks of its published
+ * revision there that render an element, as the resolver counts them (all but `paywall`). Null
+ * when the item is not published in that locale or cannot be read. The published revision, not
+ * the latest: the site shows that one, and the resolver checks the anchor against it.
+ */
+export async function anchorChoices(
+  principal: Principal,
+  itemId: string,
+  locale: string
+): Promise<AnchorChoice[] | null> {
+  const { invoker } = runtime();
+  const read = (revisionId?: string) =>
+    invoker
+      .run(useCases.getItem, principal, { itemId, ...(revisionId ? { revisionId } : {}) })
+      .catch(() => null);
+  const latest = await read();
+  const published = latest?.item.publication.find((p) => p.locale === locale)?.publishedRevisionId;
+  if (!latest || !published) return null;
+  const got = published === latest.revision.id ? latest : await read(published);
+  if (!got) return null;
+  return got.revision.document.blocks
+    .filter((b) => b.type !== 'paywall')
+    .map((b) => ({ id: b.id, type: b.type, text: summaryOf(b, locale) }));
 }
 
 export interface MenuRow {

@@ -24,6 +24,7 @@
   import Quote from './Quote.svelte';
   import RichText from './RichText.svelte';
   import VideoEmbed from './VideoEmbed.svelte';
+  import { anchorIds } from './anchor.js';
 
   let {
     model,
@@ -56,13 +57,16 @@
         )?.id
       : undefined
   );
+  // Each block's element id, which a menu link's anchor lands on (`anchor.ts`).
+  const anchors = $derived(anchorIds(model.blocks));
 </script>
 
 {#snippet rendered(block: RenderBlock)}
   {#if block.type === 'heading'}
-    <Heading text={block.text} />
+    <Heading anchor={anchors.get(block.id)} text={block.text} />
   {:else if block.type === 'rich-text'}
     <RichText
+      anchor={anchors.get(block.id)}
       doc={block.doc}
       {model}
       depth={1}
@@ -71,38 +75,45 @@
     />
   {:else if block.type === 'image'}
     {#if block.image}
-      <Image image={block.image} layout={block.layout} {model} eager={block.id === firstImage} />
+      <Image
+        anchor={anchors.get(block.id)}
+        image={block.image}
+        layout={block.layout}
+        {model}
+        eager={block.id === firstImage}
+      />
     {/if}
   {:else if block.type === 'hero'}
-    <Hero {block} {model} />
+    <Hero anchor={anchors.get(block.id)} {block} {model} />
   {:else if block.type === 'cta'}
-    <Cta {block} {model} />
+    <Cta anchor={anchors.get(block.id)} {block} {model} />
   {:else if block.type === 'people-grid'}
-    <PeopleGrid {block} {model} eager={block.id === firstImage} />
+    <PeopleGrid anchor={anchors.get(block.id)} {block} {model} eager={block.id === firstImage} />
   {:else if block.type === 'cards'}
-    <Cards {block} {model} />
+    <Cards anchor={anchors.get(block.id)} {block} {model} />
   {:else if block.type === 'file-download'}
-    <FileDownload {block} {model} />
+    <FileDownload anchor={anchors.get(block.id)} {block} {model} />
   {:else if block.type === 'gallery'}
-    <Gallery {block} {model} />
+    <Gallery anchor={anchors.get(block.id)} {block} {model} />
   {:else if block.type === 'audio'}
-    <Audio {block} {model} />
+    <Audio anchor={anchors.get(block.id)} {block} {model} />
   {:else if block.type === 'timeline'}
-    <Timeline {block} {model} />
+    <Timeline anchor={anchors.get(block.id)} {block} {model} />
   {:else if block.type === 'callout'}
-    <Callout {block} {model} />
+    <Callout anchor={anchors.get(block.id)} {block} {model} />
   {:else if block.type === 'faq'}
-    <Faq {block} {model} />
+    <Faq anchor={anchors.get(block.id)} {block} {model} />
   {:else if block.type === 'quote'}
-    <Quote {block} />
+    <Quote anchor={anchors.get(block.id)} {block} />
   {:else if block.type === 'video-embed'}
-    <VideoEmbed {block} {model} />
+    <VideoEmbed anchor={anchors.get(block.id)} {block} {model} />
   {:else if block.type === 'form'}
     {#if campaignNotes && block.diagnosis}
       <p class="block preview-note preview-note-warning">{campaignNotes.form[block.diagnosis]}</p>
     {/if}
     {#if block.form}
       <Form
+        anchor={anchors.get(block.id)}
         form={block.form}
         variant={block.variant}
         width={block.width}
@@ -112,6 +123,7 @@
       />
     {:else if block.campaign}
       <CampaignNotice
+        anchor={anchors.get(block.id)}
         campaign={block.campaign}
         {model}
         id={block.id}
@@ -125,7 +137,7 @@
         {block.campaign ? campaignNotes.live : campaignNotes.reasons[block.diagnosis ?? 'unknown']}
       </p>
     {/if}
-    <CampaignCard {block} {model} state={formState} {preview} />
+    <CampaignCard anchor={anchors.get(block.id)} {block} {model} state={formState} {preview} />
   {/if}
 {/snippet}
 
