@@ -40,7 +40,7 @@ import {
   uuidv7,
   uuidv7Ids,
 } from './index.js';
-import { asRole } from './infra/roles.js';
+import { advisoryLock, asRole } from './infra/roles.js';
 import { pendingHashes, plain, sqlKey } from './erasures.js';
 import { STORAGE } from './portability/storage.js';
 import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
@@ -585,6 +585,64 @@ describe.skipIf(skip)('erasure conformance', () => {
       await closeTenantWork(operatorDb, [tenant]);
     }
   });
+
+  it('locks an older address of a registered id before it reads which lifecycles are live', async () => {
+    // Apply erases every address a registered id's own rows carry, not only the registered one.
+    // A signup on that older address holds its supporter lock until commit; apply must wait for
+    // it, or it judges the new lifecycle on evidence from before that commit.
+    const tenant = (await testTenant(operatorDb, `erase-older-${run}`)).id;
+    const admin = systemPrincipal(tenant, 'erasure-test');
+    const older = `older-${run}@example.org`;
+    const current = `current-${run}@example.org`;
+    try {
+      await signup(tenant, older, uow);
+      await closeTenantWork(operatorDb, [tenant]);
+      const { id } = (await uow.run(admin, (ctx) => ctx.supporters.getProjection(older)))!;
+      await invoker.run(useCases.changeSupporterEmail, admin, {
+        supporterId: id,
+        newEmail: current,
+        reason: 'test',
+      });
+      await uow.run(admin, (ctx) => ctx.erasures.register(id, current));
+      let unlock!: () => void;
+      let locked!: (pid: number) => void;
+      const held = new Promise<void>((resolve) => (unlock = resolve));
+      const ready = new Promise<number>((resolve) => (locked = resolve));
+      const olderKey = await emailKey(tenant, older, 'erasure');
+      const holder = operatorDb.transaction().execute(async (trx) => {
+        await advisoryLock(trx, 'supporter', tenant, olderKey);
+        locked(
+          (await sql<{ pid: number }>`select pg_backend_pid() as pid`.execute(trx)).rows[0]!.pid
+        );
+        await held;
+      });
+      const pid = await ready;
+      const applying = applyErasures(operatorDb, tenant);
+      try {
+        await expect
+          .poll(
+            async () =>
+              (
+                await sql<{ blocked: boolean }>`select exists(
+                  select 1 from pg_stat_activity where ${pid} = any(pg_blocking_pids(pid))) as blocked`.execute(
+                  operatorDb
+                )
+              ).rows[0]!.blocked,
+            { timeout: 3000 }
+          )
+          .toBe(true);
+      } finally {
+        unlock();
+        await holder;
+        await applying;
+      }
+      const after = await rowsOf(tenant);
+      expect(holding(after, older)).toEqual([]);
+      expect(holding(after, current)).toEqual([]);
+    } finally {
+      await closeTenantWork(operatorDb, [tenant]);
+    }
+  }, 30_000);
 
   it('keeps registrations permanent: mycel_app cannot change or remove them', async () => {
     const attempt = (statement: ReturnType<typeof sql>) =>
