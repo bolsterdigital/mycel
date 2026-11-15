@@ -19,6 +19,7 @@ import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { ADMIN, login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { editorReady } from './lib/editor';
+import * as menus from './lib/site-navigation/admin';
 import { settingsEvidence } from './lib/evidence/settings';
 import { callApi, requireApi } from './lib/api';
 import { randomUUID } from 'node:crypto';
@@ -80,6 +81,8 @@ test.describe('admin', () => {
   }) => {
     await login(page, '/admin/probe/leden');
     await expect(page.getByRole('heading', { level: 1, name: 'Team' })).toBeVisible();
+    // One icon, the Mycel mark: the framework default is gone, and a tenant logo is the site's.
+    await expect(page.locator('link[rel~=icon]')).toHaveAttribute('href', /mycel/i);
     await page.locator('.admin-account > summary').click();
     await expect(
       page.locator('.admin-account-actions').getByText('e2e-admin@probe.test')
@@ -2187,3 +2190,10 @@ for (const locale of ['nl', 'en']) {
     });
   });
 }
+
+test('the menu editor builds, orders and nests a menu', ({ page, request }) =>
+  menus.editor(page, request));
+test('the menu editor places, previews, publishes and restores', ({ page, request }) =>
+  menus.publication(page, request));
+test('a writer saves the navigation but cannot publish it', ({ page, request }) =>
+  menus.writer(page, request));

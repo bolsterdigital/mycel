@@ -14,6 +14,7 @@
      General also holds, for `tenant:admin` only, how long form submissions are kept. -->
 <script lang="ts">
   import {
+    CAPTION_FONTS,
     DROP_CAPS,
     FONT_PAIRS,
     MAX_SUBMISSION_RETENTION_MONTHS,
@@ -65,12 +66,6 @@
   const named = (locale: string) => `${language.of(locale) ?? locale} (${locale})`;
   const action = (name: string) => `?section=${data.section}&/${name}`;
   const value = (name: string, fallback: string) => String(form?.values?.[name] ?? fallback);
-  const row = (links: { href: string; label: Record<string, string> }[]) =>
-    links
-      .map((item) =>
-        [item.href, ...data.tenant.locales.map((locale) => item.label[locale] ?? '')].join('|')
-      )
-      .join('\n');
   let changed = $state<Record<string, string>>({});
   const colour = (name: string, fallback: string) => changed[name] ?? value(name, fallback);
   const luminance = (hex: string) => {
@@ -457,6 +452,19 @@
           options={DROP_CAPS.map((d) => ({ value: d, label: t(`admin.site.dropCap.${d}`) }))}
           value={value('dropCap', data.theme.value.dropCap ?? 'articles')}
         />
+        <Select
+          id="site-captionFont"
+          name="captionFont"
+          label={t('admin.site.captionFont')}
+          locale={data.locale}
+          size="m"
+          hint={t('admin.site.captionFont.hint')}
+          options={CAPTION_FONTS.map((f) => ({
+            value: f,
+            label: t(`admin.site.captionFont.${f}`),
+          }))}
+          value={value('captionFont', data.theme.value.captionFont ?? 'body')}
+        />
         {#each numericFields as key (key)}
           <Field
             id="site-{key}"
@@ -567,12 +575,15 @@
     <SettingsSection
       id="site-chrome"
       title={t('admin.site.chrome')}
-      description={fill(t('admin.site.linkHint'), { locales: data.tenant.locales.join('|') })}
       action={action('chrome')}
       submit={t('admin.site.saveChrome')}
       saved={saved('chrome')}
       unsaved={t('admin.site.unsaved')}
     >
+      <!-- The menus live in the navigation document (ADR 036 rule 10); 0057 retired the chrome fields. -->
+      <p>
+        {t('admin.site.chrome.menus')} <a href="{base}/navigation">{t('admin.nav.navigation')}</a>
+      </p>
       <input
         type="hidden"
         name="baseVersion"
@@ -580,13 +591,6 @@
           ? value('baseVersion', String(data.chrome.version))
           : data.chrome.version}
       />
-      <Field id="site-navigation" label={t('admin.site.navigation')} locale={data.locale}>
-        {#snippet control(attributes)}
-          <textarea name="navigation" rows="5" {...attributes}
-            >{value('navigation', row(data.chrome.value.navigation))}</textarea
-          >
-        {/snippet}
-      </Field>
       <Fieldset legend={t('admin.site.footer')}>
         {#each data.tenant.locales as locale (locale)}
           <Field
@@ -599,34 +603,6 @@
           />
         {/each}
       </Fieldset>
-      <Field id="site-legal" label={t('admin.site.legal')} locale={data.locale}>
-        {#snippet control(attributes)}
-          <textarea name="legal" rows="3" {...attributes}
-            >{value('legal', row(data.chrome.value.legal))}</textarea
-          >
-        {/snippet}
-      </Field>
-      {#each ['support', 'help'] as const as kind (kind)}
-        <Fieldset legend={t(kind === 'support' ? 'admin.site.support' : 'admin.site.help')}>
-          <Field
-            id="site-{kind}-href"
-            name="{kind}.href"
-            label={t('admin.site.url')}
-            locale={data.locale}
-            value={value(`${kind}.href`, data.chrome.value[kind]?.href ?? '')}
-          />
-          {#each data.tenant.locales as locale (locale)}
-            <Field
-              id="site-{kind}-{locale}"
-              name="{kind}.{locale}"
-              label={locale}
-              lang={locale}
-              locale={data.locale}
-              value={value(`${kind}.${locale}`, data.chrome.value[kind]?.label[locale] ?? '')}
-            />
-          {/each}
-        </Fieldset>
-      {/each}
     </SettingsSection>
   {/if}
 </SettingsPage>

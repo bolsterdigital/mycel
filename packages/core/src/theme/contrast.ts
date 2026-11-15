@@ -70,6 +70,7 @@ export function resolveTheme(input: ThemeInput): ResolvedTheme {
     density: value('density'),
     headingWeight: input.headingWeight ?? DEFAULT_THEME.headingWeight,
     dropCap: input.dropCap ?? DEFAULT_THEME.dropCap,
+    captionFont: input.captionFont ?? DEFAULT_THEME.captionFont,
   };
 }
 

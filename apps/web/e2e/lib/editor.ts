@@ -8,6 +8,10 @@ import { type Locator, type Page, expect, test } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { isA11y } from './project';
 
+/** With JavaScript: the edit screen's own script has run (`edit-screen.js`). */
+export const editScreen = (page: Page): Promise<void> =>
+  expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+
 /**
  * With JavaScript: everything that moves or changes the screen after hydration has run. Three
  * separate signals, because `tabs.js`, `edit-screen.js` and the block chooser start independently;
@@ -16,7 +20,7 @@ import { isA11y } from './project';
  */
 export async function editorReady(page: Page): Promise<void> {
   if (!isA11y()) return;
-  await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+  await editScreen(page);
   await expect(page.locator('form#item-edit .ui-tabs:not([data-tabs])')).toHaveCount(0);
   await expect(page.locator('[data-block-picker]:not([data-picker-ready])')).toHaveCount(0);
 }
@@ -181,4 +185,23 @@ export async function emptyProse(page: Page) {
     await surface.press('Backspace');
     await expect(prose).toHaveText('', { timeout: 1000 });
   }).toPass();
+}
+
+// Sends the edit form as it stands to the unsaved-document route, as the live-preview panel does.
+// An article has no live-preview panel yet, so its specs post the unchanged native form themselves.
+export async function postDraftPreview(page: Page, itemId: string) {
+  await page.locator('[data-live-preview-source]').evaluate((node, id) => {
+    const form = node as HTMLFormElement;
+    form.action = '/admin/probe/preview/draft';
+    for (const [name, value] of [
+      ['itemId', id],
+      ['previewLocale', 'nl'],
+    ]) {
+      const input = document.createElement('input');
+      input.name = name!;
+      input.value = value!;
+      form.append(input);
+    }
+    form.submit();
+  }, itemId);
 }

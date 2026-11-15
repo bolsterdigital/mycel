@@ -39,6 +39,12 @@ const LATIN =
 
 const SANS_FALLBACK = "system-ui, -apple-system, 'Segoe UI', sans-serif";
 const SERIF_FALLBACK = "Georgia, 'Times New Roman', serif";
+/**
+ * The system's monospace for captions (`captionFont: 'mono'`): no file to load, so no preload or
+ * `@font-face`. Only a theme that chooses it sets `--font-caption`; without it `media-blocks.css`
+ * inherits the body face and the stylesheet stays byte for byte what it was.
+ */
+export const CAPTION_MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
 /** The two roman files to preload for a pair: the faces the first paint needs. */
 export function preloadFonts(pair: FontPair): string[] {
@@ -208,6 +214,7 @@ export function themeCss(theme: ResolvedTheme): string {
     ...palette(theme.palettes.light),
     `--font-body: Inter, ${SANS_FALLBACK};`,
     `--font-heading: ${heading};`,
+    ...(theme.captionFont === 'mono' ? [`--font-caption: ${CAPTION_MONO};`] : []),
     `--heading-weight: ${theme.headingWeight};`,
     ...sizes,
     `--measure: ${num(theme.measure)}ch;`,

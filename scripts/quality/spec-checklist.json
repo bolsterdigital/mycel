@@ -51,19 +51,21 @@
       "category": "foundations",
       "level": "recommended",
       "status": "open",
-      "gap": "public pages carry the framework default icon; no tenant icon, /favicon.ico or touch icon"
+      "gap": "the site logo is the icon when the site has one; no /favicon.ico and no touch icon"
     },
     "theme-color": {
       "category": "foundations",
       "level": "recommended",
-      "status": "open",
-      "gap": "no theme-color derived from the tenant theme"
+      "status": "covered",
+      "file": "apps/web/e2e/public-site.spec.ts",
+      "note": "one theme-color per colour scheme, the body background of the light and dark palette"
     },
     "color-scheme": {
       "category": "foundations",
       "level": "recommended",
-      "status": "open",
-      "gap": "no color-scheme declaration matching the tenant theme"
+      "status": "covered",
+      "file": "apps/web/e2e/public-site.spec.ts",
+      "note": "a color-scheme meta beside the theme's light and dark palettes"
     },
     "open-graph": {
       "category": "foundations",
@@ -130,14 +132,16 @@
     "robots-txt": {
       "category": "seo",
       "level": "recommended",
-      "status": "open",
-      "gap": "robots.txt is the framework default for every host: no sitemap reference, no per-tenant file"
+      "status": "covered",
+      "file": "apps/web/e2e/lib/published/representations.ts",
+      "note": "per-tenant robots.txt names the sitemap on the primary hostname"
     },
     "xml-sitemaps": {
       "category": "seo",
       "level": "recommended",
-      "status": "open",
-      "gap": "Profile-only sitemap exists; general published content enumeration remains open."
+      "status": "covered",
+      "file": "apps/web/e2e/lib/published/representations.ts",
+      "note": "published, indexable locales with lastmod and alternates, plus public people"
     },
     "sitemap-index": {
       "category": "seo",
@@ -899,7 +903,7 @@
       "level": "recommended",
       "status": "covered",
       "file": "apps/web/e2e/quality-corpus.spec.ts",
-      "note": "every corpus page in each locale comes back from the back/forward cache in full Chromium with no reason reported over the DevTools protocol; a page with an unload handler is refused (apps/web/e2e/lib/bfcache.ts)"
+      "note": "every corpus page in each locale comes back from the back/forward cache in full Chromium with no reason reported over the DevTools protocol; a page with an unload handler is refused (apps/web/e2e/lib/navigation/bfcache.ts)"
     },
     "visibility-aware-rendering": {
       "category": "performance",

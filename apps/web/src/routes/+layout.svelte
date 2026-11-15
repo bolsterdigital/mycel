@@ -1,13 +1,10 @@
+<!-- No icon here: a tenant site shows its own logo or none, the admin a Mycel mark; a framework
+     default on every route was the alternative this replaced. Each group layout sets its own. -->
 <script lang="ts">
-  import favicon from '#lib/assets/favicon.svg';
   import type { LayoutProps } from './$types';
 
   let { children }: LayoutProps = $props();
 </script>
-
-<svelte:head>
-  <link rel="icon" href={favicon} />
-</svelte:head>
 
 {@render children()}
 

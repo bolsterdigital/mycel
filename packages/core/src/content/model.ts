@@ -51,6 +51,8 @@ export const RESERVED_PAGE_SLUGS = [
   'media',
   'healthz',
   'thanks',
+  // The site search of every locale (`/search`, `/en/search`).
+  'search',
   'robots.txt',
   'favicon.ico',
 ] as const;

@@ -87,7 +87,15 @@ export interface UseCase<
  * repeat.
  */
 export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
+  // A campaign card on a public page (ADR 033 rule 4): only published, public landing pages and
+  // aggregates; the reason a card is empty is no more than the page itself already withholds.
+  'campaign.card.get',
   'content.published.get',
+  // Title and an excerpt of public, indexable published revisions only; restricted
+  // items are left out whole.
+  'content.published.find',
+  // Addresses and publication facts of published locales only, no document text.
+  'content.published.list',
   'content.public_person.get',
   'content.public_person.list',
   'form.get',
@@ -97,6 +105,8 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   'media.get',
   'site.brand.get',
   'site.chrome.get',
+  // ADR 036 rule 8: published, public targets only; nothing personalised.
+  'site.navigation.resolve',
   'site.general.get',
   'site.theme.get',
 ]);

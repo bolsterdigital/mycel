@@ -34,6 +34,7 @@ CI does not run `verify` as one command (`.github/workflows/verify.yml`). Job `c
 - **Customisation ladder: validated theme values, block variants, patterns and composed blocks; platform-maintainer-installed packages may serve selected sites without compulsory upstream inclusion; no arbitrary tenant CSS/code uploads** (ADRs 013, 022).
 - **Managed CMP, tags and embeds require route, consent, preview and fallback controls; selective loading does not isolate server code** (ADR 022).
 - **External CRM, ESP and subscription ownership are supported tenant choices; connectors and one-off relays are inventoried and reconciled, with one owner per scope** (ADR 024).
+- **Site navigation is one revisioned document per tenant of menus (two levels, closed targets `content | url | system`) and placements, published per locale with `content:publish`; a label is the node's own text, else the target's published featured title, else its title, in one locale; unavailable targets render nothing publicly; the ETag hashes the resolved navigation** (ADR 036).
 - **Tenants resolve from the hostname; custom domains are tenant data with on-demand TLS; admin never runs on tenant domains** (ADR 014).
 - **One edition; features and limits are an `entitlements` document per tenant, enforced in core; prices never in this repo** (ADR 015).
 - **Readers are supporters with a magic-link session; content access is enforced server-side, teaser plus prompt for everyone else** (ADR 016).

@@ -32,7 +32,8 @@ const media = {
 };
 const documents = [
   demoPage({ formId: FORM, media }).document,
-  demoArticle({ formId: FORM, media, pageId: exampleId(0xc101) }).document,
+  demoArticle({ formId: FORM, media, pageId: exampleId(0xc101), campaignId: exampleId(0xc1) })
+    .document,
 ];
 
 /** A JPEG start-of-image marker: all the memory image processor reads of a JPEG. */

@@ -52,7 +52,7 @@
   import BlockMoveStatus from '#lib/admin/block-move/BlockMoveStatus.svelte';
   import { blockCardLabels, blockGroupLabels } from '#lib/admin/block-move/labels.js';
   import BlockNameField from '#lib/admin/block-fields/BlockNameField.svelte';
-  import { DOC_FIELDS } from '#lib/admin/issue-label.js';
+  import { DOC_FIELDS, fieldAnchor, WRITER_FIELD } from '#lib/admin/issue-label.js';
   import { BLOCK_ICONS, BLOCK_PRESENTATION } from '#lib/admin/block-presentation.js';
   import { blockNotice, restWords } from '#lib/admin/block-rest-words.js';
   import { pickAny, BLOCK_DEFINITIONS, pick, type BlockType, type MediaCredit } from '@mycel/core';
@@ -232,15 +232,7 @@
       : t('admin.block.title');
     return locale ? `${label} (${locale})` : label;
   };
-  /** The element id of a block field: `b-<block id>-p-…`, `b-new-p-…` for the pending block. */
-  const fieldId = (name: string) =>
-    name === 'locales'
-      ? `locale-${defaultLocale}`
-      : name in DOC_FIELDS
-        ? name
-        : name.startsWith('new.')
-          ? `b-new-${name.slice(4).replaceAll('.', '-')}`
-          : `b-${name.slice(2).replaceAll('.', '-')}`;
+  const fieldId = (name: string) => fieldAnchor(name, defaultLocale);
   /** An issue path in words: "Titel (en)", "Blok 3: Tekst (nl)", else the path itself. */
   const issueName = (path: string): string => {
     const l = issueLabel(path, data.docLocales);
@@ -471,7 +463,7 @@
   {:else if BLOCK_PRESENTATION[b.type].rest === 'text' && b.text}
     {#if b.type === 'hero' && b.image}{@render picture(b.image, 'image-mediaId')}{/if}
     {@const words = restWords(b.text, data.restricted, t)}
-    <BlockText view={b.text} kindLabel={words.kindLabel} noteLabel={words.noteLabel} />
+    <BlockText view={b.text} {...words} />
     {#if b.type === 'hero'}
       <p class="ui-hint">
         {t('admin.block.hero.legacy')}
@@ -714,7 +706,7 @@
     {#if article && data.canWrite}
       <WritingSurface
         content={data.articleEditor}
-        name="articleEditor"
+        name={WRITER_FIELD}
         locale={data.locale}
         contentLocale={work}
         media={data.media}

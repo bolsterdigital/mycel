@@ -730,9 +730,9 @@ test.describe('blocks-registry', () => {
             if (viewport === 1440 && width === 'full') expect(dimensions.section).toBe(1440);
             if (variant === 'accordion') {
               expect(dimensions.summary).toBeGreaterThanOrEqual(44);
-              await page.locator('summary').focus();
+              await page.locator('.faq summary').focus();
               await page.keyboard.press('Enter');
-              await expect(page.locator('details')).toHaveAttribute('open', '');
+              await expect(page.locator('.faq details')).toHaveAttribute('open', '');
               await expect(page.locator('.faq .answer')).toBeVisible();
             }
             if (viewport === 320)
@@ -961,7 +961,8 @@ test.describe('admin-shell', () => {
       'General',
       'Theme',
       'Logo and wordmark',
-      'Menus and footer',
+      'Footer text',
+      'Navigation',
     ]);
     await expect(sections.getByRole('link', { name: 'General' })).toHaveAttribute(
       'aria-current',

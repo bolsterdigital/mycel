@@ -25,9 +25,17 @@ import {
 import { expectNoAxeViolations } from './lib/axe';
 import { expectPixels, watchImages } from './lib/images';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
-import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
+import {
+  NARROW,
+  TEXT_SIZES,
+  layoutGate,
+  mediaBlockProblems,
+  mediaBlocks,
+  setTextSize,
+} from './lib/layout';
 import { forwarded, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
+import { callApi } from './lib/api';
 import { openPublication } from './lib/publication';
 import { block, editorReady, reloadsEditor } from './lib/editor';
 
@@ -860,11 +868,20 @@ test('an image block chooses its image from a grid of thumbnails, without a scri
   await dialog.getByRole('button', { name: 'Klaar' }).click();
   await expect(dialog).toBeHidden();
 
+  // The placement too: beside the text, kept after a reload and shown by the preview.
+  await block.locator('summary', { hasText: 'Weergave' }).click();
+  await block.getByLabel('Plaatsing').selectOption({ label: 'Naast de tekst, rechts' });
   await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
-  await expect(
-    page.locator('details.block').first().getByRole('group', { name: 'Afbeelding' })
-  ).toContainText(names[1]!);
+  await page.goto(`/admin/probe/content/${itemId}`);
+  const saved = page.locator('details.block').first();
+  await saved.locator(':scope > summary').click();
+  await expect(saved.getByRole('group', { name: 'Afbeelding' })).toContainText(names[1]!);
+  await saved.locator('summary', { hasText: 'Weergave' }).click();
+  await expect(saved.getByLabel('Plaatsing')).toHaveValue('float-right');
+  const preview = await page.locator('a[href*="/preview/item/"]').first().getAttribute('href');
+  await page.goto(preview!);
+  await expect(page.locator('main figure.image.layout-float-right img')).toBeVisible();
 });
 
 test('a page gets its featured image from the picker, and shares it when published', async ({
@@ -1586,6 +1603,80 @@ test('an image dropped on an image card in an article replaces it there', async 
   await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
   await expect(page).toHaveURL(/saved/);
   expect((await storedImage(id)).alt).toEqual({ nl: 'Nieuw in de tekst' });
+});
+
+// Every image layout and video width between prose (mediaBlocks in lib/layout), measured against
+// the page's own rails. The page and its small image stay in probe like the text page does.
+test.describe('media blocks keep their rails', () => {
+  test.beforeAll(async ({ request }) => {
+    onlyA11y('composition measurements run in a11y');
+    const principal = systemPrincipal(await tenantId(), 'e2e');
+    await withInvoker(async (invoker, uow) => {
+      const slug = 'grid-media-v1';
+      if ((await invoker.run(useCases.listItems, principal, { type: 'page', slug })).items.length)
+        return;
+      const find = async (q: string) =>
+        (await uow.run(principal, (ctx) => ctx.media.list({ q, limit: 1 })))[0]!.id;
+      // Through the API, whose unit of work has the image processor.
+      const small = await callApi(request, 'media.upload', {
+        filename: 'klein.png',
+        contentType: 'image/png',
+        bytes: png(360, 240).toString('base64'),
+      });
+      const v = (type: keyof typeof BLOCK_DEFINITIONS) => BLOCK_DEFINITIONS[type].version;
+      const media = {
+        landscape: await find('malieveld.jpg'),
+        portrait: await find('bomen.jpg'),
+        panorama: await find('water.jpg'),
+        small: small.id,
+      };
+      const version = {
+        image: v('image'),
+        'video-embed': v('video-embed'),
+        'rich-text': v('rich-text'),
+      };
+      const { item, revision } = await invoker.run(useCases.createItem, principal, {
+        slug,
+        document: ContentDocumentInput.parse({
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl', 'en'],
+          title: { nl: 'Beeld en video', en: 'Image and video' },
+          blocks: mediaBlocks(media, version),
+        }),
+      });
+      for (const locale of ['nl', 'en'])
+        await invoker.run(useCases.publishItem, principal, {
+          itemId: item.id,
+          revisionId: revision.id,
+          locale,
+        });
+    });
+  });
+
+  for (const locale of ['nl', 'en'])
+    for (const width of [320, 768, 1440])
+      for (const size of TEXT_SIZES)
+        test(`${locale} at ${width}px and ${size} text`, async ({ page }, info) => {
+          onlyA11y('DOM measurements');
+          await page.setViewportSize({ width, height: 900 });
+          const hosts: string[] = [];
+          page.on('request', (r) => {
+            if (/youtube|youtu\.be|vimeo/.test(r.url())) hosts.push(r.url());
+          });
+          const route = `/probe/${locale === 'en' ? 'en/' : ''}grid-media-v1`;
+          expect((await page.goto(route))?.status()).toBe(200);
+          await setTextSize(page, size);
+          await page.evaluate(() => document.fonts.ready);
+          // The whole page as evidence for the visual judgement (crop, captions, floats).
+          const path = info.outputPath('page.png');
+          await page.screenshot({ path, fullPage: true });
+          await info.attach('page', { path, contentType: 'image/png' });
+          expect(await mediaBlockProblems(page, size === '100%')).toEqual([]);
+          await layoutGate(page, `${width}px ${size}`, 'main');
+          // A video is a link to its host: the page asks the host for nothing (no-JS fallback).
+          expect(hosts).toEqual([]);
+        });
 });
 
 test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {

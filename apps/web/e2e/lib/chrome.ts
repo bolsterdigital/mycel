@@ -1,0 +1,141 @@
+// Site chrome rails: the public page's named rails, measured against the page's own CSS, and an
+// item preview's chrome against its public page. Split from layout.ts, which reached its size
+// ceiling; the subject is the chrome, not a block.
+
+import { expect, type Frame, type Page } from '@playwright/test';
+
+// The public page's named rails, measured against the page's own CSS
+// (docs/architecture/content-layout.md § Site chrome). A probe element of each rail is added to
+// the page and measured, so the expectation is whatever base.css makes of this container, never a
+// number copied here.
+// Rejected: recomputing the rails in the test, which passes as long as test and CSS share a mistake.
+
+type Box = { left: number; right: number; top: number; bottom: number };
+
+/** Where the header, footer and the page's first and last content sit, plus the rails. */
+export async function chromeRails(page: Page | Frame) {
+  // A login lands on its URL before `load`: measured then, the chrome had no stylesheet yet.
+  await page.waitForLoadState('load');
+  await page.evaluate(() => document.fonts.ready);
+  return page.evaluate(() => {
+    const box = (el: Element | null | undefined): Box | null => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+    };
+    const main = document.querySelector('main.page')!;
+    const rail = (className: string) => {
+      const probe = document.createElement('div');
+      probe.className = className;
+      main.append(probe);
+      const r = box(probe)!;
+      probe.remove();
+      return r;
+    };
+    // A preview wraps each block in a `display: contents` wrapper, which has no box of its own.
+    const edge = (pick: (el: Element) => Element | null): Element | null => {
+      let el = pick(main);
+      while (el && getComputedStyle(el).display === 'contents') el = pick(el);
+      return el;
+    };
+    const style = getComputedStyle(main);
+    return {
+      wide: rail('layout-wide'),
+      header: box(document.querySelector('.site-header')),
+      identity: box(document.querySelector('.site-header .site-identity')),
+      tools: box(document.querySelector('.site-header .site-tools')),
+      footer: box(document.querySelector('.site-footer')),
+      footerParts: [...(document.querySelector('.site-footer')?.children ?? [])].map(box),
+      links: [...document.querySelectorAll('.site-header a, .site-footer a')].map((a) =>
+        a.getAttribute('href')
+      ),
+      first: box(edge((el) => el.firstElementChild)),
+      last: box(edge((el) => el.lastElementChild)),
+      padding: [parseFloat(style.paddingBlockStart), parseFloat(style.paddingBlockEnd)],
+    };
+  });
+}
+
+export type Rails = Awaited<ReturnType<typeof chromeRails>>;
+
+/** Header and footer content start and end on the wide rail. The tools (call to action and Menu)
+ *  end on the rail, in the logo's row or under it; `oneRow` demands the first, without it the row
+ *  the browser chose is checked. */
+export function expectChromeOnWideRail(m: Rails, oneRow?: boolean) {
+  const { wide, identity, tools } = m;
+  expect(Math.abs(identity!.left - wide.left)).toBeLessThanOrEqual(1);
+  if (tools) {
+    oneRow ??= tools.top < identity!.bottom;
+    expect(Math.abs(tools.right - wide.right)).toBeLessThanOrEqual(1);
+    if (oneRow) expect(tools.top).toBeLessThan(identity!.bottom);
+    else expect(tools.top).toBeGreaterThanOrEqual(identity!.bottom);
+  }
+  for (const part of m.footerParts) {
+    expect(Math.abs(part!.left - wide.left)).toBeLessThanOrEqual(1);
+    expect(part!.right).toBeLessThanOrEqual(wide.right + 1);
+  }
+}
+
+/** Header to first content and last content to footer are the page's padding, whatever the
+ *  first and last element are, and the two are the same distance. */
+export function expectChromeTransitions(m: Rails) {
+  const [top, bottom] = m.padding as [number, number];
+  if (m.header) expect(m.first!.top - m.header.bottom).toBeCloseTo(top, 0);
+  if (m.footer) expect(m.footer.top - m.last!.bottom).toBeCloseTo(bottom, 0);
+  expect(bottom).toBeGreaterThanOrEqual(32);
+}
+
+/** An item preview (saved, or live in the editor's frame) shows its public page's chrome at the
+ *  same width: the same parts, header height, rails and transitions, and every site link under
+ *  the preview's `base`, so following one never leaves the platform origin by itself (ADR 014). */
+export function expectPreviewChrome(preview: Rails, site: Rails, base: string) {
+  const parts = (m: Rails) => [!m.tools, m.footerParts.length, m.links.length];
+  const height = (m: Rails) => m.header!.bottom - m.header!.top;
+  expect(parts(preview)).toEqual(parts(site));
+  expect(height(preview)).toBeCloseTo(height(site), 0);
+  expectChromeOnWideRail(preview, site.tools ? site.tools.top < site.identity!.bottom : undefined);
+  expectChromeTransitions(preview);
+  for (const href of preview.links)
+    if (href?.startsWith('/')) expect(href).toMatch(new RegExp(`^${base}(/|$)`));
+}
+
+/** The rails of a composed page: its measure, prose, wide and full blocks, title and floats. */
+export async function compositionMetrics(page: Page) {
+  await page.evaluate(() => document.fonts.ready);
+  return page.evaluate(() => {
+    const box = (selector: string) => {
+      const el = document.querySelector(selector);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.x, width: r.width, bottom: r.bottom, top: r.top };
+    };
+    return {
+      viewport: document.documentElement.clientWidth,
+      overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      font: getComputedStyle(document.body).fontFamily,
+      fontSize: getComputedStyle(document.body).fontSize,
+      measure: getComputedStyle(document.querySelector('.page')!).getPropertyValue(
+        '--content-width'
+      ),
+      prose: box('.page .rich-text'),
+      wide: box('.page .layout-wide'),
+      full: box('.page .layout-full'),
+      title: box('.page h1'),
+      floats: [...document.querySelectorAll('.page [class*="layout-float-"]')].map(
+        (el) => getComputedStyle(el).float
+      ),
+    };
+  });
+}
+
+/** The item title sits centred in its own 52rem rail (brief 46C-1 rule 8): never narrower
+ *  than the reading column, never wider than the rail, its centre on the viewport's. */
+export function expectTitleRail(
+  title: { x: number; width: number },
+  prose: { width: number },
+  viewport: number
+) {
+  expect(title.width).toBeGreaterThanOrEqual(prose.width - 1);
+  expect(title.width).toBeLessThanOrEqual(52 * 16 + 1);
+  expect(Math.abs(title.x + title.width / 2 - viewport / 2)).toBeLessThanOrEqual(1);
+}

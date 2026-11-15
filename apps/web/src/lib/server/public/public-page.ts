@@ -2,7 +2,8 @@
 // one published locale of the item (`content.published.get`, the locale from the path), the
 // resolver fetches every reference the blocks make once, up front, and this module adds what the
 // document head and the cache need: the canonical URL, one `hreflang` per published locale plus
-// `x-default`, a description, the Open Graph title and share image (#66), and a strong ETag. The public pages ship no client-side JavaScript
+// `x-default`, a description, the Open Graph title and share image (#66), the editor's
+// `noindex` and explicit canonical, and a strong ETag. The public pages ship no client-side JavaScript
 // at all, and nothing here reads a cookie or Accept-Language: the response is a function of the
 // URL, which is what makes it cacheable in a shared cache (ADR 018 rule 8).
 //
@@ -11,6 +12,12 @@
 // the head, the site's entitlements and status), so unpublishing a linked item or switching the
 // footer credit off also changes the tag. Rejected: the brief's three parts alone (a 304 would
 // keep a link to an item that is no longer public), and hashing the HTML.
+//
+// A campaign card or a form bound to a campaign (ADR 033 rule 6) is in the model with the landing
+// page's published revision, its phase and the count it showed, so the digest moves when any of
+// them does: a newer landing revision, opening or closing (a window boundary passing included,
+// since the phase is evaluated when the page is read) or one more participant. A `full` card
+// that renders its form makes the page an item with a form.
 //
 // An item with a form has no ETag at all, and the route makes it `no-store` (#30A, brief
 // form-intake § 5): its HTML carries a signed timing token per render, a 304 would keep an old
@@ -30,6 +37,7 @@ import {
   type TenantInfo,
 } from '@mycel/core';
 import type { RenderIntro, RenderModel } from '../../blocks/model.js';
+import { hasForm } from './has-form.js';
 import { renderMeta, resolveDocument, resolveIntro, runtimeSource } from '../../blocks/resolve.js';
 import type { ContentRoute } from './content-route.js';
 import { runtime } from '../runtime.js';
@@ -38,11 +46,14 @@ import { personPath } from '../../public/person-path.js';
 import { ui } from '../../../i18n/index.js';
 import { ogLocales } from './share-locale.js';
 import { sitePath, siteTenant, siteUrls, type Site } from '../site.js';
-import { siteBrand, siteChrome, siteTheme } from './theme.js';
+import { siteBrand, siteChrome, siteNavigation, siteTheme } from './theme.js';
 import { refuse } from '#lib/server/http/refuse.js';
 
 export interface PublicHead {
+  /** The item's own address, or the editor's explicit canonical URL (`seo.canonical`). */
   canonical: string;
+  /** `seo.noindex`: the page is served but asks search engines not to index it. */
+  noindex: boolean;
   /** One per published locale, then `x-default`. */
   alternates: { hreflang: string; href: string }[];
   description: string | null;
@@ -149,7 +160,10 @@ export async function loadPublicItem(
   const { images } = item.effective;
   const shared = ogLocales(locale, item.locales);
   const head: PublicHead = {
-    canonical: href(locale),
+    // An explicit canonical replaces only this link: the alternates stay the item's own paths,
+    // since they name its translations here, not the address the editor points search to.
+    canonical: item.seo.canonical ?? href(locale),
+    noindex: item.seo.noindex,
     alternates: [
       ...item.locales.map((l) => ({ hreflang: l, href: href(l) })),
       { hreflang: 'x-default', href: href(fallback) },
@@ -170,11 +184,17 @@ export async function loadPublicItem(
     ),
   };
 
+  // The JSON-LD `url` is the same canonical as the link and og:url, explicit or not: three
+  // answers to "which address is this" must agree. Rejected: the item's own address here, which
+  // would tell search one URL in the link and another in the structured data.
   const structured = articleData(item, head.canonical, locale, tenant.defaultLocale, url);
   const page = { tenant, item, locale, model, intro, dropCap, head, structured };
   if (hasForm(model)) return { ...page, etag: null };
   const chrome = await siteChrome(site);
   const brand = await siteBrand(site);
+  // The resolved menus, not only their revision (ADR 036 rule 11): a republished target title or
+  // slug changes the header without a navigation revision.
+  const navigation = await siteNavigation(site, locale);
   const digest = createHash('sha256')
     .update(
       JSON.stringify({
@@ -185,6 +205,7 @@ export async function loadPublicItem(
         structured,
         access: site.access,
         chrome,
+        navigation,
         brand,
       })
     )
@@ -231,12 +252,4 @@ async function shareImage(
     type: 'image/webp',
     alt,
   };
-}
-
-/**
- * Whether the page renders a form. The render model is flat: a pattern is copied into the item
- * as plain blocks (content/patterns.ts), so there is no nesting left to walk.
- */
-export function hasForm(model: RenderModel): boolean {
-  return model.blocks.some((b) => b.type === 'form' && b.form !== null);
 }

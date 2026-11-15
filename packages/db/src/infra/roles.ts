@@ -63,7 +63,14 @@ export function asRole<T>(
 
 /** What an advisory lock serialises; the scope keeps two kinds of lock on one id apart. */
 export type LockScope =
-  'admissions' | 'assist' | 'media' | 'members' | 'person-erasure' | 'rate' | 'supporter';
+  | 'admissions'
+  | 'assist'
+  | 'media'
+  | 'members'
+  | 'navigation'
+  | 'person-erasure'
+  | 'rate'
+  | 'supporter';
 
 /**
  * A transaction-scoped advisory lock on `scope` plus `parts`, keyed `scope:part:part` through

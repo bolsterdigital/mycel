@@ -19,6 +19,7 @@ import { ContentItem, ContentType, Slug } from '../model.js';
 import type { ItemRecord } from '../ports.js';
 import { lockItem, toContentItem } from '../service.js';
 import '../../campaigns/ports.js';
+import '../../navigation/ports.js';
 
 const ItemId = z.string().guid();
 const IsoDate = z.string().datetime({ offset: true });
@@ -53,6 +54,9 @@ export const deleteItem = defineUseCase({
   output: z.object({ id: ItemId, deletedAt: IsoDate }),
   examples: [{ input: { itemId: exampleId(0x1) } }],
   async handler(ctx, { itemId }) {
+    // ADR 036 rule 9: navigation before content, shared so deletes do not wait for each other;
+    // a navigation save waits, so it cannot add a reference this check has not seen.
+    await ctx.navigation.lock('shared');
     const item = await lockItem(ctx, itemId);
     // ADR 033 rule 9: a landing page leaves only after its campaign is archived, so a campaign
     // never points at a page in the trash while it can still take part or show a card.
@@ -63,6 +67,15 @@ export const deleteItem = defineUseCase({
           path: 'itemId',
           message: 'content.delete.campaign-landing',
           params: { campaignId: campaign.id },
+        },
+      ]);
+    const menus = await ctx.navigation.referencingMenus(itemId);
+    if (menus.length)
+      throw new UseCaseError('conflict', 'a menu links to this item', [
+        {
+          path: 'itemId',
+          message: 'content.delete.in-navigation',
+          params: { count: String(menus.length), menus: menus.map((m) => m.name).join(', ') },
         },
       ]);
     const linking = await referrers(ctx, itemId);

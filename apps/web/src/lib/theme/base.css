@@ -13,7 +13,11 @@
 @import './media-blocks.css' layer(base);
 @import './forms.css' layer(base);
 @import './people.css' layer(base);
+@import './search.css' layer(base);
 @import './action-row.css' layer(components);
+@import './hero.css' layer(components);
+@import './campaign-card.css' layer(components);
+@import './site-chrome.css' layer(components);
 
 /* A content column measured in the page's own `ch`, inherited as a length, so a heading with a
    larger font has the same column as the text under it. */
@@ -45,6 +49,12 @@
     /* The item title's own rail (brief 46C-1 rule 8, Dreamkit's centred entry title): wider than
        the reading column so a long title breaks less, narrower than the wide rail. */
     --title-width: 52rem;
+    /* The lead's rail under the title: narrower than the title, whose larger font may run wider. */
+    --lead-width: 44rem;
+    /* The wide rail as an inset of a full-width band, for the site header and footer: their
+       background runs to the edges, their content starts and ends where a wide block does.
+       A percentage in padding resolves against the band's own containing block, the page. */
+    --wide-inset: max(var(--gutter), (100% - var(--wide-width)) / 2);
     --tap: 2.75rem;
   }
 }
@@ -114,6 +124,8 @@
     color: var(--color-link);
     text-decoration-thickness: 0.08em;
     text-underline-offset: 0.15em;
+    /* A hyphen in a linked URL reads as another address; a `.button` label keeps hyphens. */
+    hyphens: manual;
   }
   img {
     max-width: 100%;
@@ -150,6 +162,20 @@
   .page {
     padding-block: var(--space-3) var(--space-4);
   }
+  /* The two transitions to the site chrome are one distance each, whatever comes first or last:
+     the page's padding. The first and last element give up their own outer margin, so a page
+     that opens with a heading and one that opens with a hero, or ends on a paragraph, a card or
+     a FAQ, sit the same distance from the header and the footer. Rejected: a margin per block
+     type at the page's edges, which is per-page patching. */
+  .page:not(.admin) {
+    padding-block: var(--space-4);
+  }
+  :is(.page:not(.admin), .page:not(.admin) > .preview-selectable:first-child) > :first-child {
+    margin-block-start: 0;
+  }
+  :is(.page:not(.admin), .page:not(.admin) > .preview-selectable:last-child) > :last-child {
+    margin-block-end: 0;
+  }
   .page > .preview-selectable {
     display: contents;
   }
@@ -169,6 +195,11 @@
   }
   .block {
     margin-block: 0 var(--space-3);
+  }
+  /* A menu link with an anchor lands on the block (`blocks/anchor.ts`) with room above it, not
+     against the edge of the viewport. The site header does not stick, so no header height. */
+  .block[id] {
+    scroll-margin-block-start: var(--space-3);
   }
   .align-center {
     text-align: center;
@@ -192,10 +223,10 @@
     text-align: center;
   }
 
-  /* Images. A caption is as wide as its image and starts at the image's left edge, whatever the
-     layout (brief 46C-1 rules 1 to 4): it sits inside the figure and never follows the reading
-     column. Only an image that touches the container's edge insets its caption, so the text
-     never runs against the screen edge; that is one property, set where a layout is edgeless.
+  /* Images. A caption is as wide as its image up to the measure (media-blocks.css) and starts at
+     the image's left edge whatever the layout (brief 46C-1 rules 1-4), never the reading column.
+     Only an image on the container's edge insets its caption, so the text never runs against the
+     screen edge; that is one property, set where a layout is edgeless.
      Rejected: centring wide captions as Wings and Dreamkit did, which loses the shared edge. */
   .image,
   .video {
@@ -204,21 +235,20 @@
   .image.layout-full {
     --caption-inset: var(--gutter);
   }
-  /* Every image fills its figure, so the image and its caption share a left edge even when the
-     file is narrower than its rail. */
+  /* Every image fills its figure: image and caption share a left edge, however small the file. */
   .image img {
     width: 100%;
   }
-  .page :is(.cta, .quote, .form) > * {
-    max-width: var(--content-width);
+  /* A wide or full background keeps its text on the content rail, gutters included: a full quote
+     or video has no padding of its own, so `100cqi` (the page) bounds it. Rejected: a padding
+     per block type. */
+  .page :is(.cta, .quote, .form, .video) > * {
+    max-width: min(var(--content-width), 100cqi - 2 * var(--gutter, 0px));
     margin-inline: auto;
   }
-  /* The item's own introduction (#86): the lead in the next step of the scale, in the heading
-     font, and the hero image between it and the blocks. */
-  /* Centred under the title like Dreamkit's compact-header lede, in a 44rem rail of its own:
-     narrower than the title, whose larger font may run wider. */
+  /* The item's lead (#86): heading font, one step up, centred under the title in its own rail. */
   .page > .lead {
-    width: min(44rem, 100% - 2 * var(--gutter));
+    width: min(var(--lead-width), 100% - 2 * var(--gutter));
     text-align: center;
     margin-block: 0 var(--space-3);
     font-family: var(--font-heading);
@@ -385,7 +415,8 @@
     float: right;
     margin: 0 var(--float-outer) var(--space-2) var(--float-inner);
   }
-  .page :is(.cta, .cards, .faq, .gallery, .timeline, .audio, .people-grid) {
+  .page
+    :is(.cta, .cards, .faq, .gallery, .timeline, .audio, .people-grid, .video, .layout-content) {
     clear: both;
   }
   @container (max-width: 40rem) {
@@ -481,10 +512,10 @@
     min-height: var(--tap);
     min-width: var(--tap);
     max-width: 100%;
+    hyphens: auto;
     padding: calc(0.625rem - 2px) calc(min(1.25rem, 4vw) - 2px);
-    /* The shape is the background, which forced colours (Windows High Contrast) paint as the
-       canvas; a transparent border is invisible here and gets the system's text colour there,
-       so the button keeps its outline. The padding gives back the border's width. */
+    /* The shape is the background, which forced colours paint as the canvas; a transparent
+       border gets the system's text colour there. The padding gives back its width. */
     border: 2px solid transparent;
     border-radius: var(--radius);
     font-weight: 600;
@@ -502,7 +533,7 @@
   /* Public buttons and FAQ bars share one checked sRGB path. Only pointer/keyboard/open
      progress animates; theme changes and initial stylesheet application set their pairs at once.
      Without registered-property animation support the feedback changes immediately. */
-  .page:not(.admin) .button,
+  :is(.page:not(.admin), .site-header) .button,
   .faq-accordion summary {
     --action-progress: 0;
     --action-base-fg: var(--color-primary-fg);
@@ -523,78 +554,19 @@
     );
     transition: --action-progress 150ms ease-out;
   }
-  .page:not(.admin) .button.secondary {
+  :is(.page:not(.admin), .site-header) .button.secondary {
     --action-base-fg: var(--color-body-fg);
     --action-base-bg: var(--color-body-bg);
     --action-fg: var(--color-body-active-fg);
     --action-bg: var(--color-body-active-bg);
   }
-  .page:not(.admin) .button:is(:hover, :focus-visible) {
+  :is(.page:not(.admin), .site-header) .button:is(:hover, :focus-visible) {
     --action-progress: 1;
     text-decoration: none;
   }
-  .page:not(.admin) .button:focus-visible {
+  :is(.page:not(.admin), .site-header) .button:focus-visible {
     outline-color: currentColor;
     outline-offset: -0.25rem;
-  }
-
-  /* Hero. `cover`: an opaque surface panel over the image, never text on the photo. */
-  .hero {
-    clear: both;
-  }
-  .hero h2 {
-    margin-block-start: 0;
-    font-size: clamp(var(--step-2), 1rem + 4vw, var(--step-4));
-  }
-  .hero-minimal {
-    padding-block: var(--space-3);
-  }
-  .hero-media picture,
-  .hero-media img {
-    width: 100%;
-  }
-  .hero-text {
-    padding: var(--inset) 0;
-  }
-  /* One column no wider than the block: an image that has not loaded (or failed) lays out as its
-     alt text, whose min-content width an `auto` track would take, past the viewport at 320 CSS px. */
-  .hero-cover {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .hero-cover > .hero-media,
-  .hero-cover > .hero-text {
-    grid-area: 1 / 1;
-  }
-  .hero-cover .hero-media,
-  .hero-cover picture,
-  .hero-cover img {
-    height: 100%;
-    min-height: 20rem;
-    object-fit: cover;
-  }
-  .hero-cover .hero-text {
-    align-self: end;
-    justify-self: start;
-    max-width: min(40rem, 100% - 2 * var(--gutter));
-    margin: var(--space-4) var(--gutter) var(--gutter);
-    padding: var(--inset);
-    color: var(--color-surface-fg);
-    background: var(--color-surface-bg);
-    border-radius: var(--radius);
-  }
-  .hero-cover.align-center .hero-text {
-    justify-self: center;
-  }
-  .hero-cover.align-end .hero-text {
-    justify-self: end;
-  }
-  @media (min-width: 48rem) {
-    .hero-split {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      align-items: center;
-    }
   }
 
   /* Call to action: a band in the primary pair or a card on the surface. */
@@ -728,10 +700,7 @@
 
   /* FAQ: <details> works without JavaScript; the question heading sits inside <summary>. The
      items paint their own surfaces, so a hanging float drops above the block instead of
-     overlapping a card (Dreamkit `_faq.scss`). */
-  .faq {
-    clear: both;
-  }
+     overlapping a card (Dreamkit `_faq.scss`; the `clear` is with the other framed blocks). */
   .faq h3 {
     margin-block: var(--space-3) var(--space-1);
   }
@@ -838,9 +807,8 @@
     margin-block-end: 0;
   }
 
-  /* Quotes */
-  /* A pull quote is a pause in the page: it gets more room than the blocks around it, whatever
-     stands next to it (P185-79: it hung against the cards above). */
+  /* Quotes. A pull quote is a pause in the page: it gets more room than the blocks around it,
+     whatever stands next to it (P185-79: it hung against the cards above). */
   .page .quote-pullquote {
     margin-block: var(--space-4);
   }
@@ -895,6 +863,12 @@
   .rich-text ol {
     padding-inline-start: 1.5em;
   }
+  /* Prose ends without a margin of its own: the block's margin separates it from the next one,
+     and as a page's last block its paragraph margin would otherwise collapse through the block
+     and add to the transition to the footer. */
+  .rich-text > :last-child {
+    margin-block-end: 0;
+  }
   .footnotes {
     margin-block-start: var(--space-3);
     font-size: var(--step--1);
@@ -907,8 +881,7 @@
   }
 
   .mycel-credit {
-    padding: var(--space-3) var(--gutter);
-    text-align: center;
+    padding-block-start: var(--space-2);
     font-size: var(--step--1);
   }
 }
@@ -924,48 +897,5 @@
   }
   .public-skip:focus {
     inset-block-start: 0;
-  }
-  .site-header,
-  .site-footer {
-    padding: var(--space-2) var(--gutter);
-    border-block: 1px solid var(--color-surface-bg);
-  }
-  .site-header nav,
-  .site-footer nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-3);
-    max-width: var(--wide-width);
-    margin-inline: auto;
-  }
-  .site-header > .site-identity {
-    display: flex;
-    width: min(var(--wide-width), 100%);
-    margin-inline: auto;
-  }
-  .site-identity {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    min-height: var(--tap);
-    max-width: 100%;
-    font-weight: 700;
-  }
-  .site-identity img {
-    display: block;
-    max-width: min(12rem, 45vw);
-    max-height: 4rem;
-    width: auto;
-    height: auto;
-  }
-  .site-header a,
-  .site-footer a {
-    display: inline-flex;
-    align-items: center;
-    min-height: var(--tap);
-  }
-  .site-footer p {
-    max-width: var(--wide-width);
-    margin-inline: auto;
   }
 }

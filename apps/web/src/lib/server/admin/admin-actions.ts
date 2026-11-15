@@ -33,7 +33,10 @@ export interface ActionEvent {
   request: Request;
 }
 
-/** Catalog copy per outcome; `issues` maps the i18n key core put in the first issue. */
+/**
+ * Catalog copy per outcome; `issues` maps the i18n key core put in the first issue, and wins over
+ * `conflict` and `invalid` when it has a line for that key.
+ */
 export interface ActionCopy {
   conflict: UiKey;
   invalid?: UiKey;
@@ -123,7 +126,10 @@ export async function act<T>(
 
 /**
  * The status and catalog copy of a UseCaseError, for an action that builds its own failure (the
- * content admin re-renders a whole form from the posted values).
+ * content admin re-renders a whole form from the posted values). An `issues` line wins for a
+ * `conflict` too, because one use case can refuse for more than one reason: deleting an item is
+ * refused while others link to it and while it is a campaign's landing page. Rejected: a
+ * try/catch per route, which every next conflict with its own sentence would have to repeat.
  */
 export function failureOf(
   e: UseCaseError,
@@ -136,7 +142,7 @@ export function failureOf(
   const issue = copy.issues?.[e.issues[0]?.message ?? ''];
   const error: UiKey =
     e.code === 'conflict'
-      ? copy.conflict
+      ? (issue ?? copy.conflict)
       : e.code === 'not_found'
         ? (copy.notFound ?? 'admin.error.notFound')
         : e.code === 'forbidden'

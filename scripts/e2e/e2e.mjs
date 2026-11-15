@@ -370,6 +370,27 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
       });
   }
 
+  // Twenty draft articles for the generic gate's article list (routes.ts): a local
+  // database gathers this many drafts after a few runs, and only then did the row actions clip
+  // their confirm button, while a fresh CI shard with two drafts stayed green. Seeded here so every
+  // run measures the full list. Rejected: creating them in ui-gate.spec.ts, which other specs'
+  // drafts would then still change under it.
+  for (let i = 1; i <= 20; i++) {
+    const slug = `e2e-concept-${i}`;
+    if ((await invoker.run(useCases.listItems, admin, { type: 'article', slug })).items.length)
+      continue;
+    await invoker.run(useCases.createItem, admin, {
+      slug,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: `Concept ${i}: een stuk over de wijk`, en: `Draft ${i}: a piece on the area` },
+        blocks: [],
+      },
+    });
+  }
+
   // Two composed pages for public-site.spec.ts (TODO #8c1): a campaign and an article, in nl and en,
   // built from the registry's own examples with the example ids swapped for real data: two
   // uploaded images, the signup page as the linked item and its form. `artikel` stays a page:
@@ -525,6 +546,31 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
         .where('id', '=', formId)
         .execute()
     );
+    // ADR 033 rule 4: the example card shows an open petition whose landing page is published.
+    const campaigns = (await invoker.run(useCases.listCampaigns, admin, {})).campaigns;
+    let cardCampaign = campaigns.find((c) => c.landing?.slug === 'e2e-kaartpetitie');
+    if (!cardCampaign) {
+      cardCampaign = await invoker.run(useCases.composeCampaign, admin, {
+        kind: 'petition',
+        title: { nl: 'Red het e2e-park', en: 'Save the e2e park' },
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        slug: 'e2e-kaartpetitie',
+        goal: { target: 500, milestones: [] },
+      });
+      const itemId = cardCampaign.landingItemId;
+      const { item } = await invoker.run(useCases.getItem, admin, { itemId });
+      for (const locale of ['nl', 'en'])
+        await invoker.run(useCases.publishItem, admin, {
+          itemId,
+          revisionId: item.latestRevisionId,
+          locale,
+        });
+      await invoker.run(useCases.openCampaign, admin, {
+        campaignId: cardCampaign.id,
+        baseUpdatedAt: cardCampaign.updatedAt,
+      });
+    }
     const examples = blockExamples(BLOCK_DEFINITIONS);
     // Rich text with section headings, a footnote and an item link: the article's body.
     examples['article-text'] = {
@@ -668,6 +714,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
           .replaceAll(EXAMPLE_IDS.audio, sound.id)
           .replaceAll(EXAMPLE_IDS.item, signupItem.id)
           .replaceAll(EXAMPLE_IDS.form, formId)
+          .replaceAll(EXAMPLE_IDS.campaign, cardCampaign.id)
       );
     const qualityImages = [landscape.id, portrait.id, square.id, panorama.id];
     await invoker.run(useCases.updatePerson, admin, {

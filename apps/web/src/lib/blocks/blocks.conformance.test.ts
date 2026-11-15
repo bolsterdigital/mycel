@@ -162,6 +162,35 @@ const fixtures: ResolveSource = {
   async itemPath(id) {
     return id === EXAMPLE_IDS.item ? '/jaarverslag' : null;
   },
+  // The example campaign is open, with its form, image and a public count; the example form is
+  // bound to no campaign. `resolve.test.ts` covers the other phases and every reason.
+  async campaignCard(campaignId, locale) {
+    if (campaignId !== EXAMPLE_IDS.campaign)
+      return { available: false, campaignId, reason: 'unknown' };
+    return {
+      available: true,
+      campaignId,
+      kind: 'petition',
+      locale,
+      landing: {
+        id: EXAMPLE_IDS.item,
+        type: 'page',
+        slug: locale === 'nl' ? 'red-het-park' : 'save-the-park',
+        revisionId: '01900000-0000-7000-8000-00000000c1e1',
+        title: locale === 'nl' ? 'Red het park' : 'Save the park',
+        summary: locale === 'nl' ? 'Teken voor het park.' : 'Sign for the park.',
+        imageId: EXAMPLE_IDS.image,
+      },
+      phase: 'open',
+      opensAt: null,
+      closesAt: null,
+      counter: { participants: 1234, target: 5000 },
+      formId: EXAMPLE_IDS.form,
+    };
+  },
+  async formCampaign() {
+    return null;
+  },
 };
 
 const examples = BLOCK_TYPES.flatMap((type) =>

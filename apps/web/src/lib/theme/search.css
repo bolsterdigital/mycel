@@ -1,0 +1,78 @@
+/* The site search: the field and its button share a row while both fit and wrap to two lines
+   when they do not (320 CSS px, 200% text), each whole; results read as a plain list of links
+   in the page's measure. Rejected: an icon-only submit button (a label that is never seen is a
+   label a translator cannot check). Imported in layer base, beside the form controls. */
+.search-form {
+  display: grid;
+  /* Without the bound the column takes the field's intrinsic width, past a 320 px screen at 200%. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+}
+.search-form label {
+  font-weight: 600;
+}
+.search-page search {
+  display: block;
+  margin-block-end: var(--space-3);
+}
+.search-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 0.5rem);
+}
+.search-row input {
+  flex: 1 1 14rem;
+  width: 0;
+  min-width: 0;
+  max-inline-size: 40ch;
+  font: inherit;
+  min-height: var(--tap);
+  padding: 0.625rem 0.75rem;
+  border: 2px solid var(--color-muted-fg);
+  border-radius: var(--radius);
+  background: var(--color-body-bg);
+  color: var(--color-body-fg);
+}
+.search-row button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.search-results {
+  display: grid;
+  gap: var(--space-3, 1.5rem);
+  padding-inline-start: 0;
+  list-style: none;
+}
+.search-results h2 {
+  margin: 0;
+  font-size: var(--step-1, 1.25rem);
+  overflow-wrap: anywhere;
+}
+.search-results h2 a {
+  display: inline-block;
+  min-height: var(--tap);
+}
+.search-results p {
+  margin: 0.25rem 0;
+  overflow-wrap: anywhere;
+}
+.search-results mark {
+  color: inherit;
+  background: none;
+  font-weight: 700;
+  text-decoration: underline;
+}
+.search-results time {
+  color: var(--color-muted-fg);
+}
+.search-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.search-pagination a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  min-width: var(--tap);
+}

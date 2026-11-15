@@ -42,11 +42,14 @@ export const load: PageServerLoad = async ({ params, locals, request, setHeaders
 
   if (route.thanks) {
     setHeaders({ 'cache-control': NO_STORE });
-    const form = view.model.blocks.find((b) => b.type === 'form' && b.form);
+    // The first form on the page; a `full` campaign card's form counts (ADR 033 rule 4).
+    const form = view.model.blocks.flatMap((b) =>
+      (b.type === 'form' || b.type === 'campaign-card') && b.form ? [b.form] : []
+    )[0];
     return {
       view: 'thanks' as const,
       title: view.model.title,
-      message: form?.type === 'form' ? (form.form?.thankYou ?? '') : '',
+      message: form?.thankYou ?? '',
       back: {
         href: sitePath(site, contentPath(view.item, locale, site.tenant.defaultLocale)),
         label: t('thanks.back'),

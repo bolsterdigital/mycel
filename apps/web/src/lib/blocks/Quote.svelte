@@ -1,10 +1,11 @@
 <script lang="ts">
   import type { RenderBlock } from './model.js';
 
-  let { block }: { block: Extract<RenderBlock, { type: 'quote' }> } = $props();
+  let { block, anchor }: { block: Extract<RenderBlock, { type: 'quote' }>; anchor?: string } =
+    $props();
 </script>
 
-<figure class="block quote quote-{block.variant} width-{block.width}">
+<figure id={anchor} class="block quote quote-{block.variant} width-{block.width}">
   <blockquote><p>{block.text}</p></blockquote>
   <figcaption>
     {block.name}{#if block.role}, {block.role}{/if}{#if block.source}, <cite

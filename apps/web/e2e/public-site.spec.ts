@@ -6,12 +6,13 @@
 
 import { exercisePeopleGrid } from './lib/people/grid';
 import { exercisePublicPeople } from './lib/people/public';
+import { exercisePublishedRepresentations } from './lib/published/representations';
+import { exercisePublicSearch } from './lib/published/search';
 import { openPublication, closePublication } from './lib/publication';
 import { randomBytes } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { readFile, writeFile } from 'node:fs/promises';
 import {
+  BLOCK_DEFINITIONS as DEFS,
   type ContentDocument,
   DEFAULT_THEME,
   THEME_PRESETS,
@@ -19,17 +20,51 @@ import {
   systemPrincipal,
   useCases,
 } from '@mycel/core';
-import { testTenant } from '@mycel/db/testing';
-import { type APIRequestContext, type Page, chromium, expect, test } from '@playwright/test';
+import { type APIRequestContext, type Page, expect, test } from '@playwright/test';
 import sharp from 'sharp';
 import { expectNoAxeViolations } from './lib/axe';
-import { editorReady } from './lib/editor';
-import { asOwner, tenantId, withInvoker } from './lib/invoker';
-import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
-import { login } from './lib/login';
+import { editorReady, postDraftPreview } from './lib/editor';
+import { tenantId, withInvoker } from './lib/invoker';
+import {
+  NARROW,
+  TEXT_SIZES,
+  layoutGate,
+  setTextSize,
+  setTextSpacing,
+  textBlockProblems,
+  textBlocks,
+} from './lib/layout';
+import {
+  chromeRails,
+  compositionMetrics,
+  expectTitleRail,
+  expectChromeOnWideRail,
+  expectChromeTransitions,
+  expectPreviewChrome,
+  type Rails,
+} from './lib/chrome';
+import { forwarded, login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
-import { themeCss } from '../src/lib/theme/tokens';
+import {
+  chooseAnchor,
+  followAnchor,
+  scrollLockKeepsWidth,
+  seedAnchors,
+} from './lib/site-navigation/anchors';
+import { exerciseNavigationEtag } from './lib/site-navigation/etag';
+import { exerciseChromeMenus, exerciseEnhancedBar } from './lib/site-navigation/visitor';
+import { exerciseZoomedNavigation } from './lib/site-navigation/zoom';
+import { withBrowserZoom } from './lib/site-navigation/zoom-context';
+import {
+  NAVIGATION_STATES,
+  seedNavigationStress,
+  exerciseNavigationStress,
+} from './lib/site-navigation/stress';
+import { WALK, seedSiteSettings } from './lib/site-navigation/settings-fixture';
+import { CAPTION_MONO, themeCss } from '../src/lib/theme/tokens';
+
+const WIDE = { width: 1280, height: 900 };
 
 // The block renderer on two composed pages (TODO #8c1, brief #8c § 5), seeded by scripts/e2e/e2e.mjs
 // from the registry's own examples: `campagne` (hero cover, rich text, cta card, wide image, FAQ
@@ -163,7 +198,7 @@ test.describe('blocks', () => {
       page,
     }) => {
       await open(page, '/probe/campagne');
-      const details = page.locator('details').first();
+      const details = page.locator('.faq details').first();
       await expect(details).not.toHaveAttribute('open', '');
       await details.locator('summary').click();
       await expect(details).toHaveAttribute('open', '');
@@ -414,25 +449,6 @@ test.describe('blocks', () => {
 // and its published translations, published HTML is publicly cacheable with a strong ETag and a
 // 304, no cookie is set, and misses are `no-store`. Then the JSON read route of the API process
 // on the same seeded article.
-// Sends the edit form as it stands to the unsaved-document route, as the live-preview panel does.
-// An article has no panel yet (#11), so its specs post the unchanged native form themselves.
-async function postDraftPreview(page: Page, itemId: string) {
-  await page.locator('[data-live-preview-source]').evaluate((node, id) => {
-    const form = node as HTMLFormElement;
-    form.action = '/admin/probe/preview/draft';
-    for (const [name, value] of [
-      ['itemId', id],
-      ['previewLocale', 'nl'],
-    ]) {
-      const input = document.createElement('input');
-      input.name = name!;
-      input.value = value!;
-      form.append(input);
-    }
-    form.submit();
-  }, itemId);
-}
-
 test.describe('content-routes', () => {
   /** The canonical address form: the seed gives tenant probe this primary hostname. */
   const SITE = 'http://probe.localhost:4173';
@@ -576,30 +592,40 @@ test.describe('content-routes', () => {
     expect(thanks.headers()['cache-control']).toBe('no-store');
   });
 
+  /**
+   * A copy of the quality article with a lead and its first block image as hero: synthetic
+   * assets that are already public and ready, never an upload. One item per project and slug:
+   * two creates of one slug at once answer 500 instead of 409.
+   */
+  const heroArticle = async (
+    request: APIRequestContext,
+    slug: string,
+    edit: (doc: ContentDocument) => void
+  ) => {
+    const { items } = await callApi(request, 'content.item.list', { type: 'article', slug });
+    if (items[0]) return callApi(request, 'content.item.get', { itemId: items[0].id });
+    const [source] = (
+      await callApi(request, 'content.item.list', { type: 'article', slug: 'quality-article-v3' })
+    ).items;
+    const { revision } = await callApi(request, 'content.item.get', { itemId: source.id });
+    const doc: ContentDocument = structuredClone(revision.document);
+    const image = doc.blocks.find((b) => b.type === 'image');
+    expect(image, 'the quality article has an image block').toBeTruthy();
+    doc.lead = { nl: 'Een straat die ruimte maakt.', en: 'A street that makes room.' };
+    doc.heroImageId = (image!.props as { mediaId: string }).mediaId;
+    // A described hero (#99): its alt in the locale on screen.
+    doc.heroAlt = { nl: 'Een straat met bomen.', en: 'A street with trees.' };
+    doc.locales = doc.locales.filter((l) => l === 'nl' || l === 'en');
+    edit(doc);
+    return callApi(request, 'content.item.create', { slug, document: doc });
+  };
+
   test('an article shows its lead, hero and drop cap, whole at 320 px and 200% text (#86)', async ({
     page,
     request,
   }) => {
-    // A copy of the quality article with a lead and its first block image as hero: synthetic
-    // assets that are already public and ready, never an upload.
-    // One item per project: two creates of one slug at once answer 500 instead of 409.
     const slug = `e2e-intro-99-${isA11y() ? 'a11y' : 'no-js'}`;
-    const { items } = await callApi(request, 'content.item.list', { type: 'article', slug });
-    let target = items[0]
-      ? await callApi(request, 'content.item.get', { itemId: items[0].id })
-      : null;
-    if (!target) {
-      const [source] = (
-        await callApi(request, 'content.item.list', { type: 'article', slug: 'quality-article-v3' })
-      ).items;
-      const { revision } = await callApi(request, 'content.item.get', { itemId: source.id });
-      const doc: ContentDocument = structuredClone(revision.document);
-      const image = doc.blocks.find((b) => b.type === 'image');
-      expect(image, 'the quality article has an image block').toBeTruthy();
-      doc.lead = { nl: 'Een straat die ruimte maakt.', en: 'A street that makes room.' };
-      doc.heroImageId = (image!.props as { mediaId: string }).mediaId;
-      // A described hero (#99): its alt in the locale on screen.
-      doc.heroAlt = { nl: 'Een straat met bomen.', en: 'A street with trees.' };
+    const target = await heroArticle(request, slug, (doc) => {
       // The quality article's text opens with a heading, which by design gets no drop cap.
       const paragraph = (text: string) => ({
         type: 'doc' as const,
@@ -611,9 +637,7 @@ test.describe('content-routes', () => {
         version: 1,
         props: { content: { nl: paragraph('Op de hoek.'), en: paragraph('On the corner.') } },
       } as ContentDocument['blocks'][number]);
-      doc.locales = doc.locales.filter((l) => l === 'nl' || l === 'en');
-      target = await callApi(request, 'content.item.create', { slug, document: doc });
-    }
+    });
     const probe = await tenantId();
     await withInvoker(async (invoker) => {
       for (const locale of ['nl', 'en'])
@@ -628,7 +652,7 @@ test.describe('content-routes', () => {
       [`/probe/articles/${slug}`, 'Een straat die ruimte maakt.', 'Een straat met bomen.'],
       [`/probe/en/articles/${slug}`, 'A street that makes room.', 'A street with trees.'],
     ] as const) {
-      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.setViewportSize(WIDE);
       await page.goto(path);
       await expect(page.locator('main > .lead')).toHaveText(lead);
       const hero = page.locator('main > figure.page-hero img');
@@ -657,7 +681,7 @@ test.describe('content-routes', () => {
     // (#86 PR 2). The unsaved-document route, posted from the edit form as the composition
     // test below does, since an article has no live-preview panel yet.
     if (isA11y()) {
-      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.setViewportSize(WIDE);
       await login(page, `/admin/probe/content/${target.item.id}`);
       // The edit screen shows the hero as described, with the alt of the locale on screen.
       // Its state stands without a click (#158); the line opens for the field.
@@ -673,7 +697,7 @@ test.describe('content-routes', () => {
         await layoutGate(page, `edit screen with a described hero at ${size}`, '#heroAlt');
       }
       await setTextSize(page, '100%');
-      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.setViewportSize(WIDE);
       await postDraftPreview(page, target.item.id);
       await expect(page.locator('main > .lead')).toHaveText('Een straat die ruimte maakt.');
       await expect(page.locator('main > figure.page-hero img')).toHaveAttribute(
@@ -942,24 +966,9 @@ test.describe('content-routes', () => {
   /** The article with a cover header, published in nl. */
   const coverArticle = async (request: APIRequestContext) => {
     const slug = `e2e-cover-105-${isA11y() ? 'a11y' : 'no-js'}`;
-    const { items } = await callApi(request, 'content.item.list', { type: 'article', slug });
-    let target = items[0]
-      ? await callApi(request, 'content.item.get', { itemId: items[0].id })
-      : null;
-    if (!target) {
-      const [source] = (
-        await callApi(request, 'content.item.list', { type: 'article', slug: 'quality-article-v3' })
-      ).items;
-      const { revision } = await callApi(request, 'content.item.get', { itemId: source.id });
-      const doc: ContentDocument = structuredClone(revision.document);
-      const image = doc.blocks.find((b) => b.type === 'image');
-      doc.lead = { nl: 'Een straat die ruimte maakt.', en: 'A street that makes room.' };
-      doc.heroImageId = (image!.props as { mediaId: string }).mediaId;
-      doc.heroAlt = { nl: 'Een straat met bomen.', en: 'A street with trees.' };
-      doc.locales = doc.locales.filter((l) => l === 'nl' || l === 'en');
+    const target = await heroArticle(request, slug, (doc) => {
       (doc as { presentation?: { header: string } }).presentation = { header: 'cover' };
-      target = await callApi(request, 'content.item.create', { slug, document: doc });
-    }
+    });
     const probe = await tenantId();
     await withInvoker((invoker) =>
       invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
@@ -1061,7 +1070,7 @@ test.describe('content-routes', () => {
       expect(fit.past, `unbroken title stays inside the cover at ${size}`).toBe(0);
     }
     await page.reload();
-    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.setViewportSize(WIDE);
     await page.locator('.page-cover-arrow').focus();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/#page-content$/);
@@ -1076,7 +1085,7 @@ test.describe('content-routes', () => {
     await expect(page.locator('main > header.page-cover h1 span')).toBeVisible();
     await page.waitForLoadState('load');
     await layoutGate(page, 'cover header in the draft preview', 'main');
-    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.setViewportSize(WIDE);
     await page.goto(`/admin/probe/content/${target.item.id}`);
     await page.locator('#headerLayout').selectOption('standard');
     await postDraftPreview(page, target.item.id);
@@ -1166,56 +1175,48 @@ test.describe('grid-compositions', () => {
           slug: compositions[0]!.slug,
           document: doc,
         });
+    // Every quote and callout variant next to prose, short and long (textBlocks in lib/layout).
+    const text = (
+      await callApi(request, 'content.item.list', { type: 'page', slug: 'grid-text-v1' })
+    ).items.length
+      ? null
+      : await callApi(request, 'content.item.create', {
+          slug: 'grid-text-v1',
+          document: {
+            ...doc,
+            title: { nl: 'Tekst, citaat en kader', en: 'Text, quote and callout' },
+            blocks: textBlocks({
+              quote: DEFS.quote.version,
+              callout: DEFS.callout.version,
+              'rich-text': DEFS['rich-text'].version,
+            }),
+          },
+        });
     const probe = await tenantId();
     await withInvoker(async (invoker) => {
-      for (const locale of ['nl', 'en'])
-        await invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
-          itemId: created.item.id,
-          revisionId: created.revision.id,
-          locale,
-        });
+      for (const made of text ? [created, text] : [created])
+        for (const locale of ['nl', 'en'])
+          await invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
+            itemId: made.item.id,
+            revisionId: made.revision.id,
+            locale,
+          });
     });
   });
 
-  async function metrics(page: Page) {
-    await page.evaluate(() => document.fonts.ready);
-    return page.evaluate(() => {
-      const box = (selector: string) => {
-        const el = document.querySelector(selector);
-        if (!el) return null;
-        const r = el.getBoundingClientRect();
-        return { x: r.x, width: r.width, bottom: r.bottom, top: r.top };
-      };
-      return {
-        viewport: document.documentElement.clientWidth,
-        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-        font: getComputedStyle(document.body).fontFamily,
-        fontSize: getComputedStyle(document.body).fontSize,
-        measure: getComputedStyle(document.querySelector('.page')!).getPropertyValue(
-          '--content-width'
-        ),
-        prose: box('.page .rich-text'),
-        wide: box('.page .layout-wide'),
-        full: box('.page .layout-full'),
-        title: box('.page h1'),
-        floats: [...document.querySelectorAll('.page [class*="layout-float-"]')].map(
-          (el) => getComputedStyle(el).float
-        ),
-      };
-    });
-  }
-
-  /** The item title sits centred in its own 52rem rail (brief 46C-1 rule 8): never narrower
-   *  than the reading column, never wider than the rail, its centre on the viewport's. */
-  function expectTitleRail(
-    title: { x: number; width: number },
-    prose: { width: number },
-    viewport: number
-  ) {
-    expect(title.width).toBeGreaterThanOrEqual(prose.width - 1);
-    expect(title.width).toBeLessThanOrEqual(52 * 16 + 1);
-    expect(Math.abs(title.x + title.width / 2 - viewport / 2)).toBeLessThanOrEqual(1);
-  }
+  for (const width of [320, 768, 1440])
+    for (const size of TEXT_SIZES)
+      test(`text, quote and callout keep their rails at ${width}px and ${size} text`, async ({
+        page,
+      }) => {
+        onlyA11y('DOM measurements');
+        await page.setViewportSize({ width, height: 900 });
+        expect((await page.goto('/probe/grid-text-v1'))?.status()).toBe(200);
+        await setTextSize(page, size);
+        await page.evaluate(() => document.fonts.ready);
+        expect(await textBlockProblems(page)).toEqual([]);
+        await layoutGate(page, `${width}px ${size}`, 'main');
+      });
 
   for (const entry of compositions)
     for (const width of [320, 768, 1440])
@@ -1225,7 +1226,7 @@ test.describe('grid-compositions', () => {
         const path = `/probe/${entry.type === 'article' ? 'articles/' : ''}${entry.slug}`;
         expect((await page.goto(path))?.status()).toBe(200);
         await expect(page.locator('main h1')).toHaveText(entry.title);
-        const measured = await metrics(page);
+        const measured = await compositionMetrics(page);
         await test.info().attach('rails.json', {
           body: JSON.stringify(measured),
           contentType: 'application/json',
@@ -1238,6 +1239,9 @@ test.describe('grid-compositions', () => {
           expect(measured.prose!.width).toBeGreaterThanOrEqual(680);
           expect(measured.prose!.width).toBeLessThanOrEqual(740);
         }
+        const chrome = await chromeRails(page);
+        expectChromeOnWideRail(chrome, width > 320 || undefined);
+        expectChromeTransitions(chrome);
       });
 
   for (const entry of compositions)
@@ -1260,7 +1264,7 @@ test.describe('grid-compositions', () => {
       const edit = page.url();
       const href = await page.locator('a[data-preview-link="nl"]').getAttribute('href');
       await page.goto(href!);
-      const savedMetrics = await metrics(page);
+      const savedMetrics = await compositionMetrics(page);
       expect(savedMetrics.overflow).toBe(false);
       expect(savedMetrics.prose!.width).toBeGreaterThanOrEqual(680);
       expectTitleRail(savedMetrics.title!, savedMetrics.prose!, savedMetrics.viewport);
@@ -1274,7 +1278,7 @@ test.describe('grid-compositions', () => {
         // Measured once the site's stylesheet applies: before \`load\` the prose has the 40rem of
         // the unstyled fallback (640px), which made this a load-timing flake (#66 PR 3).
         await page.waitForLoadState('load');
-        const draft = await metrics(page);
+        const draft = await compositionMetrics(page);
         expect(draft.overflow).toBe(false);
         expect(draft.prose!.width).toBeCloseTo(savedMetrics.prose!.width, 0);
         await test.info().attach('article-draft-rails.json', {
@@ -1302,13 +1306,17 @@ test.describe('grid-compositions', () => {
       });
       expect(live.overflow).toBe(false);
       expectTitleRail(live.title, { width: live.prose }, live.width);
+      const frameEl = await page.locator('[data-live-preview-frame]').elementHandle();
+      const liveChrome = await chromeRails((await frameEl!.contentFrame())!);
       await test.info().attach('preview-rails.json', {
         body: JSON.stringify({ saved: savedMetrics, live }),
         contentType: 'application/json',
       });
       await page.setViewportSize({ width: live.width, height: 900 });
       await page.goto(`/probe/${entry.type === 'article' ? 'articles/' : ''}${entry.slug}`);
-      expect((await metrics(page)).prose!.width).toBeCloseTo(live.prose, 0);
+      expect((await compositionMetrics(page)).prose!.width).toBeCloseTo(live.prose, 0);
+      // A narrow frame on a wide screen keeps the site's chrome.
+      expectPreviewChrome(liveChrome, await chromeRails(page), '/admin/probe/preview');
     });
 
   // Brief 46C-1 rules 1 to 4: a caption starts at its image's left edge, whatever the layout;
@@ -1352,7 +1360,9 @@ test.describe('grid-compositions', () => {
     for (const key of ['wide', 'full', 'float'] as const) {
       const f = wide[key];
       expect(f.caption.left).toBeCloseTo(f.img.left, 0);
-      expect(f.caption.width).toBeCloseTo(f.img.width, 0);
+      // As wide as the image, up to the content measure (content-layout.md).
+      const measure = wide.prose.right - wide.prose.left + 2 * f.inset;
+      expect(f.caption.width).toBeCloseTo(Math.min(f.img.width, measure), 0);
       expect(f.caption.gap).toBeCloseTo(4, 1);
     }
     expect(wide.wide.inset).toBe(0);
@@ -1401,7 +1411,7 @@ test.describe('grid-compositions', () => {
       sheet.replaceSync('.page { max-width: 400px; margin-inline: auto; }');
       document.adoptedStyleSheets.push(sheet);
     });
-    const measured = await metrics(page);
+    const measured = await compositionMetrics(page);
     expect(measured.floats).toEqual(['none', 'none']);
     expect(measured.full!.width).toBe(400);
     expect(measured.prose!.width).toBeGreaterThan(360);
@@ -1413,63 +1423,17 @@ test.describe('grid-compositions', () => {
   // root font cannot prove this: assert the halved CSS viewport and doubled pixel ratio too.
   test('real Chromium 200% browser zoom reflows the composition', async ({ request }) => {
     onlyA11y('browser zoom measurement');
-    const directory = await mkdtemp(join(tmpdir(), 'mycel-zoom-'));
-    let context;
-    try {
-      await writeFile(
-        join(directory, 'manifest.json'),
-        JSON.stringify({
-          manifest_version: 3,
-          name: 'Mycel layout measurement',
-          version: '1.0',
-          permissions: ['tabs'],
-          background: { service_worker: 'worker.js' },
-        })
-      );
-      await writeFile(
-        join(directory, 'worker.js'),
-        'chrome.runtime.onInstalled.addListener(() => {});'
-      );
-      context = await chromium.launchPersistentContext('', {
-        channel: 'chromium',
-        headless: true,
-        viewport: null,
-        args: [
-          `--disable-extensions-except=${directory}`,
-          `--load-extension=${directory}`,
-          '--window-size=1440,1000',
-        ],
-      });
-      const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
-      const page = await context.newPage();
-      await page.goto('http://127.0.0.1:4173/probe/articles/quality-article-v3');
-      const before = await page.evaluate(() => ({ width: innerWidth, ratio: devicePixelRatio }));
-      await worker.evaluate(async () => {
-        // chrome is provided by this measurement extension, not by application code.
-        const api = (
-          globalThis as unknown as {
-            chrome: {
-              tabs: {
-                query: (q: object) => Promise<{ id: number; url: string }[]>;
-                setZoom: (id: number, factor: number) => Promise<void>;
-              };
-            };
-          }
-        ).chrome;
-        const tab = (await api.tabs.query({})).find((tab) => tab.url.includes('/probe/articles/'))!;
-        await api.tabs.setZoom(tab.id, 2);
-      });
-      await expect.poll(() => page.evaluate(() => devicePixelRatio)).toBe(before.ratio * 2);
-      const after = await metrics(page);
+    await withBrowserZoom(2, async ({ page, worker, before }) => {
+      const after = await compositionMetrics(page);
       expect(after.viewport).toBeCloseTo(before.width / 2, 0);
       expect(after.overflow).toBe(false);
       expectTitleRail(after.title!, after.prose!, after.viewport);
       await writeFile(
         test.info().outputPath('browser-zoom.json'),
-        JSON.stringify({ before, after, version: context.browser()?.version() })
+        JSON.stringify({ before, after, version: page.context().browser()?.version() })
       );
       await test.info().attach('browser-zoom.json', {
-        body: JSON.stringify({ before, after, version: context.browser()?.version() }),
+        body: JSON.stringify({ before, after, version: page.context().browser()?.version() }),
         contentType: 'application/json',
       });
       await page.screenshot({
@@ -1493,7 +1457,7 @@ test.describe('grid-compositions', () => {
       expect(faq.scroll).toBeLessThanOrEqual(faq.viewport + 1);
       expect(faq.section).toBe(faq.viewport);
       expect(faq.answer).toBeLessThanOrEqual(faq.section);
-      await page.locator('summary').focus();
+      await page.locator('.faq summary').focus();
       await page.keyboard.press('Enter');
       await expect(page.locator('.faq details')).toHaveAttribute('open', '');
       await page.screenshot({
@@ -1501,7 +1465,7 @@ test.describe('grid-compositions', () => {
         fullPage: true,
       });
       await test.info().attach('faq-browser-zoom.json', {
-        body: JSON.stringify({ faq, version: context.browser()?.version() }),
+        body: JSON.stringify({ faq, version: page.context().browser()?.version() }),
         contentType: 'application/json',
       });
       // The same origin retains real browser zoom across the admin navigation.
@@ -1540,10 +1504,8 @@ test.describe('grid-compositions', () => {
       await page.screenshot({ path: test.info().outputPath('publication-browser-zoom-200.png') });
       await closePublication(page);
       await expect(page.locator('a[href="#publication-panel"]')).toBeFocused();
-    } finally {
-      await context?.close();
-      await rm(directory, { recursive: true, force: true });
-    }
+      await exerciseZoomedNavigation(page, worker, before);
+    });
   });
 
   for (const entry of compositions)
@@ -1564,6 +1526,31 @@ test.describe('grid-compositions', () => {
       });
 });
 
+for (const state of NAVIGATION_STATES)
+  for (const locale of ['nl', 'en'])
+    test(`navigation boundaries ${state.name} ${locale}`, async ({ page }) => {
+      const { slug, hash } = await seedNavigationStress(state);
+      test.info().annotations.push({ type: 'fixture-sha256', description: hash });
+      await exerciseNavigationStress(page, state, slug, locale);
+    });
+
+// Keep each boundary fixture within the ordinary test budget, independent of the editor flow.
+for (const state of NAVIGATION_STATES)
+  test(`navigation boundaries ${state.name} at real Chromium 400% browser zoom`, async () => {
+    onlyA11y('browser zoom measurement');
+    await withBrowserZoom(4, async ({ page, before }) => {
+      const { slug, hash } = await test.step('publish boundary fixture', () =>
+        seedNavigationStress(state));
+      test.info().annotations.push({ type: 'fixture-sha256', description: hash });
+      for (const locale of ['nl', 'en'])
+        await test.step(`${locale}: normal and 200% text at real 400% zoom`, async () => {
+          await exerciseNavigationStress(page, state, slug, locale, [0]);
+          expect(await page.evaluate(() => innerWidth)).toBeCloseTo(before.width / 4, 0);
+          expect(await page.evaluate(() => devicePixelRatio)).toBe(before.ratio * 4);
+        });
+    });
+  });
+
 // A complete bilingual site: tenant chrome and theme through real use cases and the public
 // renderer, including the no-JavaScript/320 px/200% task gate (#11 E, ADR 009/013).
 test.describe('site-settings', () => {
@@ -1572,24 +1559,8 @@ test.describe('site-settings', () => {
   let tenantId = '';
   let singleTenantId = '';
   let homeItemId = '';
-  const WALK = {
-    light: [
-      { foreground: '#ffffff', background: '#d32f2f' },
-      { foreground: '#ffffff', background: '#2e7d32' },
-    ],
-    dark: [
-      { foreground: '#ffffff', background: '#2e7d32' },
-      { foreground: '#ffffff', background: '#c62828' },
-    ],
-  };
+  let actiesItemId = '';
   const { light, dark } = THEME_PRESETS.editorial.palettes;
-  const ACCENTED = {
-    ...THEME_PRESETS.editorial,
-    palettes: {
-      light: { ...light, cardAccents: WALK.light },
-      dark: { ...dark, cardAccents: WALK.dark },
-    },
-  };
   const rgb = (hex: string) =>
     `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
   // A button's colour goes through `color-mix`, which Chromium reports as `color(srgb r g b)`.
@@ -1606,6 +1577,12 @@ test.describe('site-settings', () => {
     withInvoker((invoker) => invoker.run(useCases.getSiteTheme, systemPrincipal(id, 'e2e'), {}));
   const chromeState = (id: string) =>
     withInvoker((invoker) => invoker.run(useCases.getSiteChrome, systemPrincipal(id, 'e2e'), {}));
+  const savedOk = (page: Page) =>
+    expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+  const themeLink = (page: Page) => page.locator('link[rel=stylesheet][href*="/_theme/"]');
+  const saveTheme = (page: Page) => page.getByRole('button', { name: 'Save theme' }).click();
+  const saveChrome = (p: Page) => p.locator('form[action$="&/chrome"]').getByRole('button').click();
+  const shown = (page: Page) => expect(page.locator('[role="status"]')).toBeVisible();
 
   test.use({
     extraHTTPHeaders: {
@@ -1615,141 +1592,35 @@ test.describe('site-settings', () => {
     viewport: { width: 320, height: 720 },
   });
   test.beforeAll(async () => {
-    const [tenant, singleTenant] = await asOwner(async (owner) => [
-      await testTenant(owner, slug, {
-        name: 'Chrome fixture',
-        locales: ['nl', 'en', 'de'],
-        platformDomain: process.env['PLATFORM_DOMAIN']!,
-      }),
-      await testTenant(owner, singleSlug, {
-        name: 'Single-locale fixture',
-        platformDomain: process.env['PLATFORM_DOMAIN']!,
-      }),
-    ]);
-    tenantId = tenant.id;
-    singleTenantId = singleTenant.id;
-    await withInvoker(async (invoker) => {
-      const principal = systemPrincipal(tenant.id, 'e2e');
-      await invoker.run(useCases.inviteMember, principal, {
-        email: `site-editor-${slug}@probe.test`,
-        capabilities: ['content:write', 'content:read', 'media:read', 'media:write'],
-      });
-      await invoker.run(useCases.inviteMember, systemPrincipal(singleTenant.id, 'e2e'), {
-        email: `site-editor-${singleSlug}@probe.test`,
-        capabilities: ['content:write', 'content:read'],
-      });
-      const { item, revision } = await invoker.run(useCases.createItem, principal, {
-        slug: 'home',
-        document: {
-          type: 'page',
-          defaultLocale: 'nl',
-          locales: ['nl', 'en'],
-          title: { nl: 'Welkom', en: 'Welcome' },
-          blocks: [],
-        },
-      });
-      homeItemId = item.id;
-      for (const locale of ['nl', 'en'])
-        await invoker.run(useCases.publishItem, principal, {
-          itemId: item.id,
-          revisionId: revision.id,
-          locale,
-        });
-      await invoker.run(useCases.updateSiteTheme, principal, {
-        baseVersion: 0,
-        theme: ACCENTED,
-      });
-      // An action row of four filled cards walks the theme's two accents per mode.
-      const row = await invoker.run(useCases.createItem, principal, {
-        slug: 'acties',
-        document: {
-          type: 'page',
-          defaultLocale: 'nl',
-          locales: ['nl'],
-          title: { nl: 'Acties' },
-          blocks: [
-            {
-              id: 'row',
-              type: 'cards',
-              version: 1,
-              props: {
-                accent: 'filled',
-                width: 'wide',
-                cards: ['Een', 'Twee', 'Drie', 'Vier'].map((nl) => ({
-                  title: { nl },
-                  actions: [
-                    {
-                      label: { nl: `Naar ${nl}` },
-                      target: { kind: 'url' as const, url: 'https://example.org/' },
-                    },
-                  ],
-                })),
-              },
-            },
-          ],
-        },
-      });
-      await invoker.run(useCases.publishItem, principal, {
-        itemId: row.item.id,
-        revisionId: row.revision.id,
-        locale: 'nl',
-      });
-      await invoker.run(useCases.updateSiteChrome, principal, {
-        baseVersion: 0,
-        chrome: {
-          navigation: [
-            { href: '/home', label: { nl: 'Welkom', en: 'Home', de: 'Startseite' } },
-            { href: '/en/home', label: { nl: 'English', en: 'English', de: 'Englisch' } },
-          ],
-          footer: {
-            nl: 'Een onafhankelijke site',
-            en: 'An independent site',
-            de: 'Eine unabhängige Website',
-          },
-          legal: [
-            {
-              href: 'https://example.org/privacy',
-              label: { nl: 'Privacyverklaring', en: 'Privacy policy', de: 'Datenschutz' },
-            },
-          ],
-          support: {
-            href: 'https://example.org/support',
-            label: { nl: 'Hulp', en: 'Support', de: 'Unterstützung' },
-          },
-          help: {
-            href: 'https://example.org/help',
-            label: { nl: 'Vraag', en: 'Help', de: 'Hilfe' },
-          },
-        },
-      });
-      await invoker.run(useCases.updateSiteChrome, systemPrincipal(singleTenant.id, 'e2e'), {
-        baseVersion: 0,
-        chrome: {
-          navigation: [{ href: '/home', label: { nl: 'Welkom' } }],
-          footer: { nl: 'Een taal' },
-          legal: [],
-          support: null,
-          help: null,
-        },
-      });
-    });
+    ({ tenantId, singleTenantId, homeItemId, actiesItemId } = await seedSiteSettings(
+      slug,
+      singleSlug
+    ));
   });
-  for (const locale of ['nl', 'en'])
+  for (const locale of ['nl', 'en'] as const)
     test(`${locale} navigation, footer and theme at narrow/large text`, async ({ page }) => {
       await page.goto(`/${slug}${locale === 'en' ? '/en' : ''}/home`);
       await expect(page.getByRole('heading', { level: 1 })).toHaveText(
         locale === 'nl' ? 'Welkom' : 'Welcome'
       );
-      await expect(
-        page
-          .getByRole('navigation', { name: locale === 'nl' ? 'Hoofdnavigatie' : 'Main navigation' })
-          .getByRole('link')
-          .first()
-      ).toHaveText(locale === 'nl' ? 'Welkom' : 'Home');
+      await exerciseChromeMenus(page, locale);
       await expect(page.getByRole('contentinfo')).toContainText(
         locale === 'nl' ? 'Een onafhankelijke site' : 'An independent site'
       );
-      await expect(page.locator('link[rel=stylesheet][href*="/_theme/"]')).toHaveCount(1);
+      await expect(themeLink(page)).toHaveCount(1);
+      // Browser colours from the palettes; without a logo an empty icon.
+      expect(
+        await page
+          .locator('meta[name*=color], link[rel~=icon]')
+          .evaluateAll((all) =>
+            all.map((e) => ['media', 'content', 'href'].map((a) => e.getAttribute(a)))
+          )
+      ).toEqual([
+        ['(prefers-color-scheme: light)', light.body.background, null],
+        ['(prefers-color-scheme: dark)', dark.body.background, null],
+        [null, 'light dark', null],
+        [null, null, 'data:,'],
+      ]);
       const fontSize = await page.evaluate(() => {
         document.documentElement.style.fontSize = '200%';
         return parseFloat(getComputedStyle(document.documentElement).fontSize);
@@ -1764,17 +1635,62 @@ test.describe('site-settings', () => {
         document.documentElement.style.fontSize = '';
         document.documentElement.style.zoom = '2';
         return (
-          [...document.querySelectorAll('.site-header a, .site-footer a')].every(
-            (node) => node.getBoundingClientRect().right <= innerWidth
-          ) && document.documentElement.scrollWidth <= innerWidth
+          [...document.querySelectorAll('.site-header a, .site-footer a')]
+            .filter((node) => node.checkVisibility())
+            .every((node) => node.getBoundingClientRect().right <= innerWidth) &&
+          document.documentElement.scrollWidth <= innerWidth
         );
       });
       expect(zoomed).toBe(true);
       await expectNoAxeViolations(page);
     });
 
+  test('the enhanced bar shows what fits and opens sublinks (ADR 036 rule 12)', async ({
+    page,
+  }) => {
+    onlyA11y('the bar is measured by the enhancement script');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/${slug}/home`);
+    await exerciseEnhancedBar(page, tenantId);
+  });
+
+  // Header, body and footer share the wide rail; a page that is only a title and one that ends
+  // on a wide row sit the same distance from the chrome (content-layout.md).
+  for (const width of [320, 768, 1440])
+    test(`header, body and footer share their rails at ${width}px`, async ({ page }) => {
+      onlyA11y('DOM measurements');
+      await page.setViewportSize({ width, height: 900 });
+      // The saved preview of each page shows the site's chrome too.
+      const base = `/admin/${slug}/preview`;
+      const preview: Rails[] = [];
+      for (const id of [homeItemId, actiesItemId]) {
+        const at = `${base}/item/${id}?locale=nl`;
+        if (preview.length) await page.goto(at);
+        else await login(page, at, `site-editor-${slug}@probe.test`);
+        preview.push(await chromeRails(page));
+      }
+      for (const path of ['home', 'acties']) {
+        await page.goto(`/${slug}/${path}`);
+        const m = await chromeRails(page);
+        await test.info().attach(`chrome-${path}.json`, { body: JSON.stringify(m) });
+        expectChromeOnWideRail(m, width > 320 || undefined);
+        expectChromeTransitions(m);
+        expectPreviewChrome(preview.shift()!, m, base);
+        if (path === 'acties') expect(m.last!.left).toBeCloseTo(m.wide.left, 0);
+      }
+      if (width > 320) return;
+      await setTextSize(page, '200%');
+      expectChromeOnWideRail(await chromeRails(page));
+      for (const part of ['.site-header', '.site-footer'])
+        await layoutGate(page, `${part} at 320 px and 200% text`, part);
+    });
+
   // The action row's colours come from the theme, card by card and per mode, and the button on a
   // filled card is its pair inverted (theme.md § Contrast).
+  test('a menu link follows its republished target, and the ETag with it (ADR 036 rule 11)', ({
+    request,
+  }, info) => exerciseNavigationEtag(request, info));
+
   test('an action row walks the theme accents, with the button inverted', async ({ page }) => {
     for (const mode of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme: mode });
@@ -1803,9 +1719,7 @@ test.describe('site-settings', () => {
     context,
   }) => {
     await page.goto(`/${slug}/home`);
-    const oldCss = await page
-      .locator('link[rel=stylesheet][href*="/_theme/"]')
-      .getAttribute('href');
+    const oldCss = await themeLink(page).getAttribute('href');
     await login(page, `/admin/${slug}/site?section=theme`, `site-editor-${slug}@probe.test`);
     await page.locator('select[name="fontPair"]').selectOption('inter');
     // The action row's card colours are rows of the colour table: a third light card
@@ -1817,8 +1731,8 @@ test.describe('site-settings', () => {
     await card('light', 2, 'background').fill('#ffd54f');
     await card('dark', 1, 'foreground').fill('');
     await card('dark', 1, 'background').fill('');
-    await page.getByRole('button', { name: 'Save theme' }).click();
-    await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+    await saveTheme(page);
+    await savedOk(page);
     const theme = (await themeState(tenantId)).value;
     expect(theme.fontPair).toBe('inter');
     expect(theme.palettes.light.cardAccents).toEqual([
@@ -1828,7 +1742,7 @@ test.describe('site-settings', () => {
     expect(theme.palettes.dark.cardAccents).toEqual([WALK.dark[0]]);
     // A half-filled card is refused by core, not completed by the form; the light walk stays.
     await card('light', 3, 'background').fill('#123456');
-    await page.getByRole('button', { name: 'Save theme' }).click();
+    await saveTheme(page);
     await expect(page.getByRole('alert')).toContainText('Check the fields and colour contrast.');
     await expect(card('light', 3, 'background')).toHaveValue('#123456');
     expect((await themeState(tenantId)).value.palettes.light.cardAccents).toHaveLength(3);
@@ -1836,38 +1750,31 @@ test.describe('site-settings', () => {
     await stalePage.goto(`/admin/${slug}/site?section=chrome`);
     await page.goto(`/admin/${slug}/site?section=chrome`);
     await page.locator('input[name="footer.en"]').fill('New footer');
-    await page.locator('form[action$="&/chrome"]').getByRole('button').click();
-    await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+    await saveChrome(page);
+    await savedOk(page);
     let saved = await chromeState(tenantId);
     expect(saved.value.footer).toEqual({
       nl: 'Een onafhankelijke site',
       en: 'New footer',
       de: 'Eine unabhängige Website',
     });
-    expect(saved.value.navigation[0]?.label.de).toBe('Startseite');
-    expect(saved.value.legal[0]?.label.de).toBe('Datenschutz');
-    expect(saved.value.support?.label.de).toBe('Unterstützung');
-    expect(saved.value.help?.label.de).toBe('Hilfe');
     await stalePage.locator('input[name="footer.en"]').fill('Stale footer');
-    await stalePage.locator('form[action$="&/chrome"]').getByRole('button').click();
+    await saveChrome(stalePage);
     await expect(stalePage.locator('[role="alert"]')).toBeVisible();
     expect((await chromeState(tenantId)).value.footer.en).toBe('New footer');
     await page.goto(`/admin/${slug}/site?section=chrome`);
     await expect(page.locator('input[name="footer.en"]')).toHaveValue('New footer');
     await expect(page.locator('input[name="footer.de"]')).toHaveValue('Eine unabhängige Website');
     await page.locator('input[name="footer.de"]').fill('');
-    await page.locator('input[name="help.href"]').fill('');
-    await page.locator('form[action$="&/chrome"]').getByRole('button').click();
-    await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+    // The menus moved to the navigation (ADR 036 rule 10): the form has only the footer text.
+    await expect(page.locator('textarea, input[name$=".href"]')).toHaveCount(0);
+    await saveChrome(page);
+    await savedOk(page);
     saved = await chromeState(tenantId);
-    expect(saved.value.footer.de).toBeUndefined();
-    expect(saved.value.help).toBeNull();
-    expect(saved.value.legal[0]?.label.de).toBe('Datenschutz');
+    expect(saved.value).toEqual({ footer: { nl: 'Een onafhankelijke site', en: 'New footer' } });
     await page.goto(`/${slug}/en/home`);
     await expect(page.getByRole('contentinfo')).toContainText('New footer');
-    const newCss = await page
-      .locator('link[rel=stylesheet][href*="/_theme/"]')
-      .getAttribute('href');
+    const newCss = await themeLink(page).getAttribute('href');
     expect(newCss).not.toBe(oldCss);
     const stale = await request.get(oldCss!, { maxRedirects: 0 });
     expect(stale.status()).toBe(302);
@@ -1880,8 +1787,11 @@ test.describe('site-settings', () => {
   });
 
   // #81-rest: the default image (`site.image.update`) has its own form and version beside the
-  // logo, and the theme form carries the drop cap so a later theme save keeps a chosen `off`.
-  test('the default image and the drop cap are chosen in the settings', async ({ page }) => {
+  // logo, and the theme form carries the drop cap so a later theme save keeps a chosen `off`,
+  // and the caption face, which sets a public caption and credit in monospace.
+  test('the default image, drop cap and caption face are chosen in the settings', async ({
+    page,
+  }) => {
     const principal = systemPrincipal(tenantId, 'e2e');
     const filename = `default-${Date.now()}.png`;
     await login(page, `/admin/${slug}/media`, `site-editor-${slug}@probe.test`);
@@ -1904,7 +1814,7 @@ test.describe('site-settings', () => {
       await dialog.getByRole('radio', { name }).check();
       await dialog.getByRole('button', { name: 'Done' }).click();
       await page.getByRole('button', { name: 'Save image' }).click();
-      await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+      await savedOk(page);
     };
     await page.goto(`/admin/${slug}/site?section=brand`);
     await choose(filename);
@@ -1921,18 +1831,45 @@ test.describe('site-settings', () => {
     expect((await images()).value.defaultImageId).toBeNull();
 
     const theme = () => withInvoker((invoker) => invoker.run(useCases.getSiteTheme, principal, {}));
+    // The search page has no content of its own to change, so its ETag must follow the theme:
+    // otherwise a 304 confirms the page in the old house style.
+    const searchTag = async () => (await page.request.get(`/${slug}/search`)).headers()['etag'];
+    const searchBefore = await searchTag();
+    expect(searchBefore).toMatch(/^"search:/);
     await page.goto(`/admin/${slug}/site?section=theme`);
     const dropCap = page.getByLabel('Drop cap on articles');
     await expect(dropCap).toHaveValue('articles');
     await dropCap.selectOption('off');
-    await page.getByRole('button', { name: 'Save theme' }).click();
-    await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+    await saveTheme(page);
+    await savedOk(page);
     expect((await theme()).value.dropCap).toBe('off');
     await page.goto(`/admin/${slug}/site?section=theme`);
     await expect(dropCap).toHaveValue('off');
-    await page.getByRole('button', { name: 'Save theme' }).click();
-    await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
-    expect((await theme()).value.dropCap).toBe('off');
+    await page.getByLabel('Caption typeface').selectOption('mono');
+    await saveTheme(page);
+    await savedOk(page);
+    expect((await theme()).value).toMatchObject({ dropCap: 'off', captionFont: 'mono' });
+    expect(await searchTag()).not.toBe(searchBefore);
+    const image = { mediaId: mediaId!, decorative: true, alt: null, caption: { nl: 'Bij' } };
+    const props = { ...image, credit: { work: null, photographer: 'Maker' } };
+    const blocks = [{ type: 'image' as const, version: 1 as const, props }];
+    await withInvoker(async (invoker) => {
+      const { item, revision } = await invoker.run(useCases.createItem, principal, {
+        slug: 'mono',
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: 'B' },
+          blocks,
+        },
+      });
+      const at = { itemId: item.id, revisionId: revision.id, locale: 'nl' };
+      await invoker.run(useCases.publishItem, principal, at);
+    });
+    await page.goto(`/${slug}/mono`);
+    for (const part of ['figcaption', '.credit'])
+      await expect(page.locator(`.image ${part}`)).toHaveCSS('font-family', CAPTION_MONO);
   });
 
   test('single-locale site saves without another translation', async ({ page }) => {
@@ -1944,8 +1881,8 @@ test.describe('site-settings', () => {
     await expect(page.locator('input[name="footer.nl"]')).toHaveValue('Een taal');
     await expect(page.locator('input[name="footer.en"]')).toHaveCount(0);
     await page.locator('input[name="footer.nl"]').fill('Nieuwe tekst');
-    await page.locator('form[action$="&/chrome"]').getByRole('button').click();
-    await expect(page.locator('[role="status"]')).toBeVisible();
+    await saveChrome(page);
+    await shown(page);
     expect((await chromeState(singleTenantId)).value.footer).toEqual({ nl: 'Nieuwe tekst' });
   });
 
@@ -1968,7 +1905,7 @@ test.describe('site-settings', () => {
         ),
     });
     await logo.locator('button[value=upload]').click();
-    await expect(page.locator('[role="status"]')).toBeVisible();
+    await shown(page);
     await font.locator('input[type=file]').setInputFiles({
       name: 'inter.woff2',
       mimeType: 'font/woff2',
@@ -1978,7 +1915,7 @@ test.describe('site-settings', () => {
     });
     await font.locator('input[name=licence]').fill('SIL Open Font License 1.1');
     await font.locator('button[value=upload]').click();
-    await expect(page.locator('[role="status"]')).toBeVisible();
+    await shown(page);
   };
 
   test('native brand upload, public derivative and removal stay tenant scoped', async ({
@@ -2027,6 +1964,7 @@ test.describe('site-settings', () => {
     await expect(identity.locator('img')).toBeVisible();
     const logoUrl = await identity.locator('img').getAttribute('src');
     expect(logoUrl).toBeTruthy();
+    await expect(page.locator('link[rel=icon]')).toHaveAttribute('href', logoUrl!);
     const logoResponse = await request.get(logoUrl!);
     expect(logoResponse.status()).toBe(200);
     expect(logoResponse.headers()['content-type']).toBe('image/webp');
@@ -2036,9 +1974,7 @@ test.describe('site-settings', () => {
     expect(previewLogo.status()).toBe(200);
     expect(previewLogo.headers()['cache-control']).toBe('no-store');
     expect((await request.get(`/${singleSlug}/_brand/logo/1.webp`)).status()).toBe(404);
-    const stylesheet = await page
-      .locator('link[rel=stylesheet][href*="/_theme/"]')
-      .getAttribute('href');
+    const stylesheet = await themeLink(page).getAttribute('href');
     const css = await (await request.get(stylesheet!)).text();
     expect(css).toContain("font-family: 'Mycel Wordmark'");
     expect(css).toContain('font-display: swap');
@@ -2053,7 +1989,7 @@ test.describe('site-settings', () => {
       .first()
       .getByRole('button', { name: 'Remove' })
       .click();
-    await expect(page.locator('[role="status"]')).toBeVisible();
+    await shown(page);
     expect((await request.get(logoUrl!)).status()).toBe(404);
     const freshPage = await request.get(`/${slug}/home`, {
       headers: { 'if-none-match': activeEtag! },
@@ -2069,8 +2005,8 @@ test.describe('site-settings', () => {
   });
 
   for (const [locale, language, title, actions] of [
-    ['nl', 'nl-NL', 'Site-instellingen', ['Thema opslaan', 'Navigatie en voettekst opslaan']],
-    ['en', 'en-US', 'Site settings', ['Save theme', 'Save navigation and footer']],
+    ['nl', 'nl-NL', 'Site-instellingen', ['Thema opslaan', 'Voettekst opslaan']],
+    ['en', 'en-US', 'Site settings', ['Save theme', 'Save footer text']],
   ] as const) {
     test.describe(`${locale} admin site settings gate`, () => {
       test.use({ locale: language });
@@ -2130,8 +2066,36 @@ test('public profiles share policy across HTML, bylines and discovery', async ({
   await exercisePublicPeople(page);
 });
 
+test('noindex, canonical, sitemap and robots.txt follow publication', async ({ page }) => {
+  await exercisePublishedRepresentations(page);
+});
+
+test('site search finds what a visitor may read, without JavaScript', async ({ page }) => {
+  await exercisePublicSearch(page);
+});
+
 test('authored people grids show teams without exposing internal email or unavailable links', async ({
   page,
 }) => {
   await exercisePeopleGrid(page);
+});
+
+// Menu items that land on a part of a page, on a site of their own so its published menu meets
+// no other test; the tasks are in lib/site-navigation/anchors.ts.
+test.describe('menu anchors', () => {
+  const slug = `anchor-${Math.random().toString(36).slice(2, 8)}`;
+  const headers = forwarded();
+  let site = { tenantId: '', editor: '' };
+  test.use({ extraHTTPHeaders: headers, viewport: { width: 320, height: 720 } });
+  test.beforeAll(async () => {
+    site = await seedAnchors(slug);
+  });
+  test('an editor points a menu item at a block, and the visitor lands on it', async ({ page }) => {
+    await chooseAnchor(page, slug, site.tenantId, site.editor);
+    await followAnchor(page, slug);
+  });
+  test('the menu dialog locks scrolling without shifting the page', ({ browser, baseURL }) => {
+    onlyA11y('the dialog is the enhancement script');
+    return scrollLockKeepsWidth(browser.browserType(), baseURL!, headers, slug);
+  });
 });

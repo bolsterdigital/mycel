@@ -92,6 +92,11 @@ export const TABLES = {
   assist_usage: 'operational',
   content_item_locales: 'export',
   content_block_refs: 'export',
+  content_search: 'export',
+  site_navigation_revisions: 'export',
+  site_navigation: 'export',
+  site_navigation_locales: 'export',
+  site_navigation_refs: 'export',
   tenant_memberships: 'export',
   // Credentials of this installation: a key's hash is all a request needs to match, so a key that
   // travelled would work on the importing side, for whoever wrote or kept the archive. The operator
@@ -151,6 +156,11 @@ export const EXPORT_ORDER: readonly ExportTable[] = [
   'assist_settings',
   'content_item_locales',
   'content_block_refs',
+  'content_search',
+  'site_navigation_revisions',
+  'site_navigation',
+  'site_navigation_locales',
+  'site_navigation_refs',
   'campaigns',
   'campaign_participations',
   'tenant_memberships',

@@ -10,11 +10,16 @@
   let {
     block,
     model,
-  }: { block: Extract<RenderBlock, { type: 'file-download' }>; model: RenderModel } = $props();
+    anchor,
+  }: {
+    block: Extract<RenderBlock, { type: 'file-download' }>;
+    model: RenderModel;
+    anchor?: string;
+  } = $props();
 </script>
 
 {#if block.files.length}
-  <section class="block file-download">
+  <section id={anchor} class="block file-download">
     {#if block.title}<svelte:element this={headingTag(BLOCK_DEPTH)}>{block.title}</svelte:element
       >{/if}
     {#if block.body}<p>{block.body}</p>{/if}

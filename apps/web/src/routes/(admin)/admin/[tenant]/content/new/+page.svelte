@@ -1,7 +1,8 @@
 <!-- A new page or article (TODO #11 A1, brief #56 § C2) on the form pattern. The editor starts at
      the title (editor trial 2026-10-28): a title per language, then an optional slug that core derives from the
-     title when left empty, the languages and a pattern. The type comes from the menu item the
-     editor came from. One native form; a failed post comes back with what was typed. -->
+     title when left empty, the languages and a pattern. An article also offers the standard long
+     read, first and even when the site has no patterns of its own. The type comes from the menu
+     item the editor came from. One native form; a failed post comes back with what was typed. -->
 <script lang="ts">
   import { pickAny } from '@mycel/core';
   import { Choices, Field, Fieldset, FormPage, Notice } from '#lib/admin/ui/index.js';
@@ -87,11 +88,18 @@
     selected={locales}
     options={data.tenant.locales.map((l) => ({ value: l, label: l }))}
   />
-  {#if data.patterns.length}
+  {#if data.patterns.length || type === 'article'}
     <Field id="pattern" label={t('admin.content.new.pattern')} locale={data.locale}>
       {#snippet control(attributes)}
         <select name="patternId" {...attributes}>
           <option value="">{t('admin.content.new.noPattern')}</option>
+          {#if type === 'article'}
+            <optgroup label={t('admin.content.new.standard')}>
+              <option value={data.longRead} selected={v('patternId') === data.longRead}
+                >{t('admin.content.new.longRead')}</option
+              >
+            </optgroup>
+          {/if}
           {#each ['page', 'article'] as const as group (group)}
             {#if data.patterns.some((p) => p.type === group)}
               <optgroup label={t(`admin.content.type.${group}`)}>

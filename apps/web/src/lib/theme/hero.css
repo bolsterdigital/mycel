@@ -1,0 +1,80 @@
+/* The hero block, for existing content only (ADR 025: new content gets the document header).
+   Apart from base.css because that file stands at its size ceiling (gate file-size); imported in
+   layer components. Text never sits straight on a photo: `cover` puts it on an opaque surface
+   panel over the image, `split` beside it, `minimal` has no image (brief #8c § 2).
+   Every variant keeps its text in the page's grid (content-layout.md § Horizontal layout): a
+   minimal hero, and a split hero once stacked, put their text on the content rail like a CTA; a
+   split hero's text keeps a gap from its image and a gutter from the screen edge; a cover's panel
+   starts or ends where a wide block does. The two columns follow the container, not the
+   viewport, so a narrow preview frame stacks them as a phone does.
+   Rejected: a padding per width and variant, which drifts from the rails the other blocks use. */
+.hero {
+  clear: both;
+}
+.hero h2 {
+  margin-block-start: 0;
+  font-size: clamp(var(--step-2), 1rem + 4vw, var(--step-4));
+}
+.hero-minimal {
+  padding-block: var(--space-3);
+}
+.hero-media picture,
+.hero-media img {
+  width: 100%;
+}
+.hero-text {
+  padding: var(--inset) 0;
+}
+.page :is(.hero-minimal, .hero-split) > .hero-text {
+  max-width: min(var(--content-width), 100cqi - 2 * var(--gutter, 0px));
+  margin-inline: auto;
+}
+/* One column no wider than the block: an image that has not loaded (or failed) lays out as its
+   alt text, whose min-content width an `auto` track would take, past the viewport at 320 CSS px. */
+.hero-cover {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.hero-cover > .hero-media,
+.hero-cover > .hero-text {
+  grid-area: 1 / 1;
+}
+.hero-cover .hero-media,
+.hero-cover picture,
+.hero-cover img {
+  height: 100%;
+  min-height: 20rem;
+  object-fit: cover;
+}
+/* A grid item's percentage margin resolves against the hero, so `--wide-inset` is the wide rail
+   in a full hero and the gutter in a wide one. */
+.hero-cover .hero-text {
+  align-self: end;
+  justify-self: start;
+  max-width: min(40rem, 100% - 2 * var(--gutter));
+  margin: var(--space-4) var(--wide-inset) var(--gutter);
+  padding: var(--inset);
+  color: var(--color-surface-fg);
+  background: var(--color-surface-bg);
+  border-radius: var(--radius);
+}
+.hero-cover.align-center .hero-text {
+  justify-self: center;
+}
+.hero-cover.align-end .hero-text {
+  justify-self: end;
+}
+@container (min-width: 48rem) {
+  .hero-split {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--inset);
+    align-items: center;
+  }
+  .page .hero-split > .hero-text {
+    margin-inline: 0;
+  }
+  .hero-split.width-full > .hero-text {
+    padding-inline-end: var(--gutter);
+  }
+}

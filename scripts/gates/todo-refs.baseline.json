@@ -11,7 +11,7 @@
   "apps/web/e2e/lib/layout.ts": 3,
   "apps/web/e2e/lib/window.d.ts": 1,
   "apps/web/e2e/media.spec.ts": 7,
-  "apps/web/e2e/public-site.spec.ts": 17,
+  "apps/web/e2e/public-site.spec.ts": 16,
   "apps/web/e2e/signup.spec.ts": 4,
   "apps/web/e2e/tsconfig.json": 1,
   "apps/web/e2e/ui-gate.spec.ts": 20,

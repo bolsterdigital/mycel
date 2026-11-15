@@ -19,6 +19,7 @@ import { text } from '#lib/server/admin/admin-actions.js';
 import { valuesFromForm } from '#lib/server/content/content-admin.js';
 import { formDocument } from '#lib/server/content/edit-form.js';
 import {
+  campaignNotes,
   PREVIEW_HEADERS,
   previewBase,
   previewSite,
@@ -26,7 +27,8 @@ import {
   introOf,
 } from '#lib/server/content/preview.js';
 import { runtime } from '#lib/server/runtime.js';
-import { siteBrand, siteTheme } from '#lib/server/public/theme.js';
+import { chromeModel } from '#lib/server/public/chrome.js';
+import { siteTheme } from '#lib/server/public/theme.js';
 import { langOf, ui } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 import { refuse, refusalOf } from '#lib/server/http/refuse.js';
@@ -91,12 +93,11 @@ export const actions: Actions = {
       resolveDocument(
         source,
         { locale, ...projectDocument(doc, locale) },
-        { base, fallbackLocale: tenant.defaultLocale }
+        { base, fallbackLocale: tenant.defaultLocale, diagnose: true }
       ),
       introOf(principal, doc, locale, live).then((intro) => resolveIntro(source, intro, locale)),
       siteTheme(site),
     ]);
-    const brand = await siteBrand(site);
     const admin = langOf(locals);
     locals.lang = locale;
     return {
@@ -107,14 +108,9 @@ export const actions: Actions = {
       dropCap: doc.type === 'article' && theme.dropCap === 'articles',
       issues: readinessIssues(doc, locale).map((issue) => issue.path),
       theme: { href: `${base}/_theme/${theme.hash}.css`, preload: theme.preload },
-      brand: {
-        name: tenant.name,
-        logo: brand.logo.active ? `${base}/_brand/logo/${brand.logo.version}.webp` : null,
-        width: brand.logo.width,
-        height: brand.logo.height,
-        wordmark: brand.font.active,
-      },
+      ...(await chromeModel(site, locale, base, doc.locales)),
       formNote: ui(admin)('admin.content.preview.form'),
+      campaignNotes: campaignNotes(admin),
     };
   },
 };

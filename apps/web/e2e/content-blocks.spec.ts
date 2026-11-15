@@ -97,12 +97,15 @@ test.describe('content-blocks', () => {
     const next = (await width.inputValue()) === 'wide' ? 'Volle breedte' : 'Breed';
     await width.selectOption({ label: next });
     await (await block(page, 9)).getByLabel('Breedte').selectOption('wide');
-    // A reference-only grid edits a choice; other added types edit their first text field.
+    // A reference-only grid edits a choice, as does a campaign card (no text of its own, ADR 033
+    // rule 4); other added types edit their first text field.
     const first = (at: Locator) => at.locator('input[type="text"]').first();
     const gridColumns = (at: Locator) => at.locator('select[name$=".columns"]');
+    const variant = (at: Locator) => at.locator('select[name$=".variant"]');
     for (let n = 13; n <= BLOCK_TYPES.length; n++) {
       const at = await block(page, n);
       if (await gridColumns(at).count()) await gridColumns(at).selectOption('4');
+      else if (!(await first(at).count())) await variant(at).selectOption('full');
       else await first(at).fill(`Blok ${n} ${stamp}`);
     }
     await save(page, 1);
@@ -115,6 +118,7 @@ test.describe('content-blocks', () => {
     for (let n = 13; n <= BLOCK_TYPES.length; n++) {
       const at = await block(page, n);
       if (await gridColumns(at).count()) await expect(gridColumns(at)).toHaveValue('4');
+      else if (!(await first(at).count())) await expect(variant(at)).toHaveValue('full');
       else await expect(first(at)).toHaveValue(`Blok ${n} ${stamp}`);
     }
     await expect(card(page, 2).locator('.ui-block-card-title')).toHaveText(

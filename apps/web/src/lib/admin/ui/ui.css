@@ -1999,8 +1999,8 @@
     border-block: 0.5em solid transparent;
     border-inline-start: 0.8em solid currentColor;
   }
-  /* A form at rest is the shape of its definition in spans, nothing here takes input. */
-  .ui-block-text-form {
+  /* A form (or campaign card) at rest is the shape of what it shows; nothing here takes input. */
+  :is(.ui-block-text-form, .ui-block-text-campaign) {
     display: grid;
     gap: var(--space-0);
     justify-items: start;
@@ -2011,7 +2011,7 @@
     border: var(--border-width) solid var(--color-border);
     border-radius: var(--radius);
   }
-  .ui-block-text-form .ui-block-text-kind[data-missing] {
+  :is(.ui-block-text-form, .ui-block-text-campaign) .ui-block-text-kind[data-missing] {
     color: var(--status-warning-fg);
     background: var(--status-warning-bg);
     padding: var(--space-0) var(--space-1);

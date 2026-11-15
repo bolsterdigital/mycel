@@ -29,6 +29,7 @@ import {
   type ExportManifest,
   type PlatformConfig,
 } from '@mycel/core';
+import { rebuildSearchIndex } from '../content/search.js';
 import { uuidv7 } from '../infra/ids.js';
 import { createTenantIn, getTenant, getTenantBySlug, type PlatformActor } from '../platform.js';
 import type { Database } from '../infra/schema.js';
@@ -87,6 +88,11 @@ const IMPORT_RULE = {
   assist_settings: 'as-exported',
   content_item_locales: 'as-exported',
   content_block_refs: 'as-exported',
+  content_search: 'as-exported',
+  site_navigation_revisions: 'as-exported',
+  site_navigation: 'as-exported',
+  site_navigation_locales: 'as-exported',
+  site_navigation_refs: 'as-exported',
   tenant_memberships: 'as-invitation',
   audit_log: 'as-exported',
   erasures: 'as-exported',
@@ -270,6 +276,7 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
       for (const table of EXPORT_ORDER) {
         const entry =
           manifest.tables[table] ?? (table === 'people' ? manifest.tables['authors'] : undefined);
+        if (!entry && table === 'content_search') continue; // rebuilt below
         if (!entry) {
           lines.push(`${table}: not in the export (older schema), 0 rows`);
           continue;
@@ -286,6 +293,13 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
               ? `, ${normalised} with an operator address in an actor, stored without`
               : '')
         );
+      }
+      // An archive from before 0055 has no search index; the site search would find none of its
+      // published pages until their next save. Built here from the imported publication rows,
+      // as `mycel search rebuild` does for a tenant already on this installation.
+      if (!manifest.tables['content_search']) {
+        const index = await rebuildSearchIndex(trx, tenantId);
+        lines.push(`content_search: not in the export (older schema), rebuilt, ${index.rows} rows`);
       }
       for (const table of RETIRED_TABLES) {
         const entry =

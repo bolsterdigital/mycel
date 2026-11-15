@@ -50,6 +50,7 @@ import {
   withdrawParticipation,
 } from './campaigns/service.js';
 import { composeCampaign } from './campaigns/compose.js';
+import { getCampaignCard } from './campaigns/card.js';
 import {
   createConnection,
   disconnectConnection,
@@ -94,6 +95,8 @@ import {
 } from './content/operations.js';
 import { convertHero, getHeroConversion } from './content/header/hero-conversion.js';
 import { getPublished } from './content/public.js';
+import { listPublished } from './content/published/list.js';
+import { findPublished } from './content/published/search.js';
 import { getPublicPerson, listPublicPeople } from './content/people/public.js';
 import {
   approveTranslation,
@@ -163,6 +166,15 @@ import {
   verifyHostnameUseCase,
 } from './tenants/service.js';
 import { listExports, requestExport } from './tenants/exports.js';
+import {
+  checkNavigationUseCase,
+  getNavigation,
+  publishNavigation,
+  resolveNavigationUseCase,
+  restoreNavigation,
+  unpublishNavigation,
+  updateNavigation,
+} from './navigation/service.js';
 
 export const useCases = {
   getMailchimpCallback,
@@ -208,6 +220,8 @@ export const useCases = {
   dismissSuggestion,
   acceptSuggestion,
   getPublished,
+  listPublished,
+  findPublished,
   getPublicPerson,
   listPublicPeople,
   createItem,
@@ -242,6 +256,7 @@ export const useCases = {
   archiveCampaign,
   getCampaign,
   getLandingCampaign,
+  getCampaignCard,
   listCampaigns,
   withdrawParticipation,
   createPersonGroup,
@@ -306,6 +321,13 @@ export const useCases = {
   updateSiteTheme,
   getSiteChrome,
   updateSiteChrome,
+  getNavigation,
+  updateNavigation,
+  restoreNavigation,
+  publishNavigation,
+  unpublishNavigation,
+  resolveNavigation: resolveNavigationUseCase,
+  checkNavigation: checkNavigationUseCase,
   getSiteGeneral,
   updateSiteGeneral,
   getSiteImages,

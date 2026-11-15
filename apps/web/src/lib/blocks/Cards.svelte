@@ -5,11 +5,15 @@
   import type { RenderBlock, RenderModel } from './model.js';
   import Actions from './Actions.svelte';
 
-  let { block, model }: { block: Extract<RenderBlock, { type: 'cards' }>; model: RenderModel } =
+  let {
+    block,
+    model,
+    anchor,
+  }: { block: Extract<RenderBlock, { type: 'cards' }>; model: RenderModel; anchor?: string } =
     $props();
 </script>
 
-<section class="block cards cards-{block.accent} width-{block.width}">
+<section id={anchor} class="block cards cards-{block.accent} width-{block.width}">
   <ul class="cards-grid">
     {#each block.cards as card, i (i)}
       <li class="cards-item">

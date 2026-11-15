@@ -33,6 +33,7 @@ export const ISSUE_COPY: Record<string, UiKey> = {
   'content.reference.section-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.item-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.form-unknown': 'admin.content.issue.referenceUnknown',
+  'content.reference.campaign-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.media-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.media-not-image': 'admin.content.issue.mediaNotImage',
   'content.reference.media-not-document': 'admin.content.issue.mediaNotDocument',

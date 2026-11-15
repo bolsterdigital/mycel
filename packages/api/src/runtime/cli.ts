@@ -19,6 +19,7 @@ import {
   erasureStatus,
   exportTenant,
   importTenant,
+  reindexSearch,
   type PlatformTenant,
 } from '@mycel/db';
 import { ensureS3Bucket } from '@mycel/blob';
@@ -50,6 +51,7 @@ export const USAGE = `usage:
   mycel import <directory or file.tar> [--slug <slug>]
   mycel erasures apply [--tenant <slug>]
   mycel erasures status [--tenant <slug>]
+  mycel search rebuild [--tenant <slug>]
   mycel version`;
 
 export type Command =
@@ -66,6 +68,7 @@ export type Command =
   | { kind: 'import'; path: string; slug?: string }
   | { kind: 'erasures.apply'; slug?: string }
   | { kind: 'erasures.status'; slug?: string }
+  | { kind: 'search.rebuild'; slug?: string }
   | { kind: 'version' };
 
 /** A command line the parser refuses; the message says what is wrong, then the usage follows. */
@@ -131,6 +134,10 @@ export function parseCommand(argv: readonly string[]): Command {
   if (noun === 'erasures' && verb === 'status') {
     const f = flags(rest, ['tenant']);
     return { kind: 'erasures.status', ...(f['tenant'] ? { slug: f['tenant'] } : {}) };
+  }
+  if (noun === 'search' && verb === 'rebuild') {
+    const f = flags(rest, ['tenant']);
+    return { kind: 'search.rebuild', ...(f['tenant'] ? { slug: f['tenant'] } : {}) };
   }
   if (noun === 'blob' && verb === 'init' && rest.length === 0) return { kind: 'blob.init' };
   if (noun === 'tenants' && verb === 'list' && rest.length === 0) return { kind: 'tenants.list' };
@@ -283,6 +290,18 @@ async function main(argv: string[]): Promise<number> {
           console.log(`${t.slug}\t${changed} rows changed, ${purged} archive(s) deleted`);
         }
         console.log(`erasures: ${total} rows changed in ${tenants.length} tenant(s)`);
+        break;
+      }
+      case 'search.rebuild': {
+        // The site search index from the publication rows (content/search.ts): for items
+        // published before 0055, or after a change of the token rule. Each tenant in its own
+        // transaction; an import of an older archive does this by itself.
+        const tenants = await tenantsOf(command.slug);
+        for (const t of tenants) {
+          const { items, rows } = await reindexSearch(db, t.id);
+          console.log(`${t.slug}\t${items} items, ${rows} index rows`);
+        }
+        console.log(`search: rebuilt in ${tenants.length} tenant(s)`);
         break;
       }
       case 'erasures.status': {

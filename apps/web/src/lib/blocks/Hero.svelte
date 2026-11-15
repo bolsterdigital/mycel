@@ -6,11 +6,18 @@
   import Actions from './Actions.svelte';
   import Picture from './Picture.svelte';
 
-  let { block, model }: { block: Extract<RenderBlock, { type: 'hero' }>; model: RenderModel } =
+  let {
+    block,
+    model,
+    anchor,
+  }: { block: Extract<RenderBlock, { type: 'hero' }>; model: RenderModel; anchor?: string } =
     $props();
 </script>
 
-<section class="block hero hero-{block.variant} width-{block.width} align-{block.align}">
+<section
+  id={anchor}
+  class="block hero hero-{block.variant} width-{block.width} align-{block.align}"
+>
   {#if block.image}
     <div class="hero-media">
       <Picture

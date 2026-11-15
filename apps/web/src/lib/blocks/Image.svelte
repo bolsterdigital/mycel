@@ -10,11 +10,14 @@
     layout,
     model,
     eager,
+    anchor,
   }: {
     image: RenderImage;
     layout: ImageLayout;
     model: RenderModel;
     eager: boolean;
+    /** The element id a link to this block lands on (`anchor.ts`). */
+    anchor?: string;
   } = $props();
 
   const large = $derived(largerImage(image, layout));
@@ -25,6 +28,7 @@
 </svelte:head>
 
 <figure
+  id={anchor}
   class="block image layout-{layout}"
   {...large ? lightboxAttributes(model.copy.lightbox) : {}}
 >

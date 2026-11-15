@@ -1,0 +1,111 @@
+/* The campaign card (ADR 033 rule 4) and the notice in place of a closed campaign's form. Apart
+   from base.css because that file stands near its size ceiling, against the same theme
+   properties and pairs; imported into the `components` layer. The card is the surface pair, like
+   a card of the action row; a `full` width is a band with the card on the wide rail. Image and
+   text stand side by side once the card itself is wide enough, measured on the card (a container),
+   so a card in the content column and one on the wide rail each decide for themselves. Rejected:
+   a viewport media query, which cannot tell a narrow column on a wide screen. */
+.campaign-card {
+  container-type: inline-size;
+}
+.campaign-card-inner {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--inset);
+  border-radius: var(--radius);
+  color: var(--color-surface-fg);
+  background: var(--color-surface-bg);
+}
+@container (min-width: 34rem) {
+  .campaign-card-inner:has(> .campaign-card-image) {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    align-items: start;
+  }
+}
+.campaign-card-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: var(--radius);
+}
+.campaign-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.campaign-card-text > * {
+  margin-block: 0;
+}
+.campaign-card-text :is(h2, h3) {
+  font-size: var(--step-2);
+}
+.campaign-card-kind {
+  font-size: var(--step--1);
+  font-weight: 700;
+}
+.campaign-card-text .actions {
+  margin-block-start: var(--space-1);
+}
+/* The form sits in the card's text column, on its left edge, not centred on the content rail. */
+.page .campaign-card .form > * {
+  margin-inline: 0;
+}
+.campaign-card.width-full {
+  padding-block: var(--space-3);
+  padding-inline: var(--gutter);
+  background: var(--color-surface-bg);
+}
+.campaign-card.width-full > * {
+  max-width: var(--wide-width);
+  margin-inline: auto;
+}
+.campaign-card.width-full .campaign-card-inner {
+  padding: 0;
+}
+
+/* The count: what it counts beside the number, the bar under it in the accent. */
+.campaign-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-1);
+  margin-block: 0;
+}
+.campaign-count strong {
+  font-size: var(--step-1);
+}
+/* An explicit track and fill: a native bar at zero drew as a full dark bar in Chromium. */
+:is(.campaign-card-text, .campaign-notice) progress {
+  display: block;
+  width: 100%;
+  height: 0.75rem;
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--color-body-bg);
+  box-shadow: inset 0 0 0 1px var(--color-muted-fg);
+}
+:is(.campaign-card-text, .campaign-notice) progress::-webkit-progress-bar {
+  background: transparent;
+}
+:is(.campaign-card-text, .campaign-notice) progress::-webkit-progress-value {
+  background: var(--color-accent-bg);
+}
+:is(.campaign-card-text, .campaign-notice) progress::-moz-progress-bar {
+  background: var(--color-accent-bg);
+}
+.campaign-notice {
+  display: grid;
+  gap: var(--space-1);
+}
+.campaign-notice > * {
+  margin-block: 0;
+}
+.campaign-notice-text {
+  font-weight: 700;
+}

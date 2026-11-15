@@ -10,14 +10,18 @@
   import type { RenderBlock, RenderModel } from './model.js';
   import RichText from './RichText.svelte';
 
-  let { block, model }: { block: Extract<RenderBlock, { type: 'faq' }>; model: RenderModel } =
+  let {
+    block,
+    model,
+    anchor,
+  }: { block: Extract<RenderBlock, { type: 'faq' }>; model: RenderModel; anchor?: string } =
     $props();
 
   const depth = $derived(block.title ? BLOCK_DEPTH + 1 : BLOCK_DEPTH);
   const question = $derived(headingTag(depth));
 </script>
 
-<section class="block faq faq-{block.variant} width-{block.width}">
+<section id={anchor} class="block faq faq-{block.variant} width-{block.width}">
   {#if block.title}<svelte:element this={headingTag(BLOCK_DEPTH)}>{block.title}</svelte:element
     >{/if}
   {#each block.entries as entry, i (i)}

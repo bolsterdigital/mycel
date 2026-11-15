@@ -59,7 +59,13 @@ export const PublishedItem = z.object({
     title: z.string().nullable(),
     description: z.string().nullable(),
     imageId: z.string().guid().nullable(),
+    /** The page is served but asks not to be indexed; lists and the sitemap leave it out. */
+    noindex: z.boolean(),
+    /** An explicit canonical URL; null: the item's own address in this locale. */
+    canonical: z.string().url().nullable(),
   }),
+  /** The access level of the served revision: public until reader access serves the teaser. */
+  access: z.enum(['public', 'members', 'tier']),
   /** The introduction in this locale, on pages and articles. */
   lead: z.string().nullable(),
   /** Images and short texts after inheritance (#86), so no reader derives them on its own. */
@@ -151,7 +157,10 @@ export const getPublished = defineUseCase({
         title: doc.seo.title?.[chosen] ?? null,
         description: doc.seo.description?.[chosen] ?? null,
         imageId: effective.images.share.mediaId,
+        noindex: doc.seo.noindex,
+        canonical: doc.seo.canonical ?? null,
       },
+      access: doc.access.level,
       lead: doc.lead?.[chosen] ?? null,
       effective,
     };

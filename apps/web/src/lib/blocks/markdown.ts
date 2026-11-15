@@ -5,7 +5,9 @@
 // absolute URL on the site's own address (`siteRoot`, built by `siteUrl`, ADR 014 rule 6).
 //
 // Headings follow the same depth rules as the HTML (headings.ts). A form becomes one line with
-// its submit label linking to the page itself; a paywall and a decorative image add nothing.
+// its submit label linking to the page itself; a paywall and a decorative image add nothing. A
+// campaign card is its title linking to the campaign's page and its summary, never a form or a
+// count (ADR 033 consequences); a form whose campaign is not open adds nothing.
 
 import type { Mark, MediaCredit, RichTextDoc } from '@mycel/core';
 import { creditText } from './credit.js';
@@ -217,6 +219,12 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
       }
       case 'form':
         return b.form ? link(b.form.submitLabel, options.canonicalUrl) : null;
+      case 'campaign-card':
+        if (!b.campaign) return null;
+        return [
+          `${'#'.repeat(BLOCK_DEPTH)} ${link(b.campaign.title, b.campaign.href)}`,
+          ...(b.campaign.summary ? [md(b.campaign.summary)] : []),
+        ].join('\n\n');
       default:
         return b satisfies never;
     }

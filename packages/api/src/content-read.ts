@@ -59,6 +59,7 @@ export function createContentReadApp({ invoker, tenants, access }: ContentReadDe
     const locale = c.req.query('locale');
     let body: string;
     let key: string;
+    let noindex = false;
     try {
       const item = await invoker.run(useCases.getPublished, visitor, {
         type,
@@ -67,6 +68,7 @@ export function createContentReadApp({ invoker, tenants, access }: ContentReadDe
       });
       body = JSON.stringify(item);
       key = `${item.revisionId}:${item.locale}`;
+      noindex = item.seo.noindex;
     } catch (e) {
       if (e instanceof UseCaseError && e.code === 'not_found') return missing();
       if (e instanceof UseCaseError)
@@ -76,6 +78,8 @@ export function createContentReadApp({ invoker, tenants, access }: ContentReadDe
     return conditionalJson(c.req.header('if-none-match'), body, {
       etag: etag(body, key),
       'cache-control': PUBLIC_CACHE,
+      // The editor's `seo.noindex` holds for this representation as for the HTML.
+      ...(noindex ? { 'x-robots-tag': 'noindex' } : {}),
     });
   });
 

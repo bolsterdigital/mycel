@@ -12,13 +12,14 @@
 // through `media.upload` like any front; the dev seed reads the committed files, a test passes a
 // JPEG header. Rejected: the examples of each block definition as demo content (they show each
 // variant in isolation, with ids that resolve to nothing); generated posters with a label (they
-// mislead an editor judging photo, title and button); and a
-// stock-photo URL fetched per seed (network in a seed, a hotlink on a public page, a licence
-// that may change under us).
+// mislead an editor judging photo, title and button); and a stock-photo URL fetched per seed
+// (network in a seed, a hotlink on a public page, a licence that may change under us).
 
 import type { z } from 'zod';
 import { pageWays } from './content/action-row.js';
 import { demoPerson, peopleBlock } from './content/people.js';
+import { campaignCardBlocks, demoCampaign } from './content/campaign.js';
+import { demoReportPdf } from './content/report-pdf.js';
 import type { ContentItem } from '../content/model.js';
 import type { RichTextDoc } from '../content/rich-text.js';
 import type { Invoker } from '../invoke.js';
@@ -682,35 +683,6 @@ function bridge(nl: string, en: string): BlockIn {
 const DEMO_REPORT_FILENAME = 'meetresultaten-pepernoten.pdf';
 const DEMO_SOUND_FILENAME = 'zoutmeter-pepernoten.mp3';
 
-/**
- * A real one-page PDF, written here so the demo's download opens without a binary in the repo.
- * Invented figures, as everything in this article. Rejected: a committed file, which needs the
- * source table the demo photos have, for a page that says one sentence.
- */
-function demoReportPdf(): Uint8Array {
-  const text = 'Meetresultaten pepernoten: 48 zakken, demonstratiegegevens.';
-  const stream = `BT /F1 14 Tf 72 720 Td (${text}) Tj ET`;
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R ' +
-      '/Resources << /Font << /F1 5 0 R >> >> >>',
-    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-  ];
-  let pdf = '%PDF-1.4\n';
-  const offsets = objects.map((body, i) => {
-    const at = pdf.length;
-    pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
-    return at;
-  });
-  const xref = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  for (const at of offsets) pdf += `${String(at).padStart(10, '0')} 00000 n \n`;
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  return new TextEncoder().encode(pdf);
-}
-
 /** The measurements behind the article, to download. */
 function articleReport(report: string): BlockIn {
   return {
@@ -1078,6 +1050,7 @@ export function demoArticle(refs: {
   formId: string;
   media: DemoMediaIds;
   pageId: string;
+  campaignId?: string;
 }): CreateInput {
   const [image, paywall, quote, image2, callout, faq, cta, signup] = articleCards(
     refs.formId,
@@ -1139,6 +1112,7 @@ export function demoArticle(refs: {
         ),
         articleTimeline(),
         articleNext(),
+        ...(refs.campaignId ? campaignCardBlocks(refs.campaignId) : []),
         cta!,
         bridge(
           'Je inschrijving is met één klik geregeld, en uitschrijven net zo snel.',
@@ -1311,6 +1285,7 @@ export async function seedDemoContent(
     personId: await demoPerson(invoker, principal),
     media: await demoMedia(invoker, principal, options.load),
   };
+  const campaignId = await demoCampaign(invoker, principal, refs.media.signatures);
   const ids = new Map<string, string>();
   for (const image of DEMO_IMAGES) {
     const poster = await findMedia(invoker, principal, image.replaces.filename);
@@ -1333,7 +1308,7 @@ export async function seedDemoContent(
       invoker,
       principal,
       refs.formId,
-      demoArticle({ ...refs, pageId: page.id })
+      demoArticle({ ...refs, pageId: page.id, campaignId })
     ));
   return { page, article, created: !existingPage || !existingArticle, upgraded };
 }

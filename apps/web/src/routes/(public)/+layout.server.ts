@@ -2,35 +2,32 @@
 // and 4): forms post natively and the server answers with a full page. Rejected: hydrating and
 // progressively enhancing with `use:enhance`; nothing on these pages needs it yet.
 //
-// The footer credit (ADR 015 rule 5) is decided here, from the visitor's Principal, so the layout
-// only renders what it is given. So is the theme stylesheet (brief #8c § 3): its hashed path and
-// the fonts to preload. On a content path the credit's language is the path's locale (brief #8c
-// § 8), so a cached page never depends on Accept-Language; elsewhere (`confirm`) it is negotiated
-// like the page itself.
-import { pickAny, anonymousPrincipal, entitled, negotiateLocale } from '@mycel/core';
-import { ui } from '../../i18n/index.js';
+// The chrome and its footer credit (ADR 015 rule 5) come from `chromeModel`, which the item
+// previews share, so the layout only renders what it is given. So does the theme
+// stylesheet (brief #8c § 3): its hashed path and the fonts to preload. On a content path the
+// chrome's language is the path's locale (brief #8c § 8), so a cached page never depends on
+// Accept-Language; elsewhere (`confirm`) it is negotiated like the page itself. The browser's
+// `theme-color` per mode is the theme's `body` background, and the icon is the site's own logo
+// (the chrome's); a site without a logo links an empty icon, so the browser makes no request
+// (not even the implicit `/favicon.ico`). Rejected: a generated icon or a platform default,
+// which would show a mark the site never chose.
+import { negotiateLocale } from '@mycel/core';
+import { chromeModel } from '#lib/server/public/chrome.js';
 import { localeOf } from '#lib/server/public/content-route.js';
-import { runtime } from '#lib/server/runtime.js';
-import { sitePath, siteTenant } from '#lib/server/site.js';
-import {
-  brandPath,
-  siteBrand,
-  siteChrome,
-  siteTheme,
-  themePath,
-} from '#lib/server/public/theme.js';
+import { sitePath } from '#lib/server/site.js';
+import { siteTheme, themePath } from '#lib/server/public/theme.js';
 import type { LayoutServerLoad } from './$types';
 
 export const csr = false;
 
-/** The route of every content path (`[[locale=locale]]/[...path]`). */
-const CONTENT_ROUTE = /\/\[\[locale=locale\]\]\/(?:\[\.\.\.path\]|people\/\[slug\])$/;
+/** The routes whose language is in the path: content, profiles and the site search. */
+const CONTENT_ROUTE = /\/\[\[locale=locale\]\]\/(?:\[\.\.\.path\]|people\/\[slug\]|search)$/;
 
 export const load: LayoutServerLoad = async ({ locals, request, params, route, setHeaders }) => {
   const site = locals.site;
   if (!site) return { credit: null, theme: null, chrome: null, locale: 'en' };
-  const { hash, preload } = await siteTheme(site);
-  const theme = { href: sitePath(site, themePath(hash)), preload };
+  const { hash, preload, colors } = await siteTheme(site);
+  const theme = { href: sitePath(site, themePath(hash)), preload, colors };
   // A content path has its language in the address; anything else depends on the visitor's.
   if (!CONTENT_ROUTE.test(route.id ?? '')) setHeaders({ vary: 'accept-language' });
   const locale = CONTENT_ROUTE.test(route.id ?? '')
@@ -42,45 +39,5 @@ export const load: LayoutServerLoad = async ({ locals, request, params, route, s
       );
   // A page that loads sets this itself; one that fails still gets `lang` from here.
   locals.lang ??= locale;
-  const chrome = await siteChrome(site);
-  const brand = await siteBrand(site);
-  const link = (item: { label: Record<string, string>; href: string }) => ({
-    label: pickAny(item.label, locale, site.tenant.defaultLocale) ?? '',
-    href: item.href.startsWith('/') ? sitePath(site, item.href) : item.href,
-  });
-  const publicChrome = {
-    name: site.tenant.name,
-    home: sitePath(site, '/'),
-    logo: brand.logo.active
-      ? {
-          src: sitePath(site, brandPath('logo', brand.logo.version)),
-          width: brand.logo.width!,
-          height: brand.logo.height!,
-        }
-      : null,
-    wordmark: brand.font.active,
-    navigation: chrome.navigation.map(link),
-    legal: chrome.legal.map(link),
-    footer: chrome.footer[locale] ?? chrome.footer[site.tenant.defaultLocale] ?? '',
-    support: chrome.support ? link(chrome.support) : null,
-    help: chrome.help ? link(chrome.help) : null,
-  };
-  const base = { theme, chrome: publicChrome, locale };
-  if (entitled(anonymousPrincipal(siteTenant(site), []), 'remove_branding'))
-    return { ...base, credit: null };
-  return {
-    ...base,
-    credit: {
-      href: runtime().config.PLATFORM_CREDIT_URL,
-      label: ui(
-        CONTENT_ROUTE.test(route.id ?? '')
-          ? (localeOf(params.locale, site.tenant) ?? site.tenant.defaultLocale)
-          : negotiateLocale(
-              request.headers.get('accept-language'),
-              site.tenant.locales,
-              site.tenant.defaultLocale
-            )
-      )('credit.runsOnMycel'),
-    },
-  };
+  return { theme, locale, ...(await chromeModel(site, locale, sitePath(site, ''))) };
 };

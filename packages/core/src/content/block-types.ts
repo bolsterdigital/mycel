@@ -5,14 +5,13 @@
 // one entry here and nothing else to keep in step. The examples are the fixtures the renderer
 // (#8c) and the editor (#11) import; they are not copied.
 //
-// The four types of #8a (`heading`, `signup-form`, `rich-text`, `paywall`) keep their version 1
-// schemas exactly: stored revisions must parse unchanged. The others start at version 1 here.
-// No type has child blocks yet; prose inside a card is localised text or a `RichTextDoc`, so the
-// id operations keep a flat sibling list. Rejected: deriving localised fields by walking the Zod
-// schema (unions and effects make that guesswork) and one hand-kept list of types per consumer.
+// The #8a types keep their version 1 schemas so stored revisions parse; no type has child blocks.
+// Larger entries have a file of their own. Rejected: localised fields derived from the Zod schema
+// (unions and effects make that guesswork) and one hand-kept list of types per consumer.
 
 import { z } from 'zod';
 import { peopleGridDefinition } from './people/grid-block.js';
+import { campaignCardDefinition } from './blocks/campaign-card.js';
 import { localized } from '../i18n/locale.js';
 import { imageRefs } from './blocks/image-references.js';
 import { CREDIT_KINDS, MediaCredit } from '../media/model.js';
@@ -30,7 +29,7 @@ export interface LocalField {
 
 /** A tenant reference inside a block's props (the `type` column of `content_block_refs`). */
 export interface PropReference {
-  type: 'form' | 'item' | 'media' | 'person' | 'person_group';
+  type: 'form' | 'item' | 'media' | 'person' | 'person_group' | 'campaign';
   refId: string;
   /** This media slot takes a document, not an image; the `content_block_refs` row stays `media`. */
   document?: true;
@@ -70,7 +69,7 @@ export type BlockField =
   | {
       key: string;
       kind: 'reference';
-      to: 'form' | 'item' | 'person' | 'person_group';
+      to: 'form' | 'item' | 'person' | 'person_group' | 'campaign';
       optional?: 'null' | 'omit';
     }
   | { key: string; kind: 'choice'; options: readonly string[]; initial?: string; optional?: 'omit' }
@@ -1207,4 +1206,5 @@ export const BLOCK_DEFINITIONS = {
       { name: 'form-full', props: { formId: EXAMPLE_IDS.form, width: 'full' } },
     ],
   }),
+  'campaign-card': campaignCardDefinition,
 };

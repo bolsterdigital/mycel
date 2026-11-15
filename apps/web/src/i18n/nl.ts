@@ -133,6 +133,15 @@ export const nl: Partial<Record<UiKey, string>> = {
   'public.people.articles': 'Artikelen',
   'public.people.previous': 'Vorige artikelen',
   'public.people.next': 'Meer artikelen',
+  'public.search.title': 'Zoeken',
+  'public.search.resultsFor': 'Resultaten voor ‘{q}’',
+  'public.search.description': 'Zoek in de pagina’s en artikelen van deze site.',
+  'public.search.label': 'Zoek op deze site',
+  'public.search.submit': 'Zoeken',
+  'public.search.none': 'Niets gevonden. Probeer andere of minder woorden.',
+  'public.search.pages': 'Meer resultaten',
+  'public.search.previous': 'Vorige resultaten',
+  'public.search.next': 'Volgende resultaten',
   'admin.people.added':
     'Persoon toegevoegd en geselecteerd. Sla het artikel op om deze keuze te bewaren.',
   'admin.people.title': 'Personen',
@@ -221,7 +230,6 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.replace': 'Vervangen',
   'admin.site.remove': 'Verwijderen',
   'admin.site.theme': 'Thema',
-  'admin.site.chrome': 'Publieke navigatie en voettekst',
   'admin.site.foreground': 'Tekstkleur',
   'admin.site.background': 'Achtergrondkleur',
   'admin.site.colours.role': 'Rol',
@@ -235,12 +243,16 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.dropCap.hint': 'Een grote eerste letter aan het begin van de tekst van elk artikel.',
   'admin.site.dropCap.articles': 'Aan',
   'admin.site.dropCap.off': 'Uit',
+  'admin.site.captionFont': 'Lettertype van onderschriften',
+  'admin.site.captionFont.hint':
+    'Het lettertype van onderschriften en naamsvermeldingen bij foto’s, video’s en galerijen.',
+  'admin.site.captionFont.body': 'Zoals de lopende tekst',
+  'admin.site.captionFont.mono': 'Monospace (schrijfmachine)',
   'admin.site.images': 'Beeld',
   'admin.site.defaultImage': 'Standaardbeeld',
   'admin.site.defaultImage.hint':
     'Het beeld dat een pagina of artikel zonder eigen uitgelicht beeld of deelbeeld gebruikt, bijvoorbeeld bij delen op sociale media.',
   'admin.site.defaultImage.save': 'Beeld opslaan',
-  'admin.site.url': 'URL',
   'admin.site.mode.light': 'Lichte kleuren',
   'admin.site.mode.dark': 'Donkere kleuren',
   'admin.site.role.body': 'Lopende tekst',
@@ -261,14 +273,12 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.field.density': 'Ruimte tussen elementen',
   'admin.site.field.headingWeight': 'Kopdikte',
   'admin.site.saveTheme': 'Thema opslaan',
-  'admin.site.saveChrome': 'Navigatie en voettekst opslaan',
-  'admin.site.navigation': 'Navigatielinks',
+  'admin.site.chrome': 'Voettekst',
+  'admin.site.saveChrome': 'Voettekst opslaan',
+  'admin.site.chrome.menus': "De menu's van kop en voet stel je in onder",
+  'admin.nav.footer': 'Voettekst',
+  'admin.manage.hint.footer': 'De tekst onderaan elke pagina.',
   'admin.site.footer': 'Voettekst',
-  'admin.site.legal': 'Juridische links',
-  'admin.site.support': 'Supportlink',
-  'admin.site.help': 'Helplink',
-  'admin.site.linkHint':
-    'Eén link per regel: URL|{locales}. Vul labels in die taalvolgorde in. Gebruik een sitepad of HTTPS-URL.',
   'public.notFound.title': 'Pagina niet gevonden',
   'public.notFound.body':
     'Deze pagina bestaat niet of is verhuisd. Controleer het adres of ga naar de homepage.',
@@ -277,7 +287,13 @@ export const nl: Partial<Record<UiKey, string>> = {
   'public.home': 'Naar de homepage',
   'public.skip': 'Ga naar inhoud',
   'public.navigation': 'Hoofdnavigatie',
+  'public.languages': 'Taal',
+  'public.menu': 'Menu',
+  'public.menu.close': 'Sluiten',
+  'public.menu.sublinks': "{label}: onderliggende pagina's",
   'public.footerNavigation': 'Voettekst',
+  'public.navigation.home': 'Home',
+  'public.navigation.search': 'Zoeken',
   'admin.site.conflict':
     'Deze instellingen zijn elders gewijzigd. Controleer je invoer en laad opnieuw voordat je opslaat.',
   'admin.site.invalid': 'Controleer de velden en het kleurcontrast.',
@@ -303,7 +319,6 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.nav.export': 'Exporteren',
   'admin.nav.status': 'Status',
   'admin.nav.manage': 'Beheer',
-  'admin.nav.menus': "Menu's en footer",
   'admin.manage.title': 'Beheer',
   'admin.manage.lead':
     'Wie aan deze site werkt, waaraan hij gekoppeld is en of alles loopt. Hoe de site eruitziet staat onder Instellingen.',
@@ -320,7 +335,217 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.manage.hint.general': 'Naam, talen en tijdzone.',
   'admin.manage.hint.theme': 'Kleuren, letters en ruimte.',
   'admin.manage.hint.brand': 'Logo, woordmerk en standaardbeeld.',
-  'admin.manage.hint.menus': 'Het publieke menu en de footer.',
+  'admin.nav.navigation': 'Navigatie',
+  'admin.manage.hint.navigation': "De menu's van de site en hun items.",
+  'admin.navigation.title': 'Navigatie',
+  'admin.navigation.intro':
+    "De menu's van je site. Bouw hier een menu; hetzelfde menu kan straks in de kop en in de footer staan.",
+  'admin.navigation.menus': "Menu's",
+  'admin.navigation.newMenu': 'Nieuw menu',
+  'admin.navigation.newMenu.intro':
+    'Geef het menu eerst een naam; de items voeg je op het volgende scherm toe.',
+  'admin.navigation.newMenu.submit': 'Menu aanmaken',
+  'admin.navigation.empty': "Nog geen menu's",
+  'admin.navigation.empty.body':
+    'Een menu is een lijst links, zoals het hoofdmenu of de links in de footer.',
+  'admin.navigation.column.name': 'Menu',
+  'admin.navigation.column.items': 'Items',
+  'admin.navigation.column.used': 'Gebruikt in',
+  'admin.navigation.placement.main': 'Hoofdnavigatie',
+  'admin.navigation.placement.actions': 'Actieknoppen',
+  'admin.navigation.placement.footer': 'Footer',
+  'admin.navigation.placement.legal': 'Juridische links',
+  'admin.navigation.notPlaced': 'Niet geplaatst',
+  'admin.navigation.notPlaced.long': 'Dit menu staat nog nergens op de site.',
+  'admin.navigation.usedIn':
+    'Gebruikt in: {places}. Een wijziging hier is na publicatie op al die plekken te zien.',
+  'admin.navigation.items': 'Items',
+  'admin.navigation.items.intro':
+    'In de volgorde waarin bezoekers ze zien, met de tekst die ze lezen in {locale}.',
+  'admin.navigation.items.empty': 'Dit menu heeft nog geen items',
+  'admin.navigation.items.empty.body':
+    'Voeg een link naar een pagina toe, of een groep om links onder te zetten.',
+  'admin.navigation.subItemsOf': 'Subitems van {name}',
+  'admin.navigation.addLink': 'Link toevoegen',
+  'admin.navigation.addGroup': 'Groep toevoegen',
+  'admin.navigation.editLink': 'Link bewerken',
+  'admin.navigation.editGroup': 'Groep bewerken',
+  'admin.navigation.edit': 'Bewerken',
+  'admin.navigation.save': 'Opslaan',
+  'admin.navigation.saved':
+    'Opgeslagen als concept. Op de site verandert niets tot de navigatie is gepubliceerd.',
+  'admin.navigation.merged':
+    'Opgeslagen, samen met een wijziging die iemand anders intussen maakte.',
+  'admin.navigation.rename': 'Naam opslaan',
+  'admin.navigation.remove': 'Verwijderen',
+  'admin.navigation.remove.question': 'Dit item uit het menu verwijderen?',
+  'admin.navigation.remove.questionSub':
+    'Dit item en de subitems eronder uit het menu verwijderen?',
+  'admin.navigation.remove.confirm': 'Ja, verwijderen',
+  'admin.navigation.delete': 'Menu verwijderen',
+  'admin.navigation.delete.question': 'Dit menu met al zijn items verwijderen?',
+  'admin.navigation.delete.confirm': 'Ja, menu verwijderen',
+  'admin.navigation.delete.placed':
+    'Dit menu is in gebruik op de site. Kies eerst een ander menu voor die plekken.',
+  'admin.navigation.move.up': 'Omhoog',
+  'admin.navigation.move.down': 'Omlaag',
+  'admin.navigation.move.in': 'Maak subitem',
+  'admin.navigation.move.out': 'Naar hoofdniveau',
+  'admin.navigation.kind.group': 'Groep',
+  'admin.navigation.leadsTo': 'Gaat naar {target}',
+  'admin.navigation.noLabel': '(geen tekst)',
+  'admin.navigation.system.home': 'Startpagina',
+  'admin.navigation.system.search': 'Zoekpagina',
+  'admin.navigation.source.own': 'Eigen menutekst',
+  'admin.navigation.source.featured': 'Uitgelichte titel van de pagina',
+  'admin.navigation.source.title': 'Paginatitel',
+  'admin.navigation.source.system': 'Standaardnaam',
+  'admin.navigation.state.unpublished': 'Pagina niet gepubliceerd',
+  'admin.navigation.state.restricted': 'Alleen voor leden: niet getoond',
+  'admin.navigation.state.missing': 'Pagina bestaat niet meer',
+  'admin.navigation.state.noLabel': 'Geen tekst in {locale}',
+  'admin.navigation.field.name': 'Naam',
+  'admin.navigation.field.name.hint': 'Voor jou en je team; bezoekers zien hem nooit.',
+  'admin.navigation.field.label': 'Menutekst',
+  'admin.navigation.field.label.in': 'Menutekst ({locale})',
+  'admin.navigation.field.label.hint':
+    'Laat leeg om de titel van de pagina te gebruiken. Een adres heeft een eigen tekst nodig.',
+  'admin.navigation.field.label.inherits':
+    'Laat leeg om de titel van de pagina te gebruiken: "{title}".',
+  'admin.navigation.field.label.inheritsRestricted':
+    'Laat leeg om de titel van de pagina te gebruiken: "{title}". De pagina is alleen voor leden, dus bezoekers zien deze link niet.',
+  'admin.navigation.field.label.groupHint': 'De tekst boven de subitems.',
+  'admin.navigation.field.url.hint': 'Begint met / voor een plek op deze site, of met https://.',
+  'admin.navigation.field.anchor': 'Waar op de pagina',
+  'admin.navigation.field.anchor.hint':
+    'De link opent de pagina bij dit deel. Andere pagina gekozen? Sla eerst op en kies dan een deel ervan.',
+  'admin.navigation.anchor.none': 'Bovenaan',
+  'admin.navigation.anchor.option': '{type}: {text}',
+  'admin.navigation.anchor.gone': 'Een deel dat er niet meer is',
+  'admin.navigation.anchor.unpublished':
+    'Zodra de pagina in {locale} gepubliceerd is, kun je kiezen waar op de pagina de link uitkomt.',
+  'admin.navigation.anchor.later':
+    'Na het opslaan van een link naar een pagina kun je kiezen waar op die pagina hij uitkomt.',
+  'admin.navigation.group.intro':
+    'Een groep is een tekst zonder eigen link. Voeg links toe en maak ze daarna subitem van de groep.',
+  'admin.navigation.error.conflict':
+    'Niet opgeslagen: iemand heeft hetzelfde deel van de navigatie intussen gewijzigd. Wat die persoon opsloeg, staat er nu; bekijk het en probeer het dan nog eens.',
+  'admin.navigation.error.invalid':
+    'Niet opgeslagen: met wat intussen is gewijzigd past dit niet meer. Laad de pagina opnieuw en probeer het nog eens.',
+  'admin.navigation.error.nameRequired': 'Geef het menu een naam.',
+  'admin.navigation.error.labelRequired':
+    'Een groep en een adres hebben geen titel om over te nemen: vul de menutekst in.',
+  'admin.navigation.error.address': 'Vul een adres in dat begint met / of https://.',
+  'admin.navigation.error.targetRequired': 'Kies waar de link naartoe gaat.',
+  'admin.navigation.error.targetGone': 'Die pagina bestaat niet meer. Kies een andere.',
+  'admin.navigation.error.menuPlaced':
+    'Dit menu is in gebruik op de site. Kies eerst een ander menu voor die plekken.',
+  'admin.navigation.error.menuPublished':
+    'Dit menu staat in een gepubliceerde taal op de site. Haal het eerst van zijn plek en publiceer dat.',
+  'admin.navigation.error.budget':
+    "Niet opgeslagen: de navigatie heeft het maximale aantal menu's of items bereikt.",
+  'admin.navigation.error.actions':
+    'Niet opgeslagen: de actieknoppen bevatten hooguit twee links, zonder subitems of groepen.',
+  'admin.navigation.error.yours': 'Wat jij had ingevuld: {text}',
+  'admin.navigation.error.yoursChoices': 'Wat jij had gekozen: {choices}.',
+  'admin.navigation.error.publish':
+    'Niet gepubliceerd: los eerst op wat hieronder "Blokkeert publicatie" heeft.',
+  'admin.navigation.error.revisionGone': 'Die versie van de navigatie bestaat niet.',
+  'admin.navigation.overview.published': 'Gepubliceerd in {locale}.',
+  'admin.navigation.overview.offline': 'Offline gehaald in {locale}.',
+  'admin.navigation.overview.restored':
+    'Teruggezet als concept. Op de site verandert niets tot je het publiceert.',
+  'admin.navigation.placements': 'Plaatsingen',
+  'admin.navigation.placements.intro':
+    'Waar het concept elk menu toont. Hetzelfde menu mag op meerdere plekken staan.',
+  'admin.navigation.placements.edit': 'Plaatsingen wijzigen',
+  'admin.navigation.placements.submit': 'Plaatsingen opslaan',
+  'admin.navigation.placements.none': 'Geen',
+  'admin.navigation.placements.noMenus': 'Maak eerst een menu; kies daarna waar het staat.',
+  'admin.navigation.placements.main.hint':
+    'Het hele menu opent als paneel. De items die je hieronder aanvinkt, staan ook in de balk als er ruimte is.',
+  'admin.navigation.placements.bar': 'In de balk',
+  'admin.navigation.placements.bar.hint':
+    'Items op het hoofdniveau van {menu}. Kies je een ander menu, sla dan eerst op en vink daarna de items aan.',
+  'admin.navigation.placements.bar.empty': 'Dit menu heeft nog geen items.',
+  'admin.navigation.placements.actions.hint':
+    'Een menu van hooguit twee links zonder subitems: de eerste is de hoofdknop, de tweede de andere.',
+  'admin.navigation.placements.footer.hint':
+    'Hooguit vier kolommen, in deze volgorde. Laat een kolom op "Geen" staan om hem over te slaan.',
+  'admin.navigation.placements.column': 'Kolom {n}',
+  'admin.navigation.placements.column.menu': 'Menu van kolom {n}',
+  'admin.navigation.placements.column.title': 'Titel van kolom {n} ({locale})',
+  'admin.navigation.placements.column.title.hint': 'Mag leeg blijven; staat boven de kolom.',
+  'admin.navigation.placements.legal.hint':
+    'Privacy, voorwaarden en andere juridische links, in kleine letters.',
+  'admin.navigation.publication': 'Publicatie',
+  'admin.navigation.publication.intro':
+    "Per taal: welke versie bezoekers krijgen zodra de site deze menu's gebruikt, en of het concept sindsdien is gewijzigd.",
+  'admin.navigation.column.language': 'Taal',
+  'admin.navigation.column.live': 'Live',
+  'admin.navigation.column.draft': 'Concept',
+  'admin.navigation.live.none': 'Niet gepubliceerd',
+  'admin.navigation.draft.same': 'Gelijk aan live',
+  'admin.navigation.draft.ahead': 'Gewijzigd',
+  'admin.navigation.draft.blocked': 'Kan nog niet gepubliceerd worden',
+  'admin.navigation.previewIn': 'Voorbeeld {locale}',
+  'admin.navigation.revisions': 'Versies',
+  'admin.navigation.revisions.intro':
+    'De nieuwste versies van het concept, nieuwste eerst. Elke opgeslagen stap maakt er een.',
+  'admin.navigation.revisions.all': 'Alle versies',
+  'admin.navigation.column.when': 'Opgeslagen',
+  'admin.navigation.column.notes': 'Bijzonderheden',
+  'admin.navigation.revision.current': 'Huidig concept',
+  'admin.navigation.revision.merged': 'Samengevoegd met een gelijktijdige wijziging',
+  'admin.navigation.revision.restoredFrom': 'Teruggezet uit de versie van {when}',
+  'admin.navigation.revision.restored': 'Teruggezet uit een oudere versie',
+  'admin.navigation.revision.liveIn': 'Live in {locales}',
+  'admin.navigation.revision.view': 'Bekijken',
+  'admin.navigation.revision.title': 'Versie van {when}',
+  'admin.navigation.revision.intro':
+    'Wat deze versie bezoekers in {locale} toont, met de pagina’s zoals ze nu gepubliceerd zijn. Terugzetten kopieert hem naar een nieuw concept.',
+  'admin.navigation.revision.isCurrent': 'Dit is het huidige concept.',
+  'admin.navigation.restore': 'Terugzetten als concept',
+  'admin.navigation.restore.question':
+    'Deze versie het concept maken? Het huidige concept blijft in de lijst met versies, en er gaat niets live tot je publiceert.',
+  'admin.navigation.restore.confirm': 'Ja, terugzetten',
+  'admin.navigation.preview.title': 'Voorbeeld in {locale}',
+  'admin.navigation.preview.intro':
+    'Wat bezoekers in {locale} zien als dit concept gepubliceerd wordt: alleen gepubliceerde pagina’s, met hun gepubliceerde titels.',
+  'admin.navigation.preview.live': 'Live in {locale}: de versie van {when}.',
+  'admin.navigation.preview.notLive': 'Nog niet gepubliceerd in {locale}.',
+  'admin.navigation.preview.same': 'Het concept is wat live staat.',
+  'admin.navigation.preview.ahead': 'Het concept heeft wijzigingen die nog niet live staan.',
+  'admin.navigation.preview.nothing': 'Hier staat niets.',
+  'admin.navigation.preview.empty': 'Toont niets in deze taal.',
+  'admin.navigation.preview.bar': 'In de balk',
+  'admin.navigation.preview.primary': 'Hoofdknop',
+  'admin.navigation.preview.secondary': 'Andere knop',
+  'admin.navigation.preview.untitled': 'Kolom zonder titel',
+  'admin.navigation.preview.menu': 'Menu: {menu}',
+  'admin.navigation.problems': 'Weggelaten',
+  'admin.navigation.problems.intro':
+    "Items van geplaatste menu's die bezoekers in {locale} niet zien.",
+  'admin.navigation.problems.none': "Elk item van de geplaatste menu's wordt getoond.",
+  'admin.navigation.problem.blocking': 'Blokkeert publicatie',
+  'admin.navigation.problem.where': '{item} in {menu}',
+  'admin.navigation.problem.label-missing':
+    'Het heeft geen tekst in {locale}; vul die in voor je publiceert.',
+  'admin.navigation.problem.target-unavailable':
+    'De pagina is niet openbaar gepubliceerd in {locale}.',
+  'admin.navigation.problem.children-unreachable':
+    'De pagina wordt niet getoond en het item heeft geen eigen tekst in {locale}, dus de subitems vallen ook weg.',
+  'admin.navigation.problem.anchor-missing':
+    'Het deel van de pagina waar het naar wees, is weg; het gaat naar het begin van de pagina.',
+  'admin.navigation.problem.target-unknown':
+    'De pagina bestaat niet meer; kies een andere voor je publiceert.',
+  'admin.navigation.publish': 'Publiceren in {locale}',
+  'admin.navigation.publish.noRight':
+    'Publiceren vraagt het recht om te publiceren. Iemand die dat heeft, kan dit concept live zetten.',
+  'admin.navigation.unpublish': 'Offline halen in {locale}',
+  'admin.navigation.unpublish.question':
+    "De menu's in deze taal offline halen? Bezoekers zien daar dan geen menu's tot je opnieuw publiceert.",
+  'admin.navigation.unpublish.confirm': 'Ja, offline halen',
   'admin.dashboard.title': 'Dashboard',
   'admin.dashboard.recent': 'Laatst bewerkt',
   'admin.dashboard.scheduled': 'Ingepland',
@@ -890,6 +1115,10 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.site.brand.delete': 'Logo of lettertype verwijderd',
   'admin.audit.op.site.brand.update': 'Logo of lettertype gewijzigd',
   'admin.audit.op.site.chrome.update': 'Kop en voet gewijzigd',
+  'admin.audit.op.site.navigation.update': 'Navigatie gewijzigd',
+  'admin.audit.op.site.navigation.restore': 'Eerdere navigatie teruggezet',
+  'admin.audit.op.site.navigation.publish': 'Navigatie gepubliceerd',
+  'admin.audit.op.site.navigation.unpublish': 'Navigatie offline gehaald',
   'admin.audit.op.site.general.update': 'Algemene instellingen gewijzigd',
   'admin.audit.op.site.image.update': 'Standaardbeeld gewijzigd',
   'admin.audit.op.site.retention.update': 'Bewaartermijn van inzendingen gewijzigd',
@@ -983,6 +1212,22 @@ export const nl: Partial<Record<UiKey, string>> = {
   'block.credit.other': 'Beeld: {name}',
   'block.meta.by': 'door {names}',
   'block.cover.toContent': 'Naar de inhoud',
+  'block.campaign.kind.petition': 'Petitie',
+  'block.campaign.kind.signup': 'Inschrijfactie',
+  'block.campaign.kind.fundraiser': 'Inzamelingsactie',
+  'block.campaign.phase.upcoming': 'nog niet open',
+  'block.campaign.phase.open': 'open',
+  'block.campaign.phase.closed': 'gesloten',
+  'block.campaign.unit.petition': 'Handtekeningen',
+  'block.campaign.unit.signup': 'Aanmeldingen',
+  'block.campaign.unit.fundraiser': 'Opgehaald',
+  'block.campaign.ofTarget': '{n} van {target}',
+  'block.campaign.act.petition': 'Teken de petitie',
+  'block.campaign.act.signup': 'Meld je aan',
+  'block.campaign.act.fundraiser': 'Doneer',
+  'block.campaign.more': 'Bekijk de campagne',
+  'block.campaign.notOpen.upcoming': 'Meedoen kan nog niet.',
+  'block.campaign.notOpen.closed': 'Meedoen kan niet meer: deze campagne is gesloten.',
   'block.lightbox.enlarge': 'grotere versie',
   'block.lightbox.dialog': 'Beeld groter bekijken',
   'block.lightbox.close': 'Sluiten',
@@ -1054,6 +1299,10 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Dit kon niet worden verwijderd. Laad de pagina opnieuw en probeer het nog eens.',
   'admin.content.delete.referenced':
     'Dit kan niet weg zolang andere items ernaar linken ({count}: {titles}). Haal die links eerst weg.',
+  'admin.content.delete.inNavigation':
+    'Dit kan niet weg zolang een menu ernaar linkt ({count}: {menus}). Haal het eerst uit die menu’s.',
+  'admin.content.delete.campaignLanding':
+    'Dit is de landingspagina van een campagne. Die kan pas naar de prullenbak als de campagne is gearchiveerd.',
   'admin.content.trash.title': 'Prullenbak',
   'admin.content.trash.intro':
     'Verwijderde pagina’s en artikelen blijven hier staan tot je ze herstelt. Ze zijn offline en hun adres is vrij.',
@@ -1116,6 +1365,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.new.locales': 'Talen van dit item',
   'admin.content.new.pattern': 'Begin met een patroon',
   'admin.content.new.noPattern': 'Leeg',
+  'admin.content.new.standard': 'Standaard',
+  'admin.content.new.longRead': 'Longread',
   'admin.content.new.submit': 'Concept maken',
   'admin.content.new.page': 'Nieuwe pagina',
   'admin.content.new.article': 'Nieuw artikel',
@@ -1664,6 +1915,41 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.block.type.quote': 'Citaat',
   'admin.block.type.video-embed': 'Video',
   'admin.block.type.form': 'Formulier',
+  'admin.block.type.campaign-card': 'Campagnekaart',
+  'admin.block.field.campaignId': 'Campagne',
+  'admin.block.option.compact': 'Compact',
+  'admin.block.option.variant.full': 'Met formulier',
+  'admin.block.campaign.choose': 'Campagne',
+  'admin.block.campaign.unknown': 'Ontbrekende campagne ({id})',
+  'admin.block.campaign.manage': 'Campagnes beheren',
+  'admin.block.campaign.live':
+    'Live verwijzing: de kaart toont steeds wat de campagne nu toont, ook op een ingeplande pagina.',
+  'admin.block.campaign.reason.unknown': 'Deze campagne bestaat niet (meer) op deze site.',
+  'admin.block.campaign.reason.archived': 'Deze campagne is gearchiveerd; de kaart toont niets.',
+  'admin.block.campaign.reason.landing-missing':
+    'De pagina van deze campagne staat in de prullenbak; de kaart toont niets.',
+  'admin.block.campaign.reason.draft':
+    'De pagina van deze campagne is nog niet gepubliceerd; de kaart toont niets.',
+  'admin.block.campaign.reason.locale-unpublished':
+    'De pagina van deze campagne is in deze taal niet gepubliceerd; de kaart toont hier niets.',
+  'admin.block.campaign.reason.restricted':
+    'De pagina van deze campagne is afgeschermd; de kaart toont niets.',
+  'admin.block.campaign.form.upcoming':
+    'Alleen in dit voorbeeld: de deelname is nog niet geopend, dus de site toont hier "Meedoen kan nog niet" in plaats van het formulier.',
+  'admin.block.campaign.form.closed':
+    'Alleen in dit voorbeeld: de deelname is gesloten, dus de site toont hier de stand in plaats van het formulier.',
+  'admin.block.campaign.form.draft':
+    'Alleen in dit voorbeeld: de pagina van deze campagne is nog niet gepubliceerd, dus de site toont dit formulier nog niet.',
+  'admin.block.campaign.form.locale-unpublished':
+    'Alleen in dit voorbeeld: de pagina van deze campagne is in deze taal niet gepubliceerd, dus de site toont dit formulier hier niet.',
+  'admin.block.campaign.form.archived':
+    'Alleen in dit voorbeeld: deze campagne is gearchiveerd, dus de site toont dit formulier niet.',
+  'admin.block.campaign.form.landing-missing':
+    'Alleen in dit voorbeeld: de pagina van deze campagne staat in de prullenbak, dus de site toont dit formulier niet.',
+  'admin.block.campaign.form.restricted':
+    'Alleen in dit voorbeeld: de pagina van deze campagne is afgeschermd, dus de site toont dit formulier niet.',
+  'admin.block.campaign.form.unknown':
+    'Alleen in dit voorbeeld: de site toont dit formulier nu niet.',
   'admin.block.field.text': 'Tekst',
   'admin.block.field.formId': 'Formulier-id',
   'admin.block.field.content': 'Tekst',

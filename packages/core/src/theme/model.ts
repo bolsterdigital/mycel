@@ -25,6 +25,15 @@ export const HEADING_WEIGHTS = [400, 500, 600, 700, 800] as const;
 export const DROP_CAPS = ['articles', 'off'] as const;
 export type DropCap = (typeof DROP_CAPS)[number];
 
+/**
+ * The face of captions and credits: the body font, or the system's monospace (a house style that
+ * sets its photo captions like a typewriter). A closed choice, so `body` renders exactly as before.
+ * Rejected: a self-hosted monospace file (a licence and a catalogue entry for one small line of
+ * text) and a free font name (ADR 013 rule 1 accepts values, never CSS).
+ */
+export const CAPTION_FONTS = ['body', 'mono'] as const;
+export type CaptionFont = (typeof CAPTION_FONTS)[number];
+
 /** The role pairs of a palette: each a foreground on its background. */
 export const THEME_ROLES = ['body', 'surface', 'primary', 'accent', 'muted', 'warning'] as const;
 
@@ -123,6 +132,7 @@ export const ThemeInput = z
       density: range('density').optional(),
       headingWeight: HeadingWeight.optional(),
       dropCap: z.enum(DROP_CAPS, notAllowed).optional(),
+      captionFont: z.enum(CAPTION_FONTS, notAllowed).optional(),
     },
     unknownKey
   )
@@ -141,4 +151,5 @@ export interface ResolvedTheme {
   density: number;
   headingWeight: (typeof HEADING_WEIGHTS)[number];
   dropCap: DropCap;
+  captionFont: CaptionFont;
 }
