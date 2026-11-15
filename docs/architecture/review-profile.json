@@ -15,6 +15,7 @@
         "packages/db/src/infra/retention.ts",
         "packages/db/src/platform*",
         "packages/db/src/operators*",
+        "packages/db/src/operators/**",
         "packages/db/src/connections/**",
         "packages/db/src/presence/**",
         "packages/db/src/infra/schema.ts",

@@ -143,6 +143,7 @@ export {
   type WorkerHooks,
 } from './operations/jobs.js';
 export { createIdentityStore } from './operators.js';
+export { eraseOperator, reapplyOperatorErasures, restoreTenantAdmin } from './operators/erasure.js';
 export { mediaRepository } from './media.js';
 export { createSiteDirectory, SITE_CACHE_TTL_MS } from './hostnames.js';
 export {

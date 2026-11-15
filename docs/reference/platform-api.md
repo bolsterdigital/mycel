@@ -2,7 +2,7 @@
 
 How a hoster creates tenants and sets what each may use (ADR 015 rule 4, PR #12). The hosted service's billing system (for Bureau Bolster: the client portal) calls it; a self-hoster uses the same functions through the `mycel` CLI and never needs the API. Prices, tier names and presets are the hoster's business and never appear in this repository.
 
-These routes are **not** use cases: they run under no tenant (ADR 002 rule 4), so they are not in the registry, not MCP tools and not in `/openapi.json`. They run as the `mycel_platform` role, entered from the authentication login; the API never holds the schema owner's credentials (ADR 011 rule 1). That role may read and insert tenants, update their entitlements and status, and read and insert platform hostnames, and nothing else. The functions behind them are `packages/db/src/platform.ts`; the `mycel` CLI enters the same role from the operator connection.
+These routes are **not** use cases: they run under no tenant (ADR 002 rule 4), so they are not in the registry, not MCP tools and not in `/openapi.json`. They run as the `mycel_platform` role, entered from the authentication login; the API never holds the schema owner's credentials (ADR 011 rule 1). That role may read and insert tenants, update their entitlements and status, read and insert platform hostnames, and, for the two operations of ADR 035 below, read and delete operator accounts, read memberships and keys across tenants and change them only inside one tenant's context (migration 0054), and nothing else. The functions behind them are `packages/db/src/platform.ts`; the `mycel` CLI enters the same role from the operator connection.
 
 ## Enabling it
 
@@ -17,13 +17,15 @@ The token is compared in constant time. It grants everything this page describes
 
 Every request carries `Authorization: Bearer <PLATFORM_API_TOKEN>`; without it, or with a wrong one, the answer is `401` Problem Details. Errors are Problem Details (`urn:mycel:problem:<code>`) like the tenant API.
 
-| Method and path                          | Body                                                     | Answer                             |
-| ---------------------------------------- | -------------------------------------------------------- | ---------------------------------- |
-| `POST /platform/tenants`                 | `{ slug, name, locales, defaultLocale?, entitlements? }` | `201` tenant; `409` on a collision |
-| `GET /platform/tenants`                  |                                                          | `{ tenants: [tenant] }`            |
-| `GET /platform/tenants/:id`              |                                                          | tenant, or `404`                   |
-| `PUT /platform/tenants/:id/entitlements` | the full document (any subset of the keys below)         | tenant, `400` on an unknown key    |
-| `PUT /platform/tenants/:id/status`       | `{ status: "active" \| "suspended" }`                    | tenant                             |
+| Method and path                          | Body                                                     | Answer                                                                        |
+| ---------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `POST /platform/tenants`                 | `{ slug, name, locales, defaultLocale?, entitlements? }` | `201` tenant; `409` on a collision                                            |
+| `GET /platform/tenants`                  |                                                          | `{ tenants: [tenant] }`                                                       |
+| `GET /platform/tenants/:id`              |                                                          | tenant, or `404`                                                              |
+| `PUT /platform/tenants/:id/entitlements` | the full document (any subset of the keys below)         | tenant, `400` on an unknown key                                               |
+| `PUT /platform/tenants/:id/status`       | `{ status: "active" \| "suspended" }`                    | tenant                                                                        |
+| `POST /platform/operators/:id/erase`     |                                                          | erasure result; `404` for an id nobody knows                                  |
+| `POST /platform/tenants/:id/admin`       | `{ email }`                                              | restore result; `409` when the site has an admin, `404` for an unknown tenant |
 
 A **tenant** in an answer:
 
@@ -45,7 +47,13 @@ A **tenant** in an answer:
 
 `POST /platform/tenants` refuses an existing slug, a slug whose platform hostname (`<slug>.<PLATFORM_DOMAIN>`) is the host of `PUBLIC_BASE_URL` or a development host, and a slug whose platform hostname some tenant already holds. It creates the platform hostname, verified and primary, in the same transaction.
 
-Every mutation writes one row to the tenant's audit log in the same transaction (`docs/reference/audit.md`): actor kind `platform`, actor id the first eight hex characters of the SHA-256 of the token (the `mycel` CLI writes `cli`), operation `platform.tenant.create`, `platform.set_entitlements` or `platform.set_status`. A refused mutation writes nothing. The server log keeps one operational line per mutation as well.
+Every mutation writes one row to the tenant's audit log in the same transaction (`docs/reference/audit.md`): actor kind `platform`, actor id the first eight hex characters of the SHA-256 of the token (the `mycel` CLI writes `cli`), operation `platform.tenant.create`, `platform.set_entitlements`, `platform.set_status`, `platform.operator.erase` (one row per affected site) or `platform.tenant.admin_restore`. A refused mutation writes nothing. The server log keeps one operational line per mutation as well.
+
+## Erasing an operator and restoring an admin
+
+ADR 035. An operator account belongs to the installation, not to a site, so only the installation erases it: a person asks the maintainer, who runs the operation with the **operator id**; nothing derives an operator from an address, a name or an identity-provider subject. `POST /platform/operators/:id/erase` (or `mycel operators erase <id>`) removes, in one transaction, the account row (address, name, issuer and subject, a pending invitation included, and the preferences), every membership of that id and every API key it made on every site, and appends the id to the installation register `operator_erasures` (an id and a time, never an address). The answer lists per site whether a membership went, how many keys were revoked, how many archives expired, and `withoutAdmin` when no member holds `tenant:admin` any more; `changed: false` with `alreadyRegistered: true` means a repeated request found nothing left. Ids in revisions, plans, audit rows and keys stay; every screen shows them as a former team member. Names in free text (prose, key labels, connection purposes) are not found from an id, and the answer says so. Each affected site gets one audit row `platform.operator.erase` with effect `erase` and the operator id as subject; the number of revoked keys is in the hashed input and the revoked keys stay listed on the site. A live session of the erased operator reaches no site at once, and the admin clears its cookie on the next request. A later login with the same identity-provider account is a new account without memberships.
+
+`POST /platform/tenants/:id/admin` with `{ "email": … }` (or `mycel tenants admin-restore <slug> <e-mail>`) repairs a site without an admin: only while no member holds `tenant:admin`, checked under the site's membership lock, it gives that address `tenant:admin` through the same path as `tenant.member.invite` (a member with that address gets the capability added; otherwise a pending invitation, within `operators.max`), audited as `platform.tenant.admin_restore`. On a site that has an admin it is refused with `409`: it is no way to add an admin beside existing ones.
 
 ## Stuck work
 
@@ -102,6 +110,8 @@ mycel tenants list
 mycel tenants create <slug> <name> nl,en
 mycel entitlements set <slug> '{"supporters.max": 250}'
 mycel status set <slug> suspended
+mycel operators erase <operator-id>
+mycel tenants admin-restore <slug> <e-mail>
 mycel ops summary
 mycel ops list jobs|outbox|mail [<slug>]
 mycel ops retry jobs|outbox <id>

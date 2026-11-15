@@ -240,6 +240,11 @@ export class MemoryIdentityStore implements IdentityStore {
     };
   }
 
+  async accountOf(operatorId: string): Promise<{ preferences: OperatorPreferences } | null> {
+    const row = this.store.operators.get(operatorId);
+    return row ? { preferences: { ...(row.preferences ?? DEFAULT_OPERATOR_PREFERENCES) } } : null;
+  }
+
   async setPreferences(operatorId: string, preferences: OperatorPreferences): Promise<void> {
     const row = this.store.operators.get(operatorId);
     if (row) row.preferences = { ...preferences };

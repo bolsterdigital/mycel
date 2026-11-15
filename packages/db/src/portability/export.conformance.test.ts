@@ -423,9 +423,9 @@ describe.skipIf(skip)('tenant export and import', () => {
     expect(text).not.toContain(tenant.b.id);
     expect(text).not.toContain(tenant.b.slug);
     expect(JSON.stringify(manifestA.media)).not.toContain(tenant.b.id);
-    // The membership travels as an address, never as this installation's operator id.
+    // A membership travels as its address and its source operator id (format 2, ADR 035 rule 5).
     expect(text).toContain(`member-${tenant.a.slug}@example.org`);
-    expect(text).not.toMatch(/"operator_id"/);
+    expect(text).toMatch(/"operator_id"/);
   });
 
   it('refuses a manifest that does not match its files', async () => {
@@ -721,8 +721,9 @@ describe.skipIf(skip)('tenant export and import', () => {
         );
         expect(revisions).toContain('INTERNAL-EXPORT-NAME');
         expect(revisions).toContain('Internal export name');
+        // Memberships name the new pending operator here (operators/erasure.conformance.test.ts).
         for (const table of EXPORT_ORDER)
-          if (table !== 'tenant_hostnames' && table !== 'audit_log')
+          if (!['tenant_hostnames', 'audit_log', 'tenant_memberships'].includes(table))
             expect(again.tables[table]!.sha256, table).toBe(manifestA.tables[table]!.sha256);
         expect(again.tables['audit_log']!.rows).toBe(manifestA.tables['audit_log']!.rows + 1);
         expect(again.media).toEqual(manifestA.media);

@@ -57,6 +57,7 @@ import {
   createTenantDirectory,
   createTenant,
   createUnitOfWork,
+  eraseOperator,
   getTenant,
   getTenantBySlug,
   listTenants,
@@ -69,6 +70,7 @@ import {
   opsUnresolvedMail,
   ping,
   queueLag,
+  restoreTenantAdmin,
   setEntitlements,
   setStatus,
   startJobWorker,
@@ -152,6 +154,9 @@ export function platformOperations(
     bySlug: (slug: string) => getTenantBySlug(db, slug),
     setEntitlements: (id: string, document: unknown) => setEntitlements(db, id, document, by()),
     setStatus: (id: string, status: TenantStatus) => setStatus(db, id, status, by()),
+    // ADR 035: erase an operator account by id; repair a tenant left without an admin.
+    eraseOperator: (operatorId: string) => eraseOperator(db, operatorId, by()),
+    restoreAdmin: (id: string, email: string) => restoreTenantAdmin(db, id, email, by()),
     // Stuck rows without payloads.
     ops: {
       summary: () => opsSummary(db),

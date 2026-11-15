@@ -12,7 +12,8 @@
 // What does not travel: the operational queues (outbox, jobs, mail_sends, rate_limits,
 // login_attempts) and the record of which backups hold an erasure (erasure_backups) are this
 // installation's work in progress, not the tenant's data; operator accounts are people who log
-// in here, so a membership travels as the address and becomes a pending invitation; the platform
+// in here, so a membership travels as the address (with the source operator id, to map history)
+// and becomes a pending invitation; the platform
 // hostname is this installation's, and custom hostnames arrive unverified (DNS may point
 // elsewhere). Those rules, the manifest checks and the purge window are core's
 // (`tenants/portability.ts`); this file and import.ts are the plumbing. Every table of `Database` has its place
@@ -60,6 +61,9 @@ export const TABLES = {
   tenants: 'platform',
   tenant_directory: 'platform',
   operators: 'platform',
+  // The installation register of erased operators (0054): not a tenant's rows; an import reads it
+  // to skip a registered id (ADR 035 rule 5).
+  operator_erasures: 'platform',
   tenant_hostnames: 'export',
   form_feed_settings: 'export',
   form_mail_settings: 'export',
@@ -190,15 +194,16 @@ export async function columnsOf(db: Kysely<Database>, table: string): Promise<st
 }
 
 /**
- * The rows of one table as export lines; memberships name the operator by address and leave out
- * `attention_seen_at`, a member's reading habit rather than site data (0034).
+ * The rows of one table as export lines; memberships name the operator by address and by their
+ * id here (format 2, ADR 035 rule 5: the import maps history to whoever the address becomes) and
+ * leave out `attention_seen_at`, a member's reading habit rather than site data (0034).
  */
 function rowQuery(table: ExportTable, columns?: readonly string[]) {
   if (columns)
     return sql`select jsonb_build_object(${sql.join(columns.flatMap((c) => [sql`${c}::text`, sql.ref(c)]))})::text as line from ${sql.table(table)} order by 1`;
   if (table === 'tenant_memberships')
     return sql`
-      select ((to_jsonb(m) - 'operator_id' - 'attention_seen_at')
+      select ((to_jsonb(m) - 'attention_seen_at')
               || jsonb_build_object('operator_email', o.email))::text
         as line
       from tenant_memberships m join operators o on o.id = m.operator_id order by 1`;
@@ -355,7 +360,7 @@ export async function exportTenant(options: ExportOptions): Promise<ExportManife
         sha256: f.hash.digest('hex'),
         columns:
           table === 'tenant_memberships'
-            ? ['tenant_id', 'operator_email', 'capabilities', 'created_at']
+            ? ['tenant_id', 'operator_id', 'operator_email', 'capabilities', 'created_at']
             : await columnsOf(options.operatorDb, table),
       };
     }

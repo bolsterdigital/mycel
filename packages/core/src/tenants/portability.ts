@@ -6,7 +6,10 @@
 // * an export from a newer schema is refused, an older one is fine (`migrate` is past it);
 // * an export needs its tenant, and an import never overwrites one (by id or by slug);
 // * a membership arrives as a pending invitation of its address, with only the capabilities this
-//   version knows (operator accounts are people who log in here, not data);
+//   version knows (operator accounts are people who log in here, not data); since format 2 the
+//   line also names the member's operator id in the source installation, and every operator id in
+//   the imported actors and audit rows is rewritten to the id the invitation resolved to (ADR 035
+//   rule 5), except an id this installation erased, whose line is skipped;
 // * the platform hostname stays behind and a custom one arrives unverified (DNS may point
 //   elsewhere);
 // * an export reads its files within half the media purge delay of its tables, or fails.
@@ -20,10 +23,16 @@ import type { EntitlementsDocument, TenantStatus } from '../entitlements/model.j
 import { notFound, UseCaseError } from '../errors.js';
 import { MEDIA_PURGE_DELAY_MS } from '../media/model.js';
 import { Email } from '../operators/model.js';
-import { Capability } from '../principal.js';
+import { Capability, storedActorJson } from '../principal.js';
+import { z } from 'zod';
 import type { HostnameKind } from './model.js';
 
-export const EXPORT_FORMAT = 'mycel-tenant-export/1';
+/**
+ * Format 2 (ADR 035 rule 5): a membership line carries the source operator id beside the
+ * address. An archive of format 1 is refused: no production site exists yet, so there is no older
+ * archive to keep importable (Jaap 2026-11-15, the dated addition to ADR 035).
+ */
+export const EXPORT_FORMAT = 'mycel-tenant-export/2';
 
 export interface ExportManifest {
   format: typeof EXPORT_FORMAT;
@@ -58,6 +67,7 @@ export interface ExportArchive {
 }
 
 const refuse = (message: string) => new UseCaseError('invalid_input', message);
+const OperatorId = z.string().guid();
 
 /**
  * The manifest of an export, checked against every file it names. A file name is the one the
@@ -146,6 +156,86 @@ export function invitationFromExport(line: {
     ...new Set(listed.filter((c): c is Capability => Capability.safeParse(c).success)),
   ];
   return capabilities.length ? { email: email.data, capabilities } : null;
+}
+
+/** An exported membership line as format 2 writes it. */
+export interface ExportedMembership {
+  operator_id: unknown;
+  operator_email: unknown;
+  capabilities: unknown;
+  created_at: string;
+  tenant_id: string;
+}
+
+/** What the import does with the membership lines of an archive (ADR 035 rule 5). */
+export interface MembershipImportPlan {
+  invitations: {
+    sourceId: string;
+    email: string;
+    capabilities: Capability[];
+    createdAt: string;
+    tenantId: string;
+  }[];
+  /** Lines whose source id this installation erased: skipped, their history stays anonymous. */
+  erased: string[];
+  /** Lines without a valid address or a known capability. */
+  invalid: number;
+}
+
+/**
+ * Plan the membership lines: an erased source id is skipped and reported, so an archive does not
+ * bring an erased operator back; every other valid line becomes an invitation whose resolved id
+ * replaces the source id in the imported history. A source id named twice is refused as a whole:
+ * the source installation has one membership per operator, so such an archive was edited, and
+ * mapping one id to two people would give one person's history to another.
+ */
+export function planMembershipImport(
+  lines: readonly ExportedMembership[],
+  erased: ReadonlySet<string>
+): MembershipImportPlan {
+  const plan: MembershipImportPlan = { invitations: [], erased: [], invalid: 0 };
+  const seen = new Set<string>();
+  for (const line of lines) {
+    const sourceId = OperatorId.safeParse(line.operator_id);
+    if (!sourceId.success) {
+      plan.invalid++;
+      continue;
+    }
+    if (seen.has(sourceId.data))
+      throw refuse(`tenant_memberships names operator ${sourceId.data} twice`);
+    seen.add(sourceId.data);
+    if (erased.has(sourceId.data)) {
+      plan.erased.push(sourceId.data);
+      continue;
+    }
+    const invitation = invitationFromExport(line);
+    if (!invitation) {
+      plan.invalid++;
+      continue;
+    }
+    plan.invitations.push({
+      sourceId: sourceId.data,
+      ...invitation,
+      createdAt: line.created_at,
+      tenantId: line.tenant_id,
+    });
+  }
+  return plan;
+}
+
+/**
+ * A stored actor as the import writes it: `storedActorJson` (kind and id, nothing else), with the
+ * operator id rewritten from the source installation's to this one's when the archive's
+ * membership lines map it. An id without a mapping stays as it is and shows as a former team
+ * member (a former member, an erased operator).
+ */
+export function importedActorJson(value: unknown, ids: ReadonlyMap<string, string>): unknown {
+  const actor = storedActorJson(value);
+  if (actor === value || typeof actor !== 'object' || actor === null) return actor;
+  const out = { ...(actor as Record<string, unknown>) };
+  for (const key of ['operatorId', 'id'])
+    if (typeof out[key] === 'string' && ids.has(out[key])) out[key] = ids.get(out[key]);
+  return out;
 }
 
 /** Only a custom hostname travels; the platform hostname is this installation's. */

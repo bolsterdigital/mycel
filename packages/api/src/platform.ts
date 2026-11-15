@@ -16,12 +16,15 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
+  AdminRestoreInput,
+  type AdminRestoreResult,
   type Entitlements,
   EntitlementsDocument,
   type ErrorReporter,
   Locale,
   type Logger,
   noopLogger,
+  type OperatorErasureResult,
   notFound,
   TenantStatus,
   UseCaseError,
@@ -58,6 +61,10 @@ export interface PlatformStore {
   get(id: string): Promise<PlatformTenantView | null>;
   setEntitlements(id: string, document: unknown): Promise<PlatformTenantView | null>;
   setStatus(id: string, status: TenantStatus): Promise<PlatformTenantView | null>;
+  /** ADR 035 rules 1 to 3: the account, its memberships and keys on every tenant, by id. */
+  eraseOperator(operatorId: string): Promise<OperatorErasureResult>;
+  /** ADR 035 rule 3: `tenant:admin` for an address, only on a tenant without an admin. */
+  restoreAdmin(tenantId: string, email: string): Promise<AdminRestoreResult | null>;
   /** Stuck work across tenants, read as mycel_ops (TODO #17c, migration 0016). */
   ops: PlatformOpsStore;
 }
@@ -186,6 +193,32 @@ export function createPlatformApp({
     const tenant = found(await store.setStatus(id, status));
     log.info('platform: status set', { tenantId: id, status });
     return c.json(tenant);
+  });
+
+  // ADR 035: the installation erases an operator account by explicit id, never derived
+  // from an address, name or subject; the result lists the tenants left without an admin, which
+  // the admin restore repairs. The restore is refused on a tenant that has an admin.
+  app.post('/operators/:id/erase', async (c) => {
+    const operatorId = parse(Id, c.req.param('id'));
+    const result = await store.eraseOperator(operatorId);
+    log.info('platform: operator erased', {
+      operatorId,
+      tenants: result.tenants.length,
+      changed: result.changed,
+    });
+    return c.json(result);
+  });
+
+  app.post('/tenants/:id/admin', async (c) => {
+    const id = parse(Id, c.req.param('id'));
+    const { email } = parse(AdminRestoreInput, await readJson(c.req));
+    const restored = found(await store.restoreAdmin(id, email));
+    log.info('platform: admin restored', {
+      tenantId: id,
+      operatorId: restored.operatorId,
+      kind: restored.kind,
+    });
+    return c.json(restored);
   });
 
   // Stuck work (TODO #17c): counts per tenant, then the rows, a page at a time; and the three

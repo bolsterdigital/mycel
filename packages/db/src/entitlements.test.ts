@@ -176,9 +176,9 @@ describe.skipIf(skip)('entitlements conformance', () => {
     expect(rows).toEqual([{ rolcanlogin: false, rolsuper: false }]);
   });
 
-  it('lets mycel_platform touch tenants and platform hostnames only, as the grants say', async () => {
+  it('lets mycel_platform touch tenants, platform hostnames and accounts only, as the grants say', async () => {
     const a = await create('ent-pa');
-    await create('ent-pb');
+    const b = await create('ent-pb');
     // What the role may do: read hostnames across tenants.
     const { rows } = await as(authUrl, async (c) => {
       await c.query('begin');
@@ -192,18 +192,19 @@ describe.skipIf(skip)('entitlements conformance', () => {
     });
     expect(Number(rows[0]?.n)).toBe(2);
 
-    // Nothing of a tenant's data, nothing of identity, no queues.
-    for (const table of [
-      'supporters',
-      'events',
-      'form_submissions',
-      'api_keys',
-      'tenant_memberships',
-      'operators',
-      'outbox',
-      'jobs',
-    ])
+    // Nothing of a tenant's data and no queues.
+    for (const table of ['supporters', 'events', 'form_submissions', 'outbox', 'jobs'])
       expect(await asPlatform(`select count(*) from ${table}`), table).toBe('42501');
+    // Accounts, memberships and keys as ADR 035 rule 3 needs (0054): read, delete an account,
+    // revoke a key or change a membership inside a tenant context, and nothing more.
+    expect(await asPlatform(`update operators set email = 'x@example.org'`)).toBe('42501');
+    expect(await asPlatform(`update api_keys set name = 'x'`)).toBe('42501');
+    expect(await asPlatform(`update tenant_memberships set created_at = now()`)).toBe('42501');
+    expect(await asPlatform(`delete from operator_erasures`)).toBe('42501');
+    const member = `insert into tenant_memberships (tenant_id, operator_id, capabilities)
+         values ($1, gen_random_uuid(), '{content:read}')`;
+    expect(await asPlatform(member, [a.id])).toBe('42501');
+    expect(await asPlatform(member, [a.id], b.id)).toBe('42501');
     // On tenants: no rename, no new slug, no delete.
     expect(await asPlatform(`update tenants set name = 'x' where id = $1`, [a.id])).toBe('42501');
     expect(await asPlatform(`update tenants set slug = 'x' where id = $1`, [a.id])).toBe('42501');

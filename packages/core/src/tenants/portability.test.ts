@@ -6,7 +6,9 @@ import {
   checkImportTarget,
   exportSource,
   hostnameTravels,
+  importedActorJson,
   invitationFromExport,
+  planMembershipImport,
   verifyExportManifest,
   type ExportArchive,
 } from './portability.js';
@@ -65,6 +67,13 @@ describe('verifyExportManifest', () => {
     await refused(
       verifyExportManifest(archive(JSON.stringify(manifest({ format: 'x/1' }))), ['forms']),
       /format x\/1 is not/
+    );
+    // Format 1 named members by address only; no older archive is kept importable (ADR 035).
+    await refused(
+      verifyExportManifest(archive(JSON.stringify(manifest({ format: 'mycel-tenant-export/1' }))), [
+        'forms',
+      ]),
+      /format mycel-tenant-export\/1 is not mycel-tenant-export\/2/
     );
   });
 
@@ -128,6 +137,45 @@ describe('import rules', () => {
     expect(
       invitationFromExport({ operator_email: 'a@example.org', capabilities: ['future:thing'] })
     ).toBe(null);
+  });
+
+  it('plans memberships by source id: erased ids skipped, a twice-named id refused', () => {
+    const id = (n: number) => `0192f7a0-0000-7000-8000-00000000000${n}`;
+    const line = (n: number, email = `m${n}@example.org`) => ({
+      operator_id: id(n),
+      operator_email: email,
+      capabilities: ['content:write'],
+      created_at: '2026-11-15T00:00:00Z',
+      tenant_id: tenantId,
+    });
+    const plan = planMembershipImport(
+      [line(1), line(2), line(3, 'nope'), { ...line(4), operator_id: 'x' }],
+      new Set([id(2)])
+    );
+    expect(plan.invitations.map((i) => [i.sourceId, i.email])).toEqual([[id(1), 'm1@example.org']]);
+    expect(plan.erased).toEqual([id(2)]);
+    expect(plan.invalid).toBe(2);
+    expect(() => planMembershipImport([line(1), line(1, 'other@example.org')], new Set())).toThrow(
+      /names operator .* twice/
+    );
+  });
+
+  it('writes an imported actor with kind and the mapped id only', () => {
+    const ids = new Map([['old', 'new']]);
+    expect(
+      importedActorJson({ kind: 'operator', operatorId: 'old', email: 'a@example.org' }, ids)
+    ).toEqual({ kind: 'operator', operatorId: 'new' });
+    expect(importedActorJson({ kind: 'operator', id: 'old' }, ids)).toEqual({
+      kind: 'operator',
+      id: 'new',
+    });
+    // An id without a line stays: a former team member.
+    expect(importedActorJson({ kind: 'operator', operatorId: 'gone' }, ids)).toEqual({
+      kind: 'operator',
+      operatorId: 'gone',
+    });
+    const system = { kind: 'system', job: 'x' };
+    expect(importedActorJson(system, ids)).toBe(system);
   });
 
   it('lets only a custom hostname travel', () => {

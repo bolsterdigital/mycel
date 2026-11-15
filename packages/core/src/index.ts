@@ -88,6 +88,7 @@ export * from './mailing/service.js';
 export * from './operators/model.js';
 export * from './operators/ports.js';
 export * from './operators/service.js';
+export * from './operators/erasure.js';
 export * from './operators/session.js';
 export * from './operators/authenticate.js';
 export * from './operators/preferences.js';

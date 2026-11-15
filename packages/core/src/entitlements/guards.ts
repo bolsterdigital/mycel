@@ -34,7 +34,9 @@ export function requireEntitled(
 
 /** Refuses when `add` more would take `current` past the tenant's limit; at the limit is fine. */
 export function withinLimit(
-  ctx: Pick<TransactionContext, 'principal'>,
+  // The entitlements alone, so a platform operation without a principal counts the same way
+  // (the admin restore of ADR 035 rule 3).
+  ctx: { principal: Pick<TransactionContext['principal'], 'entitlements'> },
   limit: LimitName,
   current: number,
   add = 1,

@@ -75,6 +75,16 @@ export const OFF_TABLE_STORAGE = {
           does: 'expires every archive asked for before a person registration, or all when apply changed anything',
         },
       },
+      {
+        // A membership line names the member by address (ADR 035 rule 5).
+        field: 'archive',
+        subject: 'operator',
+        route: {
+          kind: 'platform',
+          operations: ['platform.operator.erase'],
+          does: 'expires every archive of a tenant where the erased operator held a membership',
+        },
+      },
     ],
     retention: {
       kind: 'term',
@@ -104,6 +114,15 @@ export const OFF_TABLE_STORAGE = {
             'a snapshot is not rewritten; a restore re-applies the person register before serving (ADR 034 rule 2)',
         },
       },
+      {
+        field: 'snapshot',
+        subject: 'operator',
+        route: {
+          kind: 'excluded',
+          reason:
+            'a snapshot is not rewritten; a restore erases every registered operator again before serving (ADR 035 rule 2)',
+        },
+      },
     ],
     retention: {
       kind: 'term',
@@ -129,6 +148,14 @@ export const OFF_TABLE_STORAGE = {
         route: {
           kind: 'excluded',
           reason: 'person ids only; the person register a restore re-applies (ADR 034 rule 2)',
+        },
+      },
+      {
+        field: 'snapshot',
+        subject: 'operator',
+        route: {
+          kind: 'excluded',
+          reason: 'operator ids only; the operator register a restore re-applies (ADR 035 rule 2)',
         },
       },
     ],

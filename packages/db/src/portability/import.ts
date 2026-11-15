@@ -22,8 +22,10 @@ import {
   checkImportSchema,
   checkImportTarget,
   hostnameTravels,
-  invitationFromExport,
+  importedActorJson,
+  planMembershipImport,
   storedActorJson,
+  type ExportedMembership,
   verifyExportManifest,
   type BlobStore,
   type ExportManifest,
@@ -31,6 +33,7 @@ import {
 } from '@mycel/core';
 import { rebuildSearchIndex } from '../content/search.js';
 import { uuidv7 } from '../infra/ids.js';
+import { erasedOperatorIds } from '../operators/erasure.js';
 import { createTenantIn, getTenant, getTenantBySlug, type PlatformActor } from '../platform.js';
 import type { Database } from '../infra/schema.js';
 import { enterTenant, setRole } from '../infra/roles.js';
@@ -187,8 +190,18 @@ export const ACTOR_FIELDS: Partial<Record<ExportTable, readonly (readonly string
   person_erasures: [['actor']],
 };
 
-/** Normalise the actors of one export line in place; true when one of them changed. */
-function normaliseActors(table: ExportTable, row: Record<string, unknown>): boolean {
+/** Source operator id to this installation's, from the archive's membership lines. */
+type OperatorIds = ReadonlyMap<string, string>;
+
+/**
+ * Normalise and map the actors of one export line in place (ADR 035 rule 5); true when one of
+ * them carried more than kind and id (an address).
+ */
+function normaliseActors(
+  table: ExportTable,
+  row: Record<string, unknown>,
+  ids: OperatorIds
+): boolean {
   let changed = false;
   for (const path of ACTOR_FIELDS[table] ?? []) {
     let holder: Record<string, unknown> | undefined = row;
@@ -200,17 +213,38 @@ function normaliseActors(table: ExportTable, row: Record<string, unknown>): bool
     const key = path[path.length - 1]!;
     if (!holder || !(key in holder)) continue;
     const before = holder[key];
-    const after = storedActorJson(before);
-    if (after !== before && canonicalJson(after) !== canonicalJson(before)) changed = true;
-    holder[key] = after;
+    if (canonicalJson(storedActorJson(before)) !== canonicalJson(before)) changed = true;
+    holder[key] = importedActorJson(before, ids);
+  }
+  // An audit row names its operator by id in `actor_id`, the same mapping (ADR 035 rule 5).
+  if (table === 'audit_log' && row['actor_kind'] === 'operator') {
+    const id = row['actor_id'];
+    if (typeof id === 'string' && ids.has(id)) row['actor_id'] = ids.get(id);
   }
   return changed;
 }
 
-/** A line of a table with actors, normalised and with its keys in one order, to compare by. */
-const actorLine = (table: ExportTable, line: string): string => {
+/** Tables whose lines the import changes on the way in, so the comparison does the same. */
+const rewritten = (table: ExportTable): boolean =>
+  ACTOR_FIELDS[table] !== undefined || table === 'audit_log' || table === 'tenant_memberships';
+
+/** What the import did with the membership lines, for the line rewrites and the comparison. */
+interface Memberships {
+  ids: OperatorIds;
+  /** Source ids whose line was skipped (erased here, or invalid); absent after the import. */
+  skipped: ReadonlySet<string>;
+}
+
+/** A line of a rewritten table as the import writes it, with its keys in one order. */
+const expectedLine = (table: ExportTable, line: string, m: Memberships): string | null => {
   const row = JSON.parse(line) as Record<string, unknown>;
-  normaliseActors(table, row);
+  if (table === 'tenant_memberships') {
+    const source = String(row['operator_id']);
+    if (m.skipped.has(source) || !m.ids.has(source)) return null;
+    row['operator_id'] = m.ids.get(source);
+    return canonicalJson(row);
+  }
+  normaliseActors(table, row, m.ids);
   return canonicalJson(row);
 };
 
@@ -246,6 +280,11 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
   const lines: string[] = [];
   const started = new Date();
   const written: string[] = [];
+  let memberships: Memberships & { line: string } = {
+    ids: new Map(),
+    skipped: new Set(),
+    line: '',
+  };
 
   try {
     await operatorDb.transaction().execute(async (trx) => {
@@ -271,7 +310,15 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
         'tenant.import'
       );
       lines.push(`tenant ${tenant.slug} (${tenant.id}) on ${tenant.primaryHostname ?? '-'}`);
+      // Read as mycel_platform, before the tenant context: an id this installation erased stays
+      // erased (ADR 035 rule 5).
+      const erased = await erasedOperatorIds(trx);
       await enterTenant(trx, tenantId);
+      // Memberships first: every later table's operator ids are rewritten to the ids they get.
+      const entry = manifest.tables['tenant_memberships'];
+      memberships = entry
+        ? await importMemberships(trx, join(dir, entry.file), erased)
+        : { ids: new Map(), skipped: new Set(), line: 'tenant_memberships: 0 imported' };
 
       for (const table of EXPORT_ORDER) {
         const entry =
@@ -281,11 +328,16 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
           lines.push(`${table}: not in the export (older schema), 0 rows`);
           continue;
         }
+        if (IMPORT_RULE[table] === 'as-invitation') {
+          lines.push(memberships.line);
+          continue;
+        }
         const { imported, skipped, normalised } = await importTable(
           trx,
           table,
           join(dir, entry.file),
-          entry.columns
+          entry.columns,
+          memberships.ids
         );
         lines.push(
           `${table}: ${imported} imported${skipped ? `, ${skipped} skipped` : ''}` +
@@ -322,7 +374,7 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
     throw e;
   }
 
-  const differences = await compare(operatorDb, dir, manifest, started);
+  const differences = await compare(operatorDb, dir, manifest, started, memberships);
   lines.push(
     differences.length
       ? `fingerprint: ${differences.length} difference(s) with the manifest`
@@ -345,44 +397,76 @@ const DERIVED: Partial<Record<ExportTable, Record<string, RawBuilder<unknown>>>>
   },
 };
 
+/**
+ * The membership lines as invitations (core `planMembershipImport`): a pending operator per
+ * address, as `inviteMember` makes one; they log in again here. Returns the source-to-new id map.
+ * Two lines that resolve to one operator (two source accounts with one address) keep the first
+ * line's capabilities and both map to that operator.
+ */
+async function importMemberships(
+  trx: Trx,
+  path: string,
+  erased: ReadonlySet<string>
+): Promise<Memberships & { line: string }> {
+  const lines: ExportedMembership[] = [];
+  for await (const line of linesOf(path)) lines.push(JSON.parse(line) as ExportedMembership);
+  const plan = planMembershipImport(lines, erased);
+  const ids = new Map<string, string>();
+  // Every source id without a membership row of its own after the import.
+  const skipped = new Set<string>(plan.erased);
+  for (const l of lines)
+    if (
+      typeof l.operator_id === 'string' &&
+      !plan.invitations.some((i) => i.sourceId === l.operator_id)
+    )
+      skipped.add(l.operator_id);
+  let imported = 0;
+  let invalid = plan.invalid;
+  let shared = 0;
+  for (const invitation of plan.invitations) {
+    const { rows } = await sql<{ id: string | null }>`
+      select operator_for_invite(${invitation.email}, ${uuidv7()}::uuid) as id`.execute(trx);
+    const operatorId = rows[0]?.id;
+    if (!operatorId) {
+      // Several verified accounts share the address: no invitation, as `inviteMember` refuses.
+      skipped.add(invitation.sourceId);
+      invalid++;
+      continue;
+    }
+    ids.set(invitation.sourceId, operatorId);
+    const r =
+      await sql`insert into tenant_memberships (tenant_id, operator_id, capabilities, created_at)
+              values (${invitation.tenantId}, ${operatorId}, ${invitation.capabilities}, ${invitation.createdAt})
+              on conflict do nothing`.execute(trx);
+    if (Number(r.numAffectedRows ?? 0n) > 0) imported++;
+    else {
+      shared++;
+      skipped.add(invitation.sourceId);
+    }
+  }
+  const notes = [
+    plan.erased.length ? `${plan.erased.length} skipped, erased on this installation` : '',
+    invalid ? `${invalid} skipped, no valid address or capability` : '',
+    shared ? `${shared} merged, sharing an address with an earlier line` : '',
+  ].filter(Boolean);
+  return {
+    ids,
+    skipped,
+    line: `tenant_memberships: ${imported} imported${notes.length ? `, ${notes.join(', ')}` : ''}`,
+  };
+}
+
 /** Write one table's lines as mycel_app; RLS refuses a row of any other tenant. */
 async function importTable(
   trx: Trx,
   table: ExportTable,
   path: string,
-  exported: string[]
+  exported: string[],
+  ids: OperatorIds
 ): Promise<{ imported: number; skipped: number; normalised: number }> {
   let imported = 0;
   let skipped = 0;
   let normalised = 0;
-  if (IMPORT_RULE[table] === 'as-invitation') {
-    // A pending operator per address, as `inviteMember` makes one; they log in again here.
-    for await (const line of linesOf(path)) {
-      const m = JSON.parse(line) as {
-        operator_email: unknown;
-        capabilities: unknown;
-        created_at: string;
-        tenant_id: string;
-      };
-      const invitation = invitationFromExport(m);
-      const { rows } = invitation
-        ? await sql<{ id: string | null }>`
-            select operator_for_invite(${invitation.email}, ${uuidv7()}::uuid) as id`.execute(trx)
-        : { rows: [] };
-      const operatorId = rows[0]?.id;
-      if (!invitation || !operatorId) {
-        skipped++;
-        continue;
-      }
-      await sql`insert into tenant_memberships (tenant_id, operator_id, capabilities, created_at)
-                values (${m.tenant_id}, ${operatorId}, ${invitation.capabilities}, ${m.created_at})`.execute(
-        trx
-      );
-      imported++;
-    }
-    return { imported, skipped, normalised };
-  }
-
   const present = new Set(await columnsOf(trx, table));
   const columns = exported.filter((c) => present.has(c));
   const derived = Object.entries(DERIVED[table] ?? {}).filter(
@@ -405,7 +489,7 @@ async function importTable(
   };
   for await (const line of linesOf(path)) {
     const row = JSON.parse(line) as Record<string, unknown>;
-    if (normaliseActors(table, row)) normalised++;
+    if (normaliseActors(table, row, ids)) normalised++;
     if (IMPORT_RULE[table] === 'custom-only') {
       // This installation's platform hostname came with the tenant; a custom one is unverified
       // until its DNS answers here (the daily check, or Check DNS in the admin).
@@ -431,20 +515,36 @@ async function importTable(
  * The imported tenant read back as an export and held to the manifest: equal per table, except
  * the hostnames (only the custom names must match) and the import's own audit row.
  */
-async function normalisedSha(table: ExportTable, path: string): Promise<string> {
+async function expectedSha(
+  table: ExportTable,
+  path: string,
+  m: Memberships
+): Promise<{ sha: string; rows: number }> {
   const hash = createHash('sha256');
-  for await (const line of linesOf(path)) hash.update(actorLine(table, line) + '\n');
-  return hash.digest('hex');
+  const expected: string[] = [];
+  for await (const line of linesOf(path)) {
+    const e = expectedLine(table, line, m);
+    if (e !== null) expected.push(e);
+  }
+  // Sorted like the read-back side: a rewritten id changes where `order by 1` puts a line.
+  for (const e of expected.sort()) hash.update(e + '\n');
+  return { sha: hash.digest('hex'), rows: expected.length };
 }
 
 async function compare(
   operatorDb: Kysely<Database>,
   dir: string,
   manifest: ExportManifest,
-  started: Date
+  started: Date,
+  memberships: Memberships
 ): Promise<string[]> {
   const hashes = new Map<ExportTable, { hash: ReturnType<typeof createHash>; rows: number }>();
+  const lines = new Map<ExportTable, string[]>();
   const custom: string[] = [];
+  const ownImport = (line: string) => {
+    const a = JSON.parse(line) as { operation?: string; occurred_at?: string };
+    return a.operation === 'platform.tenant.import' && new Date(a.occurred_at!) >= started;
+  };
   await readTenant(
     operatorDb,
     manifest.tenant.id,
@@ -454,12 +554,15 @@ async function compare(
         if (h.kind === 'custom') custom.push(h.hostname);
         return;
       }
-      if (table === 'audit_log') {
-        const a = JSON.parse(line) as { operation: string; occurred_at: string };
-        if (a.operation === 'platform.tenant.import' && new Date(a.occurred_at) >= started) return;
+      if (table === 'audit_log' && ownImport(line)) return;
+      if (rewritten(table)) {
+        const list = lines.get(table) ?? [];
+        list.push(canonicalJson(JSON.parse(line)));
+        lines.set(table, list);
+        return;
       }
       const entry = hashes.get(table) ?? { hash: createHash('sha256'), rows: 0 };
-      entry.hash.update((ACTOR_FIELDS[table] ? actorLine(table, line) : line) + '\n');
+      entry.hash.update(line + '\n');
       entry.rows++;
       hashes.set(table, entry);
     },
@@ -484,14 +587,20 @@ async function compare(
         );
       continue;
     }
+    if (rewritten(table)) {
+      // Compared after the import's own rewrites on both sides: actors without an address,
+      // operator ids mapped, and a skipped membership left out (ADR 035 rule 5).
+      const got = (lines.get(table) ?? []).sort();
+      const hash = createHash('sha256');
+      for (const l of got) hash.update(l + '\n');
+      const want = await expectedSha(table, join(dir, expected.file), memberships);
+      if (hash.digest('hex') !== want.sha)
+        differences.push(`${table}: ${want.rows} rows expected, ${got.length} after import`);
+      continue;
+    }
     const got = hashes.get(table);
     const sha = got?.hash.digest('hex') ?? sha256('');
-    // A table with actors is compared after the same normalisation on both sides: the archive may
-    // hold an address the import left out on purpose (ADR 035 rule 5).
-    const want = ACTOR_FIELDS[table]
-      ? await normalisedSha(table, join(dir, expected.file))
-      : expected.sha256;
-    if (sha !== want)
+    if (sha !== expected.sha256)
       differences.push(`${table}: ${expected.rows} rows exported, ${got?.rows ?? 0} after import`);
   }
   return differences;

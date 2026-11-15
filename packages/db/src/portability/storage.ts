@@ -30,13 +30,15 @@ export type Subject = 'supporter' | 'person' | 'operator' | 'visitor' | 'anyone'
 
 /**
  * What ends a copy. `apply`: the erasure register's apply (`packages/db/src/erasures.ts`).
- * `use-case`: an ordinary use case the tenant runs. `expires`: the retention of the entry removes
+ * `use-case`: an ordinary use case the tenant runs. `platform`: an operation of the installation
+ * (`packages/db/src/operators/erasure.ts`), named by its audit operation. `expires`: the retention of the entry removes
  * the row within its term, which is the accepted route for a short-lived copy. `planned`: no route
  * yet; `open` names the work in `OPEN_WORK` that owes it. `excluded`: kept on purpose, for `reason`.
  */
 export type ErasureRoute =
   | { kind: 'apply'; does: string }
   | { kind: 'use-case'; useCases: readonly string[]; does: string }
+  | { kind: 'platform'; operations: readonly string[]; does: string }
   | { kind: 'expires'; why: string }
   | { kind: 'planned'; open: OpenWork; does: string }
   | { kind: 'excluded'; reason: string };
@@ -89,9 +91,7 @@ export interface StorageEntry {
  * kept says where each is planned. A key leaves this list when the last copy that names it has a
  * route, and storage.test.ts refuses a key nothing names.
  */
-export const OPEN_WORK = {
-  operators: 'a way to remove an operator account and the actor recorded on what they did',
-} as const;
+export const OPEN_WORK = {} as const;
 export type OpenWork = keyof typeof OPEN_WORK;
 
 const SUPPORTER_KEPT: Retention = {
@@ -111,6 +111,12 @@ const ACTOR: Copy = {
     reason:
       'kind and operator id only, never an address (ADR 035 rule 4); the id is attribution (ADR 009 rule 9)',
   },
+};
+/** The account row, gone in one transaction with its memberships and keys (ADR 035 rule 3). */
+const ERASE_ACCOUNT: ErasureRoute = {
+  kind: 'platform',
+  operations: ['platform.operator.erase'],
+  does: 'the installation deletes the account row, its memberships and preferences, and revokes its keys',
 };
 /** A copy `content.person.erase` reaches through apply (ADR 034, people/erasures.ts). */
 const PEOPLE = (field: string, does: string): Copy => ({
@@ -222,35 +228,30 @@ export const STORAGE = {
     category: 'access',
     owner: 'installation',
     copies: [
+      { field: 'email', subject: 'operator', route: ERASE_ACCOUNT },
+      { field: 'name', subject: 'operator', route: ERASE_ACCOUNT },
+      { field: 'subject', subject: 'operator', route: ERASE_ACCOUNT },
+    ],
+    retention: {
+      kind: 'kept',
+      why: 'an account stays until the installation erases it (ADR 035 rule 1)',
+    },
+  },
+  operator_erasures: {
+    category: 'erasure',
+    owner: 'installation',
+    copies: [
       {
-        field: 'email',
+        field: 'operator_id',
         subject: 'operator',
         route: {
-          kind: 'planned',
-          open: 'operators',
-          does: 'no use case removes an operator account; removing a membership keeps it',
-        },
-      },
-      {
-        field: 'name',
-        subject: 'operator',
-        route: {
-          kind: 'planned',
-          open: 'operators',
-          does: 'no use case removes an operator account; removing a membership keeps it',
-        },
-      },
-      {
-        field: 'subject',
-        subject: 'operator',
-        route: {
-          kind: 'planned',
-          open: 'operators',
-          does: 'the identity provider subject goes with the account',
+          kind: 'excluded',
+          reason:
+            'an id without its account identifies nobody; kept so a restore and an import erase it again (ADR 035 rule 2)',
         },
       },
     ],
-    retention: { kind: 'kept', why: 'an account stays until removed; no route yet' },
+    retention: { kind: 'kept', why: 'permanent: it outlives every backup (ADR 035 rule 2)' },
   },
   tenant_hostnames: {
     category: 'site',
@@ -650,7 +651,7 @@ export const STORAGE = {
         route: {
           kind: 'use-case',
           useCases: ['tenant.member.remove'],
-          does: 'removes the membership; the operator account stays',
+          does: 'removes the membership and keeps the account; erasing the account (platform.operator.erase) removes all of them',
         },
       },
     ],

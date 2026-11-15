@@ -96,6 +96,9 @@ if [ "$mode" = erasures ]; then
   # The person register (ADR 034, 0050) as a set of its own beside it, in the same snapshot.
   psql --no-psqlrc --quiet --set=ON_ERROR_STOP=1 --command="\\copy (select tenant_id, person_id, erased_at, actor from person_erasures order by tenant_id, person_id) to '${erasures_path}/person-erasures.copy'"
   say "person register: $(wc -l <"${erasures_path}/person-erasures.copy" | tr -d ' ') registrations"
+  # The operator register (ADR 035 rule 2, 0054): installation-wide, an id and a time per row.
+  psql --no-psqlrc --quiet --set=ON_ERROR_STOP=1 --command="\\copy (select operator_id, erased_at from operator_erasures order by operator_id) to '${erasures_path}/operator-erasures.copy'"
+  say "operator register: $(wc -l <"${erasures_path}/operator-erasures.copy" | tr -d ' ') registrations"
   id=$(snapshot --tag mycel --tag erasures "$erasures_path")
   secure "${erasures_path}/erasures.copy" "$id"
   # Cumulative: the newest snapshot holds every registration; the rest is margin.

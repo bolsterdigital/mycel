@@ -7,7 +7,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { JobPayloads, useCases } from '@mycel/core';
+import { JobPayloads, OPERATOR_PLATFORM_OPERATIONS, useCases } from '@mycel/core';
 import { TABLES } from './export.js';
 import {
   OFF_TABLE_STORAGE,
@@ -35,6 +35,12 @@ function routeProblems(copy: Copy): string[] {
       return r.useCases.length === 0
         ? ['use-case route without a use case']
         : r.useCases.filter((n) => !useCaseNames.has(n)).map((n) => `no use case ${n}`);
+    case 'platform':
+      return r.operations.length === 0
+        ? ['platform route without an operation']
+        : r.operations
+            .filter((n) => !OPERATOR_PLATFORM_OPERATIONS.includes(n))
+            .map((n) => `no platform operation ${n}`);
     case 'expires':
       return r.why.trim() ? [] : ['expires without why'];
     case 'planned':

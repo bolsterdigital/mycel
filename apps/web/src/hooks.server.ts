@@ -54,7 +54,7 @@ import {
   WELL_KNOWN_SECURITY_TXT,
 } from '@mycel/core';
 import { requestIdFrom, runWithContext, setContext } from '@mycel/observability';
-import { SESSION_COOKIE } from '#lib/server/admin/admin.js';
+import { SESSION_COOKIE, clearCookie } from '#lib/server/admin/admin.js';
 import { adminLanguage, onPlatformOrigin } from '#lib/server/admin/admin-paths.js';
 import { runtime } from '#lib/server/runtime.js';
 import { decideSite } from '#lib/server/site.js';
@@ -159,11 +159,14 @@ const route: Handle = async ({ event, resolve }) => {
     if (!onPlatformOrigin(event.url, rt.config.PUBLIC_BASE_URL))
       return new Response('Not found', { status: 404 });
     if (refusedCrossSite(event.request)) return new Response('Forbidden', { status: 403 });
-    event.locals.session =
+    const session =
       (await readSession(rt.signer, rt.clock, event.cookies.get(SESSION_COOKIE))) ?? undefined;
-    event.locals.preferences = event.locals.session
-      ? await rt.identity.preferencesOf(event.locals.session.operatorId)
-      : undefined;
+    // The account is read on every admin request (ADR 035 rule 3): a session whose account was
+    // erased is no session, and its cookie, which still carries the address and name, goes now.
+    const account = session ? await rt.identity.accountOf(session.operatorId) : null;
+    if (session && !account) clearCookie(event.cookies, SESSION_COOKIE);
+    event.locals.session = account ? session : undefined;
+    event.locals.preferences = account?.preferences;
     event.locals.lang = adminLanguage(
       event.locals.preferences?.uiLocale,
       event.request.headers.get('accept-language')
