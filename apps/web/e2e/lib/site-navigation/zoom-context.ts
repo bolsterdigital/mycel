@@ -32,7 +32,8 @@ export async function withBrowserZoom(
     page: Page;
     worker: Worker;
     before: { width: number; ratio: number };
-  }) => Promise<void>
+  }) => Promise<void>,
+  { javaScriptEnabled = true }: { javaScriptEnabled?: boolean } = {}
 ) {
   const directory = await mkdtemp(join(tmpdir(), 'mycel-zoom-'));
   let context;
@@ -55,6 +56,7 @@ export async function withBrowserZoom(
       channel: 'chromium',
       headless: true,
       viewport: null,
+      javaScriptEnabled,
       args: [
         `--disable-extensions-except=${directory}`,
         `--load-extension=${directory}`,
@@ -69,7 +71,12 @@ export async function withBrowserZoom(
     await expect.poll(() => page.evaluate(() => devicePixelRatio)).toBe(before.ratio * factor);
     expect(await page.evaluate(() => innerWidth)).toBeCloseTo(before.width / factor, 0);
     await test.info().attach('browser-zoom-context.json', {
-      body: JSON.stringify({ before, factor, version: context.browser()?.version() }),
+      body: JSON.stringify({
+        before,
+        factor,
+        javaScriptEnabled,
+        version: context.browser()?.version(),
+      }),
       contentType: 'application/json',
     });
     await run({ page, worker, before });

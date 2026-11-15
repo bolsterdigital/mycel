@@ -1536,20 +1536,24 @@ for (const state of NAVIGATION_STATES)
 
 // Keep each boundary fixture within the ordinary test budget, independent of the editor flow.
 for (const state of NAVIGATION_STATES)
-  test(`navigation boundaries ${state.name} at real Chromium 400% browser zoom`, async () => {
-    onlyA11y('browser zoom measurement');
-    await withBrowserZoom(4, async ({ page, before }) => {
-      const { slug, hash } = await test.step('publish boundary fixture', () =>
-        seedNavigationStress(state));
-      test.info().annotations.push({ type: 'fixture-sha256', description: hash });
-      for (const locale of ['nl', 'en'])
-        await test.step(`${locale}: normal and 200% text at real 400% zoom`, async () => {
-          await exerciseNavigationStress(page, state, slug, locale, [0]);
-          expect(await page.evaluate(() => innerWidth)).toBeCloseTo(before.width / 4, 0);
-          expect(await page.evaluate(() => devicePixelRatio)).toBe(before.ratio * 4);
-        });
+  for (const colors of ['none', 'active'] as const)
+    test(`navigation boundaries ${state.name} ${colors} at real Chromium 400% browser zoom`, async () => {
+      await withBrowserZoom(
+        4,
+        async ({ page, before }) => {
+          const { slug, hash } = await test.step('publish boundary fixture', () =>
+            seedNavigationStress(state));
+          test.info().annotations.push({ type: 'fixture-sha256', description: hash });
+          for (const locale of ['nl', 'en'])
+            await test.step(`${locale}: normal and 200% text at real 400% zoom`, async () => {
+              await exerciseNavigationStress(page, state, slug, locale, [0], [colors]);
+              expect(await page.evaluate(() => innerWidth)).toBeCloseTo(before.width / 4, 0);
+              expect(await page.evaluate(() => devicePixelRatio)).toBe(before.ratio * 4);
+            });
+        },
+        { javaScriptEnabled: isA11y() }
+      );
     });
-  });
 
 // A complete bilingual site: tenant chrome and theme through real use cases and the public
 // renderer, including the no-JavaScript/320 px/200% task gate (#11 E, ADR 009/013).
