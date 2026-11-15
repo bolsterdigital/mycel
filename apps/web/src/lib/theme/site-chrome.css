@@ -91,13 +91,16 @@
     transform 180ms ease-out,
     opacity 140ms ease-out;
 }
-.site-menu[open] .site-burger > span:first-child {
+.site-menu[open] .site-burger > span:first-child,
+.site-dialog-close .site-burger > span:first-child {
   transform: translateY(var(--burger-gap)) rotate(45deg);
 }
-.site-menu[open] .site-burger > span:nth-child(2) {
+.site-menu[open] .site-burger > span:nth-child(2),
+.site-dialog-close .site-burger > span:nth-child(2) {
   opacity: 0;
 }
-.site-menu[open] .site-burger > span:last-child {
+.site-menu[open] .site-burger > span:last-child,
+.site-dialog-close .site-burger > span:last-child {
   transform: translateY(calc(-1 * var(--burger-gap))) rotate(-45deg);
 }
 
@@ -156,7 +159,9 @@
   display: none;
 }
 /* A chevron in borders, which forced colours keep: down when closed, up when open. */
-.site-group > summary::after {
+.site-group > summary::after,
+.site-sub-toggle::after,
+.site-bar-group::after {
   content: '';
   flex: none;
   width: 0.5em;
@@ -167,7 +172,8 @@
   transform: rotate(45deg);
   transition: transform 140ms ease-out;
 }
-.site-group[open] > summary::after {
+.site-group[open] > summary::after,
+[data-site-toggle][aria-expanded='true']::after {
   margin-block-start: 0.25em;
   transform: rotate(-135deg);
 }
@@ -175,7 +181,8 @@
   border-block-end: 1px solid var(--color-surface-bg);
 }
 .site-panel .site-tree > li > .site-group > summary,
-.site-panel .site-tree > li > a {
+.site-panel .site-tree > li > a,
+.site-panel .site-tree > li > .site-tree-link > a {
   font-size: var(--step-1);
 }
 .site-panel .site-tree a {
@@ -207,4 +214,229 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0 var(--space-3);
+}
+
+/* The enhancement (`static/_site/navigation.js`, step D2). Nothing below shows before the script
+   has measured and marked the header: without it the bar and the second call to action stay
+   `display: none` and the sublink buttons `hidden`, so the baseline above is the whole header. */
+
+.site-hidden-word {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The measured bar: the top-level links after the logo, as many as fit in the logo's row. While
+   the script measures, every candidate lies out of the flow at the header's inline end, invisible
+   and unfocusable, at its natural width: absolutely placed from the end, it extends towards the
+   start and never makes the page scroll sideways. Rejected: clipping the row with
+   `overflow: hidden`, which hides a link without taking it out of the tab order. */
+.site-bar,
+.site-tools > [data-site-candidate]:not([data-shown]),
+.site-bar > ul > li:not([data-shown]) {
+  display: none;
+}
+.site-header[data-enhanced] .site-bar[data-shown],
+.site-header[data-measuring] .site-bar {
+  display: block;
+  flex: none;
+}
+.site-bar > ul {
+  display: flex;
+  align-items: center;
+  gap: 0 var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.site-bar > ul > li {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.site-header[data-measuring] :is(.site-bar > ul > li, .site-tools > [data-site-candidate]) {
+  display: flex;
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  visibility: hidden;
+  white-space: nowrap;
+}
+.site-bar a {
+  min-width: var(--tap);
+  justify-content: center;
+  white-space: nowrap;
+}
+.site-bar a[aria-current='page'] {
+  font-weight: 700;
+}
+
+/* A sublink button beside its link, and a group's button in the bar: a chevron, 44 px. */
+.site-sub-toggle,
+.site-bar-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 var(--space-1);
+  border: 1px solid transparent; /* a shape in forced colours */
+  border-radius: var(--radius);
+  color: inherit;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+.site-bar-group {
+  white-space: nowrap;
+}
+/* `display` above would override the attribute: a button the script has not shown stays away. */
+[data-site-toggle][hidden],
+.site-dropdown[hidden],
+.site-tree-link + ul[hidden] {
+  display: none;
+}
+.site-tree-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.site-tree-link > a {
+  flex: 0 1 auto;
+}
+
+/* A dropdown under its bar item: the same anchors as in the panel. */
+.site-dropdown {
+  position: absolute;
+  z-index: 6;
+  inset-block-start: 100%;
+  inset-inline-start: 0;
+  min-width: max(100%, 14rem);
+  max-width: calc(100vw - 2 * var(--gutter));
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  list-style: none;
+  color: var(--color-body-fg);
+  background: var(--color-body-bg);
+  border: 1px solid var(--color-surface-bg);
+  border-radius: var(--radius);
+}
+.site-dropdown a {
+  display: flex;
+  justify-content: flex-start;
+  white-space: normal;
+}
+
+/* The panel as a modal dialog from the inline end: the whole height, scrolling inside, the page
+   behind it inert and still. Its close button stands where Menu stood (the script passes Menu's
+   position), so the cross does not jump from one place to another. */
+.site-dialog {
+  --site-dialog-from: 100%;
+  position: fixed;
+  inset-block: 0;
+  inset-inline: auto 0;
+  box-sizing: border-box;
+  width: min(30rem, 100%);
+  max-width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  padding: 0 0 env(safe-area-inset-bottom);
+  border: 0;
+  border-inline-start: 1px solid var(--color-surface-bg);
+  color: var(--color-body-fg);
+  background: var(--color-body-bg);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  translate: 0;
+  opacity: 1;
+  transition:
+    translate 220ms ease-out,
+    opacity 220ms ease-out,
+    overlay 220ms allow-discrete,
+    display 220ms allow-discrete;
+}
+.site-dialog:dir(rtl) {
+  --site-dialog-from: -100%;
+}
+.site-dialog:not([open]) {
+  translate: var(--site-dialog-from) 0;
+  opacity: 0;
+  transition-duration: 160ms;
+}
+.site-dialog::backdrop {
+  background: rgb(0 0 0 / 0.4);
+  opacity: 1;
+  transition:
+    opacity 160ms ease-out,
+    overlay 160ms allow-discrete,
+    display 160ms allow-discrete;
+}
+.site-dialog:not([open])::backdrop {
+  opacity: 0;
+}
+@starting-style {
+  .site-dialog[open] {
+    translate: var(--site-dialog-from) 0;
+    opacity: 0;
+  }
+  .site-dialog[open]::backdrop {
+    opacity: 0;
+  }
+}
+:root:has(.site-dialog[open]) {
+  overflow: hidden;
+}
+.site-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-block-start: var(--site-opener-top, var(--space-2));
+  padding-inline: var(--gutter) min(max(var(--gutter), var(--site-opener-end, 0px)), 50%);
+}
+.site-dialog-title {
+  margin: 0;
+  font-size: var(--step-1);
+}
+.site-dialog-close {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding-inline: var(--space-1);
+  border: 1px solid transparent; /* a shape in forced colours */
+  border-radius: var(--radius);
+  color: inherit;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.site-dialog .site-panel {
+  position: static;
+  width: auto;
+  padding: var(--space-2) var(--gutter) var(--space-4);
+}
+
+/* A dropdown or a panel branch that opens comes in from 4 px and transparent; reduced motion
+   (base.css) makes it appear at once. */
+.site-dropdown,
+.site-tree-link + ul {
+  transition:
+    opacity 140ms ease-out,
+    translate 140ms ease-out,
+    display 140ms allow-discrete;
+}
+@starting-style {
+  .site-dropdown:not([hidden]),
+  .site-tree-link + ul:not([hidden]) {
+    opacity: 0;
+    translate: 0 -4px;
+  }
 }

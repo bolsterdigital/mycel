@@ -103,6 +103,8 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
       '.site-menu-toggle',
       '.site-tree a',
       '.site-group > summary',
+      '.site-bar a',
+      '.site-dropdown a',
     ];
     for (const root of document.querySelectorAll(scope))
       for (const b of root.querySelectorAll(actions.join(', '))) {
@@ -129,12 +131,12 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
         // "Dashboar|d" at 320 CSS px and 200% text passed (#66 PR 2).
         if (
           !b.matches(
-            'button, .ui-button, .ui-block-card-action, .ui-navgroup a, .ui-navgroup summary, .site-menu-toggle'
+            'button, .ui-button, .ui-block-card-action, .ui-navgroup a, .ui-navgroup summary, .site-menu-toggle, .site-bar a'
           )
         )
           continue;
         if (
-          !b.matches('.ui-navgroup a, .ui-navgroup summary, .site-menu-toggle') &&
+          !b.matches('.ui-navgroup a, .ui-navgroup summary, .site-menu-toggle, .site-bar a') &&
           getComputedStyle(b).hyphens === 'auto'
         )
           continue;
