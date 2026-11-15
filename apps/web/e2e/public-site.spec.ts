@@ -1236,7 +1236,7 @@ test.describe('grid-compositions', () => {
           expect(measured.prose!.width).toBeLessThanOrEqual(740);
         }
         const chrome = await chromeRails(page);
-        expectChromeOnWideRail(chrome, true);
+        expectChromeOnWideRail(chrome, width > 320 || undefined);
         expectChromeTransitions(chrome);
       });
 

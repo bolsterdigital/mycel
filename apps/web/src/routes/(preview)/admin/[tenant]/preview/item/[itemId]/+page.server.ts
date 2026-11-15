@@ -64,7 +64,7 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
     intro,
     dropCap: doc.type === 'article' && theme.dropCap === 'articles',
     theme: { href: `${base}/_theme/${theme.hash}.css`, preload: theme.preload },
-    ...(await chromeModel(site, locale, base)),
+    ...(await chromeModel(site, locale, base, doc.locales)),
     issues: readinessIssues(doc, locale).map((i) => i.path),
     revision: {
       when: when(revision.createdAt, (await adminTimeZone(locals)).zone),

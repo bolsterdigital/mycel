@@ -108,7 +108,7 @@ export const actions: Actions = {
       dropCap: doc.type === 'article' && theme.dropCap === 'articles',
       issues: readinessIssues(doc, locale).map((issue) => issue.path),
       theme: { href: `${base}/_theme/${theme.hash}.css`, preload: theme.preload },
-      ...(await chromeModel(site, locale, base)),
+      ...(await chromeModel(site, locale, base, doc.locales)),
       formNote: ui(admin)('admin.content.preview.form'),
       campaignNotes: campaignNotes(admin),
     };

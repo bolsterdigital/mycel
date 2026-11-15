@@ -29,7 +29,8 @@ type ResolvedNode = NonNullable<SiteNavigation['main']>['nodes'][number];
 export async function chromeModel(
   site: Site,
   locale: string,
-  base: string
+  base: string,
+  locales: readonly string[] = site.tenant.locales
 ): Promise<{ chrome: ChromeModel; credit: ChromeLink | null }> {
   const [chrome, brand, navigation] = await Promise.all([
     siteChrome(site),
@@ -61,7 +62,7 @@ export async function chromeModel(
       home: withBase(base, locale === fallback ? '/' : `/${locale}`),
       search: withBase(base, searchPath(locale, fallback)),
       languages: languageLinks(
-        site.tenant.locales.map((l) => ({
+        locales.map((l) => ({
           hreflang: l,
           href: withBase(base, l === fallback ? '/' : `/${l}`),
         }))
