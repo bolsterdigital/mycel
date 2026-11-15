@@ -90,7 +90,8 @@ export async function exerciseNavigationStress(
   state: (typeof NAVIGATION_STATES)[number],
   slug: string,
   locale: string,
-  widths: number[] = [320, 768, 1440]
+  widths: number[] = [320, 768, 1440],
+  colorModes: readonly ('none' | 'active')[] = ['none', 'active']
 ) {
   let failedFonts = 0;
   if (state.fontFailure)
@@ -99,8 +100,6 @@ export async function exerciseNavigationStress(
       await route.abort('failed');
     });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  // The separate real-tab-zoom task keeps its existing matrix; this extension covers CSS widths.
-  const colorModes = widths.includes(0) ? (['none'] as const) : (['none', 'active'] as const);
   for (const colors of colorModes) {
     await page.emulateMedia({ forcedColors: colors });
     expect(await page.evaluate(() => matchMedia('(forced-colors: active)').matches)).toBe(
@@ -114,6 +113,10 @@ export async function exerciseNavigationStress(
         const description = `${state.name}/${locale}/${width || 'browser-zoom'}/${text || '100%'}/${colors}`;
         const header = page.locator('.site-header');
         if (isA11y()) await expect(header).toHaveAttribute('data-enhanced', '');
+        else {
+          await expect(header).not.toHaveAttribute('data-enhanced', '');
+          await expect(page.locator('.site-dialog')).toHaveCount(0);
+        }
         await layoutGate(page, description, '.site-header');
         await layoutGate(page, description, '.site-footer');
         if (colors === 'active')
