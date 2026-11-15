@@ -9,6 +9,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { forcedColorsProblems, layoutGate, setTextSize } from '../layout';
 import { expectNoAxeViolations } from '../axe';
 import { isA11y } from '../project';
+import { CLS_LIMIT, loadLayoutShift } from './cls';
 import { publishMenus } from './seed';
 import { seedSiteSettings } from './settings-fixture';
 
@@ -100,6 +101,7 @@ export async function exerciseNavigationStress(
       await route.abort('failed');
     });
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  const cls: ({ cell: string } & Awaited<ReturnType<typeof loadLayoutShift>>)[] = [];
   for (const colors of colorModes) {
     await page.emulateMedia({ forcedColors: colors });
     expect(await page.evaluate(() => matchMedia('(forced-colors: active)').matches)).toBe(
@@ -109,9 +111,18 @@ export async function exerciseNavigationStress(
       if (width) await page.setViewportSize({ width, height: 900 });
       for (const text of ['', '200%']) {
         await page.goto(`http://127.0.0.1:4173/${slug}/${locale === 'en' ? 'en/' : ''}home`);
-        await setTextSize(page, text);
         const description = `${state.name}/${locale}/${width || 'browser-zoom'}/${text || '100%'}/${colors}`;
         const header = page.locator('.site-header');
+        if (width && !text) {
+          // The load's own shifts, before the test resizes text, focuses or clicks.
+          if (isA11y()) await expect(header).toHaveAttribute('data-enhanced', '');
+          const shift = await loadLayoutShift(page, isA11y());
+          cls.push({ cell: description, ...shift });
+          expect
+            .soft(shift.value, `${description}: CLS ${JSON.stringify(shift)}`)
+            .toBeLessThanOrEqual(CLS_LIMIT);
+        }
+        await setTextSize(page, text);
         if (isA11y()) await expect(header).toHaveAttribute('data-enhanced', '');
         else {
           await expect(header).not.toHaveAttribute('data-enhanced', '');
@@ -221,6 +232,10 @@ export async function exerciseNavigationStress(
     expect(failedFonts).toBeGreaterThan(0);
     await page.unroute('**/*.woff2');
   }
+  // 200% text and real browser zoom set the size after the load, so their shift is the test's own.
+  const unmeasured = '200% text and real browser zoom resize after load: CLS not measured';
+  if (cls.length)
+    await attachJson('navigation-cls.json', { limit: CLS_LIMIT, unmeasured, cells: cls });
   await attachJson(`navigation-${state.name}-${locale}.json`, {
     state,
     locale,
@@ -231,6 +246,7 @@ export async function exerciseNavigationStress(
     route: `/${slug}/${locale === 'en' ? 'en/' : ''}home`,
     reducedMotion: 'reduce',
     forcedColors: colorModes,
+    cls: cls.length ? 'navigation-cls.json' : unmeasured,
   });
 }
 
