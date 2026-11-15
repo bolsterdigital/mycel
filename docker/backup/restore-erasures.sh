@@ -8,7 +8,8 @@
 # A restored snapshot can be up to a day old and bring back people erased after it was taken.
 # Their registrations are in a newer snapshot: the erasures run (backup.sh erasures) writes one
 # every 15 minutes, the full run once a day, and each holds the `erasures` table, a hash of the
-# address and never the address; since 0050 also the person register (ADR 034), person ids only. `latest` loads both the newest erasures snapshot and the newest
+# address and never the address; since 0050 also the person register (ADR 034), person ids only;
+# since 0054 the operator register (ADR 035 rule 2), operator ids only. `latest` loads both the newest erasures snapshot and the newest
 # full one (whichever exists), so nothing depends on which of the two ran last; a given snapshot
 # loads that one alone. It touches nothing else; `mycel erasures apply` (the worker image) then
 # erases them again. Run it after `migrate`, so the table exists even when the restored snapshot
@@ -28,7 +29,7 @@ snapshot="${1:?name the snapshot whose register to load, usually latest}"
 target=/restore-erasures
 
 q() { psql --no-psqlrc --tuples-only --no-align --command="$1"; }
-[ "$(q "select to_regclass('public.erasures') is not null and to_regclass('public.person_erasures') is not null")" = t ] ||
+[ "$(q "select to_regclass('public.erasures') is not null and to_regclass('public.person_erasures') is not null and to_regclass('public.operator_erasures') is not null")" = t ] ||
   die "the database has no erasure registers; restore and migrate first (docs/self-hosting.md § Restore)"
 
 # The newest snapshot with these tags, as a full id; empty only when restic answered with an empty
@@ -84,6 +85,31 @@ commit;
 SQL
 }
 
+# Insert the rows of COPY script $1 into the operator register (0054). Installation data without
+# RLS, so the owner inserts directly; a registration already here stays. `mycel erasures apply`
+# then erases every registered operator the restored database brought back.
+insert_operators() {
+  psql --no-psqlrc --quiet --set=ON_ERROR_STOP=1 <<SQL
+begin;
+create temp table operator_erasures_incoming (like public.operator_erasures) on commit drop;
+\\o /dev/null
+\\i ${1}
+\\o
+reset search_path;
+do \$\$
+declare
+  k int;
+begin
+  insert into public.operator_erasures select * from pg_temp.operator_erasures_incoming
+    on conflict do nothing;
+  get diagnostics k = row_count;
+  raise notice '[mycel-backup] ${2} operator register: % registration(s) in the snapshot, % new here',
+    (select count(*) from pg_temp.operator_erasures_incoming), k;
+end \$\$;
+commit;
+SQL
+}
+
 # Load the registers of snapshot $1 into the database; $2 names the source in the report. Both
 # registers: the supporter one (0019) and the person one (0050, ADR 034); a snapshot made before
 # the person register existed holds none, which loads nothing for it.
@@ -93,7 +119,8 @@ load() {
   say "fetching the registers of ${2} snapshot ${1}"
   restic restore "$1" --host "$restic_host" --tag mycel --target "$target" \
     --include "${snapshot_path}/db/mycel.dump" --include "${erasures_path}/erasures.copy" \
-    --include "${erasures_path}/person-erasures.copy"
+    --include "${erasures_path}/person-erasures.copy" \
+    --include "${erasures_path}/operator-erasures.copy"
   if [ -f "${target}${erasures_path}/erasures.copy" ]; then
     # Written by backup.sh erasures with these columns, in this order.
     {
@@ -109,10 +136,18 @@ load() {
         echo '\.'
       } >"$target/person_erasures.sql"
     fi
+    : >"$target/operator_erasures.sql"
+    if [ -f "${target}${erasures_path}/operator-erasures.copy" ]; then
+      {
+        echo 'COPY pg_temp.operator_erasures_incoming (operator_id, erased_at) FROM stdin;'
+        cat "${target}${erasures_path}/operator-erasures.copy"
+        echo '\.'
+      } >"$target/operator_erasures.sql"
+    fi
   elif [ -f "${target}${snapshot_path}/db/mycel.dump" ]; then
     # The COPY block of each table, aimed at a temporary table of the same shape.
     # Two steps, not a pipe: a dump pg_restore cannot read has to stop the restore, not load nothing.
-    for table in erasures person_erasures; do
+    for table in erasures person_erasures operator_erasures; do
       pg_restore --data-only --table="$table" --file="$target/${table}.dump.sql" \
         "${target}${snapshot_path}/db/mycel.dump" ||
         die "could not read the ${table} register from ${2} snapshot ${1}; nothing loaded from it"
@@ -124,6 +159,7 @@ load() {
   fi
   insert_register erasures "$target/erasures.sql" "$2"
   insert_register person_erasures "$target/person_erasures.sql" "$2 person register"
+  insert_operators "$target/operator_erasures.sql" "$2"
   rm -rf "$target"
 }
 

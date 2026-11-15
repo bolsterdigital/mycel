@@ -11,7 +11,12 @@
 // with DATABASE_URL, ADR 011 rule 1). From a checkout: `npm run mycel -- <command>`.
 
 import { fileURLToPath } from 'node:url';
-import { ERASURE_UNSECURED_WARN_MS, type TenantStatus } from '@mycel/core';
+import {
+  AdminRestoreInput,
+  ERASURE_UNSECURED_WARN_MS,
+  OperatorErasureInput,
+  type TenantStatus,
+} from '@mycel/core';
 import {
   applyErasures,
   expireExports,
@@ -19,6 +24,7 @@ import {
   erasureStatus,
   exportTenant,
   importTenant,
+  reapplyOperatorErasures,
   reindexSearch,
   type PlatformTenant,
 } from '@mycel/db';
@@ -42,6 +48,8 @@ export const USAGE = `usage:
   mycel tenants create <slug> <name> [locales, comma-separated]
   mycel entitlements set <slug> <json document>
   mycel status set <slug> active|suspended
+  mycel operators erase <operator-id>
+  mycel tenants admin-restore <slug> <e-mail>
   mycel ops summary
   mycel ops list jobs|outbox|mail [<slug>]
   mycel ops retry jobs|outbox <id>
@@ -60,6 +68,8 @@ export type Command =
   | { kind: 'tenants.create'; slug: string; name: string; locales: string[] }
   | { kind: 'entitlements.set'; slug: string; document: unknown }
   | { kind: 'status.set'; slug: string; status: TenantStatus }
+  | { kind: 'operators.erase'; operatorId: string }
+  | { kind: 'tenants.admin-restore'; slug: string; email: string }
   | { kind: 'ops.summary' }
   | { kind: 'ops.list'; list: 'jobs' | 'outbox' | 'mail'; slug?: string }
   | { kind: 'ops.recover'; action: 'retry' | 'close'; queue: 'jobs' | 'outbox'; id: string }
@@ -158,6 +168,10 @@ export function parseCommand(argv: readonly string[]): Command {
       throw new UsageError('status is active or suspended');
     return { kind: 'status.set', slug: rest[0], status };
   }
+  if (noun === 'operators' && verb === 'erase' && rest[0] && rest.length === 1)
+    return { kind: 'operators.erase', operatorId: rest[0] };
+  if (noun === 'tenants' && verb === 'admin-restore' && rest[0] && rest[1] && rest.length === 2)
+    return { kind: 'tenants.admin-restore', slug: rest[0], email: rest[1] };
   if (noun === 'ops' && verb === 'summary' && rest.length === 0) return { kind: 'ops.summary' };
   if (noun === 'ops' && verb === 'list' && rest.length <= 2) {
     const list = rest[0];
@@ -280,6 +294,10 @@ async function main(argv: string[]): Promise<number> {
       case 'erasures.apply': {
         // After a restore (docs/self-hosting.md § Restore): the register of the newer backup
         // erases again what the older one brought back. Each tenant in its own transaction.
+        // The operator register first (ADR 035 rule 2): installation-wide, so not per --tenant.
+        const operators = await reapplyOperatorErasures(db, by);
+        for (const r of operators) console.log(`operator ${r.operatorId}\terased again`);
+        console.log(`operators: ${operators.length} registered operator(s) erased again`);
         const tenants = await tenantsOf(command.slug);
         let total = 0;
         for (const t of tenants) {
@@ -326,6 +344,44 @@ async function main(argv: string[]): Promise<number> {
           );
           return 1;
         }
+        break;
+      }
+      case 'operators.erase': {
+        const { operatorId } = OperatorErasureInput.parse({ operatorId: command.operatorId });
+        const result = await store.eraseOperator(operatorId);
+        const blobs = blobStoreFor(config);
+        for (const t of result.tenants) {
+          // The archives this erasure expired lose their file now, not at the next daily expire.
+          const purged = t.expiredExports
+            ? await expireExports(db, blobs, t.tenantId, new Date())
+            : 0;
+          console.log(
+            `${t.slug}\tmembership ${t.membership ? 'removed' : '-'}\t${t.revokedKeys} key(s) revoked\t` +
+              `${purged} archive(s) deleted${t.withoutAdmin ? '\tNO ADMIN LEFT' : ''}`
+          );
+        }
+        console.log(
+          `platform: operator ${result.operatorId} ` +
+            (result.changed ? 'erased' : 'already erased; nothing left to change') +
+            (result.alreadyRegistered ? ' (was in the register)' : '')
+        );
+        const orphaned = result.tenants.filter((t) => t.withoutAdmin);
+        for (const t of orphaned)
+          console.log(`  ${t.slug} has no admin: mycel tenants admin-restore ${t.slug} <e-mail>`);
+        console.log(`note: ${result.note}`);
+        break;
+      }
+      case 'tenants.admin-restore': {
+        const t = await bySlug(command.slug);
+        const { email } = AdminRestoreInput.parse({ email: command.email });
+        const r = await store.restoreAdmin(t.id, email);
+        if (!r) throw new Error(`no tenant with slug "${t.slug}"`);
+        console.log(
+          `platform: ${t.slug} ` +
+            (r.kind === 'grant'
+              ? `member ${r.operatorId} now holds tenant:admin`
+              : `invited ${email} as tenant:admin (pending until the first login, ${r.operatorId})`)
+        );
         break;
       }
       case 'tenants.create': {

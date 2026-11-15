@@ -67,6 +67,16 @@ describe('parseCommand', () => {
       slug: 'demo',
       status: 'suspended',
     });
+    expect(parseCommand(['operators', 'erase', 'id-1'])).toEqual({
+      kind: 'operators.erase',
+      operatorId: 'id-1',
+    });
+    expect(parseCommand(['tenants', 'admin-restore', 'demo', 'a@example.org'])).toEqual({
+      kind: 'tenants.admin-restore',
+      slug: 'demo',
+      email: 'a@example.org',
+    });
+    expect(() => parseCommand(['operators', 'erase'])).toThrow(UsageError);
     expect(parseCommand(['ops', 'summary'])).toEqual({ kind: 'ops.summary' });
     expect(parseCommand(['ops', 'list', 'mail', 'demo'])).toEqual({
       kind: 'ops.list',

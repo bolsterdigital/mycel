@@ -24,7 +24,9 @@
 # 4. The erasures again (TODO #18d and #29B, ADR 019 rule 8): `restore erasures latest` loads the
 #    register of the newest erasures snapshot and of the newest full one, `mycel erasures apply`;
 #    then neither address is in a table or an object key, `pg_dump --data-only` does not contain
-#    them, and the event counts are unchanged. First the same command with a restic that cannot
+#    them, and the event counts are unchanged. The operator erased in the same window (ADR 035
+#    rule 2) is gone again, and drill-b, left without an admin, gets one through
+#    `mycel tenants admin-restore`, which then refuses a second. First the same command with a restic that cannot
 #    list the erasures snapshots (scripts/drill/drill-restic-fault.sh): it has to fail and load nothing.
 # 5. rls and hostnames conformance against the restored database; then the worker, which has to
 #    report ready. Restore, migrate, the erasure and the worker start are the measured RTO,
@@ -229,6 +231,13 @@ full=$(tagged mycel,db)
 step 'a second erasure, secured only by the erasures backup (TODO #29B)'
 late=supporter-drill-b@example.org
 host node scripts/drill/drill-erase.mjs drill-b "$late"
+# An operator erased in the same window (ADR 035 rule 2): the older full snapshot still holds the
+# account, so only the operator register in the erasures snapshot can take it away again.
+gone=$(dc run --rm -T backup psql --no-psqlrc -Atc \
+  "select id from operators where email = 'editor@example.test'" | tail -n 1)
+dc run --rm -T worker mycel operators erase "$gone" | tee "$work/operator-erase.log"
+grep -q 'NO ADMIN LEFT' "$work/operator-erase.log" ||
+  { echo 'erasing the only admin of drill-b did not say it left no admin' >&2; exit 1; }
 dc run --rm -T worker mycel erasures apply
 dc run --rm -T worker mycel erasures apply | tee "$work/apply-again.log"
 grep -q '^erasures: 0 rows changed' "$work/apply-again.log" ||
@@ -290,8 +299,22 @@ grep -q 'could not list the snapshots tagged mycel,erasures' "$work/restore-eras
 step 'erasure after the restore'
 erase_started=$(now)
 dc run --rm -T restore erasures latest 2>&1 | tee "$work/restore-erasures.log"
-dc run --rm -T worker mycel erasures apply
+dc run --rm -T worker mycel erasures apply | tee "$work/apply-restored.log"
 erase_done=$(now)
+grep -q 'erasures operator register: 1 registration(s) in the snapshot, 1 new here' \
+  "$work/restore-erasures.log" ||
+  { echo 'restore erasures latest did not load the operator register' >&2; exit 1; }
+grep -q '^operators: 1 registered operator(s) erased again' "$work/apply-restored.log" ||
+  { echo 'mycel erasures apply did not erase the restored operator again' >&2; exit 1; }
+[ "$(dc run --rm -T backup psql --no-psqlrc -Atc "select count(*) from operators where id = '$gone'" | tail -n 1)" = 0 ] ||
+  { echo 'the erased operator is back after the restore' >&2; exit 1; }
+# The repair of rule 3: drill-b has no admin now; the restore gives it one, and only once.
+dc run --rm -T worker mycel tenants admin-restore drill-b successor@example.test
+if dc run --rm -T worker mycel tenants admin-restore drill-b other@example.test >"$work/restore-admin.log" 2>&1; then
+  echo 'the admin restore worked on a tenant that has an admin' >&2; exit 1
+fi
+grep -q 'restores an admin only on a site without one' "$work/restore-admin.log" ||
+  { cat "$work/restore-admin.log" >&2; echo 'the second admin restore failed for another reason' >&2; exit 1; }
 # Both sources: the erasures snapshot holds both registrations, the newer full one only the first.
 grep -q 'erasures: 2 registration(s) in the snapshot, 2 new here' "$work/restore-erasures.log" ||
   { echo 'restore erasures latest did not load the erasures snapshot' >&2; exit 1; }

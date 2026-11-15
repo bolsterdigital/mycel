@@ -249,6 +249,24 @@ export function createIdentityStore(
 ): IdentityStore {
   const returning = ['id', 'email', 'name', 'email_verified_at', 'last_login_at'] as const;
 
+  const accountOf: IdentityStore['accountOf'] = (operatorId) =>
+    asRole(authDb, 'mycel_auth', async (trx) => {
+      const r = await trx
+        .selectFrom('operators')
+        .select(['ui_locale', 'time_zone', 'date_format'])
+        .where('id', '=', operatorId)
+        .executeTakeFirst();
+      if (!r) return null;
+      // A zone the runtime stopped knowing (a tzdata update) falls back rather than locking the
+      // operator out of every admin page.
+      const parsed = OperatorPreferences.safeParse({
+        uiLocale: r.ui_locale,
+        timeZone: r.time_zone,
+        dateFormat: r.date_format,
+      });
+      return { preferences: parsed.success ? parsed.data : { ...DEFAULT_OPERATOR_PREFERENCES } };
+    });
+
   return {
     login(claims) {
       const email = normalizeEmail(claims.email);
@@ -400,24 +418,11 @@ export function createIdentityStore(
       });
     },
 
-    preferencesOf(operatorId) {
-      return asRole(authDb, 'mycel_auth', async (trx) => {
-        const r = await trx
-          .selectFrom('operators')
-          .select(['ui_locale', 'time_zone', 'date_format'])
-          .where('id', '=', operatorId)
-          .executeTakeFirst();
-        if (!r) return { ...DEFAULT_OPERATOR_PREFERENCES };
-        // A zone the runtime stopped knowing (a tzdata update) falls back rather than locking the
-        // operator out of every admin page.
-        const parsed = OperatorPreferences.safeParse({
-          uiLocale: r.ui_locale,
-          timeZone: r.time_zone,
-          dateFormat: r.date_format,
-        });
-        return parsed.success ? parsed.data : { ...DEFAULT_OPERATOR_PREFERENCES };
-      });
+    async preferencesOf(operatorId) {
+      return (await accountOf(operatorId))?.preferences ?? { ...DEFAULT_OPERATOR_PREFERENCES };
     },
+
+    accountOf,
 
     async setPreferences(operatorId, preferences) {
       await asRole(authDb, 'mycel_auth', (trx) =>

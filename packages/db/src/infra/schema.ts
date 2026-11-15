@@ -495,6 +495,11 @@ export interface Database {
     time_zone: string | null;
     date_format: Generated<string>;
   };
+  /** The installation register of erased operators (0054, ADR 035 rule 2): an id and when. */
+  operator_erasures: {
+    operator_id: string;
+    erased_at: Generated<Date>;
+  };
   tenant_memberships: {
     tenant_id: string;
     operator_id: string;

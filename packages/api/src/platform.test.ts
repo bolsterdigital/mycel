@@ -283,4 +283,54 @@ describe.skipIf(skip)('platform API', () => {
       await operatorDb.destroy();
     }
   });
+  it('erases an operator by id and restores an admin only where none is left (ADR 035)', async () => {
+    const rt = runtime(TOKEN);
+    const app = appOf(rt);
+    const call = (path: string, body?: unknown) =>
+      app.request(`/platform${path}`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+    const created = await call('/tenants', {
+      slug: `erase-${run}`,
+      name: 'Erase',
+      locales: ['nl'],
+    });
+    const tenant = (await created.json()) as { id: string };
+    made.push(tenant.id);
+    const admin = systemPrincipal(tenant.id, 'test');
+    const { operatorId } = await rt.invoker.run(useCases.inviteMember, admin, {
+      email: `only-admin-${run}@example.org`,
+      capabilities: ['tenant:admin'],
+    });
+
+    const erased = await call(`/operators/${operatorId}/erase`);
+    expect(erased.status).toBe(200);
+    expect(await erased.json()).toMatchObject({
+      operatorId,
+      changed: true,
+      tenants: [{ tenantId: tenant.id, membership: true, revokedKeys: 0, withoutAdmin: true }],
+    });
+    expect((await call(`/operators/${uuidv7()}/erase`)).status).toBe(404);
+    expect((await call('/operators/nope/erase')).status).toBe(400);
+
+    expect((await call(`/tenants/${tenant.id}/admin`, { email: 'nope' })).status).toBe(400);
+    const restored = await call(`/tenants/${tenant.id}/admin`, {
+      email: `successor-${run}@example.org`,
+    });
+    expect(restored.status).toBe(200);
+    expect(await restored.json()).toMatchObject({ tenantId: tenant.id, kind: 'invite' });
+    const again = await call(`/tenants/${tenant.id}/admin`, { email: `other-${run}@example.org` });
+    expect(again.status).toBe(409);
+    expect((await call(`/tenants/${uuidv7()}/admin`, { email: 'a@example.org' })).status).toBe(404);
+
+    const { items: audit } = await rt.invoker.run(useCases.listAudit, admin, {
+      operation: 'platform.operator.erase',
+      limit: 10,
+    });
+    expect(audit).toMatchObject([
+      { actorKind: 'platform', actorId: tokenFingerprint(TOKEN), subjectId: operatorId },
+    ]);
+  });
 });

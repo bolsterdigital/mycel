@@ -58,6 +58,12 @@ export interface IdentityStore {
   loginAttempt(key: string, limit: { max: number; windowSeconds: number }): Promise<boolean>;
   /** The operator's admin preferences (#88); the defaults for an unknown id. */
   preferencesOf(operatorId: string): Promise<OperatorPreferences>;
+  /**
+   * The account behind a session, read on every admin request (ADR 035 rule 3): its preferences,
+   * or null when the account is gone (erased). A null account is no session: the cookie still
+   * carries the address and name until it expires, and must never show them again.
+   */
+  accountOf(operatorId: string): Promise<{ preferences: OperatorPreferences } | null>;
   /** Replace them; nothing happens for an unknown id. */
   setPreferences(operatorId: string, preferences: OperatorPreferences): Promise<void>;
 }
