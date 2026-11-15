@@ -1,10 +1,10 @@
-// Migration 0053 run for real on its own SQL (ADR 035 rule 4, #224): the file removes the `email`
+// Migration 0053 run for real on its own SQL (ADR 035 rule 4): the file removes the `email`
 // key from every operator actor at rest and nothing else. The migrator applies it once, on
 // whatever rows existed then, so this suite replays the file in a throwaway schema whose tables
 // carry the same names and actor columns, with forced RLS like the real ones. A schema of its own
 // means no lock on the shared tables, which suites beside this one use (the replay takes access
 // exclusive locks on eleven of them). The real schema runs the same file in every `migrate`, and
-// storage.conformance.test.ts proves the result there.
+// stored-actor.conformance.test.ts reads the same eleven columns there after real writes.
 //
 // Skips without DATABASE_URL; in CI that is a failure.
 

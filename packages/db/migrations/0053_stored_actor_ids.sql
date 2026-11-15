@@ -13,7 +13,7 @@
 --
 -- The short-lived copies (outbox, presence) are cleaned as well, although they would expire on
 -- their own term: then "no stored actor carries an address" holds the moment this commits, and
--- storage.conformance.test.ts can say so without exceptions. Form feed settings and connection
+-- stored-actor.conformance.test.ts can say so without exceptions. Form feed settings and connection
 -- intents store `{ kind, id }` and never held an address; their update matches no row and is
 -- kept so the list is the complete list of actor columns.
 --

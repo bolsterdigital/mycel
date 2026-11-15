@@ -112,6 +112,9 @@ export const listMembers = defineUseCase({
  * has none. Every reader of content may ask, because a revision, a presence line and a conflict
  * name their author by operator id only (ADR 035 rule 4). An id that is not here is a former team
  * member, removed or erased; the caller shows that, never a stored address.
+ * An invitation nobody has logged in with is left out: that person cannot be the author of
+ * anything, and their row has no name, so listing it would hand the invited address to every
+ * `content:read` key and agent, which revisions never did.
  * Rejected: a name column beside each stored actor (a copy again, the thing rule 4 removes), and
  * the full member list (capabilities and pending state are `tenant:admin`'s).
  */
@@ -128,10 +131,9 @@ export const listMemberNames = defineUseCase({
   examples: [{ input: {} }],
   async handler(ctx) {
     return {
-      members: (await ctx.members.list()).map((m) => ({
-        operatorId: m.operatorId,
-        label: m.name ?? m.email,
-      })),
+      members: (await ctx.members.list())
+        .filter((m) => !m.pending)
+        .map((m) => ({ operatorId: m.operatorId, label: m.name ?? m.email })),
     };
   },
 });

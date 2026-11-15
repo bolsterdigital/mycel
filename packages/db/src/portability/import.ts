@@ -166,7 +166,8 @@ const BATCH = 500;
  * Where a table keeps a stored actor, as a path into its export line (ADR 035 rule 4). Import
  * writes each one as `storedActorJson`, whatever the archive holds (rule 5): an archive made
  * before migration 0053, which a tenant may already have downloaded, would otherwise put operator
- * addresses back at rest. storage.conformance.test.ts holds this list to the catalog.
+ * addresses back at rest. storage.conformance.test.ts holds this list to the catalog: every
+ * JSON column of an exported table that is an operator copy is here, or reviewed there.
  * Rejected: normalising in SQL in the insert (a second spelling of the same rule) and refusing an
  * archive with an address (the tenant's own older archive must still import).
  */

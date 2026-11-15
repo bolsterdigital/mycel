@@ -146,6 +146,42 @@ describe('members and keys', () => {
     });
   });
 
+  describe('member names', () => {
+    it('names members who logged in, and leaves an open invitation out', async () => {
+      const named = await identity.login({
+        issuer: ISSUER,
+        subject: 'named',
+        email: 'named@example.org',
+        emailVerified: true,
+        name: 'Named',
+      });
+      await invoker.run(useCases.inviteMember, system, {
+        email: 'named@example.org',
+        capabilities: ['content:write'],
+      });
+      const { op: nameless } = await loggedIn('nameless@example.org', ['content:write']);
+      const invited = await invoker.run(useCases.inviteMember, system, {
+        email: 'invited@example.org',
+        capabilities: ['content:write'],
+      });
+      expect(invited.pending).toBe(true);
+
+      // Any reader of content may ask, so this is the widest audience the answer reaches.
+      const reader = principal({ capabilities: ['content:read'] });
+      const { members } = await invoker.run(useCases.listMemberNames, reader, {});
+      expect(members).toHaveLength(2);
+      expect(members).toEqual(
+        expect.arrayContaining([
+          { operatorId: named.id, label: 'Named' },
+          // No name on the account: the address, as revisions showed it before.
+          { operatorId: nameless.id, label: 'nameless@example.org' },
+        ])
+      );
+      expect(JSON.stringify(members)).not.toContain('invited@example.org');
+      expect(members.map((m) => m.operatorId)).not.toContain(invited.operatorId);
+    });
+  });
+
   describe('login', () => {
     it('claims the pending invitation only with a verified address', async () => {
       const invited = await invoker.run(useCases.inviteMember, system, {

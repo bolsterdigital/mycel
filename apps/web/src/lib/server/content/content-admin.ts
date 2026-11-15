@@ -321,7 +321,7 @@ export function withLocale(doc: ContentDocument, to: string, from: string | null
 
 /**
  * The names of the current members by operator id, and the words for an id that is not among
- * them (`actorNames` in lib/server/admin/actor-names.ts loads both).
+ * them (`actorNames` in lib/server/admin/admin.ts loads both).
  */
 export interface ActorNames {
   byId: Readonly<Record<string, string>>;

@@ -88,8 +88,8 @@ export type Actor = z.infer<typeof Actor>;
  * The one form an actor takes at rest (ADR 035 rule 4): exactly the keys of its kind, so an
  * object that arrived with more (a session decoded into a principal, a test double, an older
  * stored row) cannot carry an address into a revision, plan, key, media row or register. Every
- * adapter that persists an actor writes this; storage.conformance.test.ts holds every stored
- * actor to it. Rejected: trusting the `Actor` type alone, which says nothing about extra keys of
+ * adapter that persists an actor writes this; stored-actor.conformance.test.ts in `@mycel/db`
+ * reads every stored actor raw and holds it to this. Rejected: trusting the `Actor` type alone, which says nothing about extra keys of
  * the object at run time.
  */
 export function storedActor(actor: Actor): Actor {
