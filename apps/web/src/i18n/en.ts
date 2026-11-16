@@ -1366,6 +1366,13 @@ export const en = {
   'admin.content.new.noPattern': 'Empty',
   'admin.content.new.standard': 'Standard',
   'admin.content.new.longRead': 'Long read',
+  'admin.content.new.photoStory': 'Photo story',
+  'admin.content.new.photoStory.photos': 'Photos for the photo story',
+  'admin.content.new.photoStory.photo': 'Photo {n}',
+  'admin.content.new.photoStory.none':
+    'A photo story starts with photos. Choose at least one photo below and describe it in every language.',
+  'admin.content.new.photoStory.alt':
+    'Describe every chosen photo in every language, or mark it as decorative.',
   'admin.content.new.submit': 'Create draft',
   'admin.content.new.page': 'New page',
   'admin.content.new.article': 'New article',

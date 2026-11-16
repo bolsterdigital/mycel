@@ -36,6 +36,7 @@ import {
 import { forwarded, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi } from './lib/api';
+import { startPhotoStory } from './lib/photo-story';
 import { openPublication } from './lib/publication';
 import { block, editorReady, reloadsEditor } from './lib/editor';
 
@@ -882,6 +883,18 @@ test('an image block chooses its image from a grid of thumbnails, without a scri
   const preview = await page.locator('a[href*="/preview/item/"]').first().getAttribute('href');
   await page.goto(preview!);
   await expect(page.locator('main figure.image.layout-float-right img')).toBeVisible();
+});
+
+// ADR 012 rule 8: an article starts as a photo story from two photos of the site.
+test('a new article starts as a photo story from the photos of the site', async ({
+  page,
+  request,
+}) => {
+  await login(page, '/admin/probe/media');
+  const stamp = `${test.info().project.name}-${Date.now()}`;
+  const files = [`plein-${stamp}.png`, `spandoek-${stamp}.png`] as const;
+  for (const f of files) leftovers.media.push((await upload(page, f)).id);
+  await startPhotoStory(page, request, files, (id) => leftovers.items.push(id));
 });
 
 test('a page gets its featured image from the picker, and shares it when published', async ({
