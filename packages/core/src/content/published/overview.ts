@@ -13,6 +13,11 @@
 // publication (`content.published.list` orders by it for crawlers, which want the change) and a
 // cursor (a page link is `?p=2`; an offset over a list that grows at the top shifts by the new
 // articles, which is what an archive shows anyway).
+//
+// Events: an agenda lists pages with the `event` profile, upcoming or past on the site's
+// wall clock at the moment the page is read, never stored, so an event moves to "past" when it
+// ends without anyone saving anything. The card carries when and where; the host page's ETag
+// hashes the render model, so the list it shows after the turn is a new tag, not a 304.
 
 import { z } from 'zod';
 import { Locale } from '../../i18n/locale.js';
@@ -20,6 +25,8 @@ import { defineUseCase } from '../../registry.js';
 import type { TransactionContext } from '../../ports.js';
 import { exampleId } from '../../util/ids.js';
 import { ContentType, Slug, canonicalTag } from '../model.js';
+import { PublishedEvent, projectEvent } from '../public.js';
+import { wallClock } from '../../util/time-zone.js';
 import { effectiveOf } from '../header/effective.js';
 import { OverviewProps } from '../blocks/overview.js';
 import type { PublishedCardRow } from '../ports.js';
@@ -43,6 +50,8 @@ export const OverviewEntry = z.object({
   summary: z.string().nullable(),
   /** The featured image along the chain (own, hero, the site's default). */
   imageId: z.string().guid().nullable(),
+  /** When and where in this locale, for an event page; null for anything else. */
+  event: PublishedEvent.nullable(),
   pinned: z.boolean(),
 });
 export type OverviewEntry = z.infer<typeof OverviewEntry>;
@@ -63,6 +72,7 @@ export async function overviewOf(
   const limit = Number(props.limit);
   const pinIds = props.pinned.map((p) => p.itemId);
   const site = (await ctx.siteSettings.images()).value;
+  const { timeZone } = (await ctx.siteSettings.general()).value;
   const entry = (row: PublishedCardRow, pinned: boolean): OverviewEntry => {
     const effective = effectiveOf(row.document, locale, site);
     return {
@@ -74,6 +84,7 @@ export async function overviewOf(
       title: effective.title.text,
       summary: effective.summary.text,
       imageId: effective.images.featured.mediaId,
+      event: projectEvent(row.document, locale, timeZone),
       pinned,
     };
   };
@@ -88,10 +99,15 @@ export async function overviewOf(
   const first = limit - shownPins;
   const offset = page === 1 ? 0 : first + (page - 2) * limit;
   const take = page === 1 ? first : limit;
+  const events =
+    props.source === 'event'
+      ? { when: props.when, now: wallClock(ctx.clock.now(), timeZone) }
+      : undefined;
   const rows = await ctx.content.publishedCards(
     {
       locale,
-      type: props.source,
+      type: props.source === 'event' ? 'page' : props.source,
+      ...(events ? { events } : {}),
       ...(props.sectionId ? { sectionId: props.sectionId } : {}),
       ...(props.tags.length ? { tags: props.tags.map((t) => canonicalTag(t.tag)) } : {}),
       exclude: pinIds,
@@ -114,7 +130,7 @@ export const getOverview = defineUseCase({
   kind: 'query',
   requires: 'content:read',
   description:
-    'Read what an overview block shows in one locale: its pinned items, then the published public articles or pages that match its filter, newest or oldest first, as cards with featured title, summary and image; page 2 and on continue the list without the pins.',
+    "Read what an overview block shows in one locale: its pinned items, then the published public articles or pages that match its filter, newest or oldest first, or the upcoming (soonest first) or past (latest first) events on the site's clock now, as cards with featured title, summary, image and, for an event, when and where; page 2 and on continue the list without the pins.",
   input: z
     .object({
       props: OverviewProps,

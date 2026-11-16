@@ -2,10 +2,22 @@
 // public page's ETag digest (public-page.ts hashes the model) moves when an article joins the
 // list or one is republished, without a new revision of the host page. Only a block with an
 // archive follows `?p=`, and its page links point at the host's own path. Which items a list
-// holds is proven over both adapters in packages/db/src/adapter-rules.test.ts.
+// holds is proven over both adapters in packages/db/src/adapter-rules.test.ts; the agenda below
+// runs the real source over the in-memory unit of work so its clock can pass an event's end.
 import { describe, expect, it } from 'vitest';
-import { Block, BLOCK_DEFINITIONS, projectBlock, type Overview } from '@mycel/core';
-import { resolveDocument, type ResolveSource } from './resolve.js';
+import {
+  anonymousPrincipal,
+  Block,
+  BLOCK_DEFINITIONS,
+  buildRegistry,
+  Invoker,
+  projectBlock,
+  systemPrincipal,
+  useCases,
+  type Overview,
+} from '@mycel/core';
+import { FakeClock, MemoryUnitOfWork } from '@mycel/core/testing';
+import { resolveDocument, runtimeSource, type ResolveSource } from './resolve.js';
 
 const block = (id: string, props: Record<string, unknown>) =>
   Block.parse({ id, type: 'overview', version: BLOCK_DEFINITIONS.overview.version, props });
@@ -19,6 +31,7 @@ const entry = (n: number, revision = 0) => ({
   title: `Bericht ${n}`,
   summary: null,
   imageId: null,
+  event: null,
   pinned: false,
 });
 
@@ -68,5 +81,69 @@ describe('an overview in the render model', () => {
     expect(resolved.blocks[0]).toMatchObject({
       entries: [{ date: { iso: '2026-11-02', label: '2 november 2026' } }],
     });
+  });
+});
+
+describe('an agenda in the render model', () => {
+  const TENANT = '01900000-0000-7000-8000-00000000aaaa';
+
+  it('moves an event to past once the clock passes its end, which changes the page', async () => {
+    // 12:00 UTC is 14:00 on the site's clock (Europe/Amsterdam, the default).
+    const clock = new FakeClock(new Date('2026-10-21T12:00:00.000Z'));
+    const uow = new MemoryUnitOfWork({ clock });
+    const invoker = new Invoker(buildRegistry(), uow);
+    const admin = systemPrincipal(TENANT, 'test');
+    const { item } = await invoker.run(useCases.createItem, admin, {
+      slug: 'buurtavond',
+      document: {
+        type: 'page',
+        profile: 'event',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Buurtavond' },
+        event: {
+          startsAt: '2026-10-21T13:00',
+          endsAt: '2026-10-21T15:00',
+          location: { nl: 'Buurthuis' },
+        },
+        blocks: [],
+      },
+    });
+    await invoker.run(useCases.publishItem, admin, {
+      itemId: item.id,
+      revisionId: item.latestRevisionId,
+      locale: 'nl',
+    });
+    const source = runtimeSource({
+      invoker,
+      uow,
+      reader: anonymousPrincipal(TENANT, ['content:read', 'forms:read', 'media:read']),
+      defaultLocale: 'nl',
+    });
+    const agenda = [
+      block('komend', { source: 'event' }),
+      block('geweest', { source: 'event', when: 'past', layout: 'list' }),
+    ];
+    const read = async () => {
+      const { blocks } = await resolveDocument(
+        source,
+        { locale: 'nl', title: 'Agenda', blocks: agenda.map((b) => projectBlock(b, 'nl')) },
+        { base: '', fallbackLocale: 'nl', path: '/agenda', timeZone: 'Europe/Amsterdam' }
+      );
+      return blocks as Extract<(typeof blocks)[number], { type: 'overview' }>[];
+    };
+
+    const running = await read();
+    expect(running.map((b) => b.entries.map((e) => e.href))).toEqual([['/buurtavond'], []]);
+    expect(running[0]!.entries[0]).toMatchObject({
+      date: { iso: '2026-10-21T13:00', label: 'woensdag 21 oktober 2026, 13:00–15:00' },
+      place: 'Buurthuis',
+    });
+
+    clock.advance(2 * 3_600_000);
+    const over = await read();
+    expect(over.map((b) => b.entries.map((e) => e.href))).toEqual([[], ['/buurtavond']]);
+    // The public page's ETag digest hashes this model: a conditional GET after the turn is no 304.
+    expect(JSON.stringify(over)).not.toBe(JSON.stringify(running));
   });
 });

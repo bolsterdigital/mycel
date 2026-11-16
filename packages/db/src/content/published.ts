@@ -96,13 +96,17 @@ interface CardRow {
  * document included so core derives the card (`effectiveOf`) the way every other card does. The
  * filter is on plain values of that document (access level, section, tags), as above; the tag
  * test is jsonb containment, so every tag must be there. A document that no longer parses is left
- * out, as `latestDocuments` does, so one broken row does not empty a homepage.
+ * out, as `latestDocuments` does, so one broken row does not empty a homepage. An agenda's test
+ * and order are on the published document's event times, plain `YYYY-MM-DDTHH:mm` text, so they
+ * compare as text in the byte order (`"C"`) the memory adapter's string comparison uses.
  */
 export function publishedCards(trx: Kysely<Database>): ContentRepository['publishedCards'] {
-  return async ({ locale, type, sectionId, tags, ids, exclude, order }, offset, limit) => {
+  return async ({ locale, type, sectionId, tags, ids, exclude, order, events }, offset, limit) => {
     if (ids && ids.length === 0) return [];
-    const at = sql`date_trunc('milliseconds', l.first_published_at)`;
-    const direction = order === 'newest' ? sql`desc` : sql`asc`;
+    const start = sql`(r.document->'event'->>'startsAt') collate "C"`;
+    const end = sql`coalesce(r.document->'event'->>'endsAt', r.document->'event'->>'startsAt') collate "C"`;
+    const at = events ? start : sql`date_trunc('milliseconds', l.first_published_at)`;
+    const direction = (events ? events.when === 'past' : order === 'newest') ? sql`desc` : sql`asc`;
     const { rows } = await sql<CardRow>`
       select l.item_id, i.type, i.slug, r.id as revision_id, l.first_published_at, r.document
       from content_item_locales l
@@ -117,6 +121,12 @@ export function publishedCards(trx: Kysely<Database>): ContentRepository['publis
         ${tags?.length ? sql`and i.type = 'article' and r.document->'tags' @> ${JSON.stringify(tags)}::jsonb` : sql``}
         ${ids ? sql`and l.item_id = any(${[...ids]}::uuid[])` : sql``}
         ${exclude?.length ? sql`and l.item_id <> all(${[...exclude]}::uuid[])` : sql``}
+        ${
+          events
+            ? sql`and i.type = 'page' and i.profile = 'event' and ${start} is not null
+                and ${end} ${events.when === 'upcoming' ? sql`>=` : sql`<`} ${events.now} collate "C"`
+            : sql``
+        }
       order by ${at} ${direction}, l.item_id asc
       offset ${offset}
       limit ${limit}

@@ -27,6 +27,29 @@ export function isTimeZone(value: string): boolean {
 
 export const IanaTimeZone = z.string().min(1).max(64).refine(isTimeZone, 'time-zone.unknown');
 
+/**
+ * The wall clock of `zone` at `instant`, as `YYYY-MM-DDTHH:mm`: what a `datetime-local` field
+ * shows and what an event's times are stored as (`LocalDateTime`), so "is it over" is a text
+ * comparison on the site's own clock. Rejected: converting each event to an instant, which a
+ * listing would have to do per row in SQL and in memory alike.
+ */
+export function wallClock(instant: Date, zone: string): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: zone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(instant)
+      .map((p) => [p.type, p.value])
+  );
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
 /** Every canonical zone, Europe first, then the rest alphabetically: the order a picker shows. */
 export function timeZones(): string[] {
   const all = [...known].sort();

@@ -327,6 +327,28 @@ export async function resolveIntro(
  * UTC: no zone shifts them a second time. A range on one day names the day once. Rejected: the
  * zone's name beside the time, which a visitor of a local event does not need.
  */
+/**
+ * The time an overview card shows: an event's when (as its own header writes it) and place,
+ * else the first publication as a date.
+ */
+function overviewWhen(entry: Overview['entries'][number], locale: string, timeZone: string) {
+  if (entry.event) {
+    const { when, where, online } = renderEvent(entry.event, locale);
+    return {
+      date: { iso: when.iso, label: when.label },
+      place: where?.text ?? online?.text ?? null,
+    };
+  }
+  const at = new Date(entry.date);
+  return {
+    date: {
+      iso: new Intl.DateTimeFormat('en-CA', { timeZone }).format(at),
+      label: new Intl.DateTimeFormat(locale, { timeZone, dateStyle: 'long' }).format(at),
+    },
+    place: null,
+  };
+}
+
 export function renderEvent(
   event: {
     startsAt: string;
@@ -595,12 +617,7 @@ export async function resolveDocument(
             href: contentPath(e, locale, defaultLocale),
             title: e.title,
             summary: e.summary,
-            date: {
-              iso: new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date(e.date)),
-              label: new Intl.DateTimeFormat(locale, { timeZone, dateStyle: 'long' }).format(
-                new Date(e.date)
-              ),
-            },
+            ...overviewWhen(e, locale, timeZone),
             image:
               b.props.layout === 'cards' && e.imageId
                 ? renderImage(media.get(e.imageId) ?? null, { decorative: true, alt: null }, locale)
