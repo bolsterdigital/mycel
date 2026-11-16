@@ -5,7 +5,7 @@
      Server side: `lib/server/patterns/editor.ts`. Rejected: a checkbox per block card, which
      cannot say where a run starts and would add a control to every card. -->
 <script lang="ts">
-  import { Actions, Button, Field, Icon } from '#lib/admin/ui/index.js';
+  import { Actions, Button, Field, Fieldset } from '#lib/admin/ui/index.js';
   import type { BlockType } from '@mycel/core';
   import { fill, ui } from '../../../i18n/index.js';
 
@@ -34,10 +34,12 @@
 </script>
 
 {#if blocks.length}
-  <details class="ui-block-insert" id="save-pattern" open={!!error}>
-    <summary><Icon name="layers" />{t('admin.pattern.save.fold')}</summary>
-    <div class="ui-block-insert-body">
-      <p class="ui-hint">{t('admin.pattern.save.hint')}</p>
+  <div id="save-pattern">
+    <Fieldset
+      legend={t('admin.pattern.save.fold')}
+      hint={t('admin.pattern.save.hint')}
+      collapsed={!error}
+    >
       <Field
         id="pattern-name"
         name="patternName"
@@ -63,6 +65,6 @@
           >{t('admin.pattern.save.submit')}</Button
         >
       </Actions>
-    </div>
-  </details>
+    </Fieldset>
+  </div>
 {/if}
