@@ -1958,6 +1958,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.block.type.campaign-card': 'Campagnekaart',
   'admin.block.type.overview': 'Overzicht',
   'admin.block.field.sectionId': 'Rubriek',
+  'admin.block.section.all': 'Alle rubrieken',
+  'admin.block.section.articles': 'Rubriek en tags filteren alleen artikelen.',
   'admin.block.field.tags': 'Tags (alle)',
   'admin.block.field.tag': 'Tag',
   'admin.block.field.limit': 'Aantal',

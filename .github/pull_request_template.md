@@ -1,6 +1,6 @@
 <!-- Title: conventional commit, written for someone who runs Mycel (CONTRIBUTING.md § Pull requests). -->
 
-**Item or brief.** TODO #… / brief `…` (private planning). Deviations from the brief, numbered, with the reason.
+**Item.** Its key (`MY-…`), or what prompted the change if it has none. Deviations from the plan, numbered, with the reason.
 
 **Behaviour claim.** One sentence: what holds now that did not before.
 
