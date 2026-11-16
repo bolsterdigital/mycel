@@ -933,5 +933,7 @@ describe.skipIf(skip)('adapter rules, postgres', () => {
       apply: (t) => applyErasures(operatorDb, t),
     });
     expect(result).toEqual(expected);
-  });
+    // Several tenants and an erasure pass on Postgres: about a second alone, past the default
+    // 5 s under a full parallel run. The same budget as the erasure conformance suite.
+  }, 30_000);
 });
