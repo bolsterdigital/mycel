@@ -28,16 +28,16 @@
     "seed:demo": "node --env-file-if-exists=../../.env --import tsx src/runtime/seed-demo.ts"
   },
   "dependencies": {
+    "@hono/node-server": "^1.19.18",
+    "@mycel/assist-openai": "*",
+    "@mycel/blob": "*",
     "@mycel/core": "*",
     "@mycel/db": "*",
-    "hono": "^4.6.14",
-    "@hono/node-server": "^1.13.7",
     "@mycel/mail-tem": "*",
-    "zod": "^4.6.7",
-    "@mycel/blob": "*",
     "@mycel/media-sharp": "*",
     "@mycel/observability": "*",
-    "@mycel/assist-openai": "*"
+    "hono": "^4.13.16",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",
