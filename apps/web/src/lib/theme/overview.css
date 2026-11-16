@@ -1,0 +1,63 @@
+/* The overview block: only its layout. Each card wears the campaign card's surface,
+   image and text rules (`campaign-card-inner`, `-image`, `-text`), so the site keeps two card
+   styles; the grid places cards side by side once a column has room for a readable card, measured
+   on the block (a container) like the campaign card. The list is titles with their dates, one
+   per row. Rejected: a third card style, and columns as a prop (a narrow column would squeeze
+   them). */
+.overview {
+  container-type: inline-size;
+}
+.overview-items {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.overview-cards .overview-items {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+}
+.overview-cards .overview-item {
+  /* Each card measures itself, so the campaign card's side-by-side rule needs a wide card. */
+  container-type: inline-size;
+}
+.overview-card {
+  height: 100%;
+  align-content: start;
+}
+.overview-card :is(h2, h3) a {
+  color: inherit;
+}
+.overview-date {
+  font-size: var(--step--1);
+}
+.overview-list .overview-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-1);
+  align-items: baseline;
+  justify-content: space-between;
+  padding-block: var(--space-1);
+  border-block-end: 1px solid currentColor;
+  overflow-wrap: anywhere;
+}
+.overview-list .overview-item a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.overview-pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+  margin-block-start: var(--space-2);
+}
+.overview-pages a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.overview-pages a:only-child {
+  margin-inline-start: auto;
+}

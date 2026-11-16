@@ -287,6 +287,26 @@ Version 1.
 
 Examples: `campaign-card-compact`, `campaign-card-full-wide`, `campaign-card-compact-full`.
 
+## `overview` (Overview)
+
+Version 1.
+
+| Prop              | Label                      | Kind                                                                                                                                         | Presence                   |
+| ----------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `source`          | Source                     | one of `article`, `page`                                                                                                                     | required                   |
+| `sectionId`       | Section                    | section reference (id)                                                                                                                       | optional (null when empty) |
+| `tags`            | Tags (all)                 | list of 0–5                                                                                                                                  | required                   |
+| `tags[].tag`      | Tag                        | text                                                                                                                                         | required                   |
+| `order`           | Order                      | one of `newest`, `oldest`                                                                                                                    | required                   |
+| `limit`           | Number                     | one of `1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`, `10`, `11`, `12`, `13`, `14`, `15`, `16`, `17`, `18`, `19`, `20`, `21`, `22`, `23`, `24` | required                   |
+| `pinned`          | Pinned on top              | list of 0–6                                                                                                                                  | required                   |
+| `pinned[].itemId` | Item                       | item reference (id)                                                                                                                          | required                   |
+| `layout`          | Layout                     | one of `cards`, `list`                                                                                                                       | required                   |
+| `archive`         | Show a link to older items | yes or no                                                                                                                                    | required                   |
+| `width`           | Width                      | one of `content`, `wide`, `full`                                                                                                             | required                   |
+
+Examples: `overview-articles-cards` (The newest articles of one section, one pinned on top, with an older link), `overview-articles-list`, `overview-pages-full`.
+
 ## Rich text in the no-JavaScript form
 
 A rich-text field is a `textarea` with a Markdown subset that reads back into exactly the stored document (`apps/web/src/lib/editor/markdown.ts`):

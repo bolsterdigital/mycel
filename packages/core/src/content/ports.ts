@@ -99,6 +99,34 @@ export interface PublishedEntry {
   access: 'public' | 'members' | 'tier';
 }
 
+/**
+ * What an overview block asks for: published locales in `locale` whose published revision
+ * is public. `ids` narrows to those items (the pins), `exclude` leaves items out (the pins again,
+ * under the list). Section and tags apply to articles; every tag must be on the article.
+ */
+export interface PublishedCardFilter {
+  locale: string;
+  type?: ContentType | undefined;
+  sectionId?: string | undefined;
+  /** Canonical tags (`canonicalTag`), all required. */
+  tags?: readonly string[] | undefined;
+  ids?: readonly string[] | undefined;
+  exclude?: readonly string[] | undefined;
+  /** By the first publication in this locale, then item id ascending. */
+  order: 'newest' | 'oldest';
+}
+
+/** One published locale with its published revision's document, for a card. */
+export interface PublishedCardRow {
+  itemId: string;
+  type: ContentType;
+  slug: string;
+  revisionId: string;
+  /** When this locale was first published: an edit republished later does not move it. */
+  firstPublishedAt: Date;
+  document: ContentDocument;
+}
+
 /** Where a page of the published list starts: after this row of its order. */
 export interface PublishedPosition {
   publishedAt: Date;
@@ -172,6 +200,16 @@ export interface ContentRepository {
     after: PublishedPosition | null,
     limit: number
   ): Promise<PublishedEntry[]>;
+  /**
+   * The rows of an overview (`PublishedCardFilter`) outside the trash, in its order, from row
+   * `offset`: one query per call, so a grid of 24 is not 24 reads. A document that no longer
+   * parses is left out, as in a list.
+   */
+  publishedCards(
+    filter: PublishedCardFilter,
+    offset: number,
+    limit: number
+  ): Promise<PublishedCardRow[]>;
   /**
    * The published locales in `locale`, outside the trash, whose published revision is public and
    * indexable and matches every token as a prefix (core's `searchEntry` and `matchesSearch`), in

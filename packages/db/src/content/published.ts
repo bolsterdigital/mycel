@@ -11,7 +11,13 @@
 // document with core's schema (a whole document per row for three fields).
 
 import { sql, type Kysely } from 'kysely';
-import type { ContentRepository, ContentType, PublishedEntry } from '@mycel/core';
+import {
+  ContentDocument,
+  upgradeFaqV1InDocument,
+  type ContentRepository,
+  type ContentType,
+  type PublishedEntry,
+} from '@mycel/core';
 import type { Database } from '../infra/schema.js';
 
 type Access = PublishedEntry['access'];
@@ -72,5 +78,64 @@ export function listPublished(trx: Kysely<Database>): ContentRepository['listPub
       sectionId: r.section_id,
       access: r.access,
     }));
+  };
+}
+
+interface CardRow {
+  item_id: string;
+  type: ContentType;
+  slug: string;
+  revision_id: string;
+  first_published_at: Date | string;
+  document: unknown;
+}
+
+/**
+ * `ContentRepository.publishedCards`: one query per overview, the published revision's
+ * document included so core derives the card (`effectiveOf`) the way every other card does. The
+ * filter is on plain values of that document (access level, section, tags), as above; the tag
+ * test is jsonb containment, so every tag must be there. A document that no longer parses is left
+ * out, as `latestDocuments` does, so one broken row does not empty a homepage.
+ */
+export function publishedCards(trx: Kysely<Database>): ContentRepository['publishedCards'] {
+  return async ({ locale, type, sectionId, tags, ids, exclude, order }, offset, limit) => {
+    if (ids && ids.length === 0) return [];
+    const at = sql`date_trunc('milliseconds', l.first_published_at)`;
+    const direction = order === 'newest' ? sql`desc` : sql`asc`;
+    const { rows } = await sql<CardRow>`
+      select l.item_id, i.type, i.slug, r.id as revision_id, l.first_published_at, r.document
+      from content_item_locales l
+      join content_items i on i.id = l.item_id and i.deleted_at is null
+      join content_revisions r on r.id = l.published_revision_id
+      where l.published_revision_id is not null
+        and l.locale = ${locale}
+        and coalesce(r.document->'access'->>'level', 'public') = 'public'
+        ${type ? sql`and i.type = ${type}` : sql``}
+        ${sectionId ? sql`and i.type = 'article' and r.document->>'sectionId' = ${sectionId}` : sql``}
+        ${tags?.length ? sql`and i.type = 'article' and r.document->'tags' @> ${JSON.stringify(tags)}::jsonb` : sql``}
+        ${ids ? sql`and l.item_id = any(${[...ids]}::uuid[])` : sql``}
+        ${exclude?.length ? sql`and l.item_id <> all(${[...exclude]}::uuid[])` : sql``}
+      order by ${at} ${direction}, l.item_id asc
+      offset ${offset}
+      limit ${limit}
+    `.execute(trx);
+    return rows.flatMap((r) => {
+      let document: ContentDocument;
+      try {
+        document = ContentDocument.parse(upgradeFaqV1InDocument(r.document));
+      } catch {
+        return [];
+      }
+      return [
+        {
+          itemId: r.item_id,
+          type: r.type,
+          slug: r.slug,
+          revisionId: r.revision_id,
+          firstPublishedAt: new Date(r.first_published_at),
+          document,
+        },
+      ];
+    });
   };
 }

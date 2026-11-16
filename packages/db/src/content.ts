@@ -29,7 +29,7 @@ import {
   storedActor,
 } from '@mycel/core';
 import type { Database } from './infra/schema.js';
-import { listPublished } from './content/published.js';
+import { listPublished, publishedCards } from './content/published.js';
 import { indexPublished, searchPublished } from './content/search.js';
 import { toIso } from './infra/dates.js';
 
@@ -454,6 +454,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
       };
     },
     listPublished: listPublished(trx),
+    publishedCards: publishedCards(trx),
     searchPublished: searchPublished(trx),
     async liveReferences(ref) {
       const row = await trx

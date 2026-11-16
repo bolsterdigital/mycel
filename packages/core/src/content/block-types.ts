@@ -11,7 +11,7 @@
 
 import { z } from 'zod';
 import { peopleGridDefinition } from './people/grid-block.js';
-import { campaignCardDefinition } from './blocks/campaign-card.js';
+import { REFERENCE_BLOCKS } from './blocks/reference-blocks.js';
 import { localized } from '../i18n/locale.js';
 import { imageRefs } from './blocks/image-references.js';
 import { CREDIT_KINDS, MediaCredit } from '../media/model.js';
@@ -29,7 +29,7 @@ export interface LocalField {
 
 /** A tenant reference inside a block's props (the `type` column of `content_block_refs`). */
 export interface PropReference {
-  type: 'form' | 'item' | 'media' | 'person' | 'person_group' | 'campaign';
+  type: 'form' | 'item' | 'media' | 'person' | 'person_group' | 'campaign' | 'section';
   refId: string;
   /** This media slot takes a document, not an image; the `content_block_refs` row stays `media`. */
   document?: true;
@@ -69,7 +69,7 @@ export type BlockField =
   | {
       key: string;
       kind: 'reference';
-      to: 'form' | 'item' | 'person' | 'person_group' | 'campaign';
+      to: 'form' | 'item' | 'person' | 'person_group' | 'campaign' | 'section';
       optional?: 'null' | 'omit';
     }
   | { key: string; kind: 'choice'; options: readonly string[]; initial?: string; optional?: 'omit' }
@@ -1206,5 +1206,5 @@ export const BLOCK_DEFINITIONS = {
       { name: 'form-full', props: { formId: EXAMPLE_IDS.form, width: 'full' } },
     ],
   }),
-  'campaign-card': campaignCardDefinition,
+  ...REFERENCE_BLOCKS,
 };

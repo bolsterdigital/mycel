@@ -61,6 +61,10 @@ describe('a menu anchor lands only on a block that renders', () => {
       'campaign-card-compact',
       'campaign-card-full-wide',
       'campaign-card-compact-full',
+      // An overview that finds nothing renders nothing, like an empty grid.
+      'overview-articles-cards',
+      'overview-articles-list',
+      'overview-pages-full',
     ]);
   });
 });

@@ -96,6 +96,8 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   'content.published.find',
   // Addresses and publication facts of published locales only, no document text.
   'content.published.list',
+  // An overview block: published, public revisions in one locale only, as cards.
+  'content.overview.get',
   'content.public_person.get',
   'content.public_person.list',
   'form.get',
