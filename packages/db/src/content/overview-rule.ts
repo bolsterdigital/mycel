@@ -3,6 +3,7 @@
 // because the suite is at its size ceiling; it builds its own documents.
 
 import type { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import { useCases, wallClock, type Invoker, type Principal } from '@mycel/core';
 
 interface Clock {
@@ -234,7 +235,7 @@ async function observeAgenda(invoker: Invoker, admin: Principal, clock: Clock, p
     ordered,
     withSection: await invoker
       .run(useCases.getOverview, admin, {
-        props: { source: 'event', sectionId: '01900000-0000-7000-8000-000000005ec1' },
+        props: { source: 'event', sectionId: randomUUID() },
         locale: 'nl',
       })
       .then(

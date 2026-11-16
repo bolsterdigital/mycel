@@ -69,7 +69,7 @@ export * from './navigation/resolve.js';
 export * from './navigation/service.js';
 export * from './theme/assets.js';
 export * from './util/page-size.js';
-export { isUuid } from './util/ids.js';
+export { exampleId, isUuid } from './util/ids.js';
 export * from './forms/model.js';
 export * from './forms/ports.js';
 export * from './forms/events.js';

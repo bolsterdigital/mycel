@@ -14,7 +14,7 @@
 // cursor (a page link is `?p=2`; an offset over a list that grows at the top shifts by the new
 // articles, which is what an archive shows anyway).
 //
-// Events (#248): an agenda lists pages with the `event` profile, upcoming or past on the site's
+// Events: an agenda lists pages with the `event` profile, upcoming or past on the site's
 // wall clock at the moment the page is read, never stored, so an event moves to "past" when it
 // ends without anyone saving anything. The card carries when and where; the host page's ETag
 // hashes the render model, so the list it shows after the turn is a new tag, not a 304.

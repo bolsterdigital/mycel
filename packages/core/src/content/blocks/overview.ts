@@ -1,5 +1,5 @@
 // An overview fills itself: the newest or oldest published articles or pages, filtered by
-// section and tags, or the upcoming or past events (pages with the `event` profile, #248), with
+// section and tags, or the upcoming or past events (pages with the `event` profile), with
 // up to six pinned items on top. The block stores a filter, never a copy
 // of the list, so a new article appears without republishing the page that holds the block; the
 // list is read when the page is (`content/published/overview.ts`). Section and tags exist on

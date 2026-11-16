@@ -40,6 +40,7 @@ import { demoArticle, demoPage, probeForm, conditionalProbeForm } from '@mycel/c
 import { formValues } from '../editor/block-form.js';
 import Blocks from './Blocks.svelte';
 import BlockText from '../admin/ui/display/BlockText.svelte';
+import { overviewFixture } from './overview-fixture.js';
 import { textRestOf } from '../server/content/content-blocks.js';
 import { headingTag } from './headings.js';
 import { renderMarkdown } from './markdown.js';
@@ -214,35 +215,8 @@ const fixtures: ResolveSource = {
   async formCampaign() {
     return null;
   },
-  // Two published articles in the asked locale, the first pinned when the block pins one, and a
-  // further page when the block keeps an archive; for an agenda two events, the first with an end
-  // and a place, the second online. `adapter-rules.test.ts` proves which items a real list
-  // returns; this fixture proves only how a list renders.
-  async overview(props, locale) {
-    const event = (n: number) =>
-      props.source !== 'event'
-        ? null
-        : {
-            startsAt: `2026-12-0${n}T20:00`,
-            endsAt: n === 1 ? '2026-12-01T22:00' : null,
-            location: n === 1 ? (locale === 'nl' ? 'Buurthuis' : 'Community centre') : null,
-            onlineUrl: n === 1 ? null : 'https://example.org/live',
-            timeZone: 'Europe/Amsterdam',
-          };
-    const entry = (n: number, pinned: boolean) => ({
-      id: `01900000-0000-7000-8000-00000000e00${n}`,
-      type: props.source === 'event' ? ('page' as const) : props.source,
-      event: event(n),
-      slug: locale === 'nl' ? `bericht-${n}` : `post-${n}`,
-      revisionId: `01900000-0000-7000-8000-00000000e10${n}`,
-      date: `2026-11-0${n}T10:00:00.000Z`,
-      title: locale === 'nl' ? `Bericht ${n}` : `Post ${n}`,
-      summary: locale === 'nl' ? `Samenvatting ${n}.` : `Summary ${n}.`,
-      imageId: n === 1 ? EXAMPLE_IDS.image : null,
-      pinned,
-    });
-    return { entries: [entry(1, props.pinned.length > 0), entry(2, false)], older: props.archive };
-  },
+  // How a list renders, not which items it holds: `overview-fixture.ts`.
+  overview: async (props, locale) => overviewFixture(props, locale),
 };
 
 const examples = BLOCK_TYPES.flatMap((type) =>
