@@ -37,7 +37,7 @@ import './ports.js';
 /** The widest image a mail asks for: twice the 600 px column. */
 const EMAIL_IMAGE_WIDTH = 1200;
 
-/** Where the mail points: the site's name, its absolute root (no trailing slash), its default locale. */
+/** Where the mail points: site name, absolute root without trailing slash, default locale. */
 export const EmailSite = z
   .object({
     name: z.string().min(1).max(200),
@@ -128,7 +128,7 @@ export interface RenderedEmail {
   text: string;
 }
 
-/** What every block type becomes in mail; a new type without an entry fails typecheck. */
+/** Types that become a link to the web version; `emailBlocks` makes every new type choose. */
 export const EMAIL_FALLBACK_TYPES: readonly BlockType[] = [
   'form',
   'signup-form',

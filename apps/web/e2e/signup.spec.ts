@@ -489,6 +489,7 @@ test('a landing page is refused the trash with its own reason while its campaign
 
 test('an article shows its newsletter: the e-mail preview per language, without JavaScript', async ({
   page,
+  request,
 }) => {
   const slug = `nieuwsbrief-${test.info().project.name}-${Date.now()}`;
   const editor = systemPrincipal(await tenantId(), 'e2e-email-preview');
@@ -556,6 +557,17 @@ test('an article shows its newsletter: the e-mail preview per language, without 
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)
   ).toBeLessThanOrEqual(0);
+
+  // The frame's route: its own narrow policy, framed by the admin only, and nothing without a session.
+  const frame = await page.locator('iframe').getAttribute('src');
+  const own = await page.request.get(frame!);
+  expect(own.status()).toBe(200);
+  expect(own.headers()['content-security-policy']).toMatch(
+    /default-src 'none'.*frame-ancestors 'self'/
+  );
+  const anonymous = await request.get(frame!);
+  expect(anonymous.status()).toBe(403);
+  expect(await anonymous.text()).not.toContain('Buurtbatterij');
 });
 
 test.describe('in English', () => {
