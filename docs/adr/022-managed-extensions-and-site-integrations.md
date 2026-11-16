@@ -3,6 +3,7 @@
 - **Status**: accepted
 - **Date**: 2026-10-24
 - **Supersedes**: ADR 004 rule 4 only where it forbids all tenant-specific code; ADR 012 rule 1's ADR-free allowance for additional stored content types; ADR 013 rule 5 and its absolute ban on operator-managed packages and scripts; ADR 020's rejection of per-tenant layout code only where it would also reject bounded managed style extensions
+- **Rule 3 amended**: 2026-11-16 (#46, pre-footer). The built-in profile `zone` is a `page` shown inside other pages and never on its own: it has no public route, and search, the sitemap, feeds and overviews leave it out. Its blocks reach visitors only where the navigation places it ([ADR 036](036-site-navigation.md) rule 4 as amended the same day), through `site.prefooter.get`. A profile may thus narrow the representations of this rule to none of its own; it never widens one, and the draft, access and publication rules apply unchanged inside the host page.
 - **Preserves**: the validated block tree, framework-free core, one edition, HTML-first rendering, tenant isolation and accessible bounded layouts (ADRs 001, 004, 009, 013, 015, 020)
 
 ## Context

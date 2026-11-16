@@ -135,6 +135,7 @@ export function valuesOf(doc: ContentDocument): FormValues {
   put('seoTitle', doc.seo.title);
   put('seoDescription', doc.seo.description);
   if (doc.seo.noindex) v.noindex = 'on';
+  if (doc.prefooter === false) v.noPrefooter = 'on';
   v.canonical = doc.seo.canonical ?? '';
   put('lead', doc.lead);
   v.heroImageId = doc.heroImageId ?? '';
@@ -232,8 +233,12 @@ export function documentFrom(
     featuredImageId: _featured,
     featured: _featuredTexts,
     lead: _lead,
+    prefooter: _prefooter,
     ...rest
   } = doc;
+  // Read where the form showed the box (`prefooterShown`), kept otherwise.
+  const noPrefooter =
+    'prefooterShown' in v ? one(v, 'noPrefooter') === 'on' : doc.prefooter === false;
   const lead = optional(pick('lead', doc.lead));
   const event = eventFrom(doc, v, pick);
   const common = {
@@ -251,6 +256,7 @@ export function documentFrom(
         }
       : {}),
     ...(lead ? { lead } : {}),
+    ...(noPrefooter ? { prefooter: false as const } : {}),
     locales,
     title: pick('title', doc.title),
     seo,

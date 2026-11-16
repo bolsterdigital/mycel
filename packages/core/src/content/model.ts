@@ -191,8 +191,12 @@ const HeroAlt = z
  * listings on top of `page`, with the page's revisions, publication, slug and export. Fixed when
  * the item is created, like its type. Rejected: an `events` entity with its own table and read
  * route, which would duplicate what a page has (brief events-profile).
+ *
+ * `zone` is a page that is shown inside other pages, never on its own (brief prefooter): the
+ * pre-footer that the navigation places between the content and the footer. It has no public
+ * route and is left out of search, the sitemap, feeds and overviews.
  */
-export const CONTENT_PROFILES = ['event'] as const;
+export const CONTENT_PROFILES = ['event', 'zone'] as const;
 export const ContentProfile = z.enum(CONTENT_PROFILES);
 export type ContentProfile = z.infer<typeof ContentProfile>;
 
@@ -263,6 +267,12 @@ function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
     // Zod 4 defaults return directly; prefault keeps parsing the nested defaults as Zod 3 did.
     seo: Seo.prefault({}),
     access: Access.prefault({ level: 'public' }),
+    /**
+     * `false` hides the site's pre-footer zone on this item (a campaign landing page, a thank-you
+     * page); absent shows it. Not part of the document header (ADR 025). Rejected: `true` as a
+     * stored default, which every revision would carry for nothing.
+     */
+    prefooter: z.literal(false).optional(),
   };
   const page = z
     .object({

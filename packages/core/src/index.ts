@@ -64,6 +64,7 @@ export * from './theme/service.js';
 export * from './theme/settings.js';
 export * from './navigation/check.js';
 export * from './navigation/model.js';
+export * from './navigation/prefooter.js';
 export * from './navigation/ports.js';
 export * from './navigation/resolve.js';
 export * from './navigation/service.js';

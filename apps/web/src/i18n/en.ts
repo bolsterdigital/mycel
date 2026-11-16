@@ -363,6 +363,7 @@ export const en = {
   'admin.navigation.placement.actions': 'Action buttons',
   'admin.navigation.placement.footer': 'Footer',
   'admin.navigation.placement.legal': 'Legal links',
+  'admin.navigation.placement.prefooter': 'Pre-footer',
   'admin.navigation.notPlaced': 'Not placed',
   'admin.navigation.notPlaced.long': 'This menu is not placed anywhere yet.',
   'admin.navigation.usedIn':
@@ -452,6 +453,8 @@ export const en = {
   'admin.navigation.error.actions':
     'Not saved: the action buttons take at most two links, without sub-items or groups.',
   'admin.navigation.error.yours': 'What you typed: {text}',
+  'admin.navigation.error.notAZone':
+    'Not saved: the pre-footer must be a zone. Choose one from the list.',
   'admin.navigation.error.yoursChoices': 'What you chose: {choices}.',
   'admin.navigation.error.publish':
     'Not published: first fix what is marked "Blocks publication" below.',
@@ -483,6 +486,9 @@ export const en = {
   'admin.navigation.placements.column.title.hint': 'Optional; stands above the column.',
   'admin.navigation.placements.legal.hint': 'Privacy, terms and other legal links, in small print.',
   'admin.navigation.publication': 'Publication',
+  'admin.navigation.placements.prefooter.zone': 'Zone',
+  'admin.navigation.placements.prefooter.hint':
+    'The strip between the content and the footer of every page and article. Zones are made under Zones.',
   'admin.navigation.publication.intro':
     'Per language: which version visitors get once the site uses these menus, and whether the draft has changes since.',
   'admin.navigation.column.language': 'Language',
@@ -1258,6 +1264,7 @@ export const en = {
   'admin.content.filter.page': 'Pages',
   'admin.content.filter.article': 'Articles',
   'admin.content.filter.event': 'Events',
+  'admin.content.filter.zone': 'Zones',
   'admin.content.list.more': 'More filters',
   'admin.content.list.author.all': 'All authors',
   'admin.content.list.section.all': 'All sections',
@@ -1304,6 +1311,8 @@ export const en = {
     'This cannot be deleted while other items link to it ({count}: {titles}). Remove those links first.',
   'admin.content.delete.inNavigation':
     'This cannot be deleted while a menu links to it ({count}: {menus}). Remove it from those menus first.',
+  'admin.content.delete.prefooter':
+    'This zone cannot be deleted while the navigation shows it as pre-footer. Choose another zone or none first, and publish the navigation.',
   'admin.content.delete.campaignLanding':
     'This is the landing page of a campaign. It can only move to the trash once the campaign is archived.',
   'admin.content.trash.title': 'Trash',
@@ -1325,6 +1334,9 @@ export const en = {
   'admin.content.empty.page.body': 'Create the first page.',
   'admin.content.empty.event': 'No events yet.',
   'admin.content.empty.event.body': 'Create the first event.',
+  'admin.content.empty.zone': 'No zones yet.',
+  'admin.content.empty.zone.body':
+    'A zone is a strip shown under other pages, such as a newsletter call above the footer.',
   'admin.content.empty.article.body': 'Write the first article.',
   'admin.content.more': 'Next page',
   'admin.content.column.updated': 'Last saved',
@@ -1352,6 +1364,8 @@ export const en = {
   'admin.content.list.count.page.other': '{n} pages',
   'admin.content.list.count.event.one': '1 event',
   'admin.content.list.count.event.other': '{n} events',
+  'admin.content.list.count.zone.one': '1 zone',
+  'admin.content.list.count.zone.other': '{n} zones',
   'admin.content.list.count.article.one': '1 article',
   'admin.content.list.count.article.other': '{n} articles',
   'admin.content.list.found.one': '1 found',
@@ -1385,6 +1399,7 @@ export const en = {
   'admin.content.new.page': 'New page',
   'admin.content.new.article': 'New article',
   'admin.content.new.event': 'New event',
+  'admin.content.new.zone': 'New zone',
   'admin.content.event.title': 'When and where',
   'admin.content.event.startsAt': 'Starts',
   'admin.content.event.endsAt': 'Ends',
@@ -1409,6 +1424,10 @@ export const en = {
   'admin.content.field.seoTitle': 'Title in search results',
   'admin.content.field.seoDescription': 'Description in search results',
   'admin.content.field.noindex': 'Hide from search engines',
+  'admin.content.edit.prefooter': 'Pre-footer',
+  'admin.content.field.noPrefooter': 'No pre-footer on this page',
+  'admin.content.field.noPrefooterHint':
+    'The zone the navigation places above the footer does not show here. Useful on a campaign or thank-you page.',
   'admin.content.field.canonical': 'Canonical address (optional, starts with https://)',
   'admin.content.field.heroImage': 'Hero image',
   'admin.content.field.heroImageHint':

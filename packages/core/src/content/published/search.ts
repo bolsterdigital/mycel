@@ -105,7 +105,9 @@ export interface SearchEntry {
  * everyone or asks not to be listed, so no adapter has anything to find it by.
  */
 export function searchEntry(doc: ContentDocument, locale: string): SearchEntry | null {
+  // A zone has no address of its own to find.
   if (doc.access.level !== 'public' || doc.seo.noindex) return null;
+  if (doc.type === 'page' && doc.profile === 'zone') return null;
   const texts = searchTexts(doc, locale);
   const title = [...new Set(searchTokens(texts.title))];
   return { title, all: [...new Set([...title, ...texts.body.flatMap(searchTokens)])] };

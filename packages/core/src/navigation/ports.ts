@@ -4,7 +4,7 @@
 // takes it shared before its item lock, so "navigation before content" holds on every path that
 // adds or checks a reference (rule 9) and two deletes never wait for each other.
 
-import type { ContentType } from '../content/model.js';
+import type { ContentProfile, ContentType } from '../content/model.js';
 import type { NavigationDocument } from './model.js';
 
 export interface NavigationRevision {
@@ -41,6 +41,10 @@ export interface NavigationHead {
 export interface PublishedTarget {
   itemId: string;
   type: ContentType;
+  /** A zone is placed as the pre-footer, never linked to: it has no address. */
+  profile: ContentProfile | null;
+  /** The published revision in the locale: what a placed zone shows, part of the ETag. */
+  revisionId: string;
   slug: string;
   title: string | null;
   featuredTitle: string | null;

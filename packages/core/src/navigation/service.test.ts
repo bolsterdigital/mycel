@@ -412,7 +412,7 @@ describe('nav-labels', () => {
     expect(await t.run('checkNavigation', { locale: 'nl' })).toEqual({
       revisionId: null,
       nodes: [],
-      preview: { main: null, actions: [], footer: [], legal: null },
+      preview: { main: null, actions: [], footer: [], legal: null, prefooter: null },
       problems: [],
     });
   });

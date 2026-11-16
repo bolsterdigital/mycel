@@ -8,6 +8,7 @@
   import Blocks from '#lib/blocks/Blocks.svelte';
   import StructuredData from '#lib/components/public/StructuredData.svelte';
   import Intro from '#lib/blocks/Intro.svelte';
+  import Prefooter from '#lib/components/public/Prefooter.svelte';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -19,7 +20,7 @@
   const orphanMessage = $derived(
     form?.message &&
       data.view === 'item' &&
-      !data.model.blocks.some(
+      ![...data.model.blocks, ...(data.prefooter?.model.blocks ?? [])].some(
         (b) => (b.type === 'form' || b.type === 'campaign-card') && b.form?.formId === form.formId
       )
       ? form.message
@@ -81,4 +82,5 @@
     {/if}
     <Blocks model={data.model} formState={form ?? null} eagerFirstImage={!data.intro.hero} />
   </main>
+  {#if data.prefooter}<Prefooter zone={data.prefooter} formState={form ?? null} />{/if}
 {/if}

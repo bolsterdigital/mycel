@@ -53,12 +53,14 @@
       now,
       relative: data.dateFormat !== 'absolute',
     });
-  /** What the list is of: pages, articles, or the pages that are events. */
-  const listed = $derived(data.view.profile === 'event' ? 'event' : data.type);
+  /** What the list is of: pages, articles, or the pages with a profile (events, zones). */
+  const listed = $derived(data.view.profile ?? data.type);
   const kind = $derived(t(`admin.content.filter.${listed}`));
   const number = (n: number) => new Intl.NumberFormat(data.locale).format(n);
   const plural = (
-    key: 'admin.content.list.found' | `admin.content.list.count.${'page' | 'article' | 'event'}`,
+    key:
+      | 'admin.content.list.found'
+      | `admin.content.list.count.${'page' | 'article' | 'event' | 'zone'}`,
     n: number
   ) => fill(t(`${key}.${n === 1 ? 'one' : 'other'}` as const), { n: number(n) });
   const count = $derived(

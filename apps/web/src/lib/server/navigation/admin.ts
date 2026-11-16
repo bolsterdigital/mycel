@@ -48,6 +48,7 @@ const COPY: ActionCopy = {
     'site.navigation.budget.nodes': 'admin.navigation.error.budget',
     'site.navigation.budget.site': 'admin.navigation.error.budget',
     'site.navigation.placement.actions': 'admin.navigation.error.actions',
+    'site.navigation.prefooter.not-a-zone': 'admin.navigation.error.notAZone',
   },
 };
 

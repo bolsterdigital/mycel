@@ -110,6 +110,8 @@ export const PublishedItem = z.object({
    * the wall clock of `timeZone`, the site's zone, which a representation needs for an offset.
    */
   event: PublishedEvent.optional(),
+  /** `false` where the item hides the site's pre-footer zone; absent shows it. */
+  prefooter: z.literal(false).optional(),
 });
 export type PublishedItem = z.infer<typeof PublishedItem>;
 
@@ -159,7 +161,8 @@ export const getPublished = defineUseCase({
   async handler(ctx, { type, slug, locale }) {
     const missing = () => notFound(`published ${type}`, `slug "${slug}"`);
     const item = await ctx.content.findBySlug(type, slug);
-    if (!item) throw missing();
+    // A zone is shown inside other pages, never at an address of its own.
+    if (!item || item.profile === 'zone') throw missing();
     const live = item.publication.filter((s) => statusOf(s) === 'published');
     const published = live.map((s) => s.locale);
     if (!published.length || (locale && !published.includes(locale))) throw missing();
@@ -194,6 +197,7 @@ export const getPublished = defineUseCase({
       access: doc.access.level,
       lead: doc.lead?.[chosen] ?? null,
       effective,
+      ...(doc.prefooter === false ? { prefooter: false as const } : {}),
     };
     if (doc.type !== 'article') {
       const event = projectEvent(doc, chosen, (await ctx.siteSettings.general()).value.timeZone);

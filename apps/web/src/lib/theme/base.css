@@ -180,6 +180,13 @@
   .page > .preview-selectable {
     display: contents;
   }
+  /* The pre-footer zone is a page of its own between the content and the footer: the same
+     columns and the same padding to either side, on the surface colour so it reads as one strip
+     (Wings lesson `prefooter-margin-stripe`: the distance is padding inside the strip). */
+  .prefooter {
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+  }
   :is(.page, .page > :where(.preview-selectable)) > * {
     width: min(var(--content-width), 100% - 2 * var(--gutter));
     margin-inline: auto;

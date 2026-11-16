@@ -80,6 +80,7 @@ describe('previewOf', () => {
           },
         ],
         legal: null,
+        prefooter: null,
       },
       'en',
       'nl'
