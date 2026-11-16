@@ -349,6 +349,8 @@ export async function exerciseNavigationPreviewStress(
         for (const text of ['', '200%']) {
           if (cells.length || signedIn) await page.goto(path);
           else await login(page, path, `site-editor-${slug}@probe.test`);
+          // The login ends on the URL, before the preview's stylesheet has necessarily loaded.
+          await page.waitForLoadState('load');
           const cell = `preview/${state.name}/${locale}/${width || 'browser-zoom'}/${text || '100%'}/${colors}`;
           await setTextSize(page, text);
           await expect(page.locator('#preview-main')).toBeVisible();
