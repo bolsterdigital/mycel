@@ -547,7 +547,7 @@ export interface Database {
     caption: Json<Record<string, string>>;
     credit: Json<unknown>;
     source: string | null;
-    licence: string | null;
+    licence: Json<unknown> | null;
     focal: Json<unknown>;
     state: 'ready' | 'failed';
     created_by: Json<unknown>;

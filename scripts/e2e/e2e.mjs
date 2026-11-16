@@ -28,6 +28,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ROOT, loadDotEnv } from '../lib/repo.mjs';
 import { blockExamples, everyBlockType, missingBlockTypes } from './e2e-block-examples.mjs';
+import { probeFixtures } from './probe-fixtures.mjs';
 
 const root = `${ROOT}/`;
 const qualityCorpus = JSON.parse(
@@ -283,26 +284,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   // The quality runner's API key deliberately has no connection permission. Pass only the
   // already-authorised synthetic fixture id, rather than broadening that key or prewarming UI.
   process.env.E2E_MAILCHIMP_CONNECTION_ID = qualityMailchimp.id;
-  const draftCheck = { type: 'page', slug: 'draft-check' };
-  if (!(await invoker.run(useCases.listItems, admin, draftCheck)).items.length) {
-    const { item, revision } = await invoker.run(useCases.createItem, admin, {
-      slug: draftCheck.slug,
-      document: {
-        type: 'page',
-        defaultLocale: 'nl',
-        locales: ['nl', 'en'],
-        title: { nl: 'Alleen Nederlands live', en: 'EN-DRAFT-TITLE' },
-        blocks: [
-          { type: 'heading', version: 1, props: { text: { nl: 'Kop', en: 'EN-DRAFT-MARKER' } } },
-        ],
-      },
-    });
-    await invoker.run(useCases.publishItem, admin, {
-      itemId: item.id,
-      revisionId: revision.id,
-      locale: 'nl',
-    });
-  }
+  await probeFixtures(invoker, admin, useCases);
 
   // One saved pattern, so the UI gate measures a card of /admin/probe/patterns.
   const doe = { type: 'heading', version: 1, props: { text: { nl: 'Doe mee', en: 'Join in' } } };

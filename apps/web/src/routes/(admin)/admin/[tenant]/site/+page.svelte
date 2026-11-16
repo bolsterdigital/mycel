@@ -510,6 +510,15 @@
           upload={images.upload}
           invalid={form?.action === 'images'}
         />
+        <Checkbox
+          id="site-workCredits"
+          name="workCredits"
+          label={t('admin.site.workCredits')}
+          hint={t('admin.site.workCredits.hint')}
+          checked={form?.action === 'images'
+            ? value('workCredits', '') === 'on'
+            : images.value.workCredits}
+        />
       </SettingsSection>
     {/if}
     {#each ['logo', 'font'] as const as kind (kind)}

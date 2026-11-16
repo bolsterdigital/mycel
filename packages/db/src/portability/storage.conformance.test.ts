@@ -39,6 +39,7 @@ describe.skipIf(skip)('storage catalog against the schema', () => {
       ['connections.consent_scopes', 'scope names of a connection, no person'],
       ['form_feed_settings.value', 'feed configuration: ids, scopes and field mappings'],
       ['campaigns.goal', 'a number to reach, no person (ADR 033)'],
+      ['media.licence', 'a licence code and, for another licence, its name; no person'],
     ]);
     const { rows } = await sql<{ rel: string; col: string; json: boolean }>`
       select c.relname as rel, a.attname as col,

@@ -31,6 +31,7 @@ import {
   MediaCaption,
   MediaContentType,
   MediaCredit,
+  MediaLicence,
   MediaFocal,
   MediaKind,
   MediaView,
@@ -85,7 +86,7 @@ const Editorial = {
   caption: MediaCaption.optional(),
   credit: MediaCredit.optional(),
   source: z.string().max(500).nullable().optional(),
-  licence: z.string().max(100).nullable().optional(),
+  licence: MediaLicence.nullable().optional(),
   focal: MediaFocal.optional(),
   access: MediaAccess.optional(),
 };

@@ -2,7 +2,8 @@
      the kind of image (a camera for a photo, a pen for an illustration, a frame for anything
      else) instead of the word, which stays for a screen reader. The icons are Lucide's (ISC),
      inline: a public page has no icon sprite. Rejected: one generic icon for every kind (a camera
-     beside a drawing says something untrue) and showing the word as well (P185-79 chose the icon). -->
+     beside a drawing says something untrue) and showing the word as well (P185-79 chose the icon).
+     The licence closes the line, linked with rel="license" when it has a public text. -->
 <script lang="ts">
   import { creditKind, type CreditKind, type MediaCredit } from '@mycel/core';
 
@@ -11,7 +12,10 @@
     words,
     base = '',
   }: {
-    credit: MediaCredit & { photographerHref?: string | null };
+    credit: MediaCredit & {
+      photographerHref?: string | null;
+      licence?: { label: string; href: string | null } | null;
+    };
     words: Record<CreditKind, string>;
     base?: string;
   } = $props();
@@ -61,5 +65,11 @@
           href="{base}{credit.photographerHref}">{credit.photographer}</a
         >{:else}{credit.photographer}{/if}{#if parts[1]}<span class="credit-word">{parts[1]}</span
         >{/if}</span
+    >{/if}{#if credit.licence}{#if credit.work || credit.photographer}
+      ·
+    {/if}<span class="credit-licence"
+      >{#if credit.licence.href}<a href={credit.licence.href} rel="license"
+          >{credit.licence.label}</a
+        >{:else}{credit.licence.label}{/if}</span
     >{/if}</span
 >

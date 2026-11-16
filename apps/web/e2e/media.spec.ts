@@ -272,7 +272,8 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
   if (isA11y()) await makerChoices.getByRole('searchbox').fill(makerName);
   await makerChoices.getByRole('radio', { name: makerName, exact: true }).check();
 
-  await page.getByLabel('Licentie').fill('CC BY 4.0');
+  // The licence from the closed list; the public credit links CC BY to its deed.
+  await page.getByLabel('Licentie', { exact: true }).selectOption('cc-by');
   await page.locator('summary', { hasText: 'Focuspunt' }).click();
   await page.getByLabel('Horizontaal').fill('0.25');
   await page.getByRole('button', { name: 'Gegevens opslaan' }).click();

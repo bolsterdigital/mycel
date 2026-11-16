@@ -3,7 +3,7 @@
      the order a visitor meets them (caption, the work shown, its origin; the focal point folded
      away, skill cms-inrichting) and download and delete as one action group at the end. -->
 <script lang="ts">
-  import { CREDIT_KINDS, creditKind, pickAny } from '@mycel/core';
+  import { CREDIT_KINDS, LICENCE_CODES, creditKind, pickAny } from '@mycel/core';
   import {
     Actions,
     Button,
@@ -14,6 +14,7 @@
     Fieldset,
     MetaList,
     Notice,
+    Select,
   } from '#lib/admin/ui/index.js';
   import { formatBytes } from '#lib/admin/format.js';
   import { shortId, withAbsent } from '#lib/admin/people/absent.js';
@@ -163,24 +164,26 @@
         {/each}
       </Fieldset>
     {/if}
-    <Fieldset legend={t('admin.media.field.work')}>
-      <Field
-        id="work-title"
-        name="work.title"
-        label={t('admin.media.field.workTitle')}
-        locale={data.locale}
-        maxlength={300}
-        value={m.credit.work?.title ?? ''}
-      />
-      <Field
-        id="work-maker"
-        name="work.maker"
-        label={t('admin.media.field.workMaker')}
-        locale={data.locale}
-        maxlength={300}
-        value={m.credit.work?.maker ?? ''}
-      />
-    </Fieldset>
+    {#if data.workCredits}
+      <Fieldset legend={t('admin.media.field.work')}>
+        <Field
+          id="work-title"
+          name="work.title"
+          label={t('admin.media.field.workTitle')}
+          locale={data.locale}
+          maxlength={300}
+          value={m.credit.work?.title ?? ''}
+        />
+        <Field
+          id="work-maker"
+          name="work.maker"
+          label={t('admin.media.field.workMaker')}
+          locale={data.locale}
+          maxlength={300}
+          value={m.credit.work?.maker ?? ''}
+        />
+      </Fieldset>
+    {/if}
     <Fieldset legend={t('admin.media.group.origin')}>
       <Choices
         id="kind"
@@ -232,13 +235,25 @@
         maxlength={500}
         value={m.source ?? ''}
       />
-      <Field
+      <Select
         id="licence"
         name="licence"
         label={t('admin.media.field.licence')}
         locale={data.locale}
+        value={m.licence?.code ?? ''}
+        options={[
+          { value: '', label: t('admin.media.licence.none') },
+          ...LICENCE_CODES.map((code) => ({ value: code, label: t(`block.licence.${code}`) })),
+        ]}
+      />
+      <Field
+        id="licence-text"
+        name="licenceText"
+        label={t('admin.media.field.licenceText')}
+        hint={t('admin.media.field.licenceText.hint')}
+        locale={data.locale}
         maxlength={100}
-        value={m.licence ?? ''}
+        value={m.licence?.text ?? ''}
       />
     </Fieldset>
     {#if m.kind === 'image'}

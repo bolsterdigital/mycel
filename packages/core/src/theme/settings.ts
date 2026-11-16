@@ -62,9 +62,17 @@ export const DEFAULT_GENERAL: SiteGeneral = { timeZone: DEFAULT_TIME_ZONE };
  * other's value. Rejected: a field on the theme, which is validated design values and is posted
  * whole by a form that knows nothing of media.
  */
-export const SiteImages = z.object({ defaultImageId: z.string().guid().nullable() }).strict();
+export const SiteImages = z
+  .object({
+    defaultImageId: z.string().guid().nullable(),
+    // The work shown and its maker (the CIIIC lesson) as a credit of its own. Off by
+    // default: for an ordinary campaign site it is a pair of fields nobody fills in. Off hides the
+    // fields in the admin; a stored work credit still renders, so turning it off loses nothing.
+    workCredits: z.boolean().default(false),
+  })
+  .strict();
 export type SiteImages = z.infer<typeof SiteImages>;
-export const DEFAULT_IMAGES: SiteImages = { defaultImageId: null };
+export const DEFAULT_IMAGES: SiteImages = { defaultImageId: null, workCredits: false };
 /** The `media_usages` ref of the site's images: a default image counts as used. */
 export const SITE_IMAGES_REF = 'site:images';
 const version = z.number().int().nonnegative();
@@ -195,7 +203,7 @@ export const updateSiteImages = defineUseCase({
   input: z.object({ baseVersion: version, images: SiteImages }).strict(),
   output: ImagesState,
   // Clearing the default: an id must name an image of the tenant, which an empty tenant lacks.
-  examples: [{ input: { baseVersion: 0, images: { defaultImageId: null } } }],
+  examples: [{ input: { baseVersion: 0, images: { defaultImageId: null, workCredits: false } } }],
   handler: async (ctx, { baseVersion, images }) => {
     // The lock `media.delete` takes: the image cannot be deleted between this check and the usage.
     await ctx.media.lock();

@@ -270,7 +270,10 @@ export const actions: Actions = {
     try {
       const result = await runtime().invoker.run(useCases.updateSiteImages, principal, {
         baseVersion: baseVersion(data),
-        images: { defaultImageId: text(data, 'defaultImageId') || null },
+        images: {
+          defaultImageId: text(data, 'defaultImageId') || null,
+          workCredits: data.get('workCredits') === 'on',
+        },
       });
       return { saved: 'images', version: result.version };
     } catch (e) {

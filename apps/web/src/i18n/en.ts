@@ -262,6 +262,9 @@ export const en = {
   'admin.site.defaultImage.hint':
     'The image a page or article without its own featured or share image uses, for instance when shared on social media.',
   'admin.site.defaultImage.save': 'Save image',
+  'admin.site.workCredits': 'Credit the work shown and its maker',
+  'admin.site.workCredits.hint':
+    'For a site that shows artworks or other works: an image then gets a second credit with the title and maker of the work, besides the maker of the image.',
   'admin.site.mode.light': 'Light colours',
   'admin.site.mode.dark': 'Dark colours',
   'admin.site.role.body': 'Body',
@@ -866,6 +869,10 @@ export const en = {
     'The site marks the credit with an icon and the word for it, such as "Illustration".',
   'admin.media.field.source': 'Source',
   'admin.media.field.licence': 'Licence',
+  'admin.media.licence.none': 'Not set',
+  'admin.media.field.licenceText': 'Name of the other licence',
+  'admin.media.field.licenceText.hint':
+    'Only with “Another licence”, for instance “Free for press use with credit”.',
   'admin.media.field.focal': 'Focal point',
   'admin.media.field.focalHint':
     'From 0 to 1: 0 is the left or top edge, 1 the right or bottom edge. Crops keep this point in view.',
@@ -1214,6 +1221,16 @@ export const en = {
   'block.callout.note': 'Note',
   'block.callout.warning': 'Warning',
   'block.credit.photo': 'Photo: {name}',
+  'block.licence.cc-by': 'CC BY 4.0',
+  'block.licence.cc-by-sa': 'CC BY-SA 4.0',
+  'block.licence.cc-by-nc': 'CC BY-NC 4.0',
+  'block.licence.cc-by-nd': 'CC BY-ND 4.0',
+  'block.licence.cc0': 'CC0 1.0',
+  'block.licence.all-rights-reserved': 'All rights reserved',
+  'block.licence.own-work': 'Own work',
+  'block.licence.permission': 'Used with permission',
+  'block.licence.other': 'Another licence',
+  'block.licence.label': 'Licence: {name}',
   'block.credit.illustration': 'Illustration: {name}',
   'block.credit.other': 'Image: {name}',
   'block.meta.by': 'by {names}',

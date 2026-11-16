@@ -1192,7 +1192,7 @@ async function demoMedia(
           caption: image.caption,
           credit: { work: null, photographer: image.source.photographer },
           source: image.source.url,
-          licence: image.source.licence,
+          licence: { code: 'cc0' },
         })
       ).id;
   }

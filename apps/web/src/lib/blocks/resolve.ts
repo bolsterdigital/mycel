@@ -51,6 +51,8 @@ import {
   useCases,
   type Block,
   type MediaCredit,
+  type MediaLicence,
+  LICENCE_URLS,
 } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
 import { creditWords } from './credit.js';
@@ -219,6 +221,13 @@ export function blockCopy(locale: string): BlockCopy {
 /** The width `src` aims for: enough for a content column, small enough for an old browser. */
 const FALLBACK_WIDTH = 960;
 
+/** A licence in this locale's words and its link; `other` is named by its own text. */
+function renderLicence(licence: MediaLicence | null, locale: string) {
+  if (!licence) return null;
+  const label = licence.text ?? ui(locale)(`block.licence.${licence.code}`);
+  return { label, href: LICENCE_URLS[licence.code] };
+}
+
 function renderAssetImage(
   asset: MediaView | null,
   use: {
@@ -248,6 +257,7 @@ function renderAssetImage(
   const own = use.caption?.[locale];
   const caption = own !== undefined ? own : (asset.caption[locale] ?? '');
   const credit = use.credit ?? asset.credit;
+  const licence = renderLicence(asset.licence, locale);
   const q = (n: number) => Math.min(10, Math.max(0, Math.round(n * 10)));
   const widest = webp[webp.length - 1];
   return {
@@ -258,7 +268,8 @@ function renderAssetImage(
     srcset: srcset(webp),
     avifSrcset: srcset(avif),
     caption: caption.trim() ? caption : null,
-    credit: credit.work || credit.photographer ? credit : null,
+    // The licence belongs to the file, so a block's own credit keeps the asset's licence.
+    credit: credit.work || credit.photographer || licence ? { ...credit, licence } : null,
     focal: { x: q(asset.focal.x), y: q(asset.focal.y) },
     large: widest
       ? {

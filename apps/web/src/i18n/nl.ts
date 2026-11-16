@@ -262,6 +262,9 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.defaultImage.hint':
     'Het beeld dat een pagina of artikel zonder eigen uitgelicht beeld of deelbeeld gebruikt, bijvoorbeeld bij delen op sociale media.',
   'admin.site.defaultImage.save': 'Beeld opslaan',
+  'admin.site.workCredits': 'Werk en maker vermelden',
+  'admin.site.workCredits.hint':
+    'Voor een site die kunstwerken of ander werk toont: een beeld krijgt dan naast de maker van het beeld een tweede vermelding met titel en maker van het werk.',
   'admin.site.mode.light': 'Lichte kleuren',
   'admin.site.mode.dark': 'Donkere kleuren',
   'admin.site.role.body': 'Lopende tekst',
@@ -879,6 +882,10 @@ export const nl: Partial<Record<UiKey, string>> = {
     'De site zet bij de bronvermelding een icoon en het woord ervoor, zoals "Illustratie".',
   'admin.media.field.source': 'Bron',
   'admin.media.field.licence': 'Licentie',
+  'admin.media.licence.none': 'Niet ingevuld',
+  'admin.media.field.licenceText': 'Naam van de andere licentie',
+  'admin.media.field.licenceText.hint':
+    'Alleen bij “Andere licentie”, bijvoorbeeld “Vrij voor pers met bronvermelding”.',
   'admin.media.field.focal': 'Focuspunt',
   'admin.media.field.focalHint':
     'Van 0 tot 1: 0 is de linker- of bovenrand, 1 de rechter- of onderrand. Uitsneden houden dit punt in beeld.',
@@ -1230,6 +1237,16 @@ export const nl: Partial<Record<UiKey, string>> = {
   'block.callout.note': 'Opmerking',
   'block.callout.warning': 'Waarschuwing',
   'block.credit.photo': 'Foto: {name}',
+  'block.licence.cc-by': 'CC BY 4.0',
+  'block.licence.cc-by-sa': 'CC BY-SA 4.0',
+  'block.licence.cc-by-nc': 'CC BY-NC 4.0',
+  'block.licence.cc-by-nd': 'CC BY-ND 4.0',
+  'block.licence.cc0': 'CC0 1.0',
+  'block.licence.all-rights-reserved': 'Alle rechten voorbehouden',
+  'block.licence.own-work': 'Eigen werk',
+  'block.licence.permission': 'Met toestemming',
+  'block.licence.other': 'Andere licentie',
+  'block.licence.label': 'Licentie: {name}',
   'block.credit.illustration': 'Illustratie: {name}',
   'block.credit.other': 'Beeld: {name}',
   'block.meta.by': 'door {names}',

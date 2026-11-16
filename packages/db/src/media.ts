@@ -9,6 +9,7 @@ import { sql, type Kysely, type Selectable, type SelectQueryBuilder } from 'kyse
 import {
   Actor,
   MediaCredit,
+  MediaLicence,
   MediaFocal,
   StoredVariant,
   storedActor,
@@ -81,7 +82,7 @@ const toRecord = (r: Row): MediaRecord => ({
   caption: r.caption,
   credit: MediaCredit.parse(r.credit),
   source: r.source,
-  licence: r.licence,
+  licence: r.licence == null ? null : MediaLicence.parse(r.licence),
   focal: MediaFocal.parse(r.focal),
   state: r.state,
   createdBy: Actor.parse(r.created_by),
@@ -176,7 +177,7 @@ export function mediaRepository(trx: Trx, tenantId: string): MediaRepository {
           caption: JSON.stringify(m.caption),
           credit: JSON.stringify(m.credit),
           source: m.source,
-          licence: m.licence,
+          licence: m.licence ? JSON.stringify(m.licence) : null,
           focal: JSON.stringify(m.focal),
           state: m.state,
           created_by: JSON.stringify(storedActor(m.createdBy)),
@@ -193,7 +194,9 @@ export function mediaRepository(trx: Trx, tenantId: string): MediaRepository {
           ...(patch.credit !== undefined ? { credit: JSON.stringify(patch.credit) } : {}),
           ...(patch.focal !== undefined ? { focal: JSON.stringify(patch.focal) } : {}),
           ...(patch.source !== undefined ? { source: patch.source } : {}),
-          ...(patch.licence !== undefined ? { licence: patch.licence } : {}),
+          ...(patch.licence !== undefined
+            ? { licence: patch.licence ? JSON.stringify(patch.licence) : null }
+            : {}),
           ...(patch.access !== undefined ? { access: patch.access } : {}),
           updated_at: at,
         })
