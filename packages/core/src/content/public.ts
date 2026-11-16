@@ -106,7 +106,7 @@ export const PublishedItem = z.object({
   /** An article's chosen header (ADR 025 rule 3); a renderer without a hero image shows `standard`. */
   presentation: z.object({ header: z.enum(ARTICLE_HEADERS) }).optional(),
   /**
-   * An event page's when and where in this locale (#248); absent on every other item. Times are
+   * An event page's when and where in this locale; absent on every other item. Times are
    * the wall clock of `timeZone`, the site's zone, which a representation needs for an offset.
    */
   event: PublishedEvent.optional(),

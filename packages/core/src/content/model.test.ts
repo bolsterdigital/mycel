@@ -242,7 +242,7 @@ describe('the header layout (ADR 025 rule 3)', () => {
   });
 });
 
-describe('the event profile (ADR 022 rule 3, #248)', () => {
+describe('the event profile (ADR 022 rule 3)', () => {
   const event = {
     type: 'page',
     profile: 'event',

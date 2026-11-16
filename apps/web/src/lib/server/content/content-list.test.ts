@@ -263,7 +263,7 @@ describe('the way back from an item', () => {
     expect(recalledListPath(cookies, 'probe', 'page', ITEM)).toBe(
       `/admin/probe/content?type=page#item-${ITEM}`
     );
-    // An event goes back to Events, whichever page list it was entered from (#248).
+    // An event goes back to Events, whichever page list it was entered from.
     expect(recalledListPath(cookies, 'probe', 'page', ITEM, 'event')).toBe(
       `/admin/probe/content?type=page&profile=event#item-${ITEM}`
     );

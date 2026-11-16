@@ -1,5 +1,5 @@
 <!-- An item's one document header (ADR 025, brief #105): the title (the page's only h1), lead, an
-     event's when and where (#248), hero image and an article's meta line, the same markup on the public page and in both previews, so
+     event's when and where, hero image and an article's meta line, the same markup on the public page and in both previews, so
      a preview shows what the page will. The hero is the page's first image: it loads eagerly and
      with priority. The cover is an article's option: the title in marked lines on the validated
      primary pair, never bare text on a photo, and an arrow that is a link, so it works without a

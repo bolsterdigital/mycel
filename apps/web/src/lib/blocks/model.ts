@@ -96,7 +96,7 @@ export interface RenderMeta {
 }
 
 /**
- * An event page's when and where under its lead (#248), with the words of its labels: `iso` is
+ * An event page's when and where under its lead, with the words of its labels: `iso` is
  * the start as an HTML local date and time, in the site's zone like the label.
  */
 export interface RenderEvent {

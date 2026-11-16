@@ -723,7 +723,7 @@ describe.skipIf(skip)('tenant export and import', () => {
         );
         expect(revisions).toContain('INTERNAL-EXPORT-NAME');
         expect(revisions).toContain('Internal export name');
-        // An event page's profile (#248) travels on the item, its details in the revision.
+        // An event page's profile travels on the item, its details in the revision.
         expect(revisions).toContain('"startsAt": "2026-12-05T20:00"');
         const items = join(scratch.dir, 'a-again', 'tables', 'content_items.ndjson');
         expect(await readFile(items, 'utf8')).toContain('"profile": "event"');

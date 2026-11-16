@@ -97,7 +97,7 @@ const image = (v: FormValues, key: string, kept: string | undefined): string | u
   key in v ? one(v, key) || undefined : kept;
 
 /**
- * An event page's when and where from the form (#248): read where the form showed the fields
+ * An event page's when and where from the form: read where the form showed the fields
  * (`eventStartsAt` posted), kept otherwise; empty fields are absent, and nothing at all is no
  * `event`. The times are the `datetime-local` values as typed: the site's wall clock.
  */

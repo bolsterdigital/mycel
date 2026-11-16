@@ -51,7 +51,7 @@
   const contentType = $derived(
     (page.data as { contentType?: unknown }).contentType === 'article' ? 'article' : 'page'
   );
-  /** An event is a page under Events (#248): `contentProfile` in the same page data. */
+  /** An event is a page under Events: `contentProfile` in the same page data. */
   const events = $derived((page.data as { contentProfile?: unknown }).contentProfile === 'event');
   /** The shell's locale switch: a site with several locales, off on an edit screen. */
   const localeSwitch = $derived(

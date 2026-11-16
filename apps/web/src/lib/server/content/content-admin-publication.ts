@@ -9,8 +9,19 @@
 // JavaScript, and two editors in different zones would read one plan differently) and UTC in the
 // form (an editor plans 09:00 local, not 07:00 or 08:00 depending on the season).
 
-import { localInput } from '../../public/wall-clock.js';
+import { UseCaseError } from '@mycel/core';
+import { fromLocalInput, localInput } from '../../public/wall-clock.js';
 export { fromLocalInput, localInput } from '../../public/wall-clock.js';
+
+/** The time of the schedule form, or a refusal core will word like its own. */
+export function instant(at: string, zone: string): string {
+  const parsed = fromLocalInput(at, zone);
+  if (!parsed)
+    throw new UseCaseError('invalid_input', 'no time given', [
+      { path: 'at', message: 'admin.content.publication.time-invalid' },
+    ]);
+  return parsed.toISOString();
+}
 
 /**
  * `2026-10-24 09:00`, how the panel names a planned time; with the zone in brackets when it is

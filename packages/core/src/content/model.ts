@@ -211,7 +211,7 @@ export const LocalDateTime = z
   }, 'content.event.date-invalid');
 
 /**
- * What makes a page an event (#248): when, and where or online. Every field may wait in a draft;
+ * What makes a page an event: when, and where or online. Every field may wait in a draft;
  * publishing asks for the start (`readinessIssues`). The location is one text per locale, name
  * and address together, as on a poster.
  */

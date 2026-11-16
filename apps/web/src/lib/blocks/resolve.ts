@@ -323,7 +323,7 @@ export async function resolveIntro(
 }
 
 /**
- * An event's when and where (#248). The times are the site's wall clock, so they are formatted as
+ * An event's when and where. The times are the site's wall clock, so they are formatted as
  * UTC: no zone shifts them a second time. A range on one day names the day once. Rejected: the
  * zone's name beside the time, which a visitor of a local event does not need.
  */

@@ -275,7 +275,7 @@ describe('the two article headers (#105)', () => {
   });
 });
 
-describe('an event page’s when and where (#248)', () => {
+describe('an event page’s when and where', () => {
   const at = (html: string, s: string) => html.indexOf(s);
   for (const locale of ['nl', 'en'] as const)
     it(`shows the date, place and online address under the lead in ${locale}`, async () => {

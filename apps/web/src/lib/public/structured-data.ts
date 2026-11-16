@@ -45,7 +45,7 @@ export function zonedIso(local: string, zone: string): string {
 }
 
 /**
- * An event page as schema.org `Event` (#248): only what the projection released in this locale.
+ * An event page as schema.org `Event`: only what the projection released in this locale.
  * Attendance follows from what it has: a place, an online address or both. Null for every other
  * item.
  */

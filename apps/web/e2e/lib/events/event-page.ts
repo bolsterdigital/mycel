@@ -1,4 +1,4 @@
-// One editorial task for an event (#248): the Events list makes a page with the event profile,
+// One editorial task for an event: the Events list makes a page with the event profile,
 // the editor sets when and where above the blocks, publishing serves them in the header and as
 // `Event` structured data. Core and database suites cover the validation and the profile rules.
 // Rejected: a spec of its own (the e2e budget) and checking each refusal in the browser.

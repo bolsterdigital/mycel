@@ -14,6 +14,8 @@
   import ItemTitleField from '#lib/editor/ItemTitleField.svelte';
   import BlockFields from '#lib/admin/block-fields/BlockFields.svelte';
   import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
+  import HeroConversion from '#lib/admin/hero-conversion/HeroConversion.svelte';
+  import EventFields from '#lib/admin/event-fields/EventFields.svelte';
   import BlockDrop from '#lib/admin/block-drop/BlockDrop.svelte';
   import PendingBlock from '#lib/admin/pending-block/PendingBlock.svelte';
   import ReviewOffer from '#lib/admin/review-offer/ReviewOffer.svelte';
@@ -122,6 +124,7 @@
   const multi = $derived(data.translations.length > 1);
   const base = $derived(`/admin/${data.tenant.slug}`);
   const article = $derived(data.item.type === 'article');
+  const listed = $derived(article ? 'article' : data.contentProfile ? 'event' : 'page');
   /**
    * From this many blocks a page gets its compact table of contents (#66 PR 6d): about two
    * screens of closed cards. An article with JavaScript is one running editor, not cards.
@@ -319,75 +322,6 @@
       <textarea {name} maxlength={max} rows="3" {...attributes}>{v(name)}</textarea>
     {/snippet}
   </Field>
-{/snippet}
-
-<!-- A legacy hero's way into the header (ADR 025 rule 5): what would move and what stands in the
-     way, both from the same proposal the command applies. One deliberate button, no dialog: it
-     writes a new draft, and what is live stays. The block itself stays fully editable below. -->
-{#snippet heroConversion(c: NonNullable<typeof data.heroConversion>)}
-  {@const label = (field: string, locale: string | null) =>
-    t(`admin.content.heroConversion.field.${field}` as UiKey) + (locale ? ` (${locale})` : '')}
-  {@const shown = (row: (typeof c.fields)[number]) =>
-    `${label(row.field, row.locale)}: ${
-      row.field === 'image' ? t('admin.content.heroConversion.imageValue') : row.hero
-    }`}
-  <Notice tone="warning" live={false} title={t('admin.content.heroConversion.title')}>
-    {#if c.conflicts.length}
-      <p>{t('admin.content.heroConversion.blocked')}</p>
-      <ul>
-        {#each c.conflicts as conflict (conflict.code + conflict.locale)}
-          {@const row = c.fields.find(
-            (f) => f.field === conflict.code && f.locale === conflict.locale
-          )}
-          <li>
-            {t(`admin.content.heroConversion.conflict.${conflict.code}` as const)}
-            {#if conflict.locale}({conflict.locale}){/if}
-            {#if row && row.field !== 'image'}
-              {fill(t('admin.content.heroConversion.differs'), {
-                value: row.hero,
-                header: row.header ?? '',
-              })}
-            {/if}
-          </li>
-        {/each}
-      </ul>
-    {:else}
-      <p>{t('admin.content.heroConversion.ready')}</p>
-      <ul>
-        {#each c.fields as row (row.field + row.locale)}
-          <li>
-            {fill(
-              t(
-                row.header === null
-                  ? 'admin.content.heroConversion.moves'
-                  : 'admin.content.heroConversion.same'
-              ),
-              { value: shown(row) }
-            )}
-          </li>
-        {/each}
-        {#if c.cta}
-          <li>
-            {fill(t('admin.content.heroConversion.cta'), {
-              labels: c.cta.actions.map((a) => pick(a.label, work, defaultLocale) ?? '').join(', '),
-            })}
-          </li>
-        {/if}
-        {#if c.teaser}
-          <li>{fill(t('admin.content.heroConversion.teaser'), c.teaser)}</li>
-        {/if}
-        {#if c.layout.variant !== 'minimal'}
-          <li>{fill(t('admin.content.heroConversion.layout'), { variant: c.layout.variant })}</li>
-        {/if}
-      </ul>
-      <Button
-        variant="secondary"
-        formaction={action('convertHero')}
-        name="convertHero"
-        value={c.heroId}>{t('admin.content.heroConversion.action')}</Button
-      >
-    {/if}
-  </Notice>
 {/snippet}
 
 {#snippet issueList(list: { path: string; field: string | null; copy: string }[])}
@@ -654,51 +588,6 @@
   {/if}
 {/snippet}
 
-<!-- An event's when and where (#248), between the lead and the hero image, where the public page
-     shows them. The times are the site's wall clock: the hint names its zone, also for an
-     operator with a zone of their own. -->
-{#snippet eventFields()}
-  <Fieldset legend={t('admin.content.event.title')}>
-    <Field
-      id="eventStartsAt"
-      name="eventStartsAt"
-      type="datetime-local"
-      label={t('admin.content.event.startsAt')}
-      hint={`${t('admin.content.event.zone')} ${data.siteTimeZone}`}
-      locale={data.locale}
-      value={v('eventStartsAt')}
-    />
-    <Field
-      id="eventEndsAt"
-      name="eventEndsAt"
-      type="datetime-local"
-      label={t('admin.content.event.endsAt')}
-      locale={data.locale}
-      value={v('eventEndsAt')}
-    />
-    <Field
-      id="eventLocation.{work}"
-      name="eventLocation.{work}"
-      label="{t('admin.content.event.location')} ({work})"
-      hint={t('admin.content.event.locationHint')}
-      locale={data.locale}
-      maxlength={500}
-      lang={work}
-      value={v(`eventLocation.${work}`)}
-    />
-    <Field
-      id="eventOnlineUrl"
-      name="eventOnlineUrl"
-      type="url"
-      label={t('admin.content.event.onlineUrl')}
-      hint={t('admin.content.event.onlineUrlHint')}
-      locale={data.locale}
-      maxlength={2048}
-      value={v('eventOnlineUrl')}
-    />
-  </Fieldset>
-{/snippet}
-
 {#snippet contentFields()}
   <!-- MY-110 B3 (ADR 025): title, lead and main image are one header, in the order the page
        shows them; the blocks follow as their own section. The heading is for the outline only:
@@ -714,7 +603,9 @@
     {@render translateLinks('title', 'title', work, t('admin.content.field.title'))}
     {@render area(`lead.${work}`, t('admin.content.field.lead'), 1000)}
     {@render translateLinks('lead', 'lead', work, t('admin.content.field.lead'))}
-    {#if data.item.profile === 'event'}{@render eventFields()}{/if}
+    {#if data.contentProfile === 'event'}
+      <EventFields locale={data.locale} {work} zone={data.siteTimeZone} {v} />
+    {/if}
     <MediaPicker
       id="heroImageId"
       name="heroImageId"
@@ -744,7 +635,15 @@
       {/snippet}
     </MediaPicker>
     {#if data.heroConversion}
-      <div id="hero-conversion">{@render heroConversion(data.heroConversion)}</div>
+      <div id="hero-conversion">
+        <HeroConversion
+          c={data.heroConversion}
+          locale={data.locale}
+          {work}
+          {defaultLocale}
+          formaction={action('convertHero')}
+        />
+      </div>
     {/if}
   </section>
 
@@ -1183,13 +1082,7 @@
       locale={data.locale}
       back={{
         href: data.listPath,
-        label: t(
-          article
-            ? 'admin.content.filter.article'
-            : data.item.profile === 'event'
-              ? 'admin.content.filter.event'
-              : 'admin.content.filter.page'
-        ),
+        label: t(`admin.content.filter.${listed}`),
       }}
       title={fill(t('admin.content.edit.title'), { type: typeName })}
       state={mainPublication

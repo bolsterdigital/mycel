@@ -329,7 +329,7 @@ export const actions: Actions = {
           event.params.tenant
         );
         const type = ContentType.parse(form.get('type'));
-        // "New event" is a page with the event profile (#248); its date waits for the editor.
+        // "New event" is a page with the event profile; its date waits for the editor.
         const isEvent = type === 'page' && form.get('profile') === 'event';
         return runtime().invoker.run(useCases.createItem, principal, {
           // A placeholder until the first save with a title; core then moves it there.

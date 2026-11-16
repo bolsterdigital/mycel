@@ -73,7 +73,7 @@ import { chooseContentLocale, contentLocale } from '#lib/server/content/content-
 import { recalledListPath, rememberListFromReferer } from '#lib/server/content/content-list.js';
 import {
   fieldOf,
-  fromLocalInput,
+  instant,
   issuePath,
   localInput,
   localLabel,
@@ -262,7 +262,6 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     item: {
       id: item.id,
       type: item.type,
-      profile: item.profile,
       slug: item.slug,
       /** The address in the site's default locale, as the public site serves it. */
       path: contentPath(item, tenant.defaultLocale, tenant.defaultLocale),
@@ -312,7 +311,6 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     timeZone: zone,
     // Named next to the field only where the operator's own zone is not the site's (#88).
     timeZoneNamed: zone !== site,
-    // An event's times are the site's wall clock, whatever the operator's own zone (#248).
     siteTimeZone: site,
     done: DONE[url.searchParams.get('done') ?? ''] ?? null,
     // "Undo" after a removal: `<revision>:<block>`, posted back as is to `restore`.
@@ -361,16 +359,6 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
  * (`content.blocks.adjacent-rich-text`) and a document has one paywall marker.
  */
 const SINGLE = new Set<string>(['rich-text', 'paywall']);
-
-/** The time of the schedule form, or a refusal core will word like its own. */
-function instant(at: string, zone: string): string {
-  const parsed = fromLocalInput(at, zone);
-  if (!parsed)
-    throw new UseCaseError('invalid_input', 'no time given', [
-      { path: 'at', message: 'admin.content.publication.time-invalid' },
-    ]);
-  return parsed.toISOString();
-}
 
 /** The operator's admin language; the admin hook always sets it, English only as a last resort. */
 const adminUi = (locals: App.Locals) => ui(langOf(locals));

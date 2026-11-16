@@ -273,7 +273,7 @@
       aspect-ratio: 16 / 9;
     }
   }
-  /* An event's when and where (#248): under the lead in the lead's rail, each term above its value
+  /* An event's when and where: under the lead in the lead's rail, each term above its value
      so a long date or address wraps at 320 px without a column to squeeze it. */
   .page > .page-event {
     width: min(var(--lead-width), 100% - 2 * var(--gutter));

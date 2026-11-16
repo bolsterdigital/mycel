@@ -333,7 +333,7 @@ export function rememberListFromReferer(
 /**
  * The list an item goes back to: the view it was entered from, at the item's own row. The
  * cookie is read through `listViewFrom`, so whatever it holds comes out as a view or as none.
- * An item with a profile goes back to that profile's list (an event to Events, #248).
+ * An item with a profile goes back to that profile's list (an event to Events).
  */
 export function recalledListPath(
   cookies: Cookies,

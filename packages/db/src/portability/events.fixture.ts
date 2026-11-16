@@ -1,4 +1,4 @@
-// Seed a published event page (#248, migration 0060), so the export conformance carries a
+// Seed a published event page (migration 0060), so the export conformance carries a
 // `content_items.profile` that is not null and a revision with an `event` object through export
 // and import. Rejected: making the navigation fixture's target an event, which would mix two
 // fixtures' reasons into one row.

@@ -63,7 +63,7 @@ const featuredPage = ContentDocument.parse({
   featured: { title: { en: 'Who we are' }, description: { nl: 'Kort over ons.' } },
 });
 
-// #248: an event page with every detail.
+// An event page with every detail.
 const eventPage = ContentDocument.parse({
   ...featuredPage,
   profile: 'event',
@@ -75,7 +75,7 @@ const eventPage = ContentDocument.parse({
   },
 });
 
-describe('an event page in the form (#248)', () => {
+describe('an event page in the form', () => {
   it('reads the times as typed, one locale’s place over the others, and keeps a form without them', () => {
     const v = {
       ...valuesOf(eventPage),
@@ -90,14 +90,17 @@ describe('an event page in the form (#248)', () => {
         location: { nl: 'Stadhuis', en: 'Community centre' },
       },
     });
-    expect(documentFrom(eventPage, v, '2026-11-16', 'nl').event).not.toHaveProperty('endsAt');
+    expect(documentFrom(eventPage, v, '2026-11-16', 'nl')).not.toHaveProperty('event.endsAt');
     const {
       eventStartsAt: _s,
       eventEndsAt: _e,
       eventOnlineUrl: _o,
       ...without
     } = valuesOf(eventPage);
-    expect(documentFrom(eventPage, without, '2026-11-16').event).toEqual(eventPage.event);
+    expect(documentFrom(eventPage, without, '2026-11-16')).toHaveProperty(
+      'event',
+      eventPage.type === 'page' ? eventPage.event : null
+    );
     const emptied = {
       ...valuesOf(page),
       eventStartsAt: '',

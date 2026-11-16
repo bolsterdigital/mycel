@@ -53,7 +53,7 @@
       now,
       relative: data.dateFormat !== 'absolute',
     });
-  /** What the list is of: pages, articles, or the pages that are events (#248). */
+  /** What the list is of: pages, articles, or the pages that are events. */
   const listed = $derived(data.view.profile === 'event' ? 'event' : data.type);
   const kind = $derived(t(`admin.content.filter.${listed}`));
   const number = (n: number) => new Intl.NumberFormat(data.locale).format(n);

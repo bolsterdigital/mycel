@@ -839,7 +839,7 @@ describe('content items', () => {
   });
 });
 
-describe('an event is a page with the event profile (#248, ADR 022 rule 3)', () => {
+describe('an event is a page with the event profile (ADR 022 rule 3)', () => {
   const setup = () => {
     const uow = new MemoryUnitOfWork({ clock: new FakeClock() });
     const invoker = new Invoker(buildRegistry(), uow);
