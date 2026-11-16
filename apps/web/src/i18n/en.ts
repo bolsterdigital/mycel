@@ -1081,6 +1081,7 @@ export const en = {
   'admin.audit.op.content.block.move': 'Block moved',
   'admin.audit.op.content.block.remove': 'Block removed',
   'admin.audit.op.content.block.split_insert': 'Block inserted in text',
+  'admin.audit.op.content.block.insert_pattern': 'Pattern inserted',
   'admin.audit.op.content.block.update': 'Block changed',
   'admin.audit.op.content.bulk.resume': 'Bulk run resumed',
   'admin.audit.op.content.bulk.withdraw': 'Bulk undo requested',
@@ -1873,6 +1874,19 @@ export const en = {
   'admin.block.done.moved': 'Block moved.',
   'admin.block.done.removed': 'Block removed.',
   'admin.block.done.restored': 'Block restored.',
+  'admin.pattern.insert.group': "This site's patterns",
+  'admin.pattern.save.fold': 'Save as pattern',
+  'admin.pattern.save.hint':
+    'Save a run of blocks to use again at any insertion point. The block names come along, so after inserting you see what to fill in.',
+  'admin.pattern.save.name': 'Pattern name',
+  'admin.pattern.save.patternFrom': 'From block',
+  'admin.pattern.save.patternTo': 'Up to and including block',
+  'admin.pattern.save.block': '{n}. {block}',
+  'admin.pattern.save.submit': 'Save as pattern',
+  'admin.pattern.save.nameRequired': 'Give the pattern a name.',
+  'admin.pattern.done.inserted': 'Pattern inserted.',
+  'admin.pattern.done.saved':
+    'Pattern saved. You find it at every insertion point and when you start a new item.',
   'admin.block.undo': 'Undo',
   'admin.content.keys.title': 'Keyboard shortcuts',
   'admin.content.keys.save': 'Save',
@@ -2598,6 +2612,8 @@ export const en = {
   'admin.block.image.decorative': 'Intentionally decorative',
   'admin.block.image.altMissing': 'Description missing',
   'admin.ui.catalogue.blockInserter': 'Block chooser',
+  'admin.ui.catalogue.patternExample':
+    'Call to action with a signup form and a quote from a volunteer',
   'admin.ui.catalogue.blockInserter.intro':
     'The same native choices before a block and at the end. Search is optional.',
   'admin.ui.catalogue.writingSheet': 'Writing sheet',

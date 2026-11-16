@@ -29,6 +29,8 @@ import { toArticleEditor } from '#lib/editor/article-document.js';
 import { isDeepStrictEqual } from 'node:util';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { chosenBlocks, patternChoices } from '#lib/server/patterns/choice.js';
+import { PATTERN_CHOICE, insertPatternStep, savePatternStep } from '#lib/server/patterns/editor.js';
+import { blockTry } from '#lib/server/content/block-try.js';
 import {
   proposeHeroConversion,
   BLOCK_DEFINITIONS,
@@ -89,7 +91,6 @@ import {
   NEW_BLOCK,
   blockFormValues,
   blockIssues,
-  blockRefusalIssues,
   documentFieldIssues,
   blockIssueField,
   blockPrefix,
@@ -219,9 +220,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     presence: await presenceOnLoad(principal, params.tenant, item.id, revision.id, names),
     // Back to the list as it was left: its search, status, order and page, at this item's row.
     listPath: recalledListPath(cookies, params.tenant, item.type, item.id, item.profile),
-    patterns: doc.blocks.length
-      ? null
-      : await patternChoices(principal, item.type, [work, tenant.defaultLocale], true),
+    patterns: await patternChoices(principal, item.type, [work, tenant.defaultLocale], true),
     articleEditor: shown.length ? toArticleEditor(doc, work) : null,
     assistEnabled,
     machineTranslation: doc.machineTranslation ?? {},
@@ -721,32 +720,6 @@ async function publication(
 }
 
 /**
- * Runs a block operation; a use-case refusal comes back as the screen's failure (a conflict with
- * who saved in between), anything else is thrown. Shared by `blockStep` and `restore`.
- */
-async function blockTry(saved: Committed, itemId: string, run: () => Promise<void>) {
-  const { principal, revisionId: from, locals } = saved;
-  try {
-    await run();
-    return null;
-  } catch (e) {
-    const refusal = refusalOf(e);
-    const issues = blockRefusalIssues(refusal);
-    const { status, body } = failureOf(refusal, 'block', {
-      conflict: 'admin.content.conflict.title',
-      invalid: issues.length ? 'admin.block.error.invalid' : 'admin.content.error.invalid',
-    });
-    const conflict =
-      refusal.code === 'conflict' ? await changesSince(principal, itemId, from, locals) : null;
-    return fail(status, {
-      ...body,
-      fieldIssues: issues,
-      conflict: conflict?.view ?? null,
-    });
-  }
-}
-
-/**
  * One block operation after the save of the form, on the revision that save made; the screen
  * comes back at the block (`#block-<id>`), at the copy a duplicate made, or at the blocks when it
  * is gone.
@@ -806,6 +779,15 @@ export const actions: Actions = {
     redirect(
       303,
       itemPath(saved.tenant.slug, event.params.itemId, saved.editing, mergedQuery(saved), 'blocks')
+    );
+  },
+  savePattern: async (event) => {
+    const saved = await commit(event);
+    if ('failure' in saved) return saved.failure;
+    return savePatternStep(
+      saved,
+      event.params.itemId,
+      text(saved.data, 'editLocale') || saved.tenant.defaultLocale
     );
   },
   save: async (event) => {
@@ -885,6 +867,9 @@ export const actions: Actions = {
   insert: async (event) => {
     const saved = await commit(event);
     if ('failure' in saved) return saved.failure;
+    const choice = text(saved.data, 'insert');
+    if (choice.startsWith(PATTERN_CHOICE))
+      return insertPatternStep(saved, event.params.itemId, choice);
     // pendingBlock remains the closed type/anchor validator on load, droppedMedia the ids'.
     const query = { ...insertQuery(text(saved.data, 'insert'), saved.data), ...mergedQuery(saved) };
     redirect(

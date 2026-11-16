@@ -88,6 +88,7 @@ import {
 import {
   findItems,
   insertBlock,
+  insertPattern,
   moveBlock,
   removeBlock,
   setBlockProps,
@@ -244,6 +245,7 @@ export const useCases = {
   withdrawContentReview,
   updateSlug,
   insertBlock,
+  insertPattern,
   moveBlock,
   removeBlock,
   setBlockProps,
