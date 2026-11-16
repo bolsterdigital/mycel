@@ -106,6 +106,18 @@ describe('pre-footer zone', () => {
     expect((await t.run('getPrefooter', { locale: 'nl' }, t.visitor)).zone).toBeNull();
   });
 
+  it('shows nothing of a zone for members only to an anonymous visitor', async () => {
+    const t = setup();
+    const zone = await t.item('leden', {
+      profile: 'zone',
+      access: { level: 'members' },
+      blocks: [heading('Alleen leden', 'Members only')],
+    });
+    await t.place(zone.id, ['nl']);
+    expect((await t.run('getPrefooter', { locale: 'nl' }, t.visitor)).zone).toBeNull();
+    expect((await t.run('resolveNavigation', { locale: 'nl' }, t.visitor)).prefooter).toBeNull();
+  });
+
   it('shows nothing for a zone that is only a draft in the locale', async () => {
     const t = setup();
     const zone = await t.item('zone', { profile: 'zone' }, []);
