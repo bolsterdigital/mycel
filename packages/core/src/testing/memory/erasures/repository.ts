@@ -3,8 +3,10 @@
 // in supporters/erasure.ts; this file only finds the rows they apply to.
 
 import {
+  holderSubmissions,
   liveLifecycle,
   protectsErasureCopy,
+  sparesHolderCopy,
   admissionFor,
   allowsLifecycle,
 } from '../../../supporters/lifecycle.js';
@@ -63,6 +65,18 @@ export function memoryErasures(store: MemoryStore, principal: Principal, clock: 
         ...[...s.events.values()].filter((e) => e.supporter_id === supporterId),
       ];
       return [...new Set(rows.map((r) => normalizeEmail(r.email)).filter((a) => !isTombstone(a)))];
+    },
+    async heldByOthers(supporterId, addresses) {
+      const wanted = new Set(addresses.map(normalizeEmail));
+      const held = new Set<string>();
+      const consider = (owner: string | undefined, email: string) => {
+        const address = normalizeEmail(email);
+        if (owner && owner !== supporterId && !s.erasures.has(owner) && wanted.has(address))
+          held.add(address);
+      };
+      for (const p of s.projections.values()) consider(p.id, p.email);
+      for (const e of s.events.values()) consider(e.supporter_id, e.email);
+      return [...held];
     },
     async register(supporterId, email, older = []) {
       if (s.erasures.has(supporterId)) return;
@@ -125,8 +139,15 @@ const registrationsOf = (erasures: ReturnType<MemoryStore['for']>['erasures']) =
     }))
   );
 
-/** Every registered address, from the register's ids and from any value whose hash matches. */
-async function registeredAddresses(store: MemoryStore, tenantId: string): Promise<Set<string>> {
+/**
+ * Every address apply erases: any value whose hash is registered, and what the registered ids'
+ * own rows carry. `carriedOnly` are those of the second kind no registration ends: an older
+ * address another supporter held at the request (or a register from before 0058).
+ */
+async function registeredAddresses(
+  store: MemoryStore,
+  tenantId: string
+): Promise<{ addresses: Set<string>; carriedOnly: Set<string> }> {
   const s = store.for(tenantId);
   const ids = new Set(s.erasures.keys());
   const hashes = new Set(registrationsOf(s.erasures).map((e) => e.emailHash));
@@ -148,7 +169,10 @@ async function registeredAddresses(store: MemoryStore, tenantId: string): Promis
     else await consider(e.email);
   for (const sub of s.submissions.values())
     for (const v of Object.values(sub.values)) if (typeof v === 'string') await consider(v);
-  return addresses;
+  const carriedOnly = new Set<string>();
+  for (const a of addresses)
+    if (!hashes.has(await emailKey(tenantId, a, 'erasure'))) carriedOnly.add(a);
+  return { addresses, carriedOnly };
 }
 
 /** The scrub itself; returns the number of rows changed, like the SQL. */
@@ -185,7 +209,16 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
       .filter((l) => liveLifecycle(l, registrations))
       .map((l) => [l.id, l])
   );
-  const addresses = await registeredAddresses(store, tenantId);
+  const { addresses, carriedOnly } = await registeredAddresses(store, tenantId);
+  // By address only where a registration ended it; a row of another id on a carried-only address
+  // is that supporter's, and so is a copy of a submission her events refer to.
+  const ended = (email: string) => {
+    const address = normalizeEmail(email);
+    return addresses.has(address) && !carriedOnly.has(address);
+  };
+  const held = holderSubmissions(s.events.values(), ids, carriedOnly);
+  const spared = (value: unknown, submissionId: unknown) =>
+    sparesHolderCopy(value, submissionId, held, addresses);
   const carries = (value: unknown) => carriesErasedAddress(value, addresses);
   const hashes = new Map(
     await Promise.all(
@@ -197,7 +230,7 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
 
   for (const e of s.events.values()) {
     const owner = e.supporter_id ?? '';
-    if (live.has(owner) || !(ids.has(owner) || addresses.has(normalizeEmail(e.email)))) continue;
+    if (live.has(owner) || !(ids.has(owner) || ended(e.email))) continue;
     const tomb = tombstoneEmail(owner || e.id);
     if (e.email === tomb && !Object.keys(e.props).length) continue;
     e.email = tomb;
@@ -205,7 +238,7 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
     changed++;
   }
   for (const p of s.projections.values()) {
-    if (live.has(p.id) || !(ids.has(p.id) || addresses.has(normalizeEmail(p.email)))) continue;
+    if (live.has(p.id) || !(ids.has(p.id) || ended(p.email))) continue;
     const tomb = tombstoneEmail(p.id);
     if (p.email === tomb && !p.lists.length && !p.pendingLists.length) continue;
     Object.assign(p, { email: tomb, lists: [], pendingLists: [] });
@@ -216,11 +249,17 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
   const tenantOutbox = store.outbox.filter((e) => e.tenantId === tenantId);
   const eventIds = new Set<string>();
   for (const e of tenantOutbox)
-    if (carries(e.props) && !proven(e.props, e.props)) eventIds.add(e.id);
+    if (carries(e.props) && !proven(e.props, e.props) && !spared(e.props, e.props['submissionId']))
+      eventIds.add(e.id);
   for (const [key, send] of s.mailSends)
     if (eventIds.has(send.eventId) && s.mailSends.delete(key)) changed++;
   for (const [id, sub] of s.submissions)
-    if (carries(sub.values) && !proven(sub.values, sub.evaluation) && s.submissions.delete(id))
+    if (
+      carries(sub.values) &&
+      !proven(sub.values, sub.evaluation) &&
+      !spared(sub.values, id) &&
+      s.submissions.delete(id)
+    )
       changed++;
   // A seat reserved for a signup that was never ingested.
   for (const a of addresses)

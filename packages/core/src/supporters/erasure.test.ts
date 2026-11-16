@@ -437,6 +437,128 @@ describe('ctx.erasures in memory', () => {
       });
     });
 
+    it('leaves another supporter on an older address alone, then erases her on her own request', async () => {
+      // ADR 032 rule 4, second amendment of 2026-11-16: the request names one person. She had
+      // ada@ before; somebody else signed up on it since, without a lifecycle (the address was
+      // never registered).
+      const s = uow.store.for(TENANT);
+      const old = await supporterId();
+      const [oldSubmission] = [...s.submissions.keys()];
+      (uow.clock as FakeClock).advance(1);
+      await invoker().run(useCases.changeSupporterEmail, adminOf(), {
+        supporterId: old,
+        newEmail: 'current@example.org',
+        reason: 'test',
+      });
+      (uow.clock as FakeClock).advance(86_400_001);
+      const outboxStart = uow.store.outbox.length;
+      await signup(TENANT, 'ada@example.org');
+      const other = await supporterId();
+      expect(other).not.toBe(old);
+      expect(s.supporterLifecycles.size).toBe(0);
+      const hers = () =>
+        structuredClone({
+          projection: s.projections.get(other),
+          events: [...s.events.values()].filter((e) => e.supporter_id === other),
+          submissions: [...s.submissions].filter(([id]) => id !== oldSubmission),
+          outbox: uow.store.outbox.slice(outboxStart).filter((e) => e.tenantId === TENANT),
+          sends: [...s.mailSends].filter(([, send]) =>
+            uow.store.outbox.slice(outboxStart).some((e) => e.id === send.eventId)
+          ),
+          jobs: uow.store.jobs.filter((j) =>
+            uow.store.outbox
+              .slice(outboxStart)
+              .some((e) => e.id === (j.payload as { eventId?: string }).eventId)
+          ),
+        });
+      const before = hers();
+      expect(before.events.length).toBeGreaterThan(0);
+      expect(before.submissions).toHaveLength(1);
+      expect(before.sends.length).toBeGreaterThan(0);
+      expect(before.jobs.length).toBeGreaterThan(0);
+      // A copy on the shared address that no supporter's event refers to, as a restore of a
+      // backup from before its ingest brings back: nothing says it is hers, so it goes.
+      const orphan = '01900000-0000-7000-8000-0000000000ff';
+      s.submissions.set(orphan, {
+        ...structuredClone(s.submissions.get(oldSubmission!)!),
+        id: orphan,
+      });
+
+      (uow.clock as FakeClock).advance(1);
+      await invoker().run(useCases.eraseSupporter, eraser(), { supporterId: old });
+      // Only the current address is ended: hers needs no lifecycle and stays usable.
+      expect(s.erasures.get(old)?.olderHashes).toBeUndefined();
+      expect(await uow.run(adminOf(), (ctx) => ctx.erasures.allows('ada@example.org'))).toBe(true);
+      await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+
+      expect(hers()).toEqual(before);
+      expect(s.submissions.has(oldSubmission!)).toBe(false);
+      expect(s.submissions.has(orphan)).toBe(false);
+      expect(copies(TENANT, 'current@example.org')).toEqual(none);
+      for (const e of [...s.events.values()].filter((e) => e.supporter_id === old))
+        expect(e.email).toBe(tombstoneEmail(old));
+      expect(s.projections.get(old)?.email).toBe(tombstoneEmail(old));
+      expect(
+        uow.store.jobs
+          .filter((j) => j.tenantId === TENANT)
+          .map((j) => j.type)
+          .sort()
+      ).toEqual([...before.jobs.map((j) => j.type), 'supporter.erase'].sort());
+      expect(await uow.run(adminOf(), (ctx) => ctx.erasures.apply())).toBe(0);
+      // A next signup on the address joins her, not a fresh id.
+      (uow.clock as FakeClock).advance(86_400_001);
+      await signup(TENANT, 'ada@example.org');
+      expect(await supporterId()).toBe(other);
+
+      await invoker().run(useCases.eraseSupporter, eraser(), { supporterId: other });
+      await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+      expect(copies(TENANT, 'ada@example.org')).toEqual(none);
+    });
+
+    it('keeps a readmitted supporter on an address an erased supporter had before', async () => {
+      // The address was erased once, readmitted,
+      // moved away from and signed up on again by another id with its own live lifecycle. The
+      // request on the one who moved must not end that lifecycle.
+      const s = uow.store.for(TENANT);
+      const first = await supporterId();
+      await invoker().run(useCases.eraseSupporter, eraser(), { supporterId: first });
+      await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+      (uow.clock as FakeClock).advance(86_400_001);
+      await signup(TENANT, 'ada@example.org');
+      const moved = await supporterId();
+      (uow.clock as FakeClock).advance(1);
+      await invoker().run(useCases.changeSupporterEmail, adminOf(), {
+        supporterId: moved,
+        newEmail: 'moved@example.org',
+        reason: 'test',
+      });
+      (uow.clock as FakeClock).advance(86_400_001);
+      await signup(TENANT, 'ada@example.org');
+      const other = await supporterId();
+      expect(new Set([first, moved, other]).size).toBe(3);
+      expect(s.supporterLifecycles.has(other)).toBe(true);
+      const before = structuredClone({
+        projection: s.projections.get(other),
+        events: [...s.events.values()].filter((e) => e.supporter_id === other),
+        submissions: [...s.submissions.values()],
+      });
+      (uow.clock as FakeClock).advance(1);
+      await invoker().run(useCases.eraseSupporter, eraser(), { supporterId: moved });
+      await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+      expect(s.projections.get(other)).toEqual(before.projection);
+      expect([...s.events.values()].filter((e) => e.supporter_id === other)).toEqual(before.events);
+      const mine = before.submissions.filter(
+        (sub) => sub.evaluation?.supporterLifecycleId === other
+      );
+      expect(mine).toHaveLength(1);
+      expect(s.submissions.get(mine[0]!.id)).toEqual(mine[0]);
+      expect(await uow.run(adminOf(), (ctx) => ctx.erasures.allows('ada@example.org', other))).toBe(
+        true
+      );
+      expect(copies(TENANT, 'moved@example.org')).toEqual(none);
+      expect(s.projections.get(moved)?.email).toBe(tombstoneEmail(moved));
+    });
+
     it('erases a readmitted lifecycle as its own request', async () => {
       const old = await supporterId();
       await invoker().run(useCases.eraseSupporter, eraser(), { supporterId: old });
