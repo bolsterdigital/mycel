@@ -113,7 +113,7 @@ describe.skipIf(skip)('assistance tenant isolation', () => {
     ).rejects.toMatchObject({ code: 'not_found' });
   });
 
-  it('keeps a lead task with its source blocks per tenant, and 0065 types old rows by block id', async () => {
+  it('keeps lead and headline tasks per tenant, and 0065 types old rows by block id', async () => {
     const pa = systemPrincipal(a, 'assist-test');
     const pb = systemPrincipal(b, 'assist-test');
     const created = await invoker.run(useCases.createItem, pa, {
@@ -126,7 +126,7 @@ describe.skipIf(skip)('assistance tenant isolation', () => {
         blocks: [],
       },
     });
-    const row = (id: string, task: 'alt' | 'translate' | 'lead', blockId: string) => ({
+    const row = (id: string, task: 'alt' | 'translate' | 'lead' | 'headline', blockId: string) => ({
       id,
       itemId: created.item.id,
       baseRevisionId: created.revision.id,
@@ -151,6 +151,15 @@ describe.skipIf(skip)('assistance tenant isolation', () => {
       sourceBlockIds: ['intro', 'body'],
     });
     expect(await uow.run(pb, (ctx) => ctx.assist.get(lead))).toBeNull();
+    // 0066: a headline row round-trips with its task and no source ids, also under RLS.
+    const headline = uuidv7();
+    await uow.run(pa, (ctx) => ctx.assist.insert(row(headline, 'headline', 'headline')));
+    expect(await uow.run(pa, (ctx) => ctx.assist.get(headline))).toMatchObject({
+      task: 'headline',
+      blockId: 'headline',
+      sourceBlockIds: [],
+    });
+    expect(await uow.run(pb, (ctx) => ctx.assist.get(headline))).toBeNull();
     expect(await uow.run(pb, (ctx) => ctx.assist.list(created.item.id))).toEqual([]);
 
     // Replay the 0065 backfill over rows written as before it (every row read as alt), inside a

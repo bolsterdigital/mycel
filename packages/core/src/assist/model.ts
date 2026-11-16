@@ -33,6 +33,22 @@ export const LeadResult = z
   })
   .strict();
 
+/**
+ * A headline proposal: one trimmed line of at most 200 characters, the article title's own bound,
+ * without markup. Like the lead, the schema checks the form and the editor checks the facts.
+ */
+export const HeadlineResult = z
+  .object({
+    headline: z
+      .string()
+      .trim()
+      .min(1)
+      .max(200)
+      .regex(/^[^\r\n<>`]+$/)
+      .refine((v) => !/\*\*|__|\]\(/.test(v)),
+  })
+  .strict();
+
 export const SettingsView = z.object({
   enabled: z.boolean(),
   allowRestricted: z.boolean(),
@@ -46,7 +62,7 @@ export const SuggestionView = z.object({
   id: z.string().guid(),
   itemId: z.string().guid(),
   baseRevisionId: z.string().guid(),
-  task: z.enum(['alt', 'translate', 'lead']),
+  task: z.enum(['alt', 'translate', 'lead', 'headline']),
   blockId: z.string(),
   sourceBlockIds: z.array(z.string()),
   locale: z.string(),

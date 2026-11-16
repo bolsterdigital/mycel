@@ -990,6 +990,7 @@ export const en = {
   'admin.audit.result.error': 'Failed',
   'admin.status.subnav.overview': 'Overview',
   'admin.audit.op.assist.alt.suggest': 'Alt text suggested',
+  'admin.audit.op.assist.headline.suggest': 'Headline suggested',
   'admin.audit.op.assist.lead.suggest': 'Lead suggested',
   'admin.audit.op.assist.settings.update': 'Writing assistant settings changed',
   'admin.audit.op.assist.suggestion.accept': 'Suggestion accepted',
@@ -2386,6 +2387,19 @@ export const en = {
   'admin.assist.error.lead-too-long':
     'The chosen text is longer than 3,000 characters. Choose fewer blocks.',
   'admin.assist.error.lead-value': 'Enter a lead of at most 1,000 characters.',
+  'admin.assist.sent.headline':
+    'Only the article’s lead in one language, as plain text, and the language code.',
+  'admin.assist.notSent.headline':
+    'Title, text blocks, other languages, SEO fields, links, authors, section, tags, media, supporter data, operator identity, and site name.',
+  'admin.assist.headline': 'Suggest a headline',
+  'admin.assist.headline.source': 'Lead the headline is based on',
+  'admin.assist.headline.sent':
+    'Only this lead and the language code ({locale}) go to {provider}. The title and the rest of the article stay here.',
+  'admin.assist.headline.check':
+    'Check that the headline says only what the lead says before you accept it.',
+  'admin.assist.error.headline-source':
+    'Write a lead in this language first; the headline is based on it.',
+  'admin.assist.error.headline-value': 'Enter a headline of at most 200 characters.',
   'admin.ui.choices.chosen': 'Chosen:',
   'admin.ui.choices.count': '{shown} of {total} shown',
   'admin.ui.choices.search': 'Search',

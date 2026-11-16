@@ -295,8 +295,8 @@
     {@const sources = docLocales.filter(
       (source: string) => source !== locale && !!v(`${field}.${source}`)
     )}
-    {@const lead = target === 'lead' && data.leadAssist}
-    {#if sources.length || lead}
+    {@const own = data.ownAssist[target]}
+    {#if sources.length || own}
       <p class="ui-hint">
         {#each sources as source (source)}
           <a href={assist({ task: 'translate', from: source, to: locale, target })}>
@@ -304,7 +304,7 @@
             {label} ({locale})
           </a>
         {/each}
-        {#if lead}<a href={assist({ task: 'lead', locale })}>{t('admin.assist.lead')}</a>{/if}
+        {#if own}<a href={assist({ task: own, locale })}>{t(`admin.assist.${own}`)}</a>{/if}
       </p>
     {/if}
   {/if}

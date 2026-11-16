@@ -104,6 +104,7 @@ describe('a use case that consumes a limit checks it (ADR 015)', () => {
   it('has consumers to check', () => {
     expect(consumers.map((u) => u.name).sort()).toEqual([
       'assist.alt.suggest',
+      'assist.headline.suggest',
       'assist.lead.suggest',
       'assist.translation.suggest',
       'form.submit',
@@ -161,6 +162,7 @@ describe('every ai:assist command passes the assistance gate (ADR 015)', () => {
   it('has assisted commands to check', () => {
     expect(assisted.map((u) => u.name).sort()).toEqual([
       'assist.alt.suggest',
+      'assist.headline.suggest',
       'assist.lead.suggest',
       'assist.translation.suggest',
     ]);

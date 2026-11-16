@@ -62,6 +62,13 @@ export class FakeTextModel implements TextModel {
         .trim();
       json = { lead: text || 'Lead' };
     }
+    if (request.task === 'headline' && this.result === defaultAlt) {
+      // The lead's first sentence, at most 80 characters: deterministic, one line, always valid.
+      const part = request.parts[1];
+      const lead = part?.kind === 'text' ? part.text.replace(/[\s<>`*_]+/g, ' ').trim() : '';
+      const sentence = /^[^.!?]+/.exec(lead)?.[0] ?? lead;
+      json = { headline: sentence.slice(0, 80).trim() || 'Headline' };
+    }
     if (request.task === 'translate' && this.result === defaultAlt) {
       const part = request.parts[0];
       if (!part || part.kind !== 'text') throw new TextModelError('invalid-output');

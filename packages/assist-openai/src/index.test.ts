@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { createServer, type RequestListener, type Server } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { LeadResult, TextModelError } from '@mycel/core';
+import { HeadlineResult, LeadResult, TextModelError } from '@mycel/core';
 import { OpenAITextModel } from './index.js';
 
 const fixture = (name: string) =>
@@ -124,6 +124,47 @@ describe('lead task', () => {
     });
     const model = new OpenAITextModel({ ...options, fetch: vi.fn(async () => new Response(body)) });
     await expect(model.complete(lead)).rejects.toEqual(new TextModelError('invalid-output'));
+  });
+});
+
+describe('headline task', () => {
+  const headline = {
+    ...request,
+    task: 'headline' as const,
+    system: 'Write a headline.',
+    parts: [
+      { kind: 'text' as const, text: 'Locale: en' },
+      { kind: 'text' as const, text: 'Bakers use less salt this year.' },
+    ],
+    output: HeadlineResult,
+    maxTokens: 200,
+  };
+
+  it('reads a recorded headline answer with the text model and a strict schema', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json(fixture('headline')));
+    const model = new OpenAITextModel({ ...options, fetch: fetcher });
+    await expect(model.complete(headline)).resolves.toEqual({
+      json: { headline: 'Bakers cut the salt in spiced biscuits' },
+      model: 'mistral-small',
+      usage: { inputTokens: 61, outputTokens: 9 },
+    });
+    const sent = JSON.parse(fetcher.mock.calls[0]![1]!.body as string);
+    expect(sent.model).toBe('text');
+    expect(sent.response_format.json_schema.strict).toBe(true);
+    expect(sent.messages[1].content).toEqual([
+      { type: 'text', text: 'Locale: en' },
+      { type: 'text', text: 'Bakers use less salt this year.' },
+    ]);
+  });
+
+  it('refuses a headline answer that breaks the schema', async () => {
+    const recorded = fixture('headline');
+    const body = JSON.stringify({
+      ...recorded,
+      choices: [{ message: { content: `{"headline":"${'x'.repeat(201)}"}` } }],
+    });
+    const model = new OpenAITextModel({ ...options, fetch: vi.fn(async () => new Response(body)) });
+    await expect(model.complete(headline)).rejects.toEqual(new TextModelError('invalid-output'));
   });
 });
 
