@@ -148,5 +148,10 @@
   .passages {
     display: grid;
     gap: 0.5rem;
+    margin-block-end: 1.5rem;
+  }
+  blockquote {
+    padding-inline-start: 0.75rem;
+    border-inline-start: 0.25rem solid var(--color-border-strong);
   }
 </style>

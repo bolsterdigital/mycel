@@ -31,18 +31,15 @@ const text = (value: string, marks?: unknown[]) => ({
 });
 const prose = (...paragraphs: unknown[]) => ({ type: 'doc', content: paragraphs });
 /** Two rich-text blocks never touch (ADR 020), so a quote sits between them. */
-const quote = (id: string) => ({
-  id,
-  type: 'quote',
-  version: 1,
-  props: { text: { nl: 'Quote secret' }, attribution: { name: 'Quote name' } },
-});
-const block = (id: string, content: Record<string, unknown>) => ({
-  id,
-  type: 'rich-text',
-  version: 1,
-  props: { content },
-});
+const quote = (id: string) =>
+  ({
+    id,
+    type: 'quote',
+    version: 1,
+    props: { text: { nl: 'Quote secret' }, attribution: { name: 'Quote name' } },
+  }) as never;
+const block = (id: string, content: Record<string, unknown>) =>
+  ({ id, type: 'rich-text', version: 1, props: { content } }) as never;
 
 async function setup(type: 'article' | 'page' = 'article') {
   const log = new MemoryLogger();

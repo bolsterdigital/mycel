@@ -988,6 +988,7 @@ export const en = {
   'admin.audit.result.error': 'Failed',
   'admin.status.subnav.overview': 'Overview',
   'admin.audit.op.assist.alt.suggest': 'Alt text suggested',
+  'admin.audit.op.assist.lead.suggest': 'Lead suggested',
   'admin.audit.op.assist.settings.update': 'Writing assistant settings changed',
   'admin.audit.op.assist.suggestion.accept': 'Suggestion accepted',
   'admin.audit.op.assist.suggestion.dismiss': 'Suggestion dismissed',

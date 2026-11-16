@@ -585,6 +585,16 @@ for (const locale of ['nl-NL', 'en-GB']) {
       await expect(page.locator('main')).toContainText('Het recept blijft verder gelijk.');
       await expect(page.locator('main')).not.toContainText('Lekker!');
       await expectNoAxeViolations(page);
+      const shots = test.info().project.name;
+      await page.setViewportSize({ width: 320, height: 900 });
+      await setTextSize(page, '200%');
+      await layoutGate(page, `lead choice ${locale}`, 'main form');
+      await page.screenshot({
+        path: test.info().outputPath(`lead-${locale}-choose-${shots}.png`),
+        fullPage: true,
+      });
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.reload();
       const request = page.getByRole('button', { name: /^(Suggestie vragen|Request suggestion)$/ });
       await request.click();
       await expect(page.getByRole('alert')).toContainText(/een tot drie|one to three/);
@@ -597,7 +607,6 @@ for (const locale of ['nl-NL', 'en-GB']) {
       await expect(page.locator('#assist-value')).toHaveValue(
         'Bakkers bakken dit jaar pepernoten met minder zout. Het recept blijft verder gelijk.'
       );
-      const shots = test.info().project.name;
       for (const [name, width, zoom] of [
         ['narrow', 320, '100%'],
         ['combined', 320, '200%'],

@@ -1003,6 +1003,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.result.error': 'Mislukt',
   'admin.status.subnav.overview': 'Overzicht',
   'admin.audit.op.assist.alt.suggest': 'Alt-tekst voorgesteld',
+  'admin.audit.op.assist.lead.suggest': 'Lead voorgesteld',
   'admin.audit.op.assist.settings.update': 'Instellingen schrijfhulp gewijzigd',
   'admin.audit.op.assist.suggestion.accept': 'Suggestie overgenomen',
   'admin.audit.op.assist.suggestion.dismiss': 'Suggestie afgewezen',
