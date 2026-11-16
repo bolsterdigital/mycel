@@ -8,6 +8,8 @@
 // a status enum on the intent row, which has to be kept in step with three transactions; the
 // state is derived from which timestamps are set (docs/reference/mail.md).
 
+import type { EmailDocument, RenderedEmail } from './email.js';
+
 export interface MailAddress {
   email: string;
   name?: string;
@@ -107,8 +109,17 @@ export interface MailDayCount {
   abandoned: number;
 }
 
+/**
+ * Turns an item's mail model into table HTML and a text part (ADR 004 rule 2, ADR 010 rule 6):
+ * the core knows no HTML. Pure and synchronous; first adapter `packages/render-email`.
+ */
+export interface EmailRenderer {
+  render(email: EmailDocument): RenderedEmail;
+}
+
 declare module '../ports.js' {
   interface TransactionContext {
     mailSends: MailSendsRepository;
+    emailRenderer: EmailRenderer;
   }
 }

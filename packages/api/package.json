@@ -37,7 +37,8 @@
     "@mycel/blob": "*",
     "@mycel/media-sharp": "*",
     "@mycel/observability": "*",
-    "@mycel/assist-openai": "*"
+    "@mycel/assist-openai": "*",
+    "@mycel/render-email": "*"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

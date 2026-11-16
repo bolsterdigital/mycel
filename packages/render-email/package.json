@@ -1,0 +1,21 @@
+{
+  "name": "@mycel/render-email",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "EmailRenderer adapter: table HTML with inline styles plus a text part",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -b",
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@mycel/core": "*"
+  }
+}

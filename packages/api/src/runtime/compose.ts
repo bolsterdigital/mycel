@@ -86,6 +86,7 @@ import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
 import { createSharpProcessor, createBrandProcessor } from '@mycel/media-sharp';
 import { FakeTextModel } from '@mycel/core/fake-text-model';
 import { OpenAITextModel } from '@mycel/assist-openai';
+import { createEmailRenderer } from '@mycel/render-email';
 import { createAuthenticator, type Authenticator } from '../auth.js';
 import { createDnsResolver } from './dns.js';
 import type { HttpObservability } from '../app.js';
@@ -275,6 +276,7 @@ export function createRuntime(
     inputHasher,
     connectionCredentialKey: config.CONNECTION_CREDENTIAL_KEY,
     assistProviderLabel,
+    emailRenderer: createEmailRenderer(),
     mailchimpDiscovery: { inspect: (key) => inspectMailchimp(key, mailchimpRequest) },
   });
   const tenants = createTenantDirectory(appDb);
