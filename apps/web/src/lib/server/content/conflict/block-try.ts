@@ -9,7 +9,7 @@ import { failureOf } from '#lib/server/admin/admin-actions.js';
 import { changesSince } from '#lib/server/content/conflict/merge-conflict.js';
 import { blockRefusalIssues } from '#lib/server/content/edit-form.js';
 import { refusalOf } from '#lib/server/http/refuse.js';
-import type { UiKey } from '../../../i18n/index.js';
+import type { UiKey } from '../../../../i18n/index.js';
 
 /** What a block step needs from the save before it. */
 export interface Saved {

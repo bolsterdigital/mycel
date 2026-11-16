@@ -10,7 +10,7 @@
 import { UseCaseError, useCases, type BlockInput, type Revision } from '@mycel/core';
 import { redirect } from '@sveltejs/kit';
 import { text } from '#lib/server/admin/admin-actions.js';
-import { blockTry, type Saved } from '#lib/server/content/block-try.js';
+import { blockTry, type Saved } from '#lib/server/content/conflict/block-try.js';
 import { itemPath, mergedQuery, noteRebase, type Merged } from '#lib/server/content/edit-path.js';
 import { runtime } from '#lib/server/runtime.js';
 

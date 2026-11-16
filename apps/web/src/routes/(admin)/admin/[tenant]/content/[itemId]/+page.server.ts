@@ -30,7 +30,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { chosenBlocks, patternChoices } from '#lib/server/patterns/choice.js';
 import { PATTERN_CHOICE, insertPatternStep, savePatternStep } from '#lib/server/patterns/editor.js';
-import { blockTry } from '#lib/server/content/block-try.js';
+import { blockTry } from '#lib/server/content/conflict/block-try.js';
 import {
   proposeHeroConversion,
   BLOCK_DEFINITIONS,
