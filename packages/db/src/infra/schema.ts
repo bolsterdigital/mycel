@@ -311,6 +311,14 @@ export interface Database {
     title: string;
     body: string;
   };
+  /** Old addresses of published items (0062): the slug stays held and forwards to the item. */
+  content_redirects: {
+    tenant_id: string;
+    type: 'page' | 'article';
+    slug: string;
+    item_id: string;
+    created_at: Timestamp;
+  };
   content_item_locales: {
     tenant_id: string;
     item_id: string;

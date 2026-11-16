@@ -1114,6 +1114,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.content.review.request': 'Ter publicatie aangeboden',
   'admin.audit.op.content.review.withdraw': 'Aanbieding ter publicatie ingetrokken',
   'admin.audit.op.content.slug.update': 'Adres gewijzigd',
+  'admin.audit.op.content.redirect.delete': 'Oud adres verwijderd',
   'admin.audit.op.content.item.update': 'Pagina of artikel opgeslagen',
   'admin.audit.op.content.pattern.create': 'Patroon aangemaakt',
   'admin.audit.op.content.pattern.update': 'Patroon gewijzigd',
@@ -1429,11 +1430,14 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.event.onlineUrlHint': 'Voor een evenement dat online te volgen is.',
   'admin.content.slug.change': 'Adres wijzigen',
   'admin.content.slug.editHint':
-    'Het laatste deel van het adres: kleine letters, cijfers en streepjes. Wordt bewaard met Opslaan en kan tot de eerste publicatie nog veranderen.',
-  'admin.content.slug.fixed':
-    'Het adres ligt vast sinds de eerste publicatie, zodat links blijven werken.',
+    'Het laatste deel van het adres: kleine letters, cijfers en streepjes. Wordt bewaard met Opslaan. Na de eerste publicatie blijft het oude adres werken en stuurt het bezoekers hierheen.',
+  'admin.content.slug.old': 'Oude adressen',
+  'admin.content.slug.oldHint':
+    'Deze adressen sturen bezoekers door naar dit item. Verwijder er een als een ander item het adres moet krijgen.',
+  'admin.content.slug.oldRemove': 'Verwijder {path}',
+  'admin.content.slug.oldRemoved': 'Het oude adres is verwijderd en stuurt niet meer door.',
   'admin.content.slug.hint':
-    'Het laatste deel van het adres. Leeg laten: dan maken we hem uit de titel. Te wijzigen tot de eerste publicatie.',
+    'Het laatste deel van het adres. Leeg laten: dan maken we hem uit de titel. Later te wijzigen.',
   'admin.content.field.title': 'Titel',
   'admin.content.field.lead': 'Intro',
   'admin.content.field.authors': 'Auteurs',
@@ -1763,8 +1767,6 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Dit kon niet worden opgeslagen. Controleer de velden en probeer het opnieuw.',
   'admin.content.error.slugTaken': 'Er is al een item van deze soort met deze slug.',
   'admin.content.error.slugReserved': 'De site gebruikt deze slug zelf. Kies een andere.',
-  'admin.content.error.slugPublished':
-    'Dit item is al eens gepubliceerd; het adres blijft zoals het is.',
   'admin.content.error.slugInvalid':
     'Een slug heeft alleen kleine letters, cijfers en streepjes, en begint met een letter of cijfer.',
   'admin.content.error.defaultLocale': 'Het item moet de hoofdtaal van de site hebben.',

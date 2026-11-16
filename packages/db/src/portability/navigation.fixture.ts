@@ -2,7 +2,8 @@
 // export conformance suites see a row in each navigation table: head, revision, locale pointer
 // and reference. Rejected: a URL-only menu, which would leave `site_navigation_refs` empty.
 // The target page switches the pre-footer off, and a zone is placed, so the export carries
-// both.
+// both. The target is renamed after its publication, so `content_redirects` (0062) has a row: its
+// old address forwards to it.
 import { useCases, type Invoker, type Principal } from '@mycel/core';
 
 export async function seedNavigation(invoker: Invoker, admin: Principal) {
@@ -22,6 +23,7 @@ export async function seedNavigation(invoker: Invoker, admin: Principal) {
     revisionId: revision.id,
     locale: 'nl',
   });
+  await invoker.run(useCases.updateSlug, admin, { itemId: item.id, slug: 'menu-doel-nieuw' });
   const zone = await invoker.run(useCases.createItem, admin, {
     slug: 'zone',
     document: {

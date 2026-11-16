@@ -759,21 +759,6 @@ describe.skipIf(skip)('content conformance', () => {
     }
   });
 
-  it('keeps the slug once a locale was published', async () => {
-    const { item, revision } = await create('slug-live');
-    await invoker.run(useCases.publishItem, adminOf(tenantA), {
-      itemId: item.id,
-      revisionId: revision.id,
-      locale: 'nl',
-    });
-    await expect(
-      invoker.run(useCases.updateSlug, adminOf(tenantA), {
-        itemId: item.id,
-        slug: `slug-moved-${run}`,
-      })
-    ).rejects.toMatchObject({ code: 'invalid_input' });
-  });
-
   it('keeps revisions immutable and pins relational for mycel_app', async () => {
     const one = await create('pin-one');
     const two = await create('pin-two');

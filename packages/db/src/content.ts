@@ -358,6 +358,39 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         throw e;
       }
     },
+    redirectOf: async (type, slug) =>
+      (
+        await trx
+          .selectFrom('content_redirects')
+          .select('item_id')
+          .where('type', '=', type)
+          .where('slug', '=', slug)
+          .executeTakeFirst()
+      )?.item_id ?? null,
+    redirects: async (itemId) =>
+      (
+        await trx
+          .selectFrom('content_redirects')
+          .select(['slug', 'created_at'])
+          .where('item_id', '=', itemId)
+          .orderBy('created_at')
+          .orderBy('slug')
+          .execute()
+      ).map((r) => ({ slug: r.slug, createdAt: new Date(r.created_at) })),
+    async addRedirect(itemId, type, slug, at) {
+      await trx
+        .insertInto('content_redirects')
+        .values({ tenant_id: tenantId, type, slug, item_id: itemId, created_at: at })
+        .execute();
+    },
+    dropRedirect: async (type, slug) =>
+      (
+        await trx
+          .deleteFrom('content_redirects')
+          .where('type', '=', type)
+          .where('slug', '=', slug)
+          .executeTakeFirst()
+      ).numDeletedRows > 0n,
     insertRevision,
     lockTrashed: async (itemId) =>
       one(

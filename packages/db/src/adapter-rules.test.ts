@@ -5,7 +5,8 @@
 // (`core/media/listing.ts`), and which published locales the public list of published content returns and in
 // what order (`core/content/published/list.ts`), and what the site search finds
 // (`core/content/published/search.ts`, scenario in `content/search-rule.ts`), and what an overview
-// block lists (`core/content/published/overview.ts`, scenario in `content/overview-rule.ts`). One scenario, one
+// block lists (`core/content/published/overview.ts`, scenario in `content/overview-rule.ts`), and where an
+// old address forwards (`core/content/address/redirects.ts`, scenario in `content/redirect-rule.ts`). One scenario, one
 // expected record, run once over the memory adapter and once over Postgres; a rule that one
 // adapter keeps on its own shows up as a difference here. Rejected: a suite per adapter, which
 // is how memory came to block a `resolved` intent while Postgres kept it.
@@ -42,6 +43,7 @@ import {
 import { applyErasures, createDb, createUnitOfWork, migrate, uuidv7, uuidv7Ids } from './index.js';
 import { expectedSearch, observeSearch } from './content/search-rule.js';
 import { expectedOverview, observeOverview } from './content/overview-rule.js';
+import { expectedRedirects, observeRedirects } from './content/redirect-rule.js';
 import { closeTenantWork, requireDatabase, testTenant } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -692,6 +694,11 @@ async function observe({ uow, clock, tenant, apply }: Adapter) {
     systemPrincipal(await tenant(), 'adapter-rules'),
     clock
   );
+  const redirects = await observeRedirects(
+    invoker,
+    systemPrincipal(await tenant(), 'adapter-rules'),
+    systemPrincipal(await tenant(), 'adapter-rules')
+  );
   return {
     readmission,
     credential,
@@ -703,6 +710,7 @@ async function observe({ uow, clock, tenant, apply }: Adapter) {
     publishedList,
     search,
     overview,
+    redirects,
   };
 }
 
@@ -825,6 +833,7 @@ const expected = {
   },
   search: expectedSearch,
   overview: expectedOverview,
+  redirects: expectedRedirects,
   publishedList: {
     // Not `ingetrokken:nl` (unpublished), not `gepland` (its pin has not run).
     all: 'eerste:en eerste:nl ingetrokken:en leden:nl twee:nl verborgen:nl',

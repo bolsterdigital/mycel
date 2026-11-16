@@ -964,7 +964,7 @@ test.describe('content-admin', () => {
 
   // The address of a draft (#66 PR 6b): "This item" changes it until a locale goes live, with
   // the save of the one form; a taken slug comes back on the field with what was typed.
-  test('the address of a draft changes with Save until the first publication', async ({
+  test('the address changes with Save, and after publication the old one forwards', async ({
     page,
     request,
   }) => {
@@ -1018,21 +1018,16 @@ test.describe('content-admin', () => {
     expect(conflict.status()).toBe(409);
     expect(await conflict.json()).toMatchObject({ code: 'conflict' });
 
-    // Live once: the address stays, also over the API.
+    // Live once: a new address keeps the old one, which forwards (the list and its
+    // removal in lib/published/old-addresses.ts).
     await openPublication(page);
     await card(page, 'nl').getByRole('button', { name: 'Publiceren', exact: true }).click();
     await expect(page).toHaveURL(`${edit}?done=publish&locale=nl`);
-    await expect(side.locator('details', { hasText: 'Adres wijzigen' })).toHaveCount(0);
-    await expect(side).toContainText('Het adres ligt vast sinds de eerste publicatie');
     expect((await request.get(`${SITE}/${moved}`)).status()).toBe(200);
-    const refused = await postUseCase(request, 'content.slug.update', {
-      itemId,
-      slug: slugFor('slug-late'),
-    });
-    expect(refused.status()).toBe(400);
-    expect(await refused.json()).toMatchObject({
-      issues: [{ path: 'slug', message: 'content.slug.published' }],
-    });
+    const later = slugFor('slug-late');
+    await postUseCase(request, 'content.slug.update', { itemId, slug: later });
+    const hop = await request.get(`${SITE}/${moved}`, { maxRedirects: 0 });
+    expect([hop.status(), hop.headers()['location']]).toEqual([301, `/${later}`]);
   });
 
   test('publishing puts a locale live; a later edit stays unpublished until published', async ({
