@@ -1,9 +1,10 @@
 // Where the draft of each locale stands on the navigation overview: a draft that is live says
 // "same as live" even when one of its targets went offline since (there is no new revision to
 // refuse), and only a draft ahead of the live one is checked and can be "cannot be published".
+// The preview lists an anchor on a part that shows nothing with core's problems, never blocking.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Principal } from '@mycel/core';
-import { localeStates } from './publication.js';
+import { localeStates, previewModel } from './publication.js';
 
 const checked: string[] = [];
 const invoker = {
@@ -60,5 +61,31 @@ describe('localeStates', () => {
     expect(ahead?.draft).toBe('ahead');
     const [none] = await localeStates(principal, state(null, []), ['nl']);
     expect(none).toEqual({ locale: 'nl', live: null, draft: 'same' });
+  });
+});
+
+describe('previewModel', () => {
+  it('lists an anchor on a part that shows nothing as a problem that does not block', () => {
+    const document = {
+      menus: [{ id: 'main', name: 'Hoofdmenu', nodes: [] }],
+      placements: { main: null, actions: null, footer: [], legal: null },
+    };
+    const check = {
+      revisionId: 'r1',
+      nodes: [{ menuId: 'main', nodeId: 'n1', label: 'Doel', source: 'own', target: 'ok' }],
+      preview: { main: null, actions: [], footer: [], legal: null },
+      problems: [],
+    };
+    const model = previewModel(
+      document as unknown as Parameters<typeof previewModel>[0],
+      check as unknown as Parameters<typeof previewModel>[1],
+      'nl',
+      'nl',
+      [{ menuId: 'main', nodeId: 'n1' }]
+    );
+    expect(model.problems).toEqual([
+      { menu: 'Hoofdmenu', item: 'Doel', code: 'anchor-empty', blocking: false },
+    ]);
+    expect(model.blocked).toBe(false);
   });
 });

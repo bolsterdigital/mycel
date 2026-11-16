@@ -417,6 +417,7 @@ export const en = {
   'admin.navigation.anchor.none': 'At the top',
   'admin.navigation.anchor.option': '{type}: {text}',
   'admin.navigation.anchor.gone': 'A part that is gone',
+  'admin.navigation.anchor.empty': '{part} (shows nothing on the site now)',
   'admin.navigation.anchor.unpublished':
     'Once the page is published in {locale}, you can choose where on it the link lands.',
   'admin.navigation.anchor.later':
@@ -530,6 +531,8 @@ export const en = {
     'Its page is not shown and it has no text of its own in {locale}, so its sub-items are left out too.',
   'admin.navigation.problem.anchor-missing':
     'The part of the page it pointed to is gone; it leads to the top of the page.',
+  'admin.navigation.problem.anchor-empty':
+    'The part of the page it points to shows nothing on the site now, for example an image that is not public; it leads to the top of the page.',
   'admin.navigation.problem.target-unknown':
     'Its page no longer exists; choose another one before publishing.',
   'admin.navigation.publish': 'Publish in {locale}',
