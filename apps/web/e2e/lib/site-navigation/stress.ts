@@ -55,7 +55,7 @@ export const NAVIGATION_STATES: {
 
 export async function seedNavigationStress(state: (typeof NAVIGATION_STATES)[number]) {
   const slug = `nav-stress-${state.name}-${Math.random().toString(36).slice(2, 9)}`;
-  const { tenantId } = await seedSiteSettings(slug, `${slug}-single`, state.links);
+  const { tenantId, homeItemId } = await seedSiteSettings(slug, `${slug}-single`, state.links);
   if (state.logo)
     await withInvoker(
       async (invoker) => {
@@ -84,7 +84,11 @@ export async function seedNavigationStress(state: (typeof NAVIGATION_STATES)[num
       },
       { brandProcessor: createBrandProcessor() }
     );
-  return { slug, hash: createHash('sha256').update(JSON.stringify(state)).digest('hex') };
+  return {
+    slug,
+    homeItemId,
+    hash: createHash('sha256').update(JSON.stringify(state)).digest('hex'),
+  };
 }
 
 export async function exerciseNavigationStress(
@@ -266,7 +270,7 @@ async function screenshot(page: Page, name: string, width: number) {
   }
 }
 
-async function attachJson(name: string, value: unknown) {
+export async function attachJson(name: string, value: unknown) {
   const path = test.info().outputPath(name);
   await writeFile(path, JSON.stringify(value, null, 2));
   await test.info().attach(name, { path, contentType: 'application/json' });
