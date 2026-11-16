@@ -106,8 +106,8 @@ import {
 import { presenceOnLoad } from '#lib/server/content/presence.js';
 import { runtime } from '#lib/server/runtime.js';
 import { DONE, ISSUES, issueCopy } from '#lib/server/content/edit-copy.js';
-import { baseSlugOf, moveSlug, slugChange } from '#lib/server/content/edit-slug.js';
-import { addressOf, dropOldAddress } from '#lib/server/content/old-addresses.js';
+import { baseSlugOf, moveSlug, slugChange } from '#lib/server/content/address/edit-slug.js';
+import { addressOf, dropOldAddress } from '#lib/server/content/address/old-addresses.js';
 import {
   PINS,
   held,

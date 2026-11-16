@@ -7,10 +7,10 @@
 
 import { contentPath, useCases, type ContentType, type Principal } from '@mycel/core';
 import { redirect, type RequestEvent } from '@sveltejs/kit';
-import { text } from '../admin/admin-actions.js';
-import { refusalOf } from '../http/refuse.js';
-import { runtime } from '../runtime.js';
-import { itemPath, mergedQuery, type Merged } from './edit-path.js';
+import { text } from '../../admin/admin-actions.js';
+import { refusalOf } from '../../http/refuse.js';
+import { runtime } from '../../runtime.js';
+import { itemPath, mergedQuery, type Merged } from '../edit-path.js';
 
 /** The item's path and its old ones, each in the site's default locale, as the site serves them. */
 export async function addressOf(
