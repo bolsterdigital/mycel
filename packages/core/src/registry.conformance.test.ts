@@ -106,6 +106,7 @@ describe('a use case that consumes a limit checks it (ADR 015)', () => {
       'assist.alt.suggest',
       'assist.headline.suggest',
       'assist.lead.suggest',
+      'assist.section.suggest',
       'assist.translation.suggest',
       'form.submit',
       'media.upload',
@@ -164,6 +165,7 @@ describe('every ai:assist command passes the assistance gate (ADR 015)', () => {
       'assist.alt.suggest',
       'assist.headline.suggest',
       'assist.lead.suggest',
+      'assist.section.suggest',
       'assist.translation.suggest',
     ]);
   });

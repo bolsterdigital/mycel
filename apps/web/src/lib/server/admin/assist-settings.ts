@@ -4,6 +4,7 @@ import {
   can,
   headlineSource,
   leadCandidates,
+  sectionLead,
   useCases,
   UseCaseError,
   type ContentDocument,
@@ -13,15 +14,17 @@ import {
 
 /**
  * What the edit screen offers (ADR 021): assistance at all, for a member who may ask and write on
- * a site that consented to its processor, a lead from an article's own prose and a headline from
- * its own lead, both in the working locale.
+ * a site that consented to its processor, a lead from an article's own prose, and a headline and
+ * a section from its own lead, all in the working locale.
  */
 export async function editAssist(
   invoker: Invoker,
   principal: Principal,
   type: string,
   doc: ContentDocument,
-  work: string
+  work: string,
+  /** How many sections the site has; a section proposal needs a choice of at least two. */
+  sectionCount = 0
 ) {
   const settings =
     can(principal, 'ai:assist') && can(principal, 'content:write')
@@ -36,9 +39,12 @@ export async function editAssist(
   );
   const article = assistEnabled && type === 'article';
   /** The task a field offers from the article itself, keyed by the field's translation target. */
-  const ownAssist: Partial<Record<string, 'lead' | 'headline'>> = {
+  const ownAssist: Partial<Record<string, 'lead' | 'headline' | 'section'>> = {
     ...(article && leadCandidates(doc, work).length > 0 ? { lead: 'lead' as const } : {}),
     ...(article && headlineSource(doc, work).ok ? { title: 'headline' as const } : {}),
+    ...(article && sectionCount > 1 && sectionLead(doc, work).ok
+      ? { sectionId: 'section' as const }
+      : {}),
   };
   return { assistEnabled, ownAssist };
 }

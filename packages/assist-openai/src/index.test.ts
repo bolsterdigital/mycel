@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { createServer, type RequestListener, type Server } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { HeadlineResult, LeadResult, TextModelError } from '@mycel/core';
+import { HeadlineResult, LeadResult, SectionResult, TextModelError } from '@mycel/core';
 import { OpenAITextModel } from './index.js';
 
 const fixture = (name: string) =>
@@ -165,6 +165,50 @@ describe('headline task', () => {
     });
     const model = new OpenAITextModel({ ...options, fetch: vi.fn(async () => new Response(body)) });
     await expect(model.complete(headline)).rejects.toEqual(new TextModelError('invalid-output'));
+  });
+});
+
+describe('section task', () => {
+  const offered = '[{"id":"01900000-0000-7000-8000-000000000001","title":"Food"}]';
+  const section = {
+    ...request,
+    task: 'section' as const,
+    system: 'Choose a section.',
+    parts: [
+      { kind: 'text' as const, text: 'Locale: en' },
+      { kind: 'text' as const, text: 'Bakers use less salt this year.' },
+      { kind: 'text' as const, text: offered },
+    ],
+    output: SectionResult,
+    maxTokens: 100,
+  };
+
+  it('reads a recorded section answer with the text model and a strict schema', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json(fixture('section')));
+    const model = new OpenAITextModel({ ...options, fetch: fetcher });
+    await expect(model.complete(section)).resolves.toEqual({
+      json: { sectionId: '01900000-0000-7000-8000-000000000001' },
+      model: 'mistral-small',
+      usage: { inputTokens: 74, outputTokens: 18 },
+    });
+    const sent = JSON.parse(fetcher.mock.calls[0]![1]!.body as string);
+    expect(sent.model).toBe('text');
+    expect(sent.response_format.json_schema.strict).toBe(true);
+    expect(sent.messages[1].content).toEqual([
+      { type: 'text', text: 'Locale: en' },
+      { type: 'text', text: 'Bakers use less salt this year.' },
+      { type: 'text', text: offered },
+    ]);
+  });
+
+  it('refuses a section answer that is not an id', async () => {
+    const recorded = fixture('section');
+    const body = JSON.stringify({
+      ...recorded,
+      choices: [{ message: { content: '{"sectionId":"Food"}' } }],
+    });
+    const model = new OpenAITextModel({ ...options, fetch: vi.fn(async () => new Response(body)) });
+    await expect(model.complete(section)).rejects.toEqual(new TextModelError('invalid-output'));
   });
 });
 

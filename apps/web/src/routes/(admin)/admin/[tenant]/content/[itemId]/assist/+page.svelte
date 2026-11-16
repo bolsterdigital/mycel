@@ -5,6 +5,8 @@
   const t = $derived(ui(data.adminLocale));
   const lead = $derived(data.task === 'lead');
   const headline = $derived(data.task === 'headline');
+  const section = $derived(data.task === 'section');
+  const proposedSection = $derived(data.sections.find((s) => s.id === data.value));
   const proposed = $derived(form && 'value' in form ? form.value : data.value);
   /** A refused request keeps what was ticked; a retry starts from the suggestion's own blocks. */
   const chosen = $derived(
@@ -16,9 +18,11 @@
       ? t('admin.assist.lead')
       : headline
         ? t('admin.assist.headline')
-        : data.task === 'alt'
-          ? t('admin.assist.alt')
-          : t('admin.assist.translate')
+        : section
+          ? t('admin.assist.section')
+          : data.task === 'alt'
+            ? t('admin.assist.alt')
+            : t('admin.assist.translate')
   );
 </script>
 
@@ -35,6 +39,18 @@
       <blockquote>{data.source}</blockquote>
       <p>
         {fill(t('admin.assist.headline.sent'), { locale: data.locale, provider: data.provider })}
+      </p>
+    </div>
+  {:else if section}
+    <div class="passages">
+      <p>{t('admin.assist.section.source')} ({data.locale})</p>
+      <blockquote>{data.source}</blockquote>
+      <p id="assist-offered">{t('admin.assist.section.offered')} ({data.locale})</p>
+      <ul aria-labelledby="assist-offered">
+        {#each data.sections as offered (offered.id)}<li>{offered.title}</li>{/each}
+      </ul>
+      <p>
+        {fill(t('admin.assist.section.sent'), { locale: data.locale, provider: data.provider })}
       </p>
     </div>
   {:else if !lead}
@@ -60,37 +76,47 @@
       {#each lead ? data.chosen : [] as id (id)}
         <input type="hidden" name="blockId" value={id} />
       {/each}
-      <label for="assist-value">{t('admin.assist.proposal')}</label>
-      {#if data.task === 'translate'}<p>{t('admin.assist.markdown')}</p>{/if}
-      {#if lead || headline}
-        <p id="assist-check">
-          {t(headline ? 'admin.assist.headline.check' : 'admin.assist.lead.check')}
+      {#if section}
+        <p>
+          {t('admin.assist.section.proposal')}
+          <strong id="assist-value">{proposedSection?.title ?? ''}</strong>
         </p>
-      {/if}
-      {#if headline}
-        <!-- One line: a title has no line breaks, so the field cannot make one. -->
-        <div class="ui-field">
-          <input
+        <p>{t('admin.assist.section.check')}</p>
+      {:else}
+        <label for="assist-value">{t('admin.assist.proposal')}</label>
+        {#if data.task === 'translate'}<p>{t('admin.assist.markdown')}</p>{/if}
+        {#if lead || headline}
+          <p id="assist-check">
+            {t(headline ? 'admin.assist.headline.check' : 'admin.assist.lead.check')}
+          </p>
+        {/if}
+        {#if headline}
+          <!-- One line: a title has no line breaks, so the field cannot make one. -->
+          <div class="ui-field">
+            <input
+              id="assist-value"
+              name="value"
+              maxlength="200"
+              aria-describedby="assist-check"
+              required
+              value={proposed}
+            />
+          </div>
+        {:else}
+          <textarea
             id="assist-value"
             name="value"
-            maxlength="200"
-            aria-describedby="assist-check"
-            required
-            value={proposed}
-          />
-        </div>
-      {:else}
-        <textarea
-          id="assist-value"
-          name="value"
-          rows={lead ? 5 : 8}
-          maxlength={data.task === 'alt' ? 250 : lead ? 1000 : undefined}
-          aria-describedby={lead ? 'assist-check' : undefined}
-          required>{proposed}</textarea
-        >
+            rows={lead ? 5 : 8}
+            maxlength={data.task === 'alt' ? 250 : lead ? 1000 : undefined}
+            aria-describedby={lead ? 'assist-check' : undefined}
+            required>{proposed}</textarea
+          >
+        {/if}
       {/if}
       <div class="actions stack assist-actions">
-        <button type="submit">{t('admin.assist.accept')}</button>
+        <button type="submit"
+          >{t(section ? 'admin.assist.section.accept' : 'admin.assist.accept')}</button
+        >
         <button type="submit" class="secondary" formaction="?/dismiss{data.query}" formnovalidate
           >{t('admin.assist.dismiss')}</button
         >

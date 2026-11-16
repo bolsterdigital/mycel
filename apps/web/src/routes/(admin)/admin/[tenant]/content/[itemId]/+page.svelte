@@ -291,9 +291,7 @@
 
 {#snippet translateLinks(field: string, target: string, locale: string, label: string)}
   {#if data.assistEnabled}
-    {@const sources = docLocales.filter(
-      (source: string) => source !== locale && !!v(`${field}.${source}`)
-    )}
+    {@const sources = docLocales.filter((s: string) => s !== locale && !!v(`${field}.${s}`))}
     {@const own = data.ownAssist[target]}
     {#if sources.length || own}
       <p class="ui-hint">
@@ -1351,6 +1349,7 @@
             ...sections.map((s) => ({ value: s.id, label: s.title })),
           ]}
         />
+        {@render translateLinks('sectionId', 'sectionId', work, '')}
         {@render text('tags', t('admin.content.field.tags'), { max: 2000 })}
       {/if}
       <p>

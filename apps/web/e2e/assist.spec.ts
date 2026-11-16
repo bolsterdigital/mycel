@@ -698,6 +698,77 @@ for (const locale of ['nl-NL', 'en-GB']) {
       await acceptWithKeyboard(page);
       await expect(page.locator('[name="title.nl"]')).toHaveValue('Minder zout in de pepernoten');
     });
+
+    test('section proposal from the lead and the sections: request, dismiss, retry and accept without JavaScript', async ({
+      page,
+    }) => {
+      await signInToFreshSite(page);
+      await enable(page);
+      const run = `${test.info().project.name}-${Date.now()}`;
+      const { edit, food } = await inSite(page, async (invoker, principal) => {
+        const section = (slug: string, nl: string) =>
+          invoker.run(useCases.createSection, principal, { slug: `${slug}-${run}`, title: { nl } });
+        await section('politiek', 'Politiek');
+        const eten = await section('eten', 'Eten en drinken');
+        const created = await invoker.run(useCases.createItem, principal, {
+          slug: `assist-section-${run}`,
+          document: {
+            type: 'article',
+            defaultLocale: 'nl',
+            locales: ['nl'],
+            title: { nl: 'Werktitel' },
+            lead: {
+              nl: 'Bakkers bakken dit jaar pepernoten met minder zout. Het eten blijft lekker.',
+            },
+            blocks: [],
+          },
+        });
+        return { edit: `${base(page)}/content/${created.item.id}`, food: eten.id };
+      });
+      await page.goto(edit);
+      await page.getByRole('link', { name: /^(Rubriek voorstellen|Suggest a section)$/ }).click();
+      await expect(page).toHaveURL(`${edit}/assist?task=section&locale=nl`);
+      // Before anything is sent: the lead, the sections offered and the processor.
+      await expect(page.locator('main blockquote')).toHaveText(
+        'Bakkers bakken dit jaar pepernoten met minder zout. Het eten blijft lekker.'
+      );
+      await expect(page.locator('main li')).toHaveText([
+        /^(Politiek|Eten en drinken)$/,
+        /^(Politiek|Eten en drinken)$/,
+      ]);
+      await expect(page.locator('main')).toContainText('Fake model');
+      await expectNoAxeViolations(page);
+      const request = page.getByRole('button', { name: /^(Suggestie vragen|Request suggestion)$/ });
+      await request.click();
+      const first = new URL(page.url()).searchParams.get('suggestion');
+      expect(first).toBeTruthy();
+      await ready(page);
+      await expect(page.locator('#assist-value')).toHaveText('Eten en drinken');
+      await expectNoAxeViolations(page);
+      const shots = test.info().project.name;
+      for (const [name, width, zoom] of [
+        ['narrow', 320, '100%'],
+        ['combined', 320, '200%'],
+      ] as const) {
+        await page.setViewportSize({ width, height: 900 });
+        await setTextSize(page, zoom);
+        await layoutGate(page, `section ${locale} ${name}`, '.assist-actions');
+        await page.screenshot({
+          path: test.info().outputPath(`section-${locale}-${name}-${shots}.png`),
+          fullPage: true,
+        });
+      }
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.reload();
+      await page.getByRole('button', { name: /Suggestie negeren|Dismiss suggestion/ }).click();
+      await expect(page).toHaveURL(`${edit}/assist?task=section&locale=nl`);
+      await request.click();
+      expect(new URL(page.url()).searchParams.get('suggestion')).not.toBe(first);
+      await ready(page);
+      await page.getByRole('button', { name: /^(Rubriek overnemen|Accept section)$/ }).click();
+      await expect(page).toHaveURL(new RegExp(`${edit}\\?saved=1$`));
+      await expect(page.locator('#sectionId')).toHaveValue(food);
+    });
   });
 }
 

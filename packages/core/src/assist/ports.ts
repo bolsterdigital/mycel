@@ -5,7 +5,7 @@ import type { z } from 'zod';
 
 export type ModelFailure = 'unavailable' | 'timeout' | 'rejected' | 'invalid-output';
 /** The named assistance tasks (ADR 021 rule 1); the suggestion row stores which one it is. */
-export type AssistTask = 'alt' | 'translate' | 'lead' | 'headline';
+export type AssistTask = 'alt' | 'translate' | 'lead' | 'headline' | 'section';
 
 export class TextModelError extends Error {
   constructor(readonly failure: ModelFailure) {
@@ -44,7 +44,10 @@ export interface AssistSuggestion {
   itemId: string;
   baseRevisionId: string;
   task: AssistTask;
-  /** The image block (alt), the encoded translation descriptor, or the task name (lead, headline). */
+  /**
+   * The image block (alt), the encoded translation descriptor, the task name (lead, headline), or
+   * the hash of the offered sections (section, `sectionToken`).
+   */
   blockId: string;
   /** The prose blocks a lead was asked from, in document order; empty for the other tasks. */
   sourceBlockIds: string[];

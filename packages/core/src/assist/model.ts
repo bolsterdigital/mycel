@@ -49,6 +49,12 @@ export const HeadlineResult = z
   })
   .strict();
 
+/**
+ * A section proposal: one id. The schema checks the form; the worker and acceptance check that
+ * it is one of the offered sections, so the model can never name a new or another site's section.
+ */
+export const SectionResult = z.object({ sectionId: z.string().guid() }).strict();
+
 export const SettingsView = z.object({
   enabled: z.boolean(),
   allowRestricted: z.boolean(),
@@ -62,7 +68,7 @@ export const SuggestionView = z.object({
   id: z.string().guid(),
   itemId: z.string().guid(),
   baseRevisionId: z.string().guid(),
-  task: z.enum(['alt', 'translate', 'lead', 'headline']),
+  task: z.enum(['alt', 'translate', 'lead', 'headline', 'section']),
   blockId: z.string(),
   sourceBlockIds: z.array(z.string()),
   locale: z.string(),

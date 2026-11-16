@@ -69,6 +69,23 @@ export class FakeTextModel implements TextModel {
       const sentence = /^[^.!?]+/.exec(lead)?.[0] ?? lead;
       json = { headline: sentence.slice(0, 80).trim() || 'Headline' };
     }
+    if (request.task === 'section' && this.result === defaultAlt) {
+      // The offered section whose title shares most words with the lead, else the first one:
+      // deterministic and always one of the offered ids.
+      const [, lead, choices] = request.parts.map((part) =>
+        part.kind === 'text' ? part.text : ''
+      );
+      const words = new Set((lead ?? '').toLowerCase().match(/\p{L}{3,}/gu) ?? []);
+      const offered = JSON.parse(choices || '[]') as { id: string; title: string }[];
+      const score = (title: string) =>
+        (title.toLowerCase().match(/\p{L}{3,}/gu) ?? []).filter((w) => words.has(w)).length;
+      const best = offered.reduce<{ id: string; title: string } | null>(
+        (top, c) => (!top || score(c.title) > score(top.title) ? c : top),
+        null
+      );
+      if (!best) throw new TextModelError('invalid-output');
+      json = { sectionId: best.id };
+    }
     if (request.task === 'translate' && this.result === defaultAlt) {
       const part = request.parts[0];
       if (!part || part.kind !== 'text') throw new TextModelError('invalid-output');

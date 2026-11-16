@@ -26,6 +26,11 @@ export const en = {
   'assist.error.headline-source':
     'Write a lead in this language first; the headline is based on it.',
   'assist.error.headline-value': 'Enter a headline of at most 200 characters.',
+  'assist.error.section-source':
+    'Write a lead of 50 to 1,000 characters in this language first; the section is chosen from it.',
+  'assist.error.section-candidates':
+    'A proposal needs two to twenty sections with a name in this language. Choose the section yourself.',
+  'assist.error.section-value': 'Accept the proposed section, or choose another one yourself.',
   'forms.error.inactive': 'This field is not active for your answers.',
   'forms.error.value': 'Enter a valid value for this field.',
   'forms.error.version': 'This form has changed. Reload the page and try again.',
