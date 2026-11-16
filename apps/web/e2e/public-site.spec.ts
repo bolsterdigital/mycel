@@ -10,6 +10,7 @@ import { exercisePrefooter } from './lib/prefooter/zone';
 import { exercisePeopleGrid } from './lib/people/grid';
 import { exercisePublicPeople } from './lib/people/public';
 import { exercisePublishedRepresentations } from './lib/published/representations';
+import { exerciseOldAddresses } from './lib/published/old-addresses';
 import { exercisePublicSearch } from './lib/published/search';
 import { openPublication, closePublication } from './lib/publication';
 import { randomBytes } from 'node:crypto';
@@ -2102,6 +2103,10 @@ test('public profiles share policy across HTML, bylines and discovery', async ({
 
 test('noindex, canonical, sitemap and robots.txt follow publication', async ({ page }) => {
   await exercisePublishedRepresentations(page);
+});
+
+test('an old address forwards to the item until an editor removes it', async ({ page }) => {
+  await exerciseOldAddresses(page);
 });
 
 test('site search finds what a visitor may read, without JavaScript', async ({ page }) => {

@@ -4,6 +4,7 @@
 <script lang="ts">
   import ArticleBlocks from '#lib/editor/article/ArticleBlocks.svelte';
   import AuthorPicker from '#lib/admin/people/AuthorPicker.svelte';
+  import OldAddresses from '#lib/admin/old-addresses/OldAddresses.svelte';
   import CampaignPanel from '#lib/admin/campaigns/CampaignPanel.svelte';
   import EditorShortcuts from '#lib/editor/EditorShortcuts.svelte';
   import { onMount } from 'svelte';
@@ -1308,9 +1309,7 @@
         {/if}
       {/if}
       <MetaList items={[{ term: t('admin.content.item.url'), value: data.item.path }]} />
-      {#if data.item.slugFixed}
-        <p class="ui-hint">{t('admin.content.slug.fixed')}</p>
-      {:else if data.canWrite}
+      {#if data.canWrite}
         <details class="ui-fold item-slug" open={flagged('slug')}>
           <summary>{t('admin.content.slug.change')}</summary>
           <!-- The address this form was rendered with: a save changes the slug only when the
@@ -1333,6 +1332,7 @@
           />
         </details>
       {/if}
+      <OldAddresses {data} {action} />
       {#if article}
         <AuthorPicker
           locale={data.locale}

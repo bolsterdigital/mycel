@@ -55,7 +55,7 @@ import {
   readinessIssues,
 } from './model.js';
 import type { ItemPosition, ItemRecord } from './ports.js';
-import { freeSlug, slugFollowingTitle, slugTaken } from './address/slugs.js';
+import { freeSlug, slugFollowingTitle, slugHeld, slugTaken } from './address/slugs.js';
 import { preserveTranslationReview } from './translation-review.js';
 import './ports.js';
 import '../theme/ports.js';
@@ -391,7 +391,7 @@ export const createItem = defineUseCase({
         { path: 'slug', message: 'content.slug.reserved' },
       ]);
     const taken = () => slugTaken(document.type, slug);
-    if (await ctx.content.findBySlug(document.type, slug)) throw taken();
+    if (await slugHeld(ctx, document.type, slug)) throw taken();
     let blocks: readonly BlockInput[] = document.blocks;
     if (patternId) {
       const pattern = await ctx.patterns.get(patternId);
@@ -520,17 +520,21 @@ export const updateItem = defineUseCase({
 });
 
 /**
- * The address of an item that never went live (#66 PR 6b, brief edit-screen § 6): until a locale
- * has been published once, nobody can have linked to the slug, so it may change without a
- * redirect. Once any locale has a first publication the slug stays as it is; renames with
- * redirects are #9. Rejected: allowing it while a locale is only scheduled to go live later, then
- * refusing at the moment of the job; the scheduled path is not live yet, so it may still move.
+ * The address of an item, and its old addresses once it went live (migration 0062).
+ * Until a locale has been published once, nobody can have linked to the slug, so it moves without
+ * a trace. After that the old slug is kept as an old address of the item (`content_redirects`):
+ * the public site forwards it to wherever the item is now, in the same locale, and the slug stays
+ * held, so no other item can take it over. Moving back to an old address of the item itself takes
+ * it out of that list. Publish rights are not needed and nothing is published: the address is the
+ * item's, not a revision's. Rejected: a second command `content.item.rename` beside this one,
+ * which gives the edit screen two rules for one field; and refusing a rename of a published item,
+ * the earlier rule, which left an editor with a typo in a live address for good.
  */
 export const updateSlug = defineUseCase({
   name: 'content.slug.update',
   kind: 'command',
   description:
-    'Change the slug of an item that has never been published in any locale; fails with conflict when another item of the same type has that slug, and leaves revisions and publication untouched.',
+    'Change the slug of an item. Once a locale has been published, the old slug becomes an old address that forwards to the item and stays held; fails with conflict when another item of the same type has the slug or forwards from it. Leaves revisions and publication untouched.',
   requires: 'content:write',
   input: z.object({ itemId: ItemId, slug: Slug }),
   output: ContentItem,
@@ -538,17 +542,17 @@ export const updateSlug = defineUseCase({
   async handler(ctx, { itemId, slug }) {
     const item = await lockItem(ctx, itemId);
     if (item.slug === slug) return toContentItem(item);
-    if (item.publication.some((s) => s.firstPublishedAt))
-      throw new UseCaseError('invalid_input', 'the item has been published; its slug stays', [
-        { path: 'slug', message: 'content.slug.published' },
-      ]);
     if (item.type === 'page' && isReservedPageSlug(slug))
       throw new UseCaseError('invalid_input', `"${slug}" is reserved`, [
         { path: 'slug', message: 'content.slug.reserved' },
       ]);
+    if (await slugHeld(ctx, item.type, slug, itemId)) throw slugTaken(item.type, slug);
     // The write decides, not a read before it: two renames to one free slug cannot both win.
     const now = ctx.clock.now();
     if (!(await ctx.content.setSlug(itemId, slug, now))) throw slugTaken(item.type, slug);
+    await ctx.content.dropRedirect(item.type, slug);
+    if (item.publication.some((s) => s.firstPublishedAt))
+      await ctx.content.addRedirect(itemId, item.type, item.slug, now);
     return toContentItem({ ...item, slug, updatedAt: now });
   },
 });

@@ -237,6 +237,17 @@ export function memoryContent(s: TenantStore): ContentRepository {
       s.items.set(itemId, { ...item, slug, updatedAt: at });
       return true;
     },
+    redirectOf: async (type, slug) => s.redirects.get(`${type}:${slug}`)?.itemId ?? null,
+    redirects: async (itemId) =>
+      [...s.redirects.entries()]
+        .filter(([, r]) => r.itemId === itemId)
+        .map(([key, r]) => ({ slug: key.slice(key.indexOf(':') + 1), createdAt: r.createdAt }))
+        .sort(
+          (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.slug < b.slug ? -1 : 1)
+        ),
+    addRedirect: async (itemId, type, slug, at) =>
+      void s.redirects.set(`${type}:${slug}`, { itemId, createdAt: at }),
+    dropRedirect: async (type, slug) => s.redirects.delete(`${type}:${slug}`),
     insertRevision: async (r) => insertRevision(r),
     async find({ blockType, ref, live, type }, after, limit) {
       const matches: (ItemMatch & { id: string })[] = [];

@@ -161,6 +161,12 @@ export interface TrashedItem {
  * Every read and lock below leaves an item in the trash out, so no use case can act on one by
  * accident (ADR 030 rule 2); only `lockTrashed` and `trashed` see them.
  */
+/** An old slug of an item that forwards to it (migration 0062). */
+export interface ItemRedirect {
+  slug: string;
+  createdAt: Date;
+}
+
 export interface ContentRepository {
   /** The item with its publication rows, locked for the rest of the transaction. */
   lock(itemId: string): Promise<ItemRecord | null>;
@@ -186,6 +192,17 @@ export interface ContentRepository {
    * one false. After false the transaction may be unusable: the caller refuses, it does not go on.
    */
   setSlug(itemId: string, slug: string, at: Date): Promise<boolean>;
+  /**
+   * The item an old slug of `type` forwards to (0062), or null. The item may be in the trash; the
+   * caller reads it with `get`, which leaves a trashed one out.
+   */
+  redirectOf(type: ContentType, slug: string): Promise<string | null>;
+  /** The old slugs of an item, oldest first. */
+  redirects(itemId: string): Promise<ItemRedirect[]>;
+  /** Keeps `slug` as an old address of the item, of the item's type. */
+  addRedirect(itemId: string, type: ContentType, slug: string, at: Date): Promise<void>;
+  /** Removes an old address of `type`; false when there was none. */
+  dropRedirect(type: ContentType, slug: string): Promise<boolean>;
   /**
    * Inserts the revision and its `content_block_refs` rows, derived from the document here so no
    * caller can forget them (`documentReferences`).

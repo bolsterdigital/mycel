@@ -106,6 +106,7 @@ import { presenceOnLoad } from '#lib/server/content/presence.js';
 import { runtime } from '#lib/server/runtime.js';
 import { DONE, ISSUES, issueCopy } from '#lib/server/content/edit-copy.js';
 import { baseSlugOf, moveSlug, slugChange } from '#lib/server/content/edit-slug.js';
+import { addressOf, dropOldAddress } from '#lib/server/content/old-addresses.js';
 import {
   PINS,
   held,
@@ -263,10 +264,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
       id: item.id,
       type: item.type,
       slug: item.slug,
-      /** The address in the site's default locale, as the public site serves it. */
-      path: contentPath(item, tenant.defaultLocale, tenant.defaultLocale),
-      /** A locale went live once: the slug stays (`content.slug.update`). */
-      slugFixed: item.publication.some((p) => p.firstPublishedAt !== null),
+      ...(await addressOf(principal, item, tenant.defaultLocale)),
       defaultLocale: item.defaultLocale,
       publication: await Promise.all(
         item.publication.map(async (p) => ({
@@ -800,6 +798,7 @@ async function blockStep(
 
 export const actions: Actions = {
   addAuthor: (event) => addAuthor(event, { latest, show: refused }),
+  dropOldAddress: (event) => dropOldAddress(event, commit),
   pattern: async (event) => {
     const saved = await commit(event, { pattern: true, always: true });
     if ('failure' in saved) return saved.failure;

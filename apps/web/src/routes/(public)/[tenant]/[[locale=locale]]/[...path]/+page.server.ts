@@ -5,14 +5,14 @@
 // happens on the server, in the core use case). The tenant is `locals.site` (hooks.server.ts):
 // the hostname, or the dev path form; `params.tenant` is the slug the reroute hook put there and
 // is never read (ADR 014). `confirm`, `media` and `_theme` are routes of their own and win over
-// this one.
+// this one. A path that serves nothing may be an item's old address (`forwardOldAddress`).
 //
 // Caching (§ 9): a published item is `public` with a strong ETag (hooks.server.ts answers the
 // 304), except an item with a form, which is `no-store` without a validator so every visitor
 // gets a fresh timing token (public-page.ts); a form post's answer and the thank-you page are
 // `no-store`. No cookie is read or set.
 
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, isHttpError, redirect } from '@sveltejs/kit';
 import {
   OVERVIEW_MAX_PAGE,
   anonymousPrincipal,
@@ -25,6 +25,7 @@ import { ui } from '../../../../../i18n/index.js';
 import { localeOf, parseContentPath, thanksPath } from '#lib/server/public/content-route.js';
 import { failureFor } from '#lib/server/public/form-post.js';
 import { NO_STORE, PUBLIC_CACHE } from '#lib/server/http/http-cache.js';
+import { forwardOldAddress } from '#lib/server/public/old-address.js';
 import { loadPublicItem } from '#lib/server/public/public-page.js';
 import { runtime } from '#lib/server/runtime.js';
 import { absoluteSiteUrl, requireSite, sitePath, siteTenant } from '#lib/server/site.js';
@@ -53,7 +54,14 @@ function pageOf(url: URL): number {
 
 export const load: PageServerLoad = async ({ params, locals, request, setHeaders, url }) => {
   const { site, route, locale } = target(locals, params);
-  const view = await loadPublicItem(site, route, locale, route.thanks ? 1 : pageOf(url));
+  const view = await loadPublicItem(site, route, locale, route.thanks ? 1 : pageOf(url)).catch(
+    async (e: unknown) => {
+      // Nothing published here: an old address of an item forwards to it.
+      if (isHttpError(e, 404) && !route.thanks)
+        await forwardOldAddress(site, route, locale, url, setHeaders);
+      throw e;
+    }
+  );
   locals.lang = locale;
   const t = ui(locale);
 
