@@ -92,6 +92,16 @@ export const memoryImageProcessor: ImageProcessor = {
   async render(bytes, { width }) {
     return { bytes: new Uint8Array(bytes), width, height: width };
   },
+  /** A fixed PNG signature plus the drawing as JSON: a test reads back what was drawn. */
+  async shareCard(card) {
+    const { photo, logo, ...rest } = card;
+    const drawn = { ...rest, photo: photo ? photo.bytes.length : null, logo: logo?.length ?? null };
+    return new Uint8Array([
+      0x89,
+      ...new TextEncoder().encode('PNG'),
+      ...new TextEncoder().encode(JSON.stringify(drawn)),
+    ]);
+  },
 };
 
 /** `ctx.media`; `lock` is the tenant's media lock of the current run (TODO #8b2). */

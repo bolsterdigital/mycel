@@ -3,6 +3,7 @@
 import { Slug } from '@mycel/core';
 import { localeOf } from '#lib/server/public/content-route.js';
 import { loadPersonPage } from '#lib/server/public/person-page.js';
+import { feedLinks } from '#lib/server/public/text/feed.js';
 import { requireSite } from '#lib/server/site.js';
 import { refuse } from '#lib/server/http/refuse.js';
 import { PUBLIC_CACHE } from '#lib/server/http/http-cache.js';
@@ -18,5 +19,7 @@ export const load: PageServerLoad = async ({ locals, params, url, setHeaders }) 
   const { view, etag } = await loadPersonPage(site, params.slug, locale, offset);
   locals.lang = locale;
   setHeaders({ etag, 'cache-control': PUBLIC_CACHE });
-  return view;
+  // The person's own feed beside the site's (the layout's): what a reader follows from here.
+  const name = `${site.tenant.name}: ${view.person.name}`;
+  return { ...view, personFeeds: feedLinks(site, locale, `/people/${params.slug}/`, name) };
 };

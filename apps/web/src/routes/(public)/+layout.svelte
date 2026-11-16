@@ -37,6 +37,9 @@
     />
     <meta name="color-scheme" content="light dark" />
   {/if}
+  {#each data.feeds as feed (feed.href)}
+    <link rel="alternate" type={feed.type} href={feed.href} title={feed.title} />
+  {/each}
   {#if data.chrome?.logo}
     <link rel="icon" href={data.chrome.logo.src} type="image/webp" />
   {:else}

@@ -1558,6 +1558,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.field.featuredTitle': 'Titel in overzichten',
   'admin.content.field.featuredDescription': 'Beschrijving in overzichten',
   'admin.content.field.shareImage': 'Deelbeeld',
+  'admin.content.field.shareImageAlt':
+    'Beschrijving deelbeeld (alt), alleen bij een eigen deelbeeld',
   'admin.content.inherited': 'Standaard: {source}',
   'admin.content.inherited.empty': 'Standaard: leeg',
   'admin.content.inherited.image.featured': 'het uitgelichte beeld',

@@ -15,6 +15,9 @@
   {#each data.head.alternates as alternate (alternate.hreflang)}
     <link rel="alternate" hreflang={alternate.hreflang} href={alternate.href} />
   {/each}
+  {#each data.personFeeds as feed (feed.href)}
+    <link rel="alternate" type={feed.type} href={feed.href} title={feed.title} />
+  {/each}
   <meta property="og:type" content="profile" />
   <meta property="og:locale" content={data.head.share.locale} />
   {#each data.head.share.alternates as locale (locale)}<meta

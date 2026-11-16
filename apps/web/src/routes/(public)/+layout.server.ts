@@ -14,6 +14,7 @@
 import { negotiateLocale } from '@mycel/core';
 import { chromeModel } from '#lib/server/public/chrome.js';
 import { localeOf } from '#lib/server/public/content-route.js';
+import { feedLinks } from '#lib/server/public/text/feed.js';
 import { sitePath } from '#lib/server/site.js';
 import { siteTheme, themePath } from '#lib/server/public/theme.js';
 import type { LayoutServerLoad } from './$types';
@@ -25,7 +26,7 @@ const CONTENT_ROUTE = /\/\[\[locale=locale\]\]\/(?:\[\.\.\.path\]|people\/\[slug
 
 export const load: LayoutServerLoad = async ({ locals, request, params, route, setHeaders }) => {
   const site = locals.site;
-  if (!site) return { credit: null, theme: null, chrome: null, locale: 'en' };
+  if (!site) return { credit: null, theme: null, chrome: null, locale: 'en', feeds: [] };
   const { hash, preload, colors } = await siteTheme(site);
   const theme = { href: sitePath(site, themePath(hash)), preload, colors };
   // A content path has its language in the address; anything else depends on the visitor's.
@@ -39,5 +40,9 @@ export const load: LayoutServerLoad = async ({ locals, request, params, route, s
       );
   // A page that loads sets this itself; one that fails still gets `lang` from here.
   locals.lang ??= locale;
-  return { theme, locale, ...(await chromeModel(site, locale, sitePath(site, ''))) };
+  // The site's feeds in the page's language, so a reader finds them from any content page.
+  const feeds = CONTENT_ROUTE.test(route.id ?? '')
+    ? feedLinks(site, locale, '/', site.tenant.name)
+    : [];
+  return { theme, locale, feeds, ...(await chromeModel(site, locale, sitePath(site, ''))) };
 };

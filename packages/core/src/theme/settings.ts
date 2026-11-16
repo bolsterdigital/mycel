@@ -1,6 +1,7 @@
 // Tenant-owned appearance and chrome (ADR 002, 013). A single repository port keeps both
 // versioned documents under the same RLS boundary. Rejected: storing CSS or script strings,
 // which would bypass the validated theme and CSP contracts.
+import { planShareCardWalk } from '../content/published/share-card.js';
 import { z } from 'zod';
 import { defineUseCase } from '../registry.js';
 import { UseCaseError } from '../errors.js';
@@ -130,6 +131,7 @@ export const updateSiteTheme = defineUseCase({
   handler: async (ctx, { baseVersion, theme }) => {
     const next = await ctx.siteSettings.updateTheme(baseVersion, theme);
     if (next === null) return conflict();
+    await planShareCardWalk(ctx);
     return { version: next, value: theme };
   },
 });
@@ -217,6 +219,7 @@ export const updateSiteImages = defineUseCase({
       throw new UseCaseError('invalid_input', 'the default image could not be recorded', [
         { path: 'images.defaultImageId', message: 'content.reference.media-unrecorded' },
       ]);
+    await planShareCardWalk(ctx);
     return { version: next, value: images };
   },
 });

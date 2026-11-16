@@ -8,6 +8,7 @@ import { defineUseCase } from '../../registry.js';
 import { canonicalJson } from '../../util/canonical-json.js';
 import { exampleId } from '../../util/ids.js';
 import { publish, unpublish, draftLocale } from '../lifecycle.js';
+import { planShareCard } from '../published/share-card.js';
 import { ContentDocument, readinessIssues } from '../model.js';
 import type { ItemRecord } from '../ports.js';
 import {
@@ -207,6 +208,8 @@ async function apply(
       result.after.publication.map(({ status: _s, hasUnpublishedChanges: _h, ...p }) => p)
     );
   result.publishedRevisionId = result.publicationChanged ? publication.publishedRevisionId : null;
+  if (result.publishedRevisionId)
+    await planShareCard(ctx, item.id, plan.locale, result.publishedRevisionId);
   if (result.status !== 'awaiting_editor')
     result.status = result.savedRevisionId || result.publicationChanged ? 'changed' : 'unchanged';
   return result;
@@ -276,6 +279,8 @@ async function undo(
   result.publicationChanged = applied.publicationChanged;
   result.publishedRevisionId =
     item.publication.find((p) => p.locale === plan.locale)?.publishedRevisionId ?? null;
+  if (result.publicationChanged && result.publishedRevisionId)
+    await planShareCard(ctx, item.id, plan.locale, result.publishedRevisionId);
   return result;
 }
 

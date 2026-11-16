@@ -55,6 +55,7 @@ export * from './content/public.js';
 export * from './content/published/list.js';
 export * from './content/published/overview.js';
 export * from './content/published/feed.js';
+export * from './content/published/share-card.js';
 export * from './content/blocks/overview.js';
 export * from './content/published/search.js';
 export * from './content/patterns.js';

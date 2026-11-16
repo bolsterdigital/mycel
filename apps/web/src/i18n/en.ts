@@ -1541,6 +1541,8 @@ export const en = {
   'admin.content.field.featuredTitle': 'Title in lists',
   'admin.content.field.featuredDescription': 'Description in lists',
   'admin.content.field.shareImage': 'Share image',
+  'admin.content.field.shareImageAlt':
+    'Share image description (alt), only with a share image of its own',
   'admin.content.inherited': 'Default: {source}',
   'admin.content.inherited.empty': 'Default: empty',
   'admin.content.inherited.image.featured': 'the featured image',

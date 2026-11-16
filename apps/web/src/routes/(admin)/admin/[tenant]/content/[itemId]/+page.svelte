@@ -176,7 +176,6 @@
       timeZone: data.timeZone,
     })
   );
-
   type Publication = (typeof data.item.publication)[number];
   type Tone = 'neutral' | 'info' | 'success' | 'warning';
   /** A locale's state in words (brief edit-screen table stake 8). */
@@ -817,6 +816,7 @@
       upload={data.upload}
     />
     {@render inheritedImage('shareImageId', chain(work).images.share)}
+    {@render text(`shareImageAlt.${work}`, t('admin.content.field.shareImageAlt'))}
   </Fieldset>
 {/snippet}
 

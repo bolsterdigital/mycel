@@ -18,6 +18,7 @@ import {
   FakeSigner,
   MemoryBlobStore,
   MemoryUnitOfWork,
+  memoryImageProcessor,
   TENANT,
   expectCode,
   principal,
@@ -182,6 +183,7 @@ describe('media', () => {
         clock,
         blobs,
         images: {
+          ...memoryImageProcessor,
           probe: async () => ({ format: 'gif', width: 500, height: 500, pages: frames }),
           render: async (bytes, { width }) => ({ bytes, width, height: width }),
         },

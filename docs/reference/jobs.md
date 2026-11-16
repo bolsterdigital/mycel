@@ -34,7 +34,7 @@ There is no status column; the state is derived. Open: `done_at is null`. Exhaus
 
 A use case plans work with `ctx.jobs.enqueue({ type, key, runAt, payload })` (the `Scheduler` port) inside its own transaction, like `ctx.events.publish`, so a job exists if and only if the change that planned it committed. `jobScheduler` (`packages/db/src/operations/jobs.ts`) inserts as `mycel_app` under the tenant's own id and does nothing on a conflict: `enqueue` returns `false` when an open job with that key exists, and leaves it as it is.
 
-`jobKey(type, subject)` is `<type>:<subject>` for a tenant job and `<type>:<period>` for a recurring platform job. The partial unique index `jobs_open_key` on `key where done_at is null` makes it the idempotency: the subject must be globally unique, so a subject that can move between tenants carries the tenant id (`hostnames.reverify:<tenant>:<hostname>`). Other keys: `content.publish:<item>:<locale>:<schedule>`, `tenant.export:<export>`, `mail.reconcile:<subscriber>:<event>`.
+`jobKey(type, subject)` is `<type>:<subject>` for a tenant job and `<type>:<period>` for a recurring platform job. The partial unique index `jobs_open_key` on `key where done_at is null` makes it the idempotency: the subject must be globally unique, so a subject that can move between tenants carries the tenant id (`hostnames.reverify:<tenant>:<hostname>`). Other keys: `content.publish:<item>:<locale>:<schedule>`, `content.share-card:<item>:<locale>:<revision>`, `content.share-cards:<tenant>:<theme>:<images>:<logo>` (content-model.md § Share images), `tenant.export:<export>`, `mail.reconcile:<subscriber>:<event>`.
 
 ## Claim, lease and outcome
 

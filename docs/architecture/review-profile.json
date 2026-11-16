@@ -68,6 +68,7 @@
         "apps/web/src/lib/server/public/form-post*",
         "apps/web/src/lib/server/public/has-form*",
         "apps/web/src/lib/server/public/old-address*",
+        "apps/web/src/lib/server/public/share-card.ts",
         "apps/web/src/lib/server/media.ts",
         "apps/web/src/lib/server/content/preview.ts",
         "apps/web/src/routes/(preview)/**",

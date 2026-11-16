@@ -144,6 +144,7 @@ export function valuesOf(doc: ContentDocument): FormValues {
   put('featuredTitle', doc.featured?.title);
   put('featuredDescription', doc.featured?.description);
   v.shareImageId = doc.seo.imageId ?? '';
+  put('shareImageAlt', doc.seo.imageAlt);
   v.level = doc.access.level;
   const teaser = doc.access.teaser;
   v.teaser = typeof teaser === 'object' ? 'blocks' : teaser;
@@ -196,6 +197,9 @@ export function documentFrom(
   if (canonical) seo.canonical = canonical;
   const shareImage = image(v, 'shareImageId', doc.seo.imageId);
   if (shareImage) seo.imageId = shareImage;
+  // The share image's alt (`og:image:alt`) goes with the image: no image, no alt.
+  const shareImageAlt = shareImage ? optional(pick('shareImageAlt', doc.seo.imageAlt)) : undefined;
+  if (shareImageAlt) seo.imageAlt = shareImageAlt;
   const heroImageId = image(v, 'heroImageId', doc.heroImageId);
   // The alt belongs to the hero (#99): read where the form showed it (`heroAltShown`), kept
   // otherwise, gone with the image. Empty means decorative (#158, Jaap 2026-11-03): no text in any
