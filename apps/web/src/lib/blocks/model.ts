@@ -95,6 +95,16 @@ export interface RenderMeta {
   section: string | null;
 }
 
+/**
+ * An event page's when and where under its lead, with the words of its labels: `iso` is
+ * the start as an HTML local date and time, in the site's zone like the label.
+ */
+export interface RenderEvent {
+  when: { iso: string; label: string; term: string };
+  where: { text: string; term: string } | null;
+  online: { href: string; text: string; term: string } | null;
+}
+
 /** The lead and hero image between an item's title and its blocks (#86). */
 export interface RenderIntro {
   lead: string | null;
@@ -102,6 +112,8 @@ export interface RenderIntro {
   /** `cover` only with a hero image to cover the screen with (brief #105 rule 8). */
   header: ArticleHeader;
   meta: RenderMeta | null;
+  /** Absent on everything but an event page with a start. */
+  event?: RenderEvent | null;
 }
 
 export interface RenderAction {

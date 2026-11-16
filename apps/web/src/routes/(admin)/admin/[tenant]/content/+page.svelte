@@ -53,18 +53,18 @@
       now,
       relative: data.dateFormat !== 'absolute',
     });
-  const kind = $derived(
-    t(data.type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article')
-  );
+  /** What the list is of: pages, articles, or the pages that are events. */
+  const listed = $derived(data.view.profile === 'event' ? 'event' : data.type);
+  const kind = $derived(t(`admin.content.filter.${listed}`));
   const number = (n: number) => new Intl.NumberFormat(data.locale).format(n);
   const plural = (
-    key: 'admin.content.list.found' | `admin.content.list.count.${'page' | 'article'}`,
+    key: 'admin.content.list.found' | `admin.content.list.count.${'page' | 'article' | 'event'}`,
     n: number
   ) => fill(t(`${key}.${n === 1 ? 'one' : 'other'}` as const), { n: number(n) });
   const count = $derived(
     data.filtered
       ? plural('admin.content.list.found', data.total)
-      : plural(`admin.content.list.count.${data.type}`, data.total)
+      : plural(`admin.content.list.count.${listed}`, data.total)
   );
   // Without any, a reader would open a menu with nothing in it. Taking offline needs a live page.
   const nameOf = (item: (typeof data.items)[number]) => item.title || t('admin.content.untitled');
@@ -100,9 +100,11 @@
 
 {#snippet create()}
   <form method="POST" action="?/create">
-    <input type="hidden" name="type" value={data.type} /><Button
-      >{t(`admin.content.new.${data.type}`)}</Button
-    >
+    <input type="hidden" name="type" value={data.type} />{#if data.view.profile}<input
+        type="hidden"
+        name="profile"
+        value={data.view.profile}
+      />{/if}<Button>{t(`admin.content.new.${listed}`)}</Button>
   </form>
 {/snippet}
 
@@ -183,8 +185,8 @@
       : data.filtered
         ? { title: nothing, body: t('admin.content.list.none.body') }
         : {
-            title: t(`admin.content.empty.${data.type}`),
-            body: data.canWrite ? t(`admin.content.empty.${data.type}.body`) : undefined,
+            title: t(`admin.content.empty.${listed}`),
+            body: data.canWrite ? t(`admin.content.empty.${listed}.body`) : undefined,
             action: data.canWrite ? create : undefined,
           }}
   paging={data.links.previous || data.links.next

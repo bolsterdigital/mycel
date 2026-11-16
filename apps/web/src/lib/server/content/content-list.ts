@@ -25,6 +25,7 @@
 // "per person, in the browser" does not ask for.
 import {
   canonicalTag,
+  ContentProfile,
   ContentType,
   defaultDirection,
   isUuid,
@@ -76,6 +77,8 @@ const DEFAULT_SORT: ListSort = 'updated';
 const LAST_PAGE = Math.floor(MAX_LIST_OFFSET / LIST_PAGE_SIZE) + 1;
 
 export interface ListView {
+  /** A page profile the list is of (`event`: the site's events); null: every item of the type. */
+  profile: ContentProfile | null;
   q: string;
   status: ListStatus | null;
   /** An author id; only an article has one, like the section and the tag. */
@@ -133,6 +136,8 @@ export function listViewFrom(params: URLSearchParams, type: ContentType): ListVi
   const article = type === 'article';
   const tag = canonicalTag(params.get('tag') ?? '').slice(0, 50);
   return {
+    profile:
+      type === 'page' ? (ContentProfile.safeParse(params.get('profile')).data ?? null) : null,
     // A NUL is no search anyone typed, and core refuses it.
     q: q.includes('\0') ? '' : q,
     status: oneOf(LIST_STATUSES, params.get('status')),
@@ -153,6 +158,7 @@ export function listViewFrom(params: URLSearchParams, type: ContentType): ListVi
 /** The view as query parameters, defaults left out: an untouched list has none. */
 export function listParams(view: ListView): URLSearchParams {
   const params = new URLSearchParams();
+  if (view.profile) params.set('profile', view.profile);
   for (const name of ['q', 'status', 'author', 'section', 'tag', 'from', 'to'] as const) {
     const value = view[name];
     if (value) params.set(name, value);
@@ -222,6 +228,7 @@ export function listInput(
   const before = view.to ? endOf(view.to, zone) : null;
   return {
     type,
+    ...(view.profile ? { profile: view.profile } : {}),
     locale,
     ...(view.q ? { q: view.q } : {}),
     ...(view.status === 'changed'
@@ -326,14 +333,19 @@ export function rememberListFromReferer(
 /**
  * The list an item goes back to: the view it was entered from, at the item's own row. The
  * cookie is read through `listViewFrom`, so whatever it holds comes out as a view or as none.
+ * An item with a profile goes back to that profile's list (an event to Events).
  */
 export function recalledListPath(
   cookies: Cookies,
   tenant: string,
   type: ContentType,
-  itemId: string
+  itemId: string,
+  profile: ContentProfile | null = null
 ): string {
   const kept = cookies.get(cookieOf(type));
-  const view = kept ? listViewFrom(new URLSearchParams(kept), type) : undefined;
+  const params = new URLSearchParams(kept ?? '');
+  if (profile) params.set('profile', profile);
+  else params.delete('profile');
+  const view = kept || profile ? listViewFrom(params, type) : undefined;
   return `${listPath(tenant, type, view)}#item-${itemId}`;
 }

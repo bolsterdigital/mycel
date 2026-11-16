@@ -1,7 +1,7 @@
 // The data boundary is hostile text, not just a normal profile name.
 import { expect, it } from 'vitest';
 import type { PublishedItem } from '@mycel/core';
-import { articleData, jsonLd, personData } from './structured-data.js';
+import { articleData, eventData, jsonLd, personData, zonedIso } from './structured-data.js';
 import { personPath } from './person-path.js';
 
 it('escapes closing script tags without changing the JSON value or publishing private fields', () => {
@@ -67,4 +67,41 @@ it('describes an article as a NewsArticle with its access and section, and escap
     isAccessibleForFree: false,
   });
   expect(articleData({ ...item, type: 'page' }, url, 'nl', 'nl', (p) => p)).toBeNull();
+});
+
+it('describes an event page as an Event with the site’s offset, and nothing else as one', () => {
+  expect(zonedIso('2026-12-05T20:00', 'Europe/Amsterdam')).toBe('2026-12-05T20:00:00+01:00');
+  expect(zonedIso('2026-07-05T20:00', 'Europe/Amsterdam')).toBe('2026-07-05T20:00:00+02:00');
+  expect(zonedIso('2026-12-05T20:00', 'America/New_York')).toBe('2026-12-05T20:00:00-05:00');
+  const item = {
+    type: 'page',
+    title: 'Buurtavond</script>',
+    lead: 'Praat mee.',
+    event: {
+      startsAt: '2026-12-05T20:00',
+      endsAt: '2026-12-05T22:00',
+      location: 'Buurthuis, Kerkstraat 1',
+      onlineUrl: 'https://example.org/live',
+      timeZone: 'Europe/Amsterdam',
+    },
+  } as unknown as PublishedItem;
+  const value = eventData(item, 'https://example.org/buurtavond', 'nl');
+  expect(value).toMatchObject({
+    '@type': 'Event',
+    url: 'https://example.org/buurtavond',
+    startDate: '2026-12-05T20:00:00+01:00',
+    endDate: '2026-12-05T22:00:00+01:00',
+    eventAttendanceMode: 'https://schema.org/MixedEventAttendanceMode',
+    location: [
+      { '@type': 'Place', name: 'Buurthuis, Kerkstraat 1' },
+      { '@type': 'VirtualLocation', url: 'https://example.org/live' },
+    ],
+  });
+  expect(jsonLd(value)).not.toContain('<');
+  const offline = { ...item, event: { ...item.event!, onlineUrl: null } } as PublishedItem;
+  expect(eventData(offline, 'x', 'nl')).toMatchObject({
+    eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+    location: { '@type': 'Place' },
+  });
+  expect(eventData({ ...item, event: undefined } as PublishedItem, 'x', 'nl')).toBeNull();
 });

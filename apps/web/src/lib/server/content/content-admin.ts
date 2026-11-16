@@ -29,6 +29,7 @@ import {
   localizedFields,
   type Actor,
   type ContentDocument,
+  type EventDetails,
   type ContentDocumentInput,
 } from '@mycel/core';
 import { ui } from '../../../i18n/index.js';
@@ -95,6 +96,34 @@ const optional = (m: Record<string, string>) => (Object.keys(m).length ? m : und
 const image = (v: FormValues, key: string, kept: string | undefined): string | undefined =>
   key in v ? one(v, key) || undefined : kept;
 
+/**
+ * An event page's when and where from the form: read where the form showed the fields
+ * (`eventStartsAt` posted), kept otherwise; empty fields are absent, and nothing at all is no
+ * `event`. The times are the `datetime-local` values as typed: the site's wall clock.
+ */
+function eventFrom(
+  doc: ContentDocument,
+  v: FormValues,
+  pick: (
+    prefix: string,
+    kept: Partial<Record<string, string>> | undefined
+  ) => Record<string, string>
+): EventDetails | undefined {
+  if (doc.type !== 'page' || doc.profile !== 'event') return undefined;
+  if (!('eventStartsAt' in v)) return doc.event;
+  const startsAt = one(v, 'eventStartsAt').trim();
+  const endsAt = one(v, 'eventEndsAt').trim();
+  const location = optional(pick('eventLocation', doc.event?.location));
+  const onlineUrl = one(v, 'eventOnlineUrl').trim();
+  const event: EventDetails = {
+    ...(startsAt ? { startsAt } : {}),
+    ...(endsAt ? { endsAt } : {}),
+    ...(location ? { location } : {}),
+    ...(onlineUrl ? { onlineUrl } : {}),
+  };
+  return Object.keys(event).length ? event : undefined;
+}
+
 /** The form values of a document's fields, for a fresh edit page. */
 export function valuesOf(doc: ContentDocument): FormValues {
   const v: FormValues = { locales: [...doc.locales] };
@@ -118,6 +147,12 @@ export function valuesOf(doc: ContentDocument): FormValues {
   const teaser = doc.access.teaser;
   v.teaser = typeof teaser === 'object' ? 'blocks' : teaser;
   v.teaserBlocks = typeof teaser === 'object' ? String(teaser.blocks) : '';
+  if (doc.type === 'page' && doc.profile === 'event') {
+    v.eventStartsAt = doc.event?.startsAt ?? '';
+    v.eventEndsAt = doc.event?.endsAt ?? '';
+    put('eventLocation', doc.event?.location);
+    v.eventOnlineUrl = doc.event?.onlineUrl ?? '';
+  }
   if (doc.type === 'article') {
     v.headerLayout = doc.presentation?.header ?? 'standard';
     v.authorIds = [...doc.authorIds];
@@ -200,6 +235,7 @@ export function documentFrom(
     ...rest
   } = doc;
   const lead = optional(pick('lead', doc.lead));
+  const event = eventFrom(doc, v, pick);
   const common = {
     ...rest,
     ...(heroImageId ? { heroImageId } : {}),
@@ -234,7 +270,10 @@ export function documentFrom(
           }
         : doc.access,
   };
-  if (doc.type !== 'article') return common as ContentDocumentInput;
+  if (doc.type !== 'article') {
+    const { event: _event, ...page } = common as typeof common & { event?: unknown };
+    return { ...page, ...(event ? { event } : {}) } as ContentDocumentInput;
+  }
 
   // A new correction is written in the locale the form shows; the stored ones stay as they are.
   const correction = localized(

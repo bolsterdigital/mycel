@@ -65,7 +65,7 @@ import type {
   RenderIntro,
   RenderModel,
 } from './model.js';
-import { videoUrl, type RenderMeta } from './model.js';
+import { videoUrl, type RenderEvent, type RenderMeta } from './model.js';
 
 /** Where the resolver reads tenant data; `runtimeSource` is the real one, tests may stub it. */
 export interface ResolveSource {
@@ -298,6 +298,7 @@ export async function resolveIntro(
     heroAlt: string | null;
     header?: ArticleHeader;
     meta?: RenderMeta | null;
+    event?: RenderEvent | null;
   },
   locale: string
 ): Promise<RenderIntro> {
@@ -317,6 +318,45 @@ export async function resolveIntro(
     hero,
     header: hero && intro.header === 'cover' ? 'cover' : 'standard',
     meta: intro.meta ?? null,
+    ...(intro.event ? { event: intro.event } : {}),
+  };
+}
+
+/**
+ * An event's when and where. The times are the site's wall clock, so they are formatted as
+ * UTC: no zone shifts them a second time. A range on one day names the day once. Rejected: the
+ * zone's name beside the time, which a visitor of a local event does not need.
+ */
+export function renderEvent(
+  event: {
+    startsAt: string;
+    endsAt: string | null;
+    location: string | null;
+    onlineUrl: string | null;
+  },
+  locale: string
+): RenderEvent {
+  const t = ui(locale);
+  const at = (v: string) => new Date(`${v}:00Z`);
+  const format = new Intl.DateTimeFormat(locale, {
+    dateStyle: 'full',
+    timeStyle: 'short',
+    timeZone: 'UTC',
+  });
+  const label =
+    event.endsAt && event.endsAt !== event.startsAt
+      ? format.formatRange(at(event.startsAt), at(event.endsAt))
+      : format.format(at(event.startsAt));
+  return {
+    when: { iso: event.startsAt, label, term: t('block.event.when') },
+    where: event.location ? { text: event.location, term: t('block.event.where') } : null,
+    online: event.onlineUrl
+      ? {
+          href: event.onlineUrl,
+          text: new URL(event.onlineUrl).host,
+          term: t('block.event.online'),
+        }
+      : null,
   };
 }
 

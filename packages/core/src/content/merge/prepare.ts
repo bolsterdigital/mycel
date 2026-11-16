@@ -6,7 +6,7 @@ import { zodIssues } from '../../invoke.js';
 import type { TransactionContext } from '../../ports.js';
 import { canonicalJson } from '../../util/canonical-json.js';
 import { allBlocks, assignBlockIds, type BlockInput } from '../blocks.js';
-import { ContentDocument, type ContentDocumentInput, type Revision } from '../model.js';
+import { ContentDocument, profileOf, type ContentDocumentInput, type Revision } from '../model.js';
 import type { ItemRecord } from '../ports.js';
 import { adoptAddedBlocks, mergeConflict, mergeSave } from './save.js';
 
@@ -62,6 +62,11 @@ export async function prepareItemSave(
   if (document.type !== item.type)
     throw new UseCaseError('invalid_input', 'the type of an item never changes', [
       { path: 'document.type', message: 'content.type.immutable' },
+    ]);
+  // The profile is fixed as the type is: sent back as read, or refused (ADR 022 rule 3).
+  if (profileOf(document) !== item.profile)
+    throw new UseCaseError('invalid_input', 'the profile of an item never changes', [
+      { path: 'document.profile', message: 'content.profile.immutable' },
     ]);
   const base = await ctx.content.revision(item.id, baseRevisionId);
   // An id that is no revision of this item cannot be merged from: the stale-base refusal.

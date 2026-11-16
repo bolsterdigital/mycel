@@ -24,12 +24,38 @@ import { ARTICLE_HEADERS } from './model.js';
 import { Locale } from '../i18n/locale.js';
 import { defineUseCase } from '../registry.js';
 import { Block, blockLocalized, projectBlock } from './blocks.js';
-import { ContentType, Slug, type ContentDocument } from './model.js';
+import { ContentType, LocalDateTime, Slug, type ContentDocument } from './model.js';
 import { EffectiveView, effectiveOf } from './header/effective.js';
 import { statusOf } from './lifecycle.js';
 import { personPageEnabled } from './people/public.js';
 import './ports.js';
 import '../theme/ports.js';
+
+export const PublishedEvent = z.object({
+  startsAt: LocalDateTime,
+  endsAt: LocalDateTime.nullable(),
+  location: z.string().nullable(),
+  onlineUrl: z.string().url().nullable(),
+  timeZone: z.string(),
+});
+export type PublishedEvent = z.infer<typeof PublishedEvent>;
+
+/** The event of a document in one locale; null unless it is an event page with a start. */
+export function projectEvent(
+  doc: ContentDocument,
+  locale: string,
+  timeZone: string
+): PublishedEvent | null {
+  if (doc.type !== 'page' || doc.profile !== 'event' || !doc.event?.startsAt) return null;
+  const { startsAt, endsAt, location, onlineUrl } = doc.event;
+  return {
+    startsAt,
+    endsAt: endsAt ?? null,
+    location: location?.[locale] ?? null,
+    onlineUrl: onlineUrl ?? null,
+    timeZone,
+  };
+}
 
 export const PublishedItem = z.object({
   id: z.string().guid(),
@@ -79,6 +105,11 @@ export const PublishedItem = z.object({
   section: z.object({ slug: Slug, name: z.string() }).nullable().optional(),
   /** An article's chosen header (ADR 025 rule 3); a renderer without a hero image shows `standard`. */
   presentation: z.object({ header: z.enum(ARTICLE_HEADERS) }).optional(),
+  /**
+   * An event page's when and where in this locale; absent on every other item. Times are
+   * the wall clock of `timeZone`, the site's zone, which a representation needs for an offset.
+   */
+  event: PublishedEvent.optional(),
 });
 export type PublishedItem = z.infer<typeof PublishedItem>;
 
@@ -164,7 +195,10 @@ export const getPublished = defineUseCase({
       lead: doc.lead?.[chosen] ?? null,
       effective,
     };
-    if (doc.type !== 'article') return base;
+    if (doc.type !== 'article') {
+      const event = projectEvent(doc, chosen, (await ctx.siteSettings.general()).value.timeZone);
+      return event ? { ...base, event } : base;
+    }
 
     // Authors and section as the public sees them: name and slug, never an author's e-mail.
     // A reference that no longer resolves is left out rather than failing the page.

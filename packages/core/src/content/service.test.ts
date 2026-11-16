@@ -838,3 +838,124 @@ describe('content items', () => {
     });
   });
 });
+
+describe('an event is a page with the event profile (ADR 022 rule 3)', () => {
+  const setup = () => {
+    const uow = new MemoryUnitOfWork({ clock: new FakeClock() });
+    const invoker = new Invoker(buildRegistry(), uow);
+    const admin = principal({
+      capabilities: ['content:read', 'content:write', 'content:publish'],
+    });
+    return { invoker, admin };
+  };
+  const event = {
+    type: 'page' as const,
+    profile: 'event' as const,
+    defaultLocale: 'nl',
+    locales: ['nl', 'en'],
+    title: { nl: 'Buurtavond', en: 'Neighbourhood evening' },
+    blocks: [],
+    event: {
+      startsAt: '2026-12-05T20:00',
+      endsAt: '2026-12-05T22:00',
+      location: { nl: 'Buurthuis, Kerkstraat 1', en: 'Community centre, Kerkstraat 1' },
+      onlineUrl: 'https://example.org/live',
+    },
+  };
+
+  it('keeps the profile from creation on: sent back as read, any other value refused', async () => {
+    const { invoker, admin } = setup();
+    const { item, revision } = await invoker.run(useCases.createItem, admin, { document: event });
+    expect(item.profile).toBe('event');
+    const saved = await invoker.run(useCases.updateItem, admin, {
+      itemId: item.id,
+      baseRevisionId: revision.id,
+      document: { ...event, event: { ...event.event, startsAt: '2026-12-05T19:30' } },
+    });
+    expect(saved.revision?.document).toMatchObject({ event: { startsAt: '2026-12-05T19:30' } });
+    const { profile: _profile, event: _event, ...plain } = event;
+    await expect(
+      invoker.run(useCases.updateItem, admin, {
+        itemId: item.id,
+        baseRevisionId: saved.revision!.id,
+        document: plain,
+      })
+    ).rejects.toMatchObject({ issues: [{ message: 'content.profile.immutable' }] });
+    const page = await invoker.run(useCases.createItem, admin, { slug: 'gewoon', document: plain });
+    expect(page.item.profile).toBeNull();
+    await expect(
+      invoker.run(useCases.updateItem, admin, {
+        itemId: page.item.id,
+        baseRevisionId: page.revision.id,
+        document: { ...plain, profile: 'event' },
+      })
+    ).rejects.toMatchObject({ issues: [{ message: 'content.profile.immutable' }] });
+  });
+
+  it('lists a site’s events apart from its other pages, and a copy stays an event', async () => {
+    const { invoker, admin } = setup();
+    const { item } = await invoker.run(useCases.createItem, admin, { document: event });
+    const { profile: _profile, event: _event, ...plain } = event;
+    await invoker.run(useCases.createItem, admin, { slug: 'over-ons', document: plain });
+    const copy = await invoker.run(useCases.duplicateItem, admin, { itemId: item.id });
+    const listed = await invoker.run(useCases.listItems, admin, { profile: 'event' });
+    expect(listed.items.map((i) => i.id).sort()).toEqual([item.id, copy.item.id].sort());
+    expect(listed.items.every((i) => i.profile === 'event')).toBe(true);
+    expect((await invoker.run(useCases.listItems, admin, { type: 'page' })).total).toBe(3);
+  });
+
+  it('serves when and where in the published locale only, with the site’s time zone', async () => {
+    const { invoker, admin } = setup();
+    const { item, revision } = await invoker.run(useCases.createItem, admin, {
+      slug: 'buurtavond',
+      document: event,
+    });
+    await invoker.run(useCases.publishItem, admin, {
+      itemId: item.id,
+      revisionId: revision.id,
+      locale: 'en',
+    });
+    const published = await invoker.run(useCases.getPublished, admin, {
+      type: 'page',
+      slug: 'buurtavond',
+    });
+    expect(published.event).toEqual({
+      startsAt: '2026-12-05T20:00',
+      endsAt: '2026-12-05T22:00',
+      location: 'Community centre, Kerkstraat 1',
+      onlineUrl: 'https://example.org/live',
+      timeZone: expect.any(String),
+    });
+    const { profile: _profile, event: _event, ...plain } = event;
+    const page = await invoker.run(useCases.createItem, admin, { slug: 'over', document: plain });
+    await invoker.run(useCases.publishItem, admin, {
+      itemId: page.item.id,
+      revisionId: page.revision.id,
+      locale: 'nl',
+    });
+    const ordinary = await invoker.run(useCases.getPublished, admin, {
+      type: 'page',
+      slug: 'over',
+    });
+    expect(ordinary).not.toHaveProperty('event');
+  });
+
+  it('refuses to publish an event without a start', async () => {
+    const { invoker, admin } = setup();
+    const { event: _event, ...undated } = event;
+    const { item, revision } = await invoker.run(useCases.createItem, admin, {
+      document: undated,
+    });
+    await expect(
+      invoker.run(useCases.publishItem, admin, {
+        itemId: item.id,
+        revisionId: revision.id,
+        locale: 'nl',
+      })
+    ).rejects.toMatchObject({
+      issues: expect.arrayContaining([
+        expect.objectContaining({ message: 'content.publish.event-start-required' }),
+      ]),
+    });
+  });
+});

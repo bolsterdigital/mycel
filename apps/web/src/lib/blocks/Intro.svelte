@@ -1,5 +1,5 @@
-<!-- An item's one document header (ADR 025, brief #105): the title (the page's only h1), lead, hero
-     image and an article's meta line, the same markup on the public page and in both previews, so
+<!-- An item's one document header (ADR 025, brief #105): the title (the page's only h1), lead, an
+     event's when and where, hero image and an article's meta line, the same markup on the public page and in both previews, so
      a preview shows what the page will. The hero is the page's first image: it loads eagerly and
      with priority. The cover is an article's option: the title in marked lines on the validated
      primary pair, never bare text on a photo, and an arrow that is a link, so it works without a
@@ -24,6 +24,29 @@
 
 {#snippet lead()}
   {#if intro.lead}<p class="lead">{intro.lead}</p>{/if}
+{/snippet}
+
+{#snippet event()}
+  {#if intro.event}
+    <dl class="page-event">
+      <div>
+        <dt>{intro.event.when.term}</dt>
+        <dd><time datetime={intro.event.when.iso}>{intro.event.when.label}</time></dd>
+      </div>
+      {#if intro.event.where}
+        <div>
+          <dt>{intro.event.where.term}</dt>
+          <dd>{intro.event.where.text}</dd>
+        </div>
+      {/if}
+      {#if intro.event.online}
+        <div>
+          <dt>{intro.event.online.term}</dt>
+          <dd><a href={intro.event.online.href}>{intro.event.online.text}</a></dd>
+        </div>
+      {/if}
+    </dl>
+  {/if}
 {/snippet}
 
 {#snippet meta()}
@@ -63,10 +86,12 @@
   {/if}
   <div id="page-content"></div>
   {@render lead()}
+  {@render event()}
   {@render meta()}
 {:else}
   <h1>{model.title}</h1>
   {@render lead()}
+  {@render event()}
   {#if intro.hero}
     <figure class="block image layout-wide page-hero">
       <Picture image={intro.hero} base={model.base} sizes={IMAGE_SIZES.wide} eager />

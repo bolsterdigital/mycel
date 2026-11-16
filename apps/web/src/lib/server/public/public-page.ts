@@ -38,10 +38,16 @@ import {
 } from '@mycel/core';
 import type { RenderIntro, RenderModel } from '../../blocks/model.js';
 import { hasForm } from './has-form.js';
-import { renderMeta, resolveDocument, resolveIntro, runtimeSource } from '../../blocks/resolve.js';
+import {
+  renderEvent,
+  renderMeta,
+  resolveDocument,
+  resolveIntro,
+  runtimeSource,
+} from '../../blocks/resolve.js';
 import type { ContentRoute } from './content-route.js';
 import { runtime } from '../runtime.js';
-import { articleData } from '../../public/structured-data.js';
+import { articleData, eventData } from '../../public/structured-data.js';
 import { personPath } from '../../public/person-path.js';
 import { ui } from '../../../i18n/index.js';
 import { ogLocales } from './share-locale.js';
@@ -79,7 +85,7 @@ export interface PublicItem {
   /** Whether the first letter of the body is a drop cap: an article on a site that wants one. */
   dropCap: boolean;
   head: PublicHead;
-  structured: ReturnType<typeof articleData>;
+  structured: ReturnType<typeof articleData> | ReturnType<typeof eventData>;
   /** Strong, or null for an item with a form; see the comment at the top. */
   etag: string | null;
 }
@@ -137,6 +143,7 @@ export async function loadPublicItem(
             ),
           }
         : {}),
+      ...(item.event ? { event: renderEvent(item.event, locale) } : {}),
     },
     locale
   );
@@ -199,7 +206,9 @@ export async function loadPublicItem(
   // The JSON-LD `url` is the same canonical as the link and og:url, explicit or not: three
   // answers to "which address is this" must agree. Rejected: the item's own address here, which
   // would tell search one URL in the link and another in the structured data.
-  const structured = articleData(item, head.canonical, locale, tenant.defaultLocale, url);
+  const structured =
+    articleData(item, head.canonical, locale, tenant.defaultLocale, url) ??
+    eventData(item, head.canonical, locale);
   const page = { tenant, item, locale, model, intro, dropCap, head, structured };
   if (hasForm(model)) return { ...page, etag: null };
   const chrome = await siteChrome(site);

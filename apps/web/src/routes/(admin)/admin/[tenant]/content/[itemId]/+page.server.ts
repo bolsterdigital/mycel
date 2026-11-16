@@ -73,7 +73,7 @@ import { chooseContentLocale, contentLocale } from '#lib/server/content/content-
 import { recalledListPath, rememberListFromReferer } from '#lib/server/content/content-list.js';
 import {
   fieldOf,
-  fromLocalInput,
+  instant,
   issuePath,
   localInput,
   localLabel,
@@ -215,9 +215,10 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     forms: refs.forms.choices,
     campaigns: refs.campaigns.choices,
     contentType: item.type,
+    contentProfile: item.profile,
     presence: await presenceOnLoad(principal, params.tenant, item.id, revision.id, names),
     // Back to the list as it was left: its search, status, order and page, at this item's row.
-    listPath: recalledListPath(cookies, params.tenant, item.type, item.id),
+    listPath: recalledListPath(cookies, params.tenant, item.type, item.id, item.profile),
     patterns: doc.blocks.length
       ? null
       : await patternChoices(principal, item.type, [work, tenant.defaultLocale], true),
@@ -310,6 +311,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     timeZone: zone,
     // Named next to the field only where the operator's own zone is not the site's (#88).
     timeZoneNamed: zone !== site,
+    siteTimeZone: site,
     done: DONE[url.searchParams.get('done') ?? ''] ?? null,
     // "Undo" after a removal: `<revision>:<block>`, posted back as is to `restore`.
     undo:
@@ -357,16 +359,6 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
  * (`content.blocks.adjacent-rich-text`) and a document has one paywall marker.
  */
 const SINGLE = new Set<string>(['rich-text', 'paywall']);
-
-/** The time of the schedule form, or a refusal core will word like its own. */
-function instant(at: string, zone: string): string {
-  const parsed = fromLocalInput(at, zone);
-  if (!parsed)
-    throw new UseCaseError('invalid_input', 'no time given', [
-      { path: 'at', message: 'admin.content.publication.time-invalid' },
-    ]);
-  return parsed.toISOString();
-}
 
 /** The operator's admin language; the admin hook always sets it, English only as a last resort. */
 const adminUi = (locals: App.Locals) => ui(langOf(locals));

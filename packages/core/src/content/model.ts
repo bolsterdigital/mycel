@@ -95,18 +95,20 @@ export const Tags = z
   .transform((tags) => [...new Set(tags.map(canonicalTag))])
   .pipe(z.array(z.string().min(1).max(50).regex(TAG, 'content.tag.invalid')).max(MAX_TAGS));
 
-/** Absolute http(s) URL without credentials. */
-const CanonicalUrl = z
-  .string()
-  .max(2048)
-  .refine((v) => {
-    try {
-      const u = new URL(v);
-      return (u.protocol === 'http:' || u.protocol === 'https:') && !u.username && !u.password;
-    } catch {
-      return false;
-    }
-  }, 'content.seo.canonical.invalid');
+/** Absolute http(s) URL without credentials, refused with `message`. */
+const httpUrl = (message: string) =>
+  z
+    .string()
+    .max(2048)
+    .refine((v) => {
+      try {
+        const u = new URL(v);
+        return (u.protocol === 'http:' || u.protocol === 'https:') && !u.username && !u.password;
+      } catch {
+        return false;
+      }
+    }, message);
+const CanonicalUrl = httpUrl('content.seo.canonical.invalid');
 
 /**
  * Search and sharing metadata, stored with the revision. A present field is an explicit override;
@@ -184,6 +186,53 @@ const HeroAlt = z
   .record(Locale, z.string().min(1).max(1000).regex(/\S/, 'content.image.alt-empty'))
   .refine((value) => Object.keys(value).length > 0, 'content.image.alt-required');
 
+/**
+ * The built-in type profiles of a page (ADR 022 rule 3): validated metadata, presentation and
+ * listings on top of `page`, with the page's revisions, publication, slug and export. Fixed when
+ * the item is created, like its type. Rejected: an `events` entity with its own table and read
+ * route, which would duplicate what a page has (brief events-profile).
+ */
+export const CONTENT_PROFILES = ['event'] as const;
+export const ContentProfile = z.enum(CONTENT_PROFILES);
+export type ContentProfile = z.infer<typeof ContentProfile>;
+
+/**
+ * A date and time on the wall clock of the site's time zone (`2026-12-05T20:00`): the value of a
+ * `datetime-local` field, shown as typed and compared as text. Rejected: an instant with an
+ * offset, which every form and representation would convert, and which an operator with another
+ * time zone of their own would shift.
+ */
+export const LocalDateTime = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, 'content.event.date-invalid')
+  .refine((v) => {
+    const d = new Date(`${v}:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 16) === v;
+  }, 'content.event.date-invalid');
+
+/**
+ * What makes a page an event: when, and where or online. Every field may wait in a draft;
+ * publishing asks for the start (`readinessIssues`). The location is one text per locale, name
+ * and address together, as on a poster.
+ */
+export const EventDetails = z
+  .object({
+    startsAt: LocalDateTime.optional(),
+    endsAt: LocalDateTime.optional(),
+    location: localized(z.string().min(1).max(500)).optional(),
+    onlineUrl: httpUrl('content.event.online-url-invalid').optional(),
+  })
+  .strict();
+export type EventDetails = z.infer<typeof EventDetails>;
+
+/** A document's profile, null for an ordinary page and for every article. */
+export function profileOf(doc: {
+  type: ContentType;
+  profile?: ContentProfile | undefined;
+}): ContentProfile | null {
+  return doc.type === 'page' ? (doc.profile ?? null) : null;
+}
+
 /** The closed choice of article headers (ADR 025 rule 3). */
 export const ARTICLE_HEADERS = ['standard', 'cover'] as const;
 export type ArticleHeader = (typeof ARTICLE_HEADERS)[number];
@@ -215,7 +264,16 @@ function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
     seo: Seo.prefault({}),
     access: Access.prefault({ level: 'public' }),
   };
-  const page = z.object({ type: z.literal('page'), ...base }).strict();
+  const page = z
+    .object({
+      type: z.literal('page'),
+      ...base,
+      /** Fixed at creation (`content.profile.immutable`); absent on an ordinary page. */
+      profile: ContentProfile.optional(),
+      /** Only on a page with the `event` profile. */
+      event: EventDetails.optional(),
+    })
+    .strict();
   const article = z
     .object({
       type: z.literal('article'),
@@ -276,6 +334,8 @@ export function localizedFields(
   if (doc.lead) fields.push({ path: ['lead'], value: doc.lead, required: true });
   // A described hero is described in every published locale, as an image block's alt is.
   if (doc.heroAlt) fields.push({ path: ['heroAlt'], value: doc.heroAlt, required: true });
+  if (doc.type === 'page' && doc.event?.location)
+    fields.push({ path: ['event', 'location'], value: doc.event.location, required: true });
   allBlocks(doc.blocks).forEach((b, i) => {
     for (const f of blockLocalized(b)) fields.push({ ...f, path: ['blocks', i, ...f.path] });
   });
@@ -305,6 +365,7 @@ function documentIssues(doc: DocumentShape): { path: (string | number)[]; messag
         issues.push({ path: [...field.path, key], message: 'i18n.locale-not-in-document' });
   if (doc.heroAlt && !doc.heroImageId)
     issues.push({ path: ['heroAlt'], message: 'content.hero.alt-without-image' });
+  if (doc.type === 'page') issues.push(...eventIssues(doc));
   for (const [i, block] of doc.blocks.entries())
     for (const locale of Object.keys(block.name ?? {}))
       if (!doc.locales.includes(locale))
@@ -316,6 +377,20 @@ function documentIssues(doc: DocumentShape): { path: (string | number)[]; messag
     issues.push({ path: ['blocks', ...issue.path], message: issue.message });
   issues.push(...accessIssues(doc));
   return issues;
+}
+
+function eventIssues(
+  doc: Extract<DocumentShape, { type: 'page' }>
+): { path: (string | number)[]; message: string }[] {
+  const event = doc.event;
+  if (!event) return [];
+  if (doc.profile !== 'event') return [{ path: ['event'], message: 'content.event.not-an-event' }];
+  if (event.endsAt && !event.startsAt)
+    return [{ path: ['event', 'endsAt'], message: 'content.event.end-without-start' }];
+  // Wall-clock values of one zone compare as text.
+  if (event.endsAt && event.startsAt && event.endsAt < event.startsAt)
+    return [{ path: ['event', 'endsAt'], message: 'content.event.ends-before-start' }];
+  return [];
 }
 
 function accessIssues(doc: DocumentShape): { path: (string | number)[]; message: string }[] {
@@ -360,6 +435,9 @@ export function readinessIssues(
   for (const field of localizedFields(doc))
     if (field.required && (field.value[locale] === undefined || isBlankDoc(field.value[locale])))
       issues.push({ path: field.path.join('.'), message: 'content.publish.missing-translation' });
+  // An event without a start cannot be listed by date, so it is not published without one.
+  if (doc.type === 'page' && doc.profile === 'event' && !doc.event?.startsAt)
+    issues.push({ path: 'event.startsAt', message: 'content.publish.event-start-required' });
   if (doc.type === 'article') {
     if (doc.access.level !== 'public' && doc.access.teaser === 'lead' && !doc.lead)
       issues.push({ path: 'lead', message: 'content.publish.teaser-lead-required' });
@@ -438,6 +516,8 @@ export type LocalePublication = z.infer<typeof LocalePublication>;
 export const ContentItem = z.object({
   id: z.string().guid(),
   type: ContentType,
+  /** A page's type profile (ADR 022 rule 3), fixed at creation; null on every other item. */
+  profile: ContentProfile.nullable(),
   slug: Slug,
   title: localized(z.string()),
   defaultLocale: Locale,

@@ -454,6 +454,28 @@ describe.skipIf(skip)('content conformance', () => {
     ).rejects.toMatchObject({ code: 'invalid_input' });
   });
 
+  it('keeps an event page’s profile on the item, lists by it and refuses it on an article', async () => {
+    const admin = adminOf(tenantA);
+    const event = { startsAt: '2026-12-05T20:00', location: { nl: 'Buurthuis', en: 'Buurthuis' } };
+    const document = { ...doc('Buurtavond'), profile: 'event' as const, event };
+    const created = await invoker.run(useCases.createItem, admin, { slug: `ev-${run}`, document });
+    await create('not-an-event');
+    const read = await invoker.run(useCases.getItem, admin, { itemId: created.item.id });
+    expect(read.item.profile).toBe('event');
+    expect(read.revision.document).toMatchObject({ profile: 'event', event });
+    const listed = await invoker.run(useCases.listItems, admin, { profile: 'event' });
+    expect(listed.items.map((i) => i.id)).toContain(created.item.id);
+    expect(listed.items.every((i) => i.profile === 'event')).toBe(true);
+    // The column takes only a page; the check is the database's, not only core's.
+    await expect(
+      operatorDb
+        .updateTable('content_items')
+        .set({ type: 'article' })
+        .where('id', '=', created.item.id)
+        .execute()
+    ).rejects.toThrow(/check/);
+  });
+
   it('makes a save wait for an open item lock and then see the newer base', async () => {
     // Deterministic counterpart of the race below: one transaction holds the row lock and saves
     // a revision behind a gate; a second save on the same base cannot run until it commits, and

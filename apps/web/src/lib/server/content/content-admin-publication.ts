@@ -9,22 +9,18 @@
 // JavaScript, and two editors in different zones would read one plan differently) and UTC in the
 // form (an editor plans 09:00 local, not 07:00 or 08:00 depending on the season).
 
-/** Wall-clock parts of `instant` in `zone`, as `YYYY-MM-DDTHH:mm`. */
-export function localInput(instant: Date, zone: string): string {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-GB', {
-      timeZone: zone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    })
-      .formatToParts(instant)
-      .map((p) => [p.type, p.value])
-  );
-  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+import { UseCaseError } from '@mycel/core';
+import { fromLocalInput, localInput } from '../../public/wall-clock.js';
+export { fromLocalInput, localInput } from '../../public/wall-clock.js';
+
+/** The time of the schedule form, or a refusal core will word like its own. */
+export function instant(at: string, zone: string): string {
+  const parsed = fromLocalInput(at, zone);
+  if (!parsed)
+    throw new UseCaseError('invalid_input', 'no time given', [
+      { path: 'at', message: 'admin.content.publication.time-invalid' },
+    ]);
+  return parsed.toISOString();
 }
 
 /**
@@ -34,25 +30,6 @@ export function localInput(instant: Date, zone: string): string {
  */
 export const localLabel = (instant: Date, zone: string, named = false): string =>
   `${localInput(instant, zone).replace('T', ' ')}${named ? ` (${zone})` : ''}`;
-
-/**
- * The instant a `datetime-local` value means in `zone`, or `null` for anything else. A time
- * that does not exist (the hour skipped in spring) moves forward by the gap; an hour that occurs
- * twice in autumn takes the first.
- */
-export function fromLocalInput(value: string, zone: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
-  if (!m) return null;
-  const [, y, mo, d, h, mi] = m.map(Number) as [number, number, number, number, number, number];
-  const wall = Date.UTC(y, mo - 1, d, h, mi);
-  if (Number.isNaN(wall) || new Date(wall).getUTCDate() !== d) return null;
-  // The zone's offset half a day before and after: a change of offset lies between, never two.
-  const offset = (at: number) => Date.parse(`${localInput(new Date(at), zone)}:00Z`) - at;
-  const before = wall - offset(wall - 43_200_000);
-  const after = wall - offset(wall + 43_200_000);
-  const valid = [before, after].filter((t) => localInput(new Date(t), zone) === value);
-  return new Date(valid.length ? Math.min(...valid) : before);
-}
 
 /**
  * The id of the edit page's field a readiness or reference issue is about, so the panel can link
@@ -76,6 +53,10 @@ export function fieldOf(path: string, locale: string): string | null {
   if (head === 'sectionId') return 'sectionId';
   if (head === 'access') return 'level';
   if (head === 'at') return `at.${locale}`;
+  if (head === 'event' && rest[0] === 'startsAt') return 'eventStartsAt';
+  if (head === 'event' && rest[0] === 'endsAt') return 'eventEndsAt';
+  if (head === 'event' && rest[0] === 'location') return `eventLocation.${rest[1] ?? locale}`;
+  if (head === 'event' && rest[0] === 'onlineUrl') return 'eventOnlineUrl';
   return null;
 }
 
