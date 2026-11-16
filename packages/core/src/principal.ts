@@ -155,8 +155,31 @@ export function can(principal: Principal, capability: Capability): boolean {
  * can get different answers for the same capability.
  */
 export function grants(capabilities: readonly Capability[], capability: Capability): boolean {
-  return capabilities.includes(capability) || capabilities.includes('tenant:admin');
+  return (
+    capabilities.includes(capability) ||
+    capabilities.includes('tenant:admin') ||
+    capabilities.some((held) => IMPLIES[held]?.includes(capability) === true)
+  );
 }
+
+/**
+ * Capabilities that hold another (ADR 018 rule 5, amended 2026-11-16). Writing content means
+ * reading it: a save returns the document, a duplicate copies it, and a writer who could not open
+ * what they edit has no ordinary use. Rejected: refusing every write output to a writer without
+ * `content:read` (a check per use case for a set nobody grants on purpose).
+ */
+const IMPLIES: Readonly<Partial<Record<Capability, readonly Capability[]>>> = {
+  'content:write': ['content:read'],
+};
+
+/**
+ * The stored set plus what it implies, for a front that shows or hides a screen per capability
+ * with a plain `includes` (the admin layout hands this to its pages). Authorization itself stays
+ * `grants`; this only keeps a menu from hiding what the gate allows.
+ */
+export const heldCapabilities = (capabilities: readonly Capability[]): Capability[] => [
+  ...new Set([...capabilities, ...capabilities.flatMap((c) => IMPLIES[c] ?? [])]),
+];
 
 /**
  * A principal for background work (outbox subscribers, jobs, seed) acting inside one tenant.

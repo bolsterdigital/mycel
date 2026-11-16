@@ -7,7 +7,7 @@
 
 import type { z } from 'zod';
 import type { LimitName } from './entitlements/model.js';
-import type { Capability, Principal } from './principal.js';
+import { can, type Capability, type Principal } from './principal.js';
 import type { TransactionContext } from './ports.js';
 
 export type UseCaseKind = 'query' | 'command';
@@ -149,8 +149,7 @@ export class UseCaseRegistry {
     if (principal.actor.kind === 'anonymous' && !ANONYMOUS_USE_CASES.has(useCase.name))
       return false;
     if (useCase.actors && !useCase.actors.includes(principal.actor.kind)) return false;
-    if (principal.capabilities.includes('tenant:admin')) return true;
-    return requiredCapabilities(useCase).every((c) => principal.capabilities.includes(c));
+    return requiredCapabilities(useCase).every((c) => can(principal, c));
   }
 }
 

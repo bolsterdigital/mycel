@@ -26,7 +26,7 @@ import './audit/ports.js';
 import { requireActive } from './entitlements/guards.js';
 import { type Issue, notFound, UseCaseError } from './errors.js';
 import type { ErrorReporter, Logger, TransactionContext, UnitOfWork } from './ports.js';
-import type { Principal } from './principal.js';
+import { can, type Principal } from './principal.js';
 import {
   UNAUDITED_COMMANDS,
   requiredCapabilities,
@@ -132,7 +132,7 @@ function admit(
     throw new UseCaseError(
       'forbidden',
       `missing capability ${requiredCapabilities(useCase)
-        .filter((c) => !principal.capabilities.includes(c))
+        .filter((c) => !can(principal, c))
         .join(', ')}`
     );
   const parsed = useCase.input.safeParse(input);
