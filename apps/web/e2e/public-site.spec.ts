@@ -6,6 +6,7 @@
 
 import { exerciseOverview } from './lib/blocks/overview';
 import { exerciseEventPage } from './lib/events/event-page';
+import { exerciseAgenda } from './lib/events/agenda';
 import { exercisePeopleGrid } from './lib/people/grid';
 import { exercisePublicPeople } from './lib/people/public';
 import { exercisePublishedRepresentations } from './lib/published/representations';
@@ -2090,6 +2091,8 @@ test.describe('site-settings', () => {
 test('an event page shows when and where, in its header and its data', async ({ page }) => {
   await exerciseEventPage(page);
 });
+
+test('an agenda lists upcoming and past events', async ({ page }) => exerciseAgenda(page));
 
 test('public profiles share policy across HTML, bylines and discovery', async ({ page }) => {
   await exercisePublicPeople(page);

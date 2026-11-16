@@ -121,7 +121,7 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
           b.entries
             .map((e) =>
               [
-                `- ${link(e.title, e.href)} (${md(e.date.label)})`,
+                `- ${link(e.title, e.href)} (${md([e.date.label, e.place].filter(Boolean).join(', '))})`,
                 ...(b.layout === 'cards' && e.summary ? [`  ${md(e.summary)}`] : []),
               ].join('\n')
             )

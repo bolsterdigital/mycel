@@ -311,8 +311,13 @@ export type RenderBlock = { id: string } & (
         href: string;
         title: string;
         summary: string | null;
-        /** First publication in this locale, in the site's time zone. */
+        /**
+         * An event's when as its header writes it (wall clock, `YYYY-MM-DDTHH:mm`); else the
+         * first publication in this locale, as a date in the site's time zone.
+         */
         date: { iso: string; label: string };
+        /** An event's place, or the host of its online address; null for anything else. */
+        place: string | null;
         /** Decorative: the title beside it names the item. */
         image: RenderImage | null;
         pinned: boolean;

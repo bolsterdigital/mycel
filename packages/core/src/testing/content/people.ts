@@ -71,6 +71,7 @@ export function teamAndNews(personId: string | undefined): BlockInput[] {
         source: 'article',
         sectionId: null,
         tags: [],
+        when: 'upcoming',
         order: 'newest',
         limit: '3',
         pinned: [],

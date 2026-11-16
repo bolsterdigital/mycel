@@ -28,7 +28,8 @@
 .overview-card :is(h2, h3) a {
   color: inherit;
 }
-.overview-date {
+.overview-date,
+.overview-place {
   font-size: var(--step--1);
 }
 .overview-list .overview-item {

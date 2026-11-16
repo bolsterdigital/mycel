@@ -1,5 +1,6 @@
 <!-- An overview: the items the block's filter finds, read when the page is, as cards
-     (image, title, summary, date) or as a list (title, date). The cards wear the campaign card's
+     (image, title, date, summary) or as a list (title, date). An event's card shows when it takes
+     place instead of when it was published, and where. The cards wear the campaign card's
      surface and image rules, so a site has two card styles, not three; overview.css only lays out
      the grid and the list. Each title is a link and names its card, so the image is decorative.
      With an archive the block ends in plain page links (`?p=2`), no JavaScript. An empty overview
@@ -49,6 +50,7 @@
                 <p class="overview-date">
                   <time datetime={entry.date.iso}>{entry.date.label}</time>
                 </p>
+                {#if entry.place}<p class="overview-place">{entry.place}</p>{/if}
                 {#if entry.summary}<p>{entry.summary}</p>{/if}
               </div>
             </article>

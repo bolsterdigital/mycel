@@ -105,7 +105,8 @@ export interface PublishedEntry {
 /**
  * What an overview block asks for: published locales in `locale` whose published revision
  * is public. `ids` narrows to those items (the pins), `exclude` leaves items out (the pins again,
- * under the list). Section and tags apply to articles; every tag must be on the article.
+ * under the list). Section and tags apply to articles; every tag must be on the article. `events`
+ * narrows to pages with the `event` profile and a start, and orders by that start instead.
  */
 export interface PublishedCardFilter {
   locale: string;
@@ -117,6 +118,13 @@ export interface PublishedCardFilter {
   exclude?: readonly string[] | undefined;
   /** By the first publication in this locale, then item id ascending. */
   order: 'newest' | 'oldest';
+  /**
+   * Events on the wall clock `now` (`YYYY-MM-DDTHH:mm`, the site's zone), compared as text with
+   * `endsAt ?? startsAt` of the published revision: upcoming is at or after `now`, by start
+   * ascending; past is before it, by start descending; item id ascending breaks a tie. Replaces
+   * `order`.
+   */
+  events?: { when: 'upcoming' | 'past'; now: string } | undefined;
 }
 
 /** One published locale with its published revision's document, for a card. */
