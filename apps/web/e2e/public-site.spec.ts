@@ -62,6 +62,7 @@ import {
   exerciseNavigationStress,
   exerciseNavigationPreviewStress,
 } from './lib/site-navigation/stress';
+import { exerciseItemPreviewStress } from './lib/site-navigation/item-preview';
 import { WALK, seedSiteSettings } from './lib/site-navigation/settings-fixture';
 import { CAPTION_MONO, themeCss } from '../src/lib/theme/tokens';
 
@@ -1541,6 +1542,15 @@ for (const state of NAVIGATION_STATES)
     test.info().annotations.push({ type: 'fixture-sha256', description: hash });
     await exerciseNavigationPreviewStress(page, state, slug);
   });
+
+for (const state of NAVIGATION_STATES)
+  for (const kind of ['saved', 'live'] as const)
+    test(`item preview boundaries ${state.name} ${kind}`, async ({ page }) => {
+      if (kind === 'live') onlyA11y('the live preview is an enhancement');
+      const { slug, homeItemId, hash } = await seedNavigationStress(state);
+      test.info().annotations.push({ type: 'fixture-sha256', description: hash });
+      await exerciseItemPreviewStress(page, state, slug, homeItemId, kind);
+    });
 
 // Keep each boundary fixture within the ordinary test budget, independent of the editor flow.
 for (const state of NAVIGATION_STATES)
