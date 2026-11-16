@@ -151,9 +151,11 @@ export function erasureRepository(
  * Registered address hashes one transaction locks and applies at most. Each holds one advisory
  * lock until commit, from a lock table every session of the cluster shares; at 64 locks per
  * connection slot a run of 15,000 failed with `out of shared memory`. The further locks
- * `eraseRows` takes for addresses the batch's ids carry without a registration of their own (a
- * register from before 0058) come on top and are not counted here: a batch may hold more than
- * this many locks, still far below that limit.
+ * `eraseRows` takes come on top and are not counted here: one for each address the batch's ids
+ * carry whose hash is not among the batch's own. That is an address without a registration (a
+ * register from before 0058), and also a registered one that falls in another batch: batches
+ * are cut by hash, so the hashes of one id can be split over two. A batch may therefore hold
+ * more than this many locks, still far below that limit.
  */
 export const APPLY_BATCH = 1000;
 
@@ -343,12 +345,13 @@ async function eraseRows(
   for (const row of byId.events) await consider(row.email, row.supporter_id);
   const keys = new Set(hashes);
   for (const a of addresses) keys.add(await emailKey(tenantId, a, 'erasure'));
-  // An address those rows carry without a registration of its own (an older address on the id's
-  // events, registered before 0058 recorded those) is erased too, so its signup lock is taken as
-  // well before liveness is read: a readmission on
-  // it holds that lock until commit, and its lifecycle must be judged after that, not on
-  // evidence from before. These locks come after the batch's sorted ones; a deadlock with another
-  // apply holding one of them rolls this batch back for the next run.
+  // An address those rows carry that this batch did not lock is erased too: an older address on
+  // the id's events without a registration of its own (registered before 0058 recorded those),
+  // or one whose registration falls in another batch. Its signup lock is taken as well before
+  // liveness is read: a readmission on it holds that lock until commit, and its lifecycle must
+  // be judged after that, not on evidence from before. These locks come after the batch's sorted
+  // ones; a deadlock with another apply holding one of them rolls this batch back for the next
+  // run.
   for (const key of [...keys].filter((k) => !lockedHashes.has(k)).sort())
     await advisoryLock(trx, 'supporter', tenantId, key);
   const evidence = await lifecycleEvidence(trx);

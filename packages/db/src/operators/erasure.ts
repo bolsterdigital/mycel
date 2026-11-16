@@ -116,6 +116,11 @@ async function eraseIn(
   const now = new Date();
   const tenants: OperatorErasureResult['tenants'] = [];
   for (const tenantId of tenantIds) {
+    // A tenant only the re-read found (a membership or key committed while the locks above were
+    // taken) is locked here, after the sorted ones and so out of id order. Two erasures can then
+    // wait on each other; Postgres detects that and aborts one, which rolls back whole (one
+    // transaction) and can be run again.
+    // Rejected: releasing and retaking every lock in order, a retry loop for a rare, safe case.
     if (!found.includes(tenantId)) await advisoryLock(trx, 'members', tenantId);
     await inTenant(trx, tenantId);
     const membership =
