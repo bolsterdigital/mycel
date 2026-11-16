@@ -78,7 +78,9 @@ async function fingerprint() {
   }
 }
 
-async function blobs() {
+const EXPORTS = 'exports/';
+
+async function blobs({ exports = false } = {}) {
   const s3 = new S3Client({
     endpoint: process.env.BLOB_S3_ENDPOINT,
     region: process.env.BLOB_S3_REGION ?? 'us-east-1',
@@ -94,6 +96,9 @@ async function blobs() {
   do {
     const page = await s3.send(new ListObjectsV2Command({ Bucket, ContinuationToken }));
     for (const { Key } of page.Contents ?? []) {
+      // An export archive is a copy with its own retention that no snapshot holds (the drill
+      // checks that on the snapshot itself), so a restore cannot and must not give it back.
+      if (!exports && Key.startsWith(EXPORTS)) continue;
       const object = await s3.send(new GetObjectCommand({ Bucket, Key }));
       out[Key] = sha256(Buffer.from(await object.Body.transformToByteArray()));
     }
@@ -161,7 +166,7 @@ async function absent(address, before) {
   } finally {
     await client.end();
   }
-  for (const key of Object.keys(await blobs()))
+  for (const key of Object.keys(await blobs({ exports: true })))
     if (key.toLowerCase().includes(needle)) lines.push(`blob ${key} holds the address`);
   return lines;
 }

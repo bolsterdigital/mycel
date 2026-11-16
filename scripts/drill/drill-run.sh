@@ -61,6 +61,19 @@ cleanup() {
 trap cleanup EXIT
 
 step() { echo "== $*"; }
+# `logged <file> <command...>`: run a check, keep its output in <file> and print it, and fail
+# with it. Rejected: `<command> | tee <file>`, whose status is tee's under sh without pipefail; so
+# `compare` and `absent` could not fail the drill, and a lost export archive went unnoticed.
+# stderr goes into <file> too: every check on it is a positive grep, so an extra line cannot fake
+# a pass, and a failing step leaves its reason next to its output.
+logged() {
+  logged_file=$1
+  shift
+  logged_status=0
+  "$@" >"$logged_file" 2>&1 || logged_status=$?
+  cat "$logged_file"
+  return "$logged_status"
+}
 now() { date +%s; }
 
 # A backup held after its dump (BACKUP_HOLD_AFTER_DUMP in docker/backup/backup.sh): `hold <name>
@@ -235,11 +248,11 @@ host node scripts/drill/drill-erase.mjs drill-b "$late"
 # account, so only the operator register in the erasures snapshot can take it away again.
 gone=$(dc run --rm -T backup psql --no-psqlrc -Atc \
   "select id from operators where email = 'editor@example.test'" | tail -n 1)
-dc run --rm -T worker mycel operators erase "$gone" | tee "$work/operator-erase.log"
+logged "$work/operator-erase.log" dc run --rm -T worker mycel operators erase "$gone"
 grep -q 'NO ADMIN LEFT' "$work/operator-erase.log" ||
   { echo 'erasing the only admin of drill-b did not say it left no admin' >&2; exit 1; }
 dc run --rm -T worker mycel erasures apply
-dc run --rm -T worker mycel erasures apply | tee "$work/apply-again.log"
+logged "$work/apply-again.log" dc run --rm -T worker mycel erasures apply
 grep -q '^erasures: 0 rows changed' "$work/apply-again.log" ||
   { echo 'a second erasures apply changed rows' >&2; exit 1; }
 # A failed run: restic refuses the password, nothing is recorded, the status says so.
@@ -247,15 +260,14 @@ if dc run --rm -T -e RESTIC_PASSWORD=wrong backup erasures >"$work/wrong.log" 2>
   cat "$work/wrong.log"; echo 'the erasures backup passed with a wrong repository password' >&2; exit 1
 fi
 [ "$(secured)" = 1 ] || { echo "a failed erasures backup recorded registrations: $(secured)" >&2; exit 1; }
-dc run --rm -T worker mycel erasures status | tee "$work/status.log"
+logged "$work/status.log" dc run --rm -T worker mycel erasures status
 grep -Eq '^drill-b[[:space:]]1 registered[[:space:]]1 not secured[[:space:]]oldest since ' "$work/status.log" ||
   { echo 'mycel erasures status does not show the unsecured registration' >&2; exit 1; }
 # Then the run that works, twice: the second adds no row. Its retention keeps one erasures
 # snapshot and leaves both full ones, so the older one is still there to restore.
 dc run --rm -T -e ERASURES_KEEP_LAST=1 -e ERASURES_KEEP_DAILY=0 backup erasures
 [ "$(secured)" = 2 ] || { echo "the erasures backup secured $(secured) of 2 registrations" >&2; exit 1; }
-dc run --rm -T -e ERASURES_KEEP_LAST=1 -e ERASURES_KEEP_DAILY=0 backup erasures |
-  tee "$work/again.log"
+logged "$work/again.log" dc run --rm -T -e ERASURES_KEEP_LAST=1 -e ERASURES_KEEP_DAILY=0 backup erasures
 grep -q 'erasures: 2 in snapshot .*, 0 newly secured' "$work/again.log" ||
   { echo 'a second erasures backup did not report 0 newly secured' >&2; exit 1; }
 [ "$(secured)" = 2 ] || { echo 'a second erasures backup added rows' >&2; exit 1; }
@@ -278,7 +290,7 @@ restored=$(now)
 
 step 'verify'
 host node scripts/drill/drill-verify.mjs fingerprint >"$work/after.json"
-host node scripts/drill/drill-verify.mjs compare "$work/before.json" "$work/after.json" | tee "$work/compare.txt"
+logged "$work/compare.txt" host node scripts/drill/drill-verify.mjs compare "$work/before.json" "$work/after.json"
 [ "$(dc exec -T postgres psql -U mycel -d mycel -Atc "select rolsuper from pg_roles where rolname = current_user")" = f ]
 
 step 'restore erasures latest with an unlistable register: fails, loads nothing'
@@ -298,8 +310,8 @@ grep -q 'could not list the snapshots tagged mycel,erasures' "$work/restore-eras
 
 step 'erasure after the restore'
 erase_started=$(now)
-dc run --rm -T restore erasures latest 2>&1 | tee "$work/restore-erasures.log"
-dc run --rm -T worker mycel erasures apply | tee "$work/apply-restored.log"
+logged "$work/restore-erasures.log" dc run --rm -T restore erasures latest
+logged "$work/apply-restored.log" dc run --rm -T worker mycel erasures apply
 erase_done=$(now)
 grep -q 'erasures operator register: 1 registration(s) in the snapshot, 1 new here' \
   "$work/restore-erasures.log" ||
@@ -321,7 +333,8 @@ grep -q 'erasures: 2 registration(s) in the snapshot, 2 new here' "$work/restore
 grep -q 'full: 1 registration(s) in the snapshot, 0 new here' "$work/restore-erasures.log" ||
   { echo 'restore erasures latest did not load the newer full snapshot' >&2; exit 1; }
 for address in "$erased" "$late"; do
-  host node scripts/drill/drill-verify.mjs absent "$address" "$work/before.json" | tee -a "$work/compare.txt"
+  logged "$work/absent.txt" host node scripts/drill/drill-verify.mjs absent "$address" "$work/before.json"
+  cat "$work/absent.txt" >>"$work/compare.txt"
   left=$(dc run --rm -T backup sh -c "pg_dump --data-only | grep -ci '$address' || true" | tail -n 1)
   [ "$left" = 0 ] || { echo "pg_dump --data-only still holds $address $left time(s)" >&2; exit 1; }
 done

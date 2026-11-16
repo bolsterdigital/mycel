@@ -4,7 +4,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -73,4 +73,13 @@ test('a lost tenant, a changed row, a lost or extra object, a role and a migrati
     'blob t1/y.jpg: appeared',
   ])
     assert.ok(r.stderr.includes(line), `${line}\n${r.stderr}`);
+});
+
+test("the drill pipes no check into tee, whose status would replace the check's", () => {
+  // drill-run.sh runs under sh without pipefail: `compare | tee` passed on a difference.
+  const run = readFileSync(fileURLToPath(new URL('drill-run.sh', import.meta.url)), 'utf8')
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('#'))
+    .join('\n');
+  assert.deepEqual(run.match(/\|\s*(\\\n\s*)?tee\b/g), null);
 });
