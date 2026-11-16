@@ -357,6 +357,9 @@ describe.skipIf(skip)('content conformance', () => {
     });
     expect(await invoker.run(useCases.getPerson, admin, { personId: other.id })).toEqual(renamed);
     expect(renamed.kind).toBe('organisation');
+    const { people } = await invoker.run(useCases.listPeople, admin, { kind: 'organisation' });
+    expect(people.map((p) => p.kind)).toEqual(people.map(() => 'organisation'));
+    expect(people.map((p) => p.id)).toContain(other.id);
     const group = await invoker.run(useCases.createPersonGroup, admin, {
       name: { nl: 'Team' },
       personIds: [person.id, other.id],

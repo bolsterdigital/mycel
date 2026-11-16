@@ -25,6 +25,7 @@ import {
   type LocaleState,
   type Paged,
   type RevisionSummary,
+  type PersonRepository,
   type SluggedRepository,
   storedActor,
 } from '@mycel/core';
@@ -546,7 +547,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
   };
 }
 
-export function authorRepository(trx: Trx, tenantId: string): SluggedRepository<Author> {
+export function authorRepository(trx: Trx, tenantId: string): PersonRepository {
   const toAuthor = (r: Selectable<Database['people']>): Author =>
     Author.parse({
       id: r.id,
@@ -588,9 +589,10 @@ export function authorRepository(trx: Trx, tenantId: string): SluggedRepository<
       const r = await rows().where('slug', '=', slug).executeTakeFirst();
       return r ? toAuthor(r) : null;
     },
-    async list(after, limit) {
+    async list(after, limit, kind) {
       let q = rows();
       if (after) q = q.where('id', '<', after);
+      if (kind) q = q.where('kind', '=', kind);
       return paged(
         (
           await q

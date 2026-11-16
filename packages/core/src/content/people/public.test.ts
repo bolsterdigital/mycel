@@ -303,7 +303,13 @@ describe('authored person grids', () => {
       links: [{ label: 'Website', url: 'https://buurtfonds.example/', kind: 'website' }],
     });
     expect(org.kind).toBe('organisation');
-    expect((await createPerson('sam')).kind).toBe('person');
+    const sam = await createPerson('sam');
+    expect(sam.kind).toBe('person');
+    // A page of one kind is a full page of that kind: the author picker lists people only.
+    const list = async (kind: 'person' | 'organisation') =>
+      (await invoker.run(useCases.listPeople, admin, { kind, limit: 1 })).people.map((p) => p.id);
+    expect(await list('person')).toEqual([sam.id]);
+    expect(await list('organisation')).toEqual([org.id]);
     // Fields an organisation does not have are refused, each with a readable issue.
     await expect(
       invoker.run(useCases.createPerson, admin, {

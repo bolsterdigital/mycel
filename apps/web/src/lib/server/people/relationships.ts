@@ -32,22 +32,24 @@ export async function relationshipChoices(
   });
   const [authors, sections] = article
     ? await Promise.all([
-        invoker.run(useCases.listPeople, principal, { limit: MAX_PAGE_SIZE }).then(({ people }) =>
-          withAssigned(
-            authorIds,
-            // An organisation is never an author (ADR 031, 2026-11-16); an assigned one still
-            // shows, so the save names the refusal instead of dropping it unseen.
-            people.filter((p) => p.kind === 'person').map(author),
-            async (authorId) => {
-              const a = isUuid(authorId)
-                ? await orNull(invoker.run(useCases.getPerson, principal, { personId: authorId }))
-                : null;
-              return a && author(a);
-            },
-            // An erased person's id stays in the article (ADR 034 rule 3): kept, marked absent.
-            (id) => ({ id, name: id, absent: true as const })
-          )
-        ),
+        // An organisation is never an author (ADR 031, 2026-11-16): the page holds people only,
+        // and an assigned organisation still shows, so the save names the refusal.
+        invoker
+          .run(useCases.listPeople, principal, { limit: MAX_PAGE_SIZE, kind: 'person' })
+          .then(({ people }) =>
+            withAssigned(
+              authorIds,
+              people.map(author),
+              async (authorId) => {
+                const a = isUuid(authorId)
+                  ? await orNull(invoker.run(useCases.getPerson, principal, { personId: authorId }))
+                  : null;
+                return a && author(a);
+              },
+              // An erased person's id stays in the article (ADR 034 rule 3): kept, marked absent.
+              (id) => ({ id, name: id, absent: true as const })
+            )
+          ),
         invoker
           .run(useCases.listSections, principal, { limit: MAX_PAGE_SIZE })
           .then(({ sections }) =>

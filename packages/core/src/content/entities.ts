@@ -180,13 +180,18 @@ export const getPerson = defineUseCase({
 export const listPeople = defineUseCase({
   name: 'content.person.list',
   kind: 'query',
-  description: 'List person profiles newest first, a page at a time.',
+  description:
+    'List the people and organisations of the register newest first, a page at a time; kind narrows to one of them.',
   requires: 'content:read',
-  input: z.object({ after: z.string().guid().optional(), limit: Limit }),
+  input: z.object({
+    after: z.string().guid().optional(),
+    limit: Limit,
+    kind: PersonKind.optional(),
+  }),
   output: z.object({ people: z.array(Person), next: z.string().guid().nullable() }),
   examples: [{ input: {} }],
-  async handler(ctx, { after, limit }) {
-    const page = await ctx.authors.list(after ?? null, limit ?? DEFAULT_PAGE_SIZE);
+  async handler(ctx, { after, limit, kind }) {
+    const page = await ctx.authors.list(after ?? null, limit ?? DEFAULT_PAGE_SIZE, kind);
     return { people: page.rows, next: page.next };
   },
 });
