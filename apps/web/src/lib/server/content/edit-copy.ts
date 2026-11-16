@@ -30,6 +30,7 @@ export const ISSUE_COPY: Record<string, UiKey> = {
   'content.publish.teaser-lead-required': 'admin.content.issue.teaserLeadRequired',
   'content.publish.tier-unverifiable': 'admin.content.issue.tierUnverifiable',
   'content.reference.author-unknown': 'admin.content.issue.referenceUnknown',
+  'content.reference.author-organisation': 'admin.content.issue.authorOrganisation',
   'content.reference.section-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.item-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.form-unknown': 'admin.content.issue.referenceUnknown',

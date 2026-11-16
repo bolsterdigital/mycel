@@ -68,7 +68,7 @@ async function articleEntities(
 ) {
   const { invoker } = runtime();
   const [{ people: authors }, { sections }] = await Promise.all([
-    invoker.run(useCases.listPeople, principal, { limit: MAX_PAGE_SIZE }),
+    invoker.run(useCases.listPeople, principal, { limit: MAX_PAGE_SIZE, kind: 'person' }),
     invoker.run(useCases.listSections, principal, { limit: MAX_PAGE_SIZE }),
   ]);
   const author = (a: { id: string; name: string }) => ({ id: a.id, name: a.name });

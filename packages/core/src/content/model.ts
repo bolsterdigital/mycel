@@ -495,9 +495,16 @@ export type Revision = z.infer<typeof Revision>;
 export const RevisionSummary = Revision.omit({ document: true });
 export type RevisionSummary = z.infer<typeof RevisionSummary>;
 
-/** Tenant entities next to content (ADR 012 rules 2 and 3). `email` is internal, never public. */
+/**
+ * Tenant entities next to content (ADR 012 rules 2 and 3). `email` is internal, never public.
+ * `kind` is fixed when the entry is created (ADR 031, addendum 2026-11-16): an organisation is an
+ * entry of the same register, never an author and never a profile page.
+ */
+export const PersonKind = z.enum(['person', 'organisation']);
+export type PersonKind = z.infer<typeof PersonKind>;
 export const PersonInput = z
   .object({
+    kind: PersonKind.default('person'),
     name: z.string().min(1).max(200),
     bio: localized(z.string().min(1).max(5000)).optional(),
     role: localized(z.string().min(1).max(200)).optional(),

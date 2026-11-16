@@ -1,4 +1,5 @@
-<!-- Content first, optional contact and page settings folded. Other content locales survive a save. -->
+<!-- Content first, optional contact and page settings folded. Other content locales survive a save.
+     An organisation shows only its own fields: name, logo, short text, website and other links. -->
 <script lang="ts">
   import { page } from '$app/state';
   import { FormPage, Field, Fieldset, Select, MediaPicker, Notice } from '#lib/admin/ui/index.js';
@@ -9,7 +10,15 @@
   const base = $derived(`/admin/${data.tenant.slug}`);
   const value = (key: string, initial = '') => form?.values?.[key] ?? initial;
   const person = $derived(data.person);
-  const contactFields = ['publicEmail', 'phone', 'email'] as const;
+  const organisation = $derived(data.kind === 'organisation');
+  const contactFields = $derived(
+    organisation
+      ? (['publicEmail', 'email'] as const)
+      : (['publicEmail', 'phone', 'email'] as const)
+  );
+  const heading = $derived(
+    person?.name ?? t(organisation ? 'admin.people.newOrganisation' : 'admin.people.new')
+  );
   const kinds = [
     'website',
     'linkedin',
@@ -30,16 +39,30 @@
         ? { kind, label: t(`admin.people.kind.${kind}`), url: '' }
         : rest.splice(i, 1)[0]!;
     };
-    return [fixed('website'), fixed('linkedin'), ...rest];
+    // An organisation has no fixed LinkedIn field: slot 1 stays empty (and is not posted), so
+    // a stored LinkedIn link remains among the other links instead of vanishing on save.
+    const website = fixed('website');
+    return organisation
+      ? [website, { kind: 'linkedin' as const, label: '', url: '' }, ...rest]
+      : [website, fixed('linkedin'), ...rest];
   });
 </script>
 
 <svelte:head
-  ><title>{t(person ? 'admin.people.edit' : 'admin.people.new')} · {data.tenant.name}</title
+  ><title
+    >{t(
+      person
+        ? organisation
+          ? 'admin.people.editOrganisation'
+          : 'admin.people.edit'
+        : organisation
+          ? 'admin.people.newOrganisation'
+          : 'admin.people.new'
+    )} · {data.tenant.name}</title
   ></svelte:head
 >
 <FormPage
-  title={person?.name ?? t('admin.people.new')}
+  title={heading}
   locale={data.locale}
   submit={t('admin.people.save')}
   cancel={{ href: `${base}/people`, label: t('admin.people.cancel') }}
@@ -50,6 +73,7 @@
         >{t('admin.people.saved')}</Notice
       >{/if}
   {/snippet}
+  {#if !person}<input type="hidden" name="kind" value={data.kind} />{/if}
   <input type="hidden" name="contentLocale" value={value('contentLocale', data.contentLocale)} />
   <input
     type="hidden"
@@ -68,7 +92,7 @@
   {#if data.media}<MediaPicker
       id="person-image"
       name="imageId"
-      label={t('admin.people.image')}
+      label={t(organisation ? 'admin.people.logo' : 'admin.people.image')}
       locale={data.locale}
       {base}
       options={data.media}
@@ -76,23 +100,27 @@
       value={value('imageId', person?.imageId)}
     />
   {:else}<input type="hidden" name="imageId" value={value('imageId', person?.imageId)} />{/if}
+  {#if !organisation}<Field
+      id="person-role"
+      name="role"
+      maxlength={200}
+      label={t('admin.people.role')}
+      locale={data.locale}
+      value={value('role', person?.role?.[data.contentLocale])}
+    />
+    <Field
+      id="person-organisation"
+      name="organisation"
+      maxlength={200}
+      label={t('admin.people.organisation')}
+      locale={data.locale}
+      value={value('organisation', person?.organisation)}
+    />{/if}
   <Field
-    id="person-role"
-    name="role"
-    maxlength={200}
-    label={t('admin.people.role')}
+    id="person-bio"
+    label={t(organisation ? 'admin.people.summary' : 'admin.people.bio')}
     locale={data.locale}
-    value={value('role', person?.role?.[data.contentLocale])}
-  />
-  <Field
-    id="person-organisation"
-    name="organisation"
-    maxlength={200}
-    label={t('admin.people.organisation')}
-    locale={data.locale}
-    value={value('organisation', person?.organisation)}
-  />
-  <Field id="person-bio" label={t('admin.people.bio')} locale={data.locale}>
+  >
     {#snippet control(attributes)}<textarea {...attributes} name="bio" rows="6" maxlength="5000"
         >{value('bio', person?.bio?.[data.contentLocale])}</textarea
       >{/snippet}
@@ -111,7 +139,7 @@
     {/each}
   </Fieldset>
   <Fieldset legend={t('admin.people.links')} collapsed={!form?.error}>
-    {#each [0, 1] as i}
+    {#each organisation ? [0] : [0, 1] as i}
       <input type="hidden" name="link.{i}.kind" value={value(`link.${i}.kind`, links[i]?.kind)} />
       <input
         type="hidden"
@@ -159,18 +187,18 @@
     {/each}
   </Fieldset>
   <Fieldset legend={t('admin.people.settings')} collapsed={!form?.error}>
-    <Select
-      id="person-policy"
-      name="pagePolicy"
-      label={t('admin.people.pagePolicy')}
-      locale={data.locale}
-      hint={t('admin.people.pageHint')}
-      value={value('pagePolicy', person?.pagePolicy ?? 'auto')}
-      options={(['auto', 'always', 'never'] as const).map((p) => ({
-        value: p,
-        label: t(`admin.people.policy.${p}`),
-      }))}
-    />
+    {#if !organisation}<Select
+        id="person-policy"
+        name="pagePolicy"
+        label={t('admin.people.pagePolicy')}
+        locale={data.locale}
+        hint={t('admin.people.pageHint')}
+        value={value('pagePolicy', person?.pagePolicy ?? 'auto')}
+        options={(['auto', 'always', 'never'] as const).map((p) => ({
+          value: p,
+          label: t(`admin.people.policy.${p}`),
+        }))}
+      />{/if}
     {#if !person}<Field
         id="person-slug"
         name="slug"

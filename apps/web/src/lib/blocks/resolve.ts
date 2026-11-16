@@ -587,9 +587,14 @@ export async function resolveDocument(
               { decorative: true, alt: null },
               locale
             ),
-            href: person.pageEnabled
-              ? personPath(person.slug, locale, options.fallbackLocale)
-              : null,
+            // An organisation has no profile page; its name links to its own website (or its
+            // first link) instead (ADR 031, 2026-11-16).
+            href:
+              person.kind === 'organisation'
+                ? ((person.links.find((l) => l.kind === 'website') ?? person.links[0])?.url ?? null)
+                : person.pageEnabled
+                  ? personPath(person.slug, locale, options.fallbackLocale)
+                  : null,
           })),
         };
       case 'heading':

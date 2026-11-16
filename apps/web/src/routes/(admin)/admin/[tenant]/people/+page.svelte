@@ -1,4 +1,4 @@
-<!-- One register for authors and team members, using the shared stacked table and action groups. -->
+<!-- One register for people and organisations, using the shared stacked table and action groups. -->
 <script lang="ts">
   import { OverviewPage, Actions, Button, Field, Select, Table } from '#lib/admin/ui/index.js';
   import { ui } from '../../../../../i18n/index.js';
@@ -7,7 +7,7 @@
   const t = $derived(ui(data.locale));
   const base = $derived(`/admin/${data.tenant.slug}/people`);
   const page = (offset: number) =>
-    `${base}?${new URLSearchParams({ q: data.q, group: data.group, offset: String(offset) })}`;
+    `${base}?${new URLSearchParams({ q: data.q, kind: data.kind, group: data.group, offset: String(offset) })}`;
 </script>
 
 <svelte:head><title>{t('admin.people.title')} · {data.tenant.name}</title></svelte:head>
@@ -22,7 +22,9 @@
   }}
 >
   {#snippet actions()}
-    {#if data.write}<Button href="{base}/new">{t('admin.people.new')}</Button>{/if}
+    {#if data.write}<Button href="{base}/new">{t('admin.people.new')}</Button><Button
+        href="{base}/new?kind=organisation">{t('admin.people.newOrganisation')}</Button
+      >{/if}
     <Button variant="secondary" href="{base}/groups">{t('admin.people.groups')}</Button>
   {/snippet}
   {#snippet filters()}<form method="get" class="ui-fields">
@@ -33,6 +35,18 @@
         label={t('admin.people.search')}
         locale={data.locale}
         value={data.q}
+      />
+      <Select
+        id="people-kind"
+        name="kind"
+        label={t('admin.people.type')}
+        locale={data.locale}
+        value={data.kind}
+        options={[
+          { value: '', label: t('admin.people.type.all') },
+          { value: 'person', label: t('admin.people.type.person') },
+          { value: 'organisation', label: t('admin.people.type.organisation') },
+        ]}
       />
       <Select
         id="people-group"
@@ -59,6 +73,7 @@
     card
     columns={[
       { key: 'name', label: t('admin.people.name') },
+      { key: 'kind', label: t('admin.people.type') },
       { key: 'page', label: t('admin.people.pagePolicy') },
     ]}
   >
@@ -68,6 +83,7 @@
             >{#if data.write}<a href="{base}/{person.id}">{person.name}</a
               >{:else}{person.name}{/if}</th
           >
+          <td data-label={t('admin.people.type')}>{t(`admin.people.type.${person.kind}`)}</td>
           <td data-label={t('admin.people.pagePolicy')}
             >{t(`admin.people.status.${data.statuses[person.id] ?? 'no-articles'}`)}</td
           ></tr

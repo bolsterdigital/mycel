@@ -105,6 +105,7 @@ const fixtures: ResolveSource = {
     return [
       {
         id: '01900000-0000-7000-8000-00000000a001',
+        kind: 'person',
         slug: 'sam',
         name: 'Sam',
         bio: locale === 'nl' ? 'Schrijft over de stad.' : 'Writes about the city.',
@@ -116,6 +117,27 @@ const fixtures: ResolveSource = {
         links: [{ label: 'Website', url: 'https://example.org', kind: 'website' }],
         pageEnabled: props.source !== 'group',
       },
+      // A group may mix kinds: an organisation's name links to its website, never a profile.
+      ...(props.source === 'group'
+        ? [
+            {
+              id: '01900000-0000-7000-8000-00000000a003',
+              kind: 'organisation' as const,
+              slug: 'buurtfonds',
+              name: 'Buurtfonds',
+              bio: locale === 'nl' ? 'Steunt buurtinitiatieven.' : 'Supports local initiatives.',
+              role: null,
+              organisation: null,
+              publicEmail: null,
+              phone: null,
+              imageId: EXAMPLE_IDS.portrait,
+              links: [
+                { label: 'Website', url: 'https://buurtfonds.example', kind: 'website' as const },
+              ],
+              pageEnabled: false,
+            },
+          ]
+        : []),
     ];
   },
   async form(id) {

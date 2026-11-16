@@ -330,6 +330,7 @@ export interface Database {
     id: string;
     tenant_id: string;
     slug: string;
+    kind: Generated<'person' | 'organisation'>;
     name: string;
     role: Json<Record<string, string>> | null;
     organisation: string | null;

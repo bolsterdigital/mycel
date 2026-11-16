@@ -52,7 +52,7 @@ import {
   memoryMembers,
   memoryOperators,
 } from './operators.js';
-import { MemoryStore, entityRepository, sluggedRepository, tenantLock } from './store.js';
+import { MemoryStore, entityRepository, paged, sluggedRepository, tenantLock } from './store.js';
 import { memoryAdmissions, memorySupporters } from './supporters.js';
 import { memoryExports, memoryHostnames, memoryUsage } from './tenants.js';
 
@@ -136,7 +136,15 @@ export class MemoryUnitOfWork implements UnitOfWork {
         connections: memoryConnections(s, principal),
         connectionIntents: memoryConnectionIntents(s),
         assistProviderLabel: this.assistProviderLabel,
-        authors: sluggedRepository(s.authors),
+        authors: {
+          ...sluggedRepository(s.authors),
+          list: async (after, limit, kind) =>
+            paged(
+              [...s.authors.values()].filter((p) => !kind || p.kind === kind),
+              after,
+              limit
+            ),
+        },
         personGroups: {
           ...entityRepository(s.personGroups),
           list: async (offset, limit) =>

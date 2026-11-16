@@ -25,6 +25,7 @@ import {
   type LocaleState,
   type Paged,
   type RevisionSummary,
+  type PersonRepository,
   type SluggedRepository,
   storedActor,
 } from '@mycel/core';
@@ -547,11 +548,12 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
   };
 }
 
-export function authorRepository(trx: Trx, tenantId: string): SluggedRepository<Author> {
+export function authorRepository(trx: Trx, tenantId: string): PersonRepository {
   const toAuthor = (r: Selectable<Database['people']>): Author =>
     Author.parse({
       id: r.id,
       slug: r.slug,
+      kind: r.kind,
       name: r.name,
       ...(r.role ? { role: r.role } : {}),
       ...(r.organisation ? { organisation: r.organisation } : {}),
@@ -588,9 +590,10 @@ export function authorRepository(trx: Trx, tenantId: string): SluggedRepository<
       const r = await rows().where('slug', '=', slug).executeTakeFirst();
       return r ? toAuthor(r) : null;
     },
-    async list(after, limit) {
+    async list(after, limit, kind) {
       let q = rows();
       if (after) q = q.where('id', '<', after);
+      if (kind) q = q.where('kind', '=', kind);
       return paged(
         (
           await q
@@ -609,6 +612,8 @@ export function authorRepository(trx: Trx, tenantId: string): SluggedRepository<
             id: a.id,
             tenant_id: tenantId,
             slug: a.slug,
+            // The kind is fixed at creation, so only the insert writes it (ADR 031, 2026-11-16).
+            kind: a.kind,
             created_at: a.createdAt,
             ...fields(a),
           })

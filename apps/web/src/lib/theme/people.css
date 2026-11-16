@@ -71,6 +71,17 @@
   aspect-ratio: 4 / 5;
   object-fit: cover;
 }
+/* A logo keeps its own shape: a strip of fixed height, aligned with the name below it, never
+   cropped like a portrait. Rejected: a full-width landscape box, which surrounds a wide logo
+   with empty space on a narrow screen. */
+.person-card-organisation img {
+  width: auto;
+  max-width: 100%;
+  height: 6rem;
+  aspect-ratio: auto;
+  object-fit: contain;
+  object-position: left center;
+}
 .person-card p {
   white-space: pre-line;
   overflow-wrap: anywhere;

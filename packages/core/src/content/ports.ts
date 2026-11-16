@@ -267,6 +267,15 @@ export interface SluggedRepository<
   findBySlug(slug: string): Promise<T | null>;
 }
 
+/**
+ * The people register lists one kind at a time when asked, so a page of authors is a full page
+ * of people. Rejected: filtering a page after the read, which leaves an author picker short of
+ * people whenever organisations are among the newest entries.
+ */
+export interface PersonRepository extends SluggedRepository<Author> {
+  list(after: string | null, limit: number, kind?: Author['kind']): Promise<Paged<Author>>;
+}
+
 export interface BulkPlanRepository {
   insert(plan: BulkPlan): Promise<void>;
   get(id: string): Promise<BulkPlan | null>;
@@ -324,7 +333,7 @@ declare module '../ports.js' {
     content: ContentRepository;
     bulkPlans: BulkPlanRepository;
     presence: PresenceRepository;
-    authors: SluggedRepository<Author>;
+    authors: PersonRepository;
     sections: SluggedRepository<Section>;
     patterns: EntityRepository<Pattern>;
   }

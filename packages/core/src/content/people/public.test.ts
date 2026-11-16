@@ -292,4 +292,85 @@ describe('authored person grids', () => {
     });
     expect(result.revision.document.blocks[0]?.type).toBe('people-grid');
   });
+
+  it('keeps an organisation in the register and the grid, never as author or profile', async () => {
+    const { invoker, admin, visitor, createPerson, article, grid } = setup();
+    const org = await invoker.run(useCases.createPerson, admin, {
+      slug: 'buurtfonds',
+      kind: 'organisation',
+      name: 'Buurtfonds',
+      bio: { nl: 'Steunt buurten.', en: 'Supports neighbourhoods.' },
+      links: [{ label: 'Website', url: 'https://buurtfonds.example/', kind: 'website' }],
+    });
+    expect(org.kind).toBe('organisation');
+    const sam = await createPerson('sam');
+    expect(sam.kind).toBe('person');
+    // A page of one kind is a full page of that kind: the author picker lists people only.
+    const list = async (kind: 'person' | 'organisation') =>
+      (await invoker.run(useCases.listPeople, admin, { kind, limit: 1 })).people.map((p) => p.id);
+    expect(await list('person')).toEqual([sam.id]);
+    expect(await list('organisation')).toEqual([org.id]);
+    // Fields an organisation does not have are refused, each with a readable issue.
+    await expect(
+      invoker.run(useCases.createPerson, admin, {
+        slug: 'stichting',
+        kind: 'organisation',
+        name: 'Stichting',
+        role: { nl: 'Partner' },
+        phone: '010',
+        pagePolicy: 'always',
+      })
+    ).rejects.toMatchObject({
+      code: 'invalid_input',
+      issues: ['role', 'phone', 'pagePolicy'].map((path) => ({
+        path,
+        message: 'content.person.organisation-field',
+      })),
+    });
+    // The kind is fixed: sent back as read it is accepted, another kind is refused.
+    const { id, slug, createdAt, updatedAt, ...fields } = org;
+    const renamed = await invoker.run(useCases.updatePerson, admin, {
+      ...fields,
+      name: 'Buurtfonds Rotterdam',
+      personId: id,
+      baseUpdatedAt: updatedAt,
+    });
+    expect(renamed).toMatchObject({ kind: 'organisation', slug, createdAt });
+    await expect(
+      invoker.run(useCases.updatePerson, admin, {
+        ...fields,
+        kind: 'person',
+        personId: id,
+        baseUpdatedAt: renamed.updatedAt,
+      })
+    ).rejects.toMatchObject({ issues: [{ path: 'kind', message: 'content.person.kind-fixed' }] });
+    await expect(article('door-buurtfonds', [org.id])).rejects.toMatchObject({
+      code: 'invalid_input',
+      issues: [{ path: 'authorIds', message: 'content.reference.author-organisation' }],
+    });
+    // No profile page, also with a site that would show every person's.
+    await expect(
+      invoker.run(useCases.getPublicPerson, visitor, { slug: 'buurtfonds', locale: 'nl' })
+    ).rejects.toMatchObject({ code: 'not_found' });
+    expect(
+      (await invoker.run(useCases.listPublicPeople, visitor, { locale: 'nl' })).people.map(
+        (p) => p.slug
+      )
+    ).not.toContain('buurtfonds');
+    // The grid shows it with its kind, logo and links; a group may mix kinds.
+    const { people } = await grid(visitor, {
+      locale: 'en',
+      props: { people: [{ personId: org.id }] },
+    });
+    expect(people).toEqual([
+      expect.objectContaining({
+        kind: 'organisation',
+        name: 'Buurtfonds Rotterdam',
+        bio: 'Supports neighbourhoods.',
+        role: null,
+        pageEnabled: false,
+        links: [{ label: 'Website', url: 'https://buurtfonds.example/', kind: 'website' }],
+      }),
+    ]);
+  });
 });

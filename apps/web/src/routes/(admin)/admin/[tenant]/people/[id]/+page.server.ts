@@ -11,7 +11,7 @@ import { mediaChoices } from '#lib/server/content/content-blocks.js';
 import { fields, personFields, personSlug } from '#lib/server/people/form.js';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ parent, locals, params }) => {
+export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
   await parent();
   const principal = locals.principal!;
   if (!can(principal, 'content:write')) refuse(403);
@@ -21,6 +21,8 @@ export const load: PageServerLoad = async ({ parent, locals, params }) => {
       : await loaded(runtime().invoker.run(useCases.getPerson, principal, { personId: params.id }));
   return {
     person,
+    kind:
+      person?.kind ?? (url.searchParams.get('kind') === 'organisation' ? 'organisation' : 'person'),
     media: can(principal, 'media:read')
       ? await mediaChoices(principal, person?.imageId ? [person.imageId] : [])
       : null,
@@ -41,14 +43,16 @@ export const actions: Actions = {
         contentLocale(cookies, tenant, String(data.get('contentLocale') ?? '')),
         current
       );
+      const { kind, ...rest } = input;
       const saved = current
         ? await runtime().invoker.run(useCases.updatePerson, principal, {
-            ...input,
+            ...rest,
             personId: current.id,
             baseUpdatedAt: String(data.get('baseUpdatedAt') ?? ''),
           })
         : await runtime().invoker.run(useCases.createPerson, principal, {
-            ...input,
+            ...rest,
+            kind,
             slug: personSlug(data),
           });
       redirect(303, `/admin/${tenant.slug}/people/${saved.id}?saved=1`);
