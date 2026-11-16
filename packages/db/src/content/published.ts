@@ -57,6 +57,7 @@ export function listPublished(trx: Kysely<Database>): ContentRepository['listPub
              coalesce(r.document->'access'->>'level', 'public') as access
       from content_item_locales l
       join content_items i on i.id = l.item_id and i.deleted_at is null
+       and i.profile is distinct from 'zone'
       join content_revisions r on r.id = l.published_revision_id
       where l.published_revision_id is not null
         ${type ? sql`and i.type = ${type}` : sql``}
@@ -110,6 +111,7 @@ export function publishedCards(trx: Kysely<Database>): ContentRepository['publis
       select l.item_id, i.type, i.slug, r.id as revision_id, l.first_published_at, r.document
       from content_item_locales l
       join content_items i on i.id = l.item_id and i.deleted_at is null
+       and i.profile is distinct from 'zone'
       join content_revisions r on r.id = l.published_revision_id
       where l.published_revision_id is not null
         and l.locale = ${locale}

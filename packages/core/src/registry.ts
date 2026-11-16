@@ -109,6 +109,8 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   'site.chrome.get',
   // ADR 036 rule 8: published, public targets only; nothing personalised.
   'site.navigation.resolve',
+  // The pre-footer zone: the published, public zone the published navigation places.
+  'site.prefooter.get',
   'site.general.get',
   'site.theme.get',
 ]);

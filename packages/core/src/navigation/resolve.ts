@@ -46,6 +46,11 @@ export interface ResolvedNavigation {
   actions: ResolvedLink[];
   footer: { title: string | null; nodes: ResolvedNode[] }[];
   legal: { nodes: ResolvedNode[] } | null;
+  /**
+   * The placed zone when it is published publicly in the locale, with the revision that
+   * publishes it there, so the ETag of every page moves when the zone is republished (rule 11).
+   */
+  prefooter: { itemId: string; revisionId: string } | null;
 }
 
 /**
@@ -87,7 +92,7 @@ export function resolveNavigation(
     if (t.kind === 'system')
       return { id: node.id, kind: 'link', label: own, target: { kind: 'system', page: t.page } };
     const found = targets.get(t.itemId);
-    if (!found || found.access !== 'public') {
+    if (!found || found.access !== 'public' || found.profile === 'zone') {
       problems.push({ menuId, nodeId: node.id, code: 'target-unavailable' });
       return null;
     }
@@ -156,7 +161,8 @@ export function resolveNavigation(
     return cache.get(menuId)!;
   };
 
-  const { main, actions, footer, legal } = doc.placements;
+  const { main, actions, footer, legal, prefooter } = doc.placements;
+  const zone = prefooter ? targets.get(prefooter.itemId) : undefined;
   const mainNodes = main ? menuNodesOf(main.menuId) : [];
   const visible = new Set(mainNodes.map((n) => n.id));
   const navigation: ResolvedNavigation = {
@@ -168,6 +174,11 @@ export function resolveNavigation(
       .map((f) => ({ title: f.title?.[locale] ?? null, nodes: menuNodesOf(f.menuId) }))
       .filter((f) => f.nodes.length),
     legal: legal ? { nodes: menuNodesOf(legal.menuId) } : null,
+    // Rule 8 for the zone: offline, restricted or not a zone shows nothing, never a fallback.
+    prefooter:
+      zone && zone.profile === 'zone' && zone.access === 'public'
+        ? { itemId: zone.itemId, revisionId: zone.revisionId }
+        : null,
   };
   return { navigation, problems: dedupe(problems) };
 }
@@ -190,10 +201,11 @@ function dedupe(problems: NavigationProblem[]): NavigationProblem[] {
   });
 }
 
-/** The content item ids the placed menus of a document target. */
+/** The content item ids the placed menus and the placed zone of a document target. */
 export function placedTargetIds(doc: NavigationDocument): string[] {
   const placed = new Set(placedMenuIds(doc.placements));
   const ids = new Set<string>();
+  if (doc.placements.prefooter) ids.add(doc.placements.prefooter.itemId);
   for (const menu of doc.menus) {
     if (!placed.has(menu.id)) continue;
     for (const node of menuNodes(menu))

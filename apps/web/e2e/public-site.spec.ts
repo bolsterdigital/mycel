@@ -7,6 +7,7 @@
 import { exerciseOverview } from './lib/blocks/overview';
 import { exerciseEventPage } from './lib/events/event-page';
 import { exerciseAgenda } from './lib/events/agenda';
+import { exercisePrefooter } from './lib/prefooter/zone';
 import { exercisePeopleGrid } from './lib/people/grid';
 import { exercisePublicPeople } from './lib/people/public';
 import { exercisePublishedRepresentations } from './lib/published/representations';
@@ -2093,6 +2094,10 @@ test('an event page shows when and where, in its header and its data', async ({ 
 });
 
 test('an agenda lists upcoming and past events', async ({ page }) => exerciseAgenda(page));
+
+test('a zone stands above the footer, except where a page switches it off', async ({ page }) => {
+  await exercisePrefooter(page);
+});
 
 test('public profiles share policy across HTML, bylines and discovery', async ({ page }) => {
   await exercisePublicPeople(page);

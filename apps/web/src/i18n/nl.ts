@@ -364,6 +364,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.navigation.placement.actions': 'Actieknoppen',
   'admin.navigation.placement.footer': 'Footer',
   'admin.navigation.placement.legal': 'Juridische links',
+  'admin.navigation.placement.prefooter': 'Pre-footer',
   'admin.navigation.notPlaced': 'Niet geplaatst',
   'admin.navigation.notPlaced.long': 'Dit menu staat nog nergens op de site.',
   'admin.navigation.usedIn':
@@ -457,6 +458,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.navigation.error.actions':
     'Niet opgeslagen: de actieknoppen bevatten hooguit twee links, zonder subitems of groepen.',
   'admin.navigation.error.yours': 'Wat jij had ingevuld: {text}',
+  'admin.navigation.error.notAZone':
+    'Niet opgeslagen: de pre-footer moet een zone zijn. Kies een zone uit de lijst.',
   'admin.navigation.error.yoursChoices': 'Wat jij had gekozen: {choices}.',
   'admin.navigation.error.publish':
     'Niet gepubliceerd: los eerst op wat hieronder "Blokkeert publicatie" heeft.',
@@ -489,6 +492,9 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.navigation.placements.legal.hint':
     'Privacy, voorwaarden en andere juridische links, in kleine letters.',
   'admin.navigation.publication': 'Publicatie',
+  'admin.navigation.placements.prefooter.zone': 'Zone',
+  'admin.navigation.placements.prefooter.hint':
+    'De strook tussen de inhoud en de voet van elke pagina en elk artikel. Een zone maak je onder Zones.',
   'admin.navigation.publication.intro':
     "Per taal: welke versie bezoekers krijgen zodra de site deze menu's gebruikt, en of het concept sindsdien is gewijzigd.",
   'admin.navigation.column.language': 'Taal',
@@ -1274,6 +1280,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.filter.page': 'Pagina’s',
   'admin.content.filter.article': 'Artikelen',
   'admin.content.filter.event': 'Evenementen',
+  'admin.content.filter.zone': 'Zones',
   'admin.content.list.more': 'Meer filters',
   'admin.content.list.author.all': 'Alle auteurs',
   'admin.content.list.section.all': 'Alle rubrieken',
@@ -1320,6 +1327,8 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Dit kan niet weg zolang andere items ernaar linken ({count}: {titles}). Haal die links eerst weg.',
   'admin.content.delete.inNavigation':
     'Dit kan niet weg zolang een menu ernaar linkt ({count}: {menus}). Haal het eerst uit die menu’s.',
+  'admin.content.delete.prefooter':
+    'Deze zone kan niet weg zolang de navigatie hem als pre-footer toont. Kies eerst een andere zone of geen, en publiceer de navigatie.',
   'admin.content.delete.campaignLanding':
     'Dit is de landingspagina van een campagne. Die kan pas naar de prullenbak als de campagne is gearchiveerd.',
   'admin.content.trash.title': 'Prullenbak',
@@ -1341,6 +1350,9 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.empty.page.body': 'Maak de eerste pagina.',
   'admin.content.empty.event': 'Nog geen evenementen.',
   'admin.content.empty.event.body': 'Maak het eerste evenement.',
+  'admin.content.empty.zone': 'Nog geen zones.',
+  'admin.content.empty.zone.body':
+    'Een zone is een strook die onder andere pagina’s staat, zoals een nieuwsbriefoproep boven de voet.',
   'admin.content.empty.article.body': 'Schrijf het eerste artikel.',
   'admin.content.more': 'Volgende pagina',
   'admin.content.column.updated': 'Laatst opgeslagen',
@@ -1368,6 +1380,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.list.count.page.other': '{n} pagina’s',
   'admin.content.list.count.event.one': '1 evenement',
   'admin.content.list.count.event.other': '{n} evenementen',
+  'admin.content.list.count.zone.one': '1 zone',
+  'admin.content.list.count.zone.other': '{n} zones',
   'admin.content.list.count.article.one': '1 artikel',
   'admin.content.list.count.article.other': '{n} artikelen',
   'admin.content.list.found.one': '1 gevonden',
@@ -1401,6 +1415,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.new.page': 'Nieuwe pagina',
   'admin.content.new.article': 'Nieuw artikel',
   'admin.content.new.event': 'Nieuw evenement',
+  'admin.content.new.zone': 'Nieuwe zone',
   'admin.content.event.title': 'Wanneer en waar',
   'admin.content.event.startsAt': 'Begint',
   'admin.content.event.endsAt': 'Eindigt',
@@ -1425,6 +1440,10 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.field.seoTitle': 'Titel in zoekresultaten',
   'admin.content.field.seoDescription': 'Beschrijving in zoekresultaten',
   'admin.content.field.noindex': 'Verbergen voor zoekmachines',
+  'admin.content.edit.prefooter': 'Pre-footer',
+  'admin.content.field.noPrefooter': 'Geen pre-footer op deze pagina',
+  'admin.content.field.noPrefooterHint':
+    'De zone die de navigatie boven de voet plaatst, staat hier dan niet. Handig op een campagne- of bedankpagina.',
   'admin.content.field.canonical': 'Canoniek adres (optioneel, begint met https://)',
   'admin.content.field.heroImage': 'Hero-afbeelding',
   'admin.content.field.heroImageHint':

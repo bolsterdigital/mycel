@@ -1,6 +1,8 @@
 // Seed a published navigation with one content target (ADR 036, migration 0056), so the RLS and
 // export conformance suites see a row in each navigation table: head, revision, locale pointer
 // and reference. Rejected: a URL-only menu, which would leave `site_navigation_refs` empty.
+// The target page switches the pre-footer off, and a zone is placed, so the export carries
+// both.
 import { useCases, type Invoker, type Principal } from '@mycel/core';
 
 export async function seedNavigation(invoker: Invoker, admin: Principal) {
@@ -12,12 +14,24 @@ export async function seedNavigation(invoker: Invoker, admin: Principal) {
       locales: ['nl'],
       title: { nl: 'Menudoel' },
       blocks: [],
+      prefooter: false,
     },
   });
   await invoker.run(useCases.publishItem, admin, {
     itemId: item.id,
     revisionId: revision.id,
     locale: 'nl',
+  });
+  const zone = await invoker.run(useCases.createItem, admin, {
+    slug: 'zone',
+    document: {
+      type: 'page',
+      profile: 'zone',
+      defaultLocale: 'nl',
+      locales: ['nl'],
+      title: { nl: 'Zone' },
+      blocks: [],
+    },
   });
   const saved = await invoker.run(useCases.updateNavigation, admin, {
     baseRevisionId: null,
@@ -34,6 +48,7 @@ export async function seedNavigation(invoker: Invoker, admin: Principal) {
         actions: null,
         footer: [],
         legal: null,
+        prefooter: { itemId: zone.item.id },
       },
     },
   });

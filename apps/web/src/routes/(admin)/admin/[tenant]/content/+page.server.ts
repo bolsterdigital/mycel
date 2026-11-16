@@ -27,6 +27,7 @@ import {
   MAX_PAGE_SIZE,
   MAX_TRANSLATION_WALK,
   pickAny,
+  ContentProfile,
   ContentType,
   startSlug,
   useCases,
@@ -329,14 +330,15 @@ export const actions: Actions = {
           event.params.tenant
         );
         const type = ContentType.parse(form.get('type'));
-        // "New event" is a page with the event profile; its date waits for the editor.
-        const isEvent = type === 'page' && form.get('profile') === 'event';
+        // "New event" and "New zone" are pages with a profile; an event's date waits for the editor.
+        const profile =
+          type === 'page' ? (ContentProfile.safeParse(form.get('profile')).data ?? null) : null;
         return runtime().invoker.run(useCases.createItem, principal, {
           // A placeholder until the first save with a title; core then moves it there.
           slug: startSlug(type, randomUUID()),
           document: {
             type,
-            ...(isEvent ? { profile: 'event' as const } : {}),
+            ...(profile ? { profile } : {}),
             title: { [tenant.defaultLocale]: ui(tenant.defaultLocale)('admin.content.untitled') },
             defaultLocale: tenant.defaultLocale,
             locales: tenant.locales,
@@ -398,6 +400,7 @@ export const actions: Actions = {
         issues: {
           'content.delete.campaign-landing': 'admin.content.delete.campaignLanding',
           'content.delete.in-navigation': 'admin.content.delete.inNavigation',
+          'content.delete.prefooter': 'admin.content.delete.prefooter',
         },
       },
       async (principal, form) => {

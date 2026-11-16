@@ -131,6 +131,41 @@ describe.skipIf(skip)('navigation conformance (Postgres)', () => {
     });
   });
 
+  it('prefooter: places a zone, reads it published, keeps it out of lists and the trash', async () => {
+    const zone = await page(a, 'zone', {
+      profile: 'zone',
+      blocks: [{ type: 'heading', version: 1, props: { text: { nl: 'Kop', en: 'Head' } } }],
+    });
+    const plain = await page(a, 'gewoon');
+    const placing = (itemId: string) => ({
+      menus: [],
+      placements: { main: null, actions: null, footer: [], legal: null, prefooter: { itemId } },
+    });
+    await expect(save(a, placing(plain))).rejects.toMatchObject({ code: 'invalid_input' });
+    const saved = await save(a, placing(zone));
+    await run('publishNavigation', a, { revisionId: saved.revisionId, locale: 'nl' });
+    const visitor = anonymousPrincipal(a.tenantId, ['content:read']);
+    const { zone: shown } = await run('getPrefooter', visitor, { locale: 'nl' });
+    expect(shown).toMatchObject({ itemId: zone, title: 'zone nl', blocks: [{ type: 'heading' }] });
+    expect((await run('resolveNavigation', visitor, { locale: 'nl' })).prefooter).toEqual({
+      itemId: zone,
+      revisionId: shown.revisionId,
+    });
+    expect((await run('getPrefooter', visitor, { locale: 'en' })).zone).toBeNull();
+    // No address, no sitemap row, no card.
+    const { items } = await run('listPublished', visitor, {});
+    expect(items.map((r: { id: string }) => r.id)).toEqual([plain, plain]);
+    const overview = await run('getOverview', visitor, {
+      props: { source: 'page', limit: '6' },
+      locale: 'nl',
+    });
+    expect(overview.entries.map((r: { id: string }) => r.id)).toEqual([plain]);
+    await expect(run('deleteItem', a, { itemId: zone })).rejects.toMatchObject({
+      code: 'conflict',
+      issues: [expect.objectContaining({ message: 'content.delete.prefooter' })],
+    });
+  });
+
   it('nav-offline: hides restricted and offline targets, keeps a labelled branch', async () => {
     const ids = {
       parent: await page(a, 'campagnes'),

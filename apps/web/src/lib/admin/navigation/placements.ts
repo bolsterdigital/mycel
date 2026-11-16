@@ -1,7 +1,7 @@
 // Where the draft shows its menus (ADR 036 rule 4), as the placements form posts it: one menu for
 // the main navigation with the top-level items that may stand in the bar, an optional menu of at
 // most two calls to action, up to four footer columns with an optional title, and an optional
-// legal menu. Pure, so the route saves the result on the revision the editor read and core merges
+// legal menu, and the zone shown above the footer. Pure, so the route saves the result on the revision the editor read and core merges
 // it per placement (ADR 026) and checks the rules (`navigationIssues`).
 //
 // The bar is chosen per item of the menu that is placed now: a form without JavaScript cannot
@@ -24,6 +24,8 @@ export interface PlacementsForm {
   /** The footer slots in order, empty ones included. */
   footer: { menuId: string; title: string }[];
   legal: string;
+  /** The item id of the zone above the footer; empty is "none". */
+  prefooter: string;
 }
 
 /** The form `fields` posted (each field as text), in the shape `placementsFrom` reads. */
@@ -42,12 +44,14 @@ export function postedForm(fields: Readonly<Record<string, string>>): Placements
       title: field(`footer${i}Title`),
     })),
     legal: field('legal'),
+    prefooter: field('prefooter'),
   };
 }
 
 /** One place where a refused form asked for something else than is saved now. */
 export type Choice =
   | { place: 'main' | 'actions' | 'legal'; menuId: string }
+  | { place: 'prefooter'; itemId: string }
   | { place: 'bar'; ids: string[] }
   | { place: 'footer'; slot: number; menuId: string; title: string };
 
@@ -92,12 +96,13 @@ function differences(mine: PlacementsForm, saved: PlacementsForm): Choice[] {
       out.push({ place: 'footer', slot: i + 1, menuId: slot.menuId, title });
   });
   if (mine.legal !== saved.legal) out.push({ place: 'legal', menuId: mine.legal });
+  if (mine.prefooter !== saved.prefooter) out.push({ place: 'prefooter', itemId: mine.prefooter });
   return out;
 }
 
 /** The form fields of `placements`, for a form that shows them again. */
 export function formOf(placements: Placements, locale: string): PlacementsForm {
-  const { main, actions, footer, legal } = placements;
+  const { main, actions, footer, legal, prefooter } = placements;
   return {
     main: main?.menuId ?? '',
     bar: main?.bar ?? null,
@@ -107,6 +112,7 @@ export function formOf(placements: Placements, locale: string): PlacementsForm {
       title: footer[i]?.title?.[locale] ?? '',
     })),
     legal: legal?.menuId ?? '',
+    prefooter: prefooter?.itemId ?? '',
   };
 }
 
@@ -163,5 +169,12 @@ export function placementsFrom(
     actions: form.actions ? { menuId: form.actions } : null,
     footer,
     legal: form.legal ? { menuId: form.legal } : null,
+    // Core checks that it is a zone (`site.navigation.prefooter.not-a-zone`). A document that
+    // never had one keeps no key, so saving it unchanged changes nothing.
+    ...(form.prefooter
+      ? { prefooter: { itemId: form.prefooter } }
+      : was.prefooter !== undefined
+        ? { prefooter: null }
+        : {}),
   };
 }

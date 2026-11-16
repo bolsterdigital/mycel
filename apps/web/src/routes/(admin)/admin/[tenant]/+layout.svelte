@@ -51,8 +51,8 @@
   const contentType = $derived(
     (page.data as { contentType?: unknown }).contentType === 'article' ? 'article' : 'page'
   );
-  /** An event is a page under Events: `contentProfile` in the same page data. */
-  const events = $derived((page.data as { contentProfile?: unknown }).contentProfile === 'event');
+  /** An event is a page under Events, a zone one under Zones: `contentProfile` in the page data. */
+  const profile = $derived((page.data as { contentProfile?: unknown }).contentProfile ?? null);
   /** The shell's locale switch: a site with several locales, off on an edit screen. */
   const localeSwitch = $derived(
     data.tenant.locales.length > 1 && !(page.data as { itemLocale?: boolean }).itemLocale
@@ -86,16 +86,23 @@
           href: `${base}/content?type=${type}`,
           label: t(type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article'),
           icon: type === 'page' ? 'panels-top-left' : 'square-pen',
-          current: within('content') && contentType === type && !campaignPage && !events,
+          current: within('content') && contentType === type && !campaignPage && !profile,
         }))
       : [];
     if (has('content:read'))
-      content.push({
-        href: `${base}/content?type=page&profile=event`,
-        label: t('admin.content.filter.event'),
-        icon: 'calendar',
-        current: within('content') && events,
-      });
+      content.push(
+        ...(
+          [
+            ['event', 'calendar'],
+            ['zone', 'panel-bottom'],
+          ] as const
+        ).map(([name, icon]) => ({
+          href: `${base}/content?type=page&profile=${name}`,
+          label: t(`admin.content.filter.${name}`),
+          icon,
+          current: within('content') && profile === name,
+        }))
+      );
     // Campaigns are content under Content (navigation choice 2026-10-31), after the two
     // stored types they are built from.
     if (has('content:read'))

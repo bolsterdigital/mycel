@@ -67,6 +67,8 @@ function memoryPublished(
     ) {
       const starts = new Map<string, string>();
       const rows: PublishedCardRow[] = kept().flatMap((item) => {
+        // A zone is shown inside pages, never as a card or a row of its own.
+        if (item.profile === 'zone') return [];
         if (type && item.type !== type) return [];
         if (ids && !ids.includes(item.id)) return [];
         if (exclude?.includes(item.id)) return [];
@@ -136,6 +138,7 @@ function memoryPublished(
     },
     async listPublished({ type, sectionId }, after, limit) {
       const rows: PublishedEntry[] = kept().flatMap((item) => {
+        if (item.profile === 'zone') return [];
         if (type && item.type !== type) return [];
         const live = item.publication.filter((p) => p.publishedRevisionId);
         return live.flatMap((p) => {

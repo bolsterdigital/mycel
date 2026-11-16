@@ -18,6 +18,7 @@ import { unpublish, withdrawReview } from '../lifecycle.js';
 import { ContentItem, ContentType, Slug } from '../model.js';
 import type { ItemRecord } from '../ports.js';
 import { lockItem, toContentItem } from '../service.js';
+import { placingNavigation } from '../../navigation/prefooter.js';
 import '../../campaigns/ports.js';
 import '../../navigation/ports.js';
 
@@ -68,6 +69,11 @@ export const deleteItem = defineUseCase({
           message: 'content.delete.campaign-landing',
           params: { campaignId: campaign.id },
         },
+      ]);
+    // The zone the navigation places as pre-footer stays until another one is placed.
+    if (item.profile === 'zone' && (await placingNavigation(ctx, itemId)))
+      throw new UseCaseError('conflict', 'the navigation places this zone as pre-footer', [
+        { path: 'itemId', message: 'content.delete.prefooter' },
       ]);
     const menus = await ctx.navigation.referencingMenus(itemId);
     if (menus.length)

@@ -176,6 +176,7 @@ import {
   unpublishNavigation,
   updateNavigation,
 } from './navigation/service.js';
+import { getPrefooter } from './navigation/prefooter.js';
 
 export const useCases = {
   getMailchimpCallback,
@@ -330,6 +331,7 @@ export const useCases = {
   unpublishNavigation,
   resolveNavigation: resolveNavigationUseCase,
   checkNavigation: checkNavigationUseCase,
+  getPrefooter,
   getSiteGeneral,
   updateSiteGeneral,
   getSiteImages,

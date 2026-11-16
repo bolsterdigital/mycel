@@ -112,6 +112,19 @@ describe('an event page in the form', () => {
   });
 });
 
+describe('the pre-footer switch in the form', () => {
+  it('switches the zone off where the box is ticked, and keeps the choice of a form without it', () => {
+    const shown = { ...valuesOf(page), prefooterShown: '1' };
+    const off = documentFrom(page, { ...shown, noPrefooter: 'on' }, '2026-11-16');
+    expect(off).toHaveProperty('prefooter', false);
+    const hidden = ContentDocument.parse(off);
+    expect(valuesOf(hidden).noPrefooter).toBe('on');
+    expect(documentFrom(hidden, shown, '2026-11-16')).not.toHaveProperty('prefooter');
+    const { prefooterShown: _p, ...without } = shown;
+    expect(documentFrom(hidden, without, '2026-11-16')).toHaveProperty('prefooter', false);
+  });
+});
+
 describe('documentFrom(valuesOf(doc))', () => {
   it('gives the same document back, blocks included', () => {
     for (const doc of [article, page, featuredPage, eventPage])
