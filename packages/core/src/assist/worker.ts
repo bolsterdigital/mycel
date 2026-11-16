@@ -7,9 +7,22 @@ import { systemPrincipal } from '../principal.js';
 import { active, entitled } from '../entitlements/guards.js';
 import type { TenantAccess } from '../entitlements/model.js';
 import { mediaKey, variantFile } from '../media/model.js';
-import { AltResult, HeadlineResult, LeadResult, PENDING_TIMEOUT_MS } from './model.js';
+import {
+  AltResult,
+  HeadlineResult,
+  LeadResult,
+  PENDING_TIMEOUT_MS,
+  SectionResult,
+} from './model.js';
 import { leadSource } from './lead.js';
 import { headlineSource } from './headline.js';
+import {
+  readSectionCandidates,
+  sectionChoices,
+  sectionLead,
+  sectionToken,
+  type SectionCandidate,
+} from './section.js';
 import {
   TranslationResult,
   decodeTranslation,
@@ -25,6 +38,10 @@ const LEAD_PROMPT =
 /** The fixed headline instruction; the lead is the whole source. */
 const HEADLINE_PROMPT =
   'Write one clear, factual headline for an article from the provided lead only, in the language of the given locale. Add no names, figures or claims that are not in the lead, and no call to action. Return JSON with a headline field.';
+
+/** The fixed section instruction; the model chooses, it never names a new section. */
+const SECTION_PROMPT =
+  'Choose the one section from the provided list that fits the article lead best. Answer only with the id of a listed section; never invent a section or an id. Return JSON with a sectionId field.';
 
 const classify = (error: unknown): ModelFailure =>
   error instanceof TextModelError
@@ -84,6 +101,15 @@ export async function runAssistSuggestion(options: RunOptions): Promise<{ next?:
       const headline = item.type === 'article' && headlineSource(revision.document, row.locale);
       if (!headline || !headline.ok) return { row, failure: 'rejected' as const };
       return { row, lead: headline.lead };
+    }
+    if (row.task === 'section') {
+      // The base check pins the lead; a renamed, added or removed section changes the token.
+      const lead = item.type === 'article' && sectionLead(revision.document, row.locale);
+      if (!lead || !lead.ok) return { row, failure: 'rejected' as const };
+      const offered = await readSectionCandidates(ctx, row.locale);
+      if (!offered.ok || (await sectionToken(offered.candidates)) !== row.blockId)
+        return { row, failure: 'rejected' as const };
+      return { row, sectionLead: lead.lead, candidates: offered.candidates };
     }
     const translation = row.task === 'translate' ? decodeTranslation(row.blockId) : null;
     if (translation) {
@@ -214,6 +240,32 @@ export async function runAssistSuggestion(options: RunOptions): Promise<{ next?:
       if (!parsed.success) failure = 'invalid-output';
       else {
         value = parsed.data.headline;
+        modelName = result.model;
+        usage = result.usage;
+      }
+    } catch (error) {
+      failure = classify(error);
+    }
+  } else if (!failure && 'candidates' in source && source.sectionLead && options.model) {
+    const offered: readonly SectionCandidate[] = source.candidates;
+    try {
+      const result = await options.model.complete({
+        task: 'section',
+        system: SECTION_PROMPT,
+        parts: [
+          { kind: 'text', text: `Locale: ${source.row.locale}` },
+          { kind: 'text', text: source.sectionLead },
+          { kind: 'text', text: sectionChoices(offered) },
+        ],
+        output: SectionResult,
+        maxTokens: 100,
+        signal: AbortSignal.timeout(options.timeoutMs),
+      });
+      const parsed = SectionResult.safeParse(result.json);
+      if (!parsed.success || !offered.some((c) => c.id === parsed.data.sectionId))
+        failure = 'invalid-output';
+      else {
+        value = parsed.data.sectionId;
         modelName = result.model;
         usage = result.usage;
       }

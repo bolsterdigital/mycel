@@ -569,7 +569,7 @@ export const Revision = z.object({
         .object({
           bulk: BulkOrigin.optional(),
           suggestionId: z.string().guid(),
-          task: z.enum(['alt', 'translate', 'lead', 'headline']),
+          task: z.enum(['alt', 'translate', 'lead', 'headline', 'section']),
           provider: z.string(),
           model: z.string(),
           edited: z.boolean(),

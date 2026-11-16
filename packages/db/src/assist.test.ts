@@ -4,7 +4,14 @@
 import { readFile } from 'node:fs/promises';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Invoker, buildRegistry, systemPrincipal, useCases, type Principal } from '@mycel/core';
+import {
+  Invoker,
+  buildRegistry,
+  systemPrincipal,
+  useCases,
+  type AssistTask,
+  type Principal,
+} from '@mycel/core';
 import {
   FakeDns,
   FakeInputHasher,
@@ -113,7 +120,7 @@ describe.skipIf(skip)('assistance tenant isolation', () => {
     ).rejects.toMatchObject({ code: 'not_found' });
   });
 
-  it('keeps lead and headline tasks per tenant, and 0065 types old rows by block id', async () => {
+  it('keeps lead, headline and section tasks per tenant, and 0065 types old rows by block id', async () => {
     const pa = systemPrincipal(a, 'assist-test');
     const pb = systemPrincipal(b, 'assist-test');
     const created = await invoker.run(useCases.createItem, pa, {
@@ -126,7 +133,7 @@ describe.skipIf(skip)('assistance tenant isolation', () => {
         blocks: [],
       },
     });
-    const row = (id: string, task: 'alt' | 'translate' | 'lead' | 'headline', blockId: string) => ({
+    const row = (id: string, task: AssistTask, blockId: string) => ({
       id,
       itemId: created.item.id,
       baseRevisionId: created.revision.id,
@@ -160,6 +167,15 @@ describe.skipIf(skip)('assistance tenant isolation', () => {
       sourceBlockIds: [],
     });
     expect(await uow.run(pb, (ctx) => ctx.assist.get(headline))).toBeNull();
+    // 0067: a section row keeps its opaque token of the offered sections, also under RLS.
+    const section = uuidv7();
+    const token = `section:${'a'.repeat(64)}`;
+    await uow.run(pa, (ctx) => ctx.assist.insert(row(section, 'section', token)));
+    expect(await uow.run(pa, (ctx) => ctx.assist.get(section))).toMatchObject({
+      task: 'section',
+      blockId: token,
+    });
+    expect(await uow.run(pb, (ctx) => ctx.assist.get(section))).toBeNull();
     expect(await uow.run(pb, (ctx) => ctx.assist.list(created.item.id))).toEqual([]);
 
     // Replay the 0065 backfill over rows written as before it (every row read as alt), inside a

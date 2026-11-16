@@ -17,6 +17,7 @@ export * from './assist/worker.js';
 export * from './assist/translation.js';
 export * from './assist/lead.js';
 export * from './assist/headline.js';
+export * from './assist/section.js';
 export * from './principal.js';
 export * from './registry.js';
 export * from './registry-rules.js';

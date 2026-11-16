@@ -213,7 +213,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     listPath: recalledListPath(cookies, params.tenant, item.type, item.id, item.profile),
     patterns: await patternChoices(principal, item.type, [work, tenant.defaultLocale], true),
     articleEditor: shown.length ? toArticleEditor(doc, work) : null,
-    ...(await editAssist(invoker, principal, item.type, doc, work)),
+    ...(await editAssist(invoker, principal, item.type, doc, work, sections.length)),
     machineTranslation: doc.machineTranslation ?? {},
     blocks: doc.blocks.map((b) => ({
       id: b.id,

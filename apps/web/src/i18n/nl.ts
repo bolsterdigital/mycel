@@ -1007,6 +1007,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.assist.alt.suggest': 'Alt-tekst voorgesteld',
   'admin.audit.op.assist.headline.suggest': 'Kop voorgesteld',
   'admin.audit.op.assist.lead.suggest': 'Lead voorgesteld',
+  'admin.audit.op.assist.section.suggest': 'Rubriek voorgesteld',
   'admin.audit.op.assist.settings.update': 'Instellingen schrijfhulp gewijzigd',
   'admin.audit.op.assist.suggestion.accept': 'Suggestie overgenomen',
   'admin.audit.op.assist.suggestion.dismiss': 'Suggestie afgewezen',
@@ -2430,6 +2431,24 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.assist.error.headline-source':
     'Schrijf eerst een lead in deze taal; de kop wordt daarop gebaseerd.',
   'admin.assist.error.headline-value': 'Vul een kop van hoogstens 200 tekens in.',
+  'admin.assist.sent.section':
+    'Alleen de lead van het artikel in één taal, als platte tekst, de namen van de rubrieken in die taal met hun id, en de taalcode.',
+  'admin.assist.notSent.section':
+    'Titel, tekstblokken, andere talen, beschrijvingen en adressen van rubrieken, SEO-velden, links, auteurs, tags, media, supporterdata, operatoridentiteit en sitenaam.',
+  'admin.assist.section': 'Rubriek voorstellen',
+  'admin.assist.section.source': 'Lead waaruit de rubriek gekozen wordt',
+  'admin.assist.section.offered': 'Rubrieken om uit te kiezen',
+  'admin.assist.section.sent':
+    'Alleen deze lead, deze rubrieknamen en de taalcode ({locale}) gaan naar {provider}. De rest van het artikel blijft hier.',
+  'admin.assist.section.proposal': 'Voorgestelde rubriek:',
+  'admin.assist.section.accept': 'Rubriek overnemen',
+  'admin.assist.section.check':
+    'Overnemen zet het artikel in deze rubriek als ongepubliceerde wijziging. Liever een andere? Negeer het voorstel en kies hem zelf.',
+  'admin.assist.error.section-source':
+    'Schrijf eerst een lead van 50 tot 1.000 tekens in deze taal; de rubriek wordt daaruit gekozen.',
+  'admin.assist.error.section-candidates':
+    'Een voorstel vraagt twee tot twintig rubrieken met een naam in deze taal. Kies de rubriek zelf.',
+  'admin.assist.error.section-value': 'Neem de voorgestelde rubriek over, of kies zelf een andere.',
   'admin.ui.choices.chosen': 'Gekozen:',
   'admin.ui.choices.count': '{shown} van {total} zichtbaar',
   'admin.ui.choices.search': 'Zoeken',

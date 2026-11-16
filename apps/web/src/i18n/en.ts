@@ -992,6 +992,7 @@ export const en = {
   'admin.audit.op.assist.alt.suggest': 'Alt text suggested',
   'admin.audit.op.assist.headline.suggest': 'Headline suggested',
   'admin.audit.op.assist.lead.suggest': 'Lead suggested',
+  'admin.audit.op.assist.section.suggest': 'Section suggested',
   'admin.audit.op.assist.settings.update': 'Writing assistant settings changed',
   'admin.audit.op.assist.suggestion.accept': 'Suggestion accepted',
   'admin.audit.op.assist.suggestion.dismiss': 'Suggestion dismissed',
@@ -2402,6 +2403,25 @@ export const en = {
   'admin.assist.error.headline-source':
     'Write a lead in this language first; the headline is based on it.',
   'admin.assist.error.headline-value': 'Enter a headline of at most 200 characters.',
+  'admin.assist.sent.section':
+    'Only the article’s lead in one language, as plain text, the names of the sections in that language with their ids, and the language code.',
+  'admin.assist.notSent.section':
+    'Title, text blocks, other languages, section descriptions and addresses, SEO fields, links, authors, tags, media, supporter data, operator identity, and site name.',
+  'admin.assist.section': 'Suggest a section',
+  'admin.assist.section.source': 'Lead the section is chosen from',
+  'admin.assist.section.offered': 'Sections to choose from',
+  'admin.assist.section.sent':
+    'Only this lead, these section names and the language code ({locale}) go to {provider}. The rest of the article stays here.',
+  'admin.assist.section.proposal': 'Proposed section:',
+  'admin.assist.section.accept': 'Accept section',
+  'admin.assist.section.check':
+    'Accepting puts the article in this section as an unpublished change. Prefer another one? Dismiss and choose it yourself.',
+  'admin.assist.error.section-source':
+    'Write a lead of 50 to 1,000 characters in this language first; the section is chosen from it.',
+  'admin.assist.error.section-candidates':
+    'A proposal needs two to twenty sections with a name in this language. Choose the section yourself.',
+  'admin.assist.error.section-value':
+    'Accept the proposed section, or choose another one yourself.',
   'admin.ui.choices.chosen': 'Chosen:',
   'admin.ui.choices.count': '{shown} of {total} shown',
   'admin.ui.choices.search': 'Search',

@@ -4,6 +4,7 @@ import {
   can,
   decodeTranslation,
   leadCandidates,
+  sectionCandidates,
   translationValue,
   useCases,
   UseCaseError,
@@ -77,7 +78,7 @@ const context = async (event: {
       !revision.document.locales.includes(locale)
     )
       refuse(404);
-  } else if (task === 'lead' || task === 'headline') {
+  } else if (task === 'lead' || task === 'headline' || task === 'section') {
     if (item.type !== 'article' || !revision.document.locales.includes(locale)) refuse(404);
   } else if (task === 'translate') {
     if (
@@ -122,7 +123,8 @@ const matches = (
   }
 ) => {
   if (suggestion.itemId !== c.item.id || suggestion.task !== c.task) return false;
-  if (c.task === 'lead' || c.task === 'headline') return suggestion.locale === c.locale;
+  if (c.task === 'lead' || c.task === 'headline' || c.task === 'section')
+    return suggestion.locale === c.locale;
   if (c.task === 'alt') return suggestion.blockId === c.block && suggestion.locale === c.locale;
   const descriptor = decodeTranslation(suggestion.blockId);
   return (
@@ -143,6 +145,9 @@ const SPECIFIC = [
   'lead-value',
   'headline-source',
   'headline-value',
+  'section-source',
+  'section-candidates',
+  'section-value',
 ] as const;
 const failure = (e: UseCaseError) => {
   const issue = e.issues?.[0]?.message.replace(/^assist\.error\./, '');
@@ -161,14 +166,28 @@ const coded = (e: UseCaseError) => ({
   problem: e.code === 'suspended' || e.code === 'not_found' ? 'invalid_input' : e.code,
 });
 
+/** The sections a section request offers, from every page of the list, as core offers them. */
+const offeredSections = async (c: Awaited<ReturnType<typeof context>>) => {
+  const all = [];
+  let after: string | undefined;
+  do {
+    const page = await c.rt.invoker.run(useCases.listSections, c.principal, { after, limit: 100 });
+    all.push(...page.sections);
+    after = page.next ?? undefined;
+  } while (after);
+  const offered = sectionCandidates(all, c.locale);
+  return offered.ok ? offered.candidates : [];
+};
+
 export const load: PageServerLoad = async (event) => {
   const parent = await event.parent();
   const c = await context(event);
   const candidates = c.task === 'lead' ? leadCandidates(c.revision.document, c.locale) : [];
+  const sections = c.task === 'section' ? await offeredSections(c) : [];
   const source =
     c.task === 'lead'
       ? ''
-      : c.task === 'headline'
+      : c.task === 'headline' || c.task === 'section'
         ? (c.revision.document.lead?.[c.locale] ?? '')
         : c.task === 'alt'
           ? ((
@@ -209,8 +228,15 @@ export const load: PageServerLoad = async (event) => {
     to: c.to,
     target: c.target,
     block: c.block,
-    stale: !!suggestion && suggestion.baseRevisionId !== c.revision.id,
+    // A proposed section that is no longer offered (removed, or untitled in this locale) is stale.
+    stale:
+      !!suggestion &&
+      (suggestion.baseRevisionId !== c.revision.id ||
+        (c.task === 'section' &&
+          suggestion.status === 'ready' &&
+          !sections.some((s) => s.id === suggestion.value))),
     candidates,
+    sections,
     chosen: suggestion?.sourceBlockIds ?? [],
     provider: c.provider ?? '',
     tenant: { slug: c.tenant.slug },
@@ -228,12 +254,12 @@ export const actions: Actions = {
       return fail(400, { problem: 'lead-source' as const, blockIds });
     try {
       const result =
-        c.task === 'headline'
-          ? await c.rt.invoker.run(useCases.suggestHeadline, c.principal, {
-              itemId: c.item.id,
-              baseRevisionId: field(data, 'baseRevisionId'),
-              locale: c.locale,
-            })
+        c.task === 'headline' || c.task === 'section'
+          ? await c.rt.invoker.run(
+              c.task === 'section' ? useCases.suggestSection : useCases.suggestHeadline,
+              c.principal,
+              { itemId: c.item.id, baseRevisionId: field(data, 'baseRevisionId'), locale: c.locale }
+            )
           : c.task === 'lead'
             ? await c.rt.invoker.run(useCases.suggestLead, c.principal, {
                 itemId: c.item.id,
@@ -271,10 +297,13 @@ export const actions: Actions = {
       })
     );
     if (!matches(c, suggestion)) refuse(404);
+    // A section is taken as proposed; the form has no value to edit (ADR 021).
     const value =
       c.task === 'translate'
         ? JSON.stringify({ values: { [c.target]: field(data, 'value') } })
-        : field(data, 'value');
+        : c.task === 'section'
+          ? undefined
+          : field(data, 'value');
     try {
       await c.rt.invoker.run(useCases.acceptSuggestion, c.principal, {
         suggestionId,

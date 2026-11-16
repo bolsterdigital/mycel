@@ -250,7 +250,7 @@ export interface Database {
     tenant_id: string;
     item_id: string;
     base_revision_id: string;
-    task: 'alt' | 'translate' | 'lead' | 'headline';
+    task: 'alt' | 'translate' | 'lead' | 'headline' | 'section';
     block_id: string;
     source_block_ids: string[];
     locale: string;

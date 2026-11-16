@@ -70,6 +70,7 @@ import {
   suggestAlt,
   suggestHeadline,
   suggestLead,
+  suggestSection,
   suggestTranslation,
   updateAssistSettings,
 } from './assist/service.js';
@@ -225,6 +226,7 @@ export const useCases = {
   suggestTranslation,
   suggestLead,
   suggestHeadline,
+  suggestSection,
   approveTranslation,
   getSuggestion,
   listSuggestions,

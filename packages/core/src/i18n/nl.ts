@@ -27,6 +27,11 @@ export const nl: Partial<Messages> = {
   'assist.error.headline-source':
     'Schrijf eerst een lead in deze taal; de kop wordt daarop gebaseerd.',
   'assist.error.headline-value': 'Vul een kop van hoogstens 200 tekens in.',
+  'assist.error.section-source':
+    'Schrijf eerst een lead van 50 tot 1.000 tekens in deze taal; de rubriek wordt daaruit gekozen.',
+  'assist.error.section-candidates':
+    'Een voorstel vraagt twee tot twintig rubrieken met een naam in deze taal. Kies de rubriek zelf.',
+  'assist.error.section-value': 'Neem de voorgestelde rubriek over, of kies zelf een andere.',
   'forms.error.inactive': 'Dit veld is niet actief voor je antwoorden.',
   'forms.error.value': 'Vul een geldige waarde in voor dit veld.',
   'forms.error.version': 'Dit formulier is gewijzigd. Herlaad de pagina en probeer opnieuw.',
