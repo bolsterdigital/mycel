@@ -1,7 +1,7 @@
 // What an overview block shows: the pins on top, then the newest or oldest published
 // articles or pages that match the block's filter, as cards with the featured title, summary and
 // image of each published revision in this locale. Only `access: public` revisions: a restricted
-// item never appears, not even as a teaser (reader access comes with #19). One query for the pins
+// item never appears, not even as a teaser (reader access is ADR 016). One query for the pins
 // and one for the list, never one per card.
 //
 // Pages: page 1 shows the pins that are published here and fills up to the limit; page n > 1
