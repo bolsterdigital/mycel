@@ -63,6 +63,8 @@
       items: readonly Option[];
       people: readonly Option[];
       personGroups: readonly Option[];
+      /** The site's sections, for an overview's filter; absent: the id is typed. */
+      sectionChoices?: readonly Option[];
     };
     people?: readonly Option[];
     personGroups?: readonly Option[];
@@ -336,6 +338,9 @@
       {t('admin.block.campaign.live')}
       <a href="{base}/campaigns">{t('admin.block.campaign.manage')}</a>
     </p>
+  {:else if f.kind === 'reference' && f.to === 'section' && references?.sectionChoices}
+    {@render select(name, label(f.key), references.sectionChoices, t('admin.block.section.all'))}
+    <p class="ui-hint">{t('admin.block.section.articles')}</p>
   {:else if f.kind === 'reference' && f.to === 'item'}
     {@render select(name, label(f.key), references?.items ?? items, t('admin.block.none'))}
   {:else if f.kind === 'reference' && f.key === 'photographerPersonId'}
