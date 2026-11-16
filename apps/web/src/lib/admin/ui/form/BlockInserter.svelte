@@ -1,6 +1,8 @@
 <!-- One native block chooser at every insertion point. Grid is only its visual layout: each
      named button submits the closed type and existing placement through the document form.
      Search is an optional enhancement; without JavaScript every choice remains available.
+     The site's own patterns (ADR 013 rule 4) follow as a second group of the same buttons, named
+     `pattern:<id>`, so a composed block is chosen where a block is.
      Rejected: an ARIA grid, a select beside a second action, and a separate catalogue per place. -->
 <script lang="ts">
   import { onMount } from 'svelte';
@@ -15,6 +17,7 @@
     label,
     locale,
     options,
+    patterns = [],
     action = '?/insert',
   }: {
     id: string;
@@ -23,6 +26,8 @@
     label: string;
     locale: string;
     options: readonly { value: string; label: string; icon: IconName }[];
+    /** The site's patterns: `pattern:<id>` and the name. */
+    patterns?: readonly { value: string; label: string }[];
     action?: string;
   } = $props();
   const t = $derived(ui(locale));
@@ -50,4 +55,20 @@
       >
     {/each}
   </div>
+  {#if patterns.length}
+    <p class="ui-block-picker-place" id="insert-patterns-{id}">{t('admin.pattern.insert.group')}</p>
+    <div class="ui-block-picker-grid" role="group" aria-labelledby="insert-patterns-{id}">
+      {#each patterns as option (option.value)}
+        <button
+          class="ui-block-picker-option"
+          type="submit"
+          formaction={action}
+          name="insert"
+          value="{option.value}|{place}"
+          aria-describedby="insert-place-{id}"
+          data-block-type="pattern"><Icon name="layers" /><span>{option.label}</span></button
+        >
+      {/each}
+    </div>
+  {/if}
 </div>

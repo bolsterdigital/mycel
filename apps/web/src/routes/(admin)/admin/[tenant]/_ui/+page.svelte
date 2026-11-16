@@ -52,6 +52,7 @@
     WritingSheet,
   } from '#lib/admin/ui/index.js';
   import { BLOCK_ICONS } from '#lib/admin/block-presentation.js';
+  import SavePattern from '#lib/admin/patterns/SavePattern.svelte';
   import FormatBar from '#lib/editor/FormatBar.svelte';
   import { Formatting } from '#lib/editor/formatting.svelte.js';
   import { INSERTABLE_BLOCK_TYPES } from '@mycel/core';
@@ -791,6 +792,18 @@
           label: t(`admin.block.type.${type}` as const),
           icon: BLOCK_ICONS[type],
         }))}
+        patterns={[{ value: 'pattern:example', label: t('admin.ui.catalogue.patternExample') }]}
+      />
+      <!-- Open with its refusal, so the gate measures the name, both runs and the button. -->
+      <SavePattern
+        blocks={INSERTABLE_BLOCK_TYPES.slice(0, 3).map((type, i) => ({
+          id: `example-${i}`,
+          type,
+          naming: { name: i === 1 ? t('admin.ui.catalogue.patternExample') : '' },
+        }))}
+        locale={data.locale}
+        action={() => here}
+        failed="admin.pattern.save.nameRequired"
       />
     </form>
   </section>

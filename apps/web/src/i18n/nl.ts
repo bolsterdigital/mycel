@@ -1097,6 +1097,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.content.block.move': 'Blok verplaatst',
   'admin.audit.op.content.block.remove': 'Blok verwijderd',
   'admin.audit.op.content.block.split_insert': 'Blok in tekst ingevoegd',
+  'admin.audit.op.content.block.insert_pattern': 'Patroon ingevoegd',
   'admin.audit.op.content.block.update': 'Blok gewijzigd',
   'admin.audit.op.content.bulk.resume': 'Bulkrun hervat',
   'admin.audit.op.content.bulk.withdraw': 'Bulkherstel aangevraagd',
@@ -1895,6 +1896,19 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.block.done.moved': 'Blok verplaatst.',
   'admin.block.done.removed': 'Blok verwijderd.',
   'admin.block.done.restored': 'Blok teruggezet.',
+  'admin.pattern.insert.group': 'Patronen van deze site',
+  'admin.pattern.save.fold': 'Bewaar als patroon',
+  'admin.pattern.save.hint':
+    'Bewaar een reeks blokken om op elke invoegplek opnieuw te gebruiken. De namen van de blokken gaan mee, zodat je na het invoegen ziet wat je invult.',
+  'admin.pattern.save.name': 'Naam van het patroon',
+  'admin.pattern.save.patternFrom': 'Vanaf blok',
+  'admin.pattern.save.patternTo': 'Tot en met blok',
+  'admin.pattern.save.block': '{n}. {block}',
+  'admin.pattern.save.submit': 'Bewaar als patroon',
+  'admin.pattern.save.nameRequired': 'Geef het patroon een naam.',
+  'admin.pattern.done.inserted': 'Patroon ingevoegd.',
+  'admin.pattern.done.saved':
+    'Patroon bewaard. Je vindt het bij elke invoegplek en als start van een nieuw item.',
   'admin.block.undo': 'Ongedaan maken',
   'admin.content.keys.title': 'Sneltoetsen',
   'admin.content.keys.save': 'Opslaan',
@@ -2626,6 +2640,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.block.image.decorative': 'Bewust decoratief',
   'admin.block.image.altMissing': 'Beschrijving ontbreekt',
   'admin.ui.catalogue.blockInserter': 'Blokkeuze',
+  'admin.ui.catalogue.patternExample':
+    'Oproep met aanmeldformulier en een citaat van een vrijwilliger',
   'admin.ui.catalogue.blockInserter.intro':
     'Dezelfde native keuzes vóór een blok en aan het einde. Zoeken is een hulpmiddel.',
   'admin.ui.catalogue.writingSheet': 'Schrijfvlak',

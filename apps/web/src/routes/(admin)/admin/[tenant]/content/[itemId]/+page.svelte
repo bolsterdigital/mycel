@@ -26,6 +26,7 @@
   import EditPresence from '#lib/admin/presence/EditPresence.svelte';
   import Inherited from '#lib/admin/Inherited.svelte';
   import PatternChoice, { offers } from '#lib/admin/patterns/PatternChoice.svelte';
+  import SavePattern from '#lib/admin/patterns/SavePattern.svelte';
   import { issueLabel } from '#lib/admin/issue-label.js';
   import { thumbPath } from '#lib/admin/ui/thumb.js';
   import {
@@ -271,13 +272,17 @@
   const groupLabels = $derived(blockGroupLabels(t));
   /** A credit as the page words it (`lib/blocks/Credit.svelte`), in the content locale. */
   const creditLine = (c: MediaCredit): string => creditText(c, creditWords(ui(work)));
-  const blockTypeOptions = $derived(
-    data.blockTypes.map((type) => ({
+  /** What every insertion point offers: the block types, then the site's patterns (ADR 013.4). */
+  const picker = $derived({
+    locale: data.locale,
+    action: `?/insert&locale=${work}`,
+    options: data.blockTypes.map((type) => ({
       value: type,
       label: t(`admin.block.type.${type}` as const),
       icon: BLOCK_ICONS[type],
-    }))
-  );
+    })),
+    patterns: (data.patterns?.own ?? []).map((p) => ({ value: `pattern:${p.id}`, label: p.name })),
+  });
 </script>
 
 <svelte:head>
@@ -547,9 +552,7 @@
         id={b.id}
         place="before:{b.id}"
         label={fill(t('admin.block.insert.location.before'), { n: String(i + 1) })}
-        locale={data.locale}
-        options={blockTypeOptions}
-        action="?/insert&locale={work}"
+        {...picker}
       />
     </div>
   </details>
@@ -720,15 +723,9 @@
     {#if data.canWrite}
       <div id="insert-end">
         <Fieldset legend={t('admin.block.add')}>
-          <BlockInserter
-            id="end"
-            place="end"
-            label={t('admin.block.insert.end')}
-            locale={data.locale}
-            options={blockTypeOptions}
-            action="?/insert&locale={work}"
-          />
+          <BlockInserter id="end" place="end" label={t('admin.block.insert.end')} {...picker} />
         </Fieldset>
+        <SavePattern blocks={data.blocks} locale={data.locale} {action} failed={form?.error} />
       </div>
     {/if}
   </section>

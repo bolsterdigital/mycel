@@ -4,6 +4,7 @@
 - **Date**: 2026-10-21
 - **Refines**: ADR 004 rule 4 (client differences are data)
 - **Rule 5 and absolute exclusions partly superseded**: 2026-10-24 by [ADR 022](022-managed-extensions-and-site-integrations.md). General upstream inclusion is optional for reviewed managed packages; arbitrary tenant CSS/code uploads and hidden style overrides remain excluded. Rungs 1 to 4 remain the default self-service options.
+- **Rule 4 refined**: 2026-11-16. A composed block is a stored pattern (ADR 012 rule 8) of sibling blocks; its named slots are those blocks' editorial names (ADR 020, refinement of 2026-11-09), not a separate slot or parameter schema. `content.block.insert_pattern` puts a copy at any place in a document: new ids, names kept, one revision, prose at the edges normalised as a move does. The copy is independent of the pattern afterwards; a synced (live) composed block is not part of this rule.
 
 ## Context
 

@@ -66,7 +66,7 @@ const VERBS = [
   'duplicate',
   ...['create', 'get', 'list', 'update', 'delete'],
   // Placement in a collection: a tenant's hostnames and members, a document's blocks (ADR 020).
-  ...['add', 'remove', 'invite', 'insert', 'move', 'split_insert', 'set_primary'],
+  ...['add', 'remove', 'invite', 'insert', 'move', 'split_insert', 'insert_pattern', 'set_primary'],
   // ADR 018 effects and the editorial queries beside them.
   ...EFFECT_VERBS,
   ...['find', 'diff', 'approve'],
