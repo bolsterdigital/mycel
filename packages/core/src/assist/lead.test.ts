@@ -60,8 +60,11 @@ async function setup(type: 'article' | 'page' = 'article') {
             para(
               text('De '),
               text('bakker', [{ type: 'link', attrs: { href: 'https://secret.example/x' } }]),
-              text(' bakt minder zout.'),
-              text('1', [{ type: 'footnote_reference', attrs: { text: 'Private note' } }])
+              text(' bakt '),
+              text('minder zout', [
+                { type: 'footnote_reference', attrs: { text: 'Private note' } },
+              ]),
+              text('.')
             ),
             { type: 'heading', attrs: { level: 1 }, content: [text('Tussenkop')] }
           ),
@@ -368,15 +371,18 @@ describe('lead proposal', () => {
 });
 
 describe('plainProse', () => {
-  it('keeps link words and line breaks, drops footnote markers and blank lines', () => {
+  it('keeps link words, footnoted words and line breaks, drops note text and blank lines', () => {
     expect(
       plainProse(
         prose(
           para(text('Een'), { type: 'hard_break' }, text(' regel  verder')),
           para(),
-          para(text('ref', [{ type: 'footnote_reference', attrs: { text: 'note' } }]))
+          para(
+            text('Zie '),
+            text('bron', [{ type: 'footnote_reference', attrs: { text: 'note' } }])
+          )
         )
       )
-    ).toBe('Een\nregel verder');
+    ).toBe('Een\nregel verder\n\nZie bron');
   });
 });

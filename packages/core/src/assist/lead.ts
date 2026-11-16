@@ -1,7 +1,7 @@
 // A lead proposal reads only the prose blocks an editor chose, as plain text in one locale.
-// The text of a link is kept, its target is not; a footnote's marker and note stay home. Rejected:
-// sending the whole article or its Markdown, which would disclose unselected blocks, link targets
-// and note text the task does not need.
+// The words under a link or footnote mark are kept; the link target and the note text are not.
+// Rejected: sending the whole article or its Markdown, which would disclose unselected blocks,
+// link targets and note text the task does not need.
 
 import { z } from 'zod';
 import { allBlocks } from '../content/blocks.js';
@@ -19,14 +19,12 @@ export const LeadBlockIds = z
 type Node = {
   type: string;
   text?: string;
-  marks?: { type: string }[];
   content?: Node[];
 };
 
 const inline = (n: Node): string => {
   if (n.type === 'hard_break') return '\n';
-  if (typeof n.text === 'string')
-    return n.marks?.some((m) => m.type === 'footnote_reference') ? '' : n.text;
+  if (typeof n.text === 'string') return n.text;
   return (n.content ?? []).map(inline).join('');
 };
 
