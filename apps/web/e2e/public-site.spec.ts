@@ -12,6 +12,7 @@ import { exercisePeopleGrid } from './lib/people/grid';
 import { exercisePublicPeople } from './lib/people/public';
 import { exercisePublishedRepresentations } from './lib/published/representations';
 import { exerciseFeeds } from './lib/published/feeds';
+import { exerciseShareCards } from './lib/published/share-cards';
 import { exerciseOldAddresses } from './lib/published/old-addresses';
 import { exercisePublicSearch } from './lib/published/search';
 import { openPublication, closePublication } from './lib/publication';
@@ -2111,6 +2112,9 @@ test('noindex, canonical, sitemap and robots.txt follow publication', async ({ p
 
 test('feeds, Markdown and llms.txt list only public indexable content', ({ page }) =>
   exerciseFeeds(page));
+
+test('share images: a generated card per locale, or exactly the own image', ({ page }) =>
+  exerciseShareCards(page));
 
 test('an old address forwards to the item until an editor removes it', async ({ page }) => {
   await exerciseOldAddresses(page);

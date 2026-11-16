@@ -78,7 +78,9 @@ async function runSequence(g: fc.GeneratorValue, steps: number): Promise<void> {
     } else {
       // Time passes and every open job runs once, in a random order, some of them twice.
       clock.advance(60_000);
-      const pending = uow.store.jobs.filter((j) => j.doneAt === null);
+      const pending = uow.store.jobs.filter(
+        (j) => j.doneAt === null && j.type === 'content.publish'
+      );
       const open = g(fc.shuffledSubarray, pending, {
         minLength: pending.length,
         maxLength: pending.length,

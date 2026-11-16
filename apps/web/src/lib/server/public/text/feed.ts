@@ -18,7 +18,7 @@ import { UseCaseError, anonymousPrincipal, contentPath, useCases } from '@mycel/
 import { PUBLIC_CACHE } from '../../http/http-cache.js';
 import { refuse } from '../../http/refuse.js';
 import { runtime } from '../../runtime.js';
-import { siteTenant, siteUrls, type Site } from '../../site.js';
+import { sitePath, siteTenant, siteUrls, type Site } from '../../site.js';
 import { localeOf } from '../content-route.js';
 
 export type FeedFormat = 'rss' | 'atom';
@@ -118,4 +118,23 @@ export async function feedResponse(
       etag: `"${createHash('sha256').update(body).digest('base64url')}"`,
     },
   });
+}
+
+/**
+ * The `<link rel="alternate">` pair that lets a browser or feed reader find a feed from a page:
+ * RSS and Atom of `path` (`/` the site's, `/people/<slug>/` a person's) in `locale`,
+ * as site-root paths. `title` names the feed as the feed itself does.
+ */
+export function feedLinks(
+  site: Site,
+  locale: string,
+  path: string,
+  title: string
+): { type: string; href: string; title: string }[] {
+  const prefix = locale === site.tenant.defaultLocale ? '' : `/${locale}`;
+  return (['rss', 'atom'] as const).map((format) => ({
+    type: format === 'rss' ? 'application/rss+xml' : 'application/atom+xml',
+    href: sitePath(site, `${prefix}${path}${feedFile(format)}`),
+    title,
+  }));
 }

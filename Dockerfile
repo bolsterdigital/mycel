@@ -60,6 +60,7 @@ COPY --from=build /app/packages/mail-tem/dist packages/mail-tem/dist
 COPY --from=build /app/packages/assist-openai/dist packages/assist-openai/dist
 COPY --from=build /app/packages/blob/dist packages/blob/dist
 COPY --from=build /app/packages/media-sharp/dist packages/media-sharp/dist
+COPY --from=build /app/packages/media-sharp/fonts packages/media-sharp/fonts
 COPY --from=build /app/packages/observability/dist packages/observability/dist
 COPY --from=build /app/packages/mcp/dist packages/mcp/dist
 COPY --from=build /app/apps/web/build apps/web/build

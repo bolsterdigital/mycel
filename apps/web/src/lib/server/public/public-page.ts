@@ -33,6 +33,8 @@
 
 import { createHash } from 'node:crypto';
 import {
+  SHARE_CARD_HEIGHT,
+  SHARE_CARD_WIDTH,
   UseCaseError,
   anonymousPrincipal,
   contentPath,
@@ -208,12 +210,16 @@ export async function loadPublicItem(
       locale: shared.locale,
       alternateLocales: shared.alternates,
     },
-    image: await shareImage(
-      images.share.mediaId,
-      images.share.mediaId === images.hero.mediaId ? item.heroAlt : null,
-      reader,
-      url
-    ),
+    image:
+      images.share.source === 'own'
+        ? await shareImage(images.share.mediaId, item.seo.imageAlt, reader, url)
+        : ((await shareCard(item, reader, url)) ??
+          (await shareImage(
+            images.share.mediaId,
+            images.share.mediaId === images.hero.mediaId ? item.heroAlt : null,
+            reader,
+            url
+          ))),
   };
 
   // The JSON-LD `url` is the same canonical as the link and og:url, explicit or not: three
@@ -278,6 +284,33 @@ async function loadZone(
   );
   return model.blocks.length ? { title: zone.title, model } : null;
 }
+
+/**
+ * The generated card of this locale once the job has drawn it, else null and the head
+ * shows the inherited image meanwhile. The card shows the title, so the title is its alt.
+ */
+async function shareCard(
+  item: PublishedItem,
+  reader: Principal,
+  url: (path: string) => string
+): Promise<PublicHead['image']> {
+  const { card } = await runtime().invoker.run(useCases.getShareCard, reader, {
+    itemId: item.id,
+    locale: item.locale,
+  });
+  if (!card) return null;
+  return {
+    src: url(shareCardPath(item.id, item.locale, card.fingerprint)),
+    width: SHARE_CARD_WIDTH,
+    height: SHARE_CARD_HEIGHT,
+    type: 'image/png',
+    alt: item.seo.title ?? item.title,
+  };
+}
+
+/** The site-root path of a generated card; `_share` can never be a page slug. */
+export const shareCardPath = (itemId: string, locale: string, fingerprint: string): string =>
+  `/_share/${itemId}/${locale}/${fingerprint}.png`;
 
 /** The widest webp variant up to this width: what the share previews ask for (1200 px). */
 const SHARE_WIDTH = 1280;

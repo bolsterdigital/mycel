@@ -101,6 +101,7 @@ import { deleteRedirect, listRedirects, resolveRedirect } from './content/addres
 import { listPublished } from './content/published/list.js';
 import { getOverview } from './content/published/overview.js';
 import { getFeed } from './content/published/feed.js';
+import { getShareCard } from './content/published/share-card.js';
 import { findPublished } from './content/published/search.js';
 import { getPublicPerson, listPublicPeople } from './content/people/public.js';
 import {
@@ -229,6 +230,7 @@ export const useCases = {
   listPublished,
   getOverview,
   getFeed,
+  getShareCard,
   findPublished,
   getPublicPerson,
   listPublicPeople,

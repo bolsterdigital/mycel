@@ -8,7 +8,8 @@
 
 import type { Signer } from '../ports.js';
 import type { MediaFilter, MediaOrder } from './listing.js';
-import type { ImageFormat, MediaPatch, MediaRecord, NewMedia } from './model.js';
+import type { ImageFormat, MediaFocal, MediaPatch, MediaRecord, NewMedia } from './model.js';
+import type { FontPair } from '../theme/model.js';
 
 /**
  * Bytes under keys. Keys are paths (`tenants/<id>/media/<id>/w960.avif`); `put` is idempotent on
@@ -51,6 +52,24 @@ export interface RenderOptions {
   stripMetadata: true;
 }
 
+/** The size every generated share card has: what Open Graph previews ask for. */
+export const SHARE_CARD_WIDTH = 1200;
+export const SHARE_CARD_HEIGHT = 630;
+
+/**
+ * What a generated share card shows, as bytes and values the core already checked: the
+ * title in one locale, the site's heading face and primary colours, a public photo and the logo.
+ */
+export interface ShareCardDrawing {
+  title: string;
+  font: FontPair;
+  /** `#rrggbb`, the primary role pair of the light palette. */
+  background: string;
+  foreground: string;
+  photo: { bytes: Uint8Array; focal: MediaFocal } | null;
+  logo: Uint8Array | null;
+}
+
 /**
  * Image processing. `probe` reads the header only (magic bytes and dimensions), so a decompression
  * bomb is caught before anything is decoded; `render` applies the EXIF orientation and writes no
@@ -62,6 +81,8 @@ export interface ImageProcessor {
     bytes: Uint8Array,
     options: RenderOptions
   ): Promise<{ bytes: Uint8Array; width: number; height: number }>;
+  /** A PNG of `SHARE_CARD_WIDTH` by `SHARE_CARD_HEIGHT`. */
+  shareCard(card: ShareCardDrawing): Promise<Uint8Array>;
 }
 
 /**

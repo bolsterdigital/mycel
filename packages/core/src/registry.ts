@@ -102,6 +102,8 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   'content.overview.get',
   // A feed and llms.txt: the same public cards, without noindex or canonical-elsewhere items.
   'content.feed.get',
+  // Whether a generated share card exists: a fingerprint of a published, public locale, no text.
+  'content.share_card.get',
   'content.public_person.get',
   'content.public_person.list',
   'form.get',

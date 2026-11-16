@@ -53,7 +53,9 @@ describe('scheduled publication', () => {
     (await invoker.run(useCases.getItem, admin, { itemId })).item.publication.find(
       (s) => s.locale === locale
     )!;
-  const openJobs = () => uow.store.jobs.filter((j) => j.doneAt === null);
+  // Publishing also plans its share card; these tests are about the publication jobs.
+  const openJobs = () =>
+    uow.store.jobs.filter((j) => j.doneAt === null && j.type === 'content.publish');
 
   /** One worker pass over a job, like `runJobs`: handler, then done (and re-planned on `next`). */
   async function runJob(job = openJobs()[0]!) {

@@ -11,6 +11,7 @@
 
 import sharp, { type Metadata, type Sharp } from 'sharp';
 import { MAX_PIXELS, type ImageFormat, type ImageProcessor } from '@mycel/core';
+import { renderShareCard } from './share-card.js';
 
 export interface SharpProcessorOptions {
   /** Refuse to decode an image larger than this many pixels (default: the core's limit). */
@@ -66,5 +67,7 @@ export function createSharpProcessor({
         height: info.pageHeight ?? info.height,
       };
     },
+
+    shareCard: renderShareCard,
   };
 }

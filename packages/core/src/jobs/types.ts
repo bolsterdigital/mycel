@@ -51,6 +51,16 @@ export const JobPayloads = {
     })
     .strict(),
   /**
+   * Tenant job: draw the share card of one published locale. Key
+   * `content.share-card:<itemId>:<locale>:<revisionId>`; the handler reads the current pointer.
+   */
+  'content.share-card': z.object({ itemId: z.string().guid(), locale: z.string().min(1) }).strict(),
+  /**
+   * Tenant job: draw every missing share card after the theme, logo or default image changed.
+   * Key `content.share-cards:<tenant>:<theme>:<images>:<logo>` (the three versions).
+   */
+  'content.share-cards': z.object({}).strict(),
+  /**
    * Tenant job: build the archive of one `tenant.export` request (TODO #28) and write it to the
    * blob store under `exports/<tenant>/<id>.tar`. Key `tenant.export:<exportId>`.
    */

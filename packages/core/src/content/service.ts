@@ -67,6 +67,7 @@ export { restoreRevision } from './revisions/write.js';
 import { iso } from '../util/date.js';
 import { knownPerson, withoutErasedCredits } from './people/erasure.js';
 import { exampleId } from '../util/ids.js';
+import { planShareCard } from './published/share-card.js';
 
 export const DEFAULT_PAGE_SIZE = 20;
 /** How long a scheduled publication of a suspended site waits before it looks again. */
@@ -772,7 +773,9 @@ export const publishItem = defineUseCase({
   handler: (ctx, { itemId, revisionId, locale }) =>
     changePublication(ctx, itemId, locale, async (state) => {
       await publishableRevision(ctx, itemId, revisionId, locale);
-      return publish(state, revisionId, ctx.clock.now());
+      const next = publish(state, revisionId, ctx.clock.now());
+      if (next !== state) await planShareCard(ctx, itemId, locale, revisionId);
+      return next;
     }),
 });
 
@@ -871,6 +874,7 @@ export async function publishScheduled(
       s.locale === job.locale ? publish(s, run.revisionId, ctx.clock.now()) : s
     ),
   });
+  await planShareCard(ctx, job.itemId, job.locale, run.revisionId);
   return {};
 }
 

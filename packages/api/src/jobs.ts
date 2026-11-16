@@ -17,6 +17,8 @@ import {
   type ConnectionDispatchDeps,
   parseJobPayload,
   publishScheduled,
+  renderShareCard,
+  renderShareCards,
   purgeMedia,
   reconcileMail,
   reverifyHostname,
@@ -66,7 +68,7 @@ import {
  * tenant. Everything else (publish, assist, mail, DNS) stays in the default pool behind no such job.
  */
 export const JOB_POOLS: readonly JobPool[] = [
-  { name: 'bulk', types: ['tenant.export', 'media.orphans'] },
+  { name: 'bulk', types: ['tenant.export', 'media.orphans', 'content.share-cards'] },
 ];
 
 /** Platform jobs the worker plans for itself (brief #15 decision 6). */
@@ -354,6 +356,11 @@ export function jobHandlers({
     // A recheck is not a publication: it runs whatever the status (`requireActive` is for #8a).
     'hostnames.reverify': tenantJob({ uow, identity }, 'hostnames.reverify', reverifyHostname),
     'content.publish': tenantJob({ uow, identity }, 'content.publish', publishScheduled),
+    // Drawing a card is not publishing: a suspended site keeps the cards it has.
+    'content.share-card': tenantJob({ uow, identity }, 'content.share-card', renderShareCard),
+    'content.share-cards': tenantJob({ uow, identity }, 'content.share-cards', (ctx) =>
+      renderShareCards(ctx)
+    ),
     'events.partitions': platformJob('events.partitions', () => createEventPartitions(operatorDb)),
     'rate_limits.sweep': platformJob('rate_limits.sweep', () => sweepRateLimits(operatorDb)),
     // Deleting files is not publishing: a suspended tenant's purge still runs.

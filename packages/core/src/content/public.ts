@@ -85,6 +85,8 @@ export const PublishedItem = z.object({
     title: z.string().nullable(),
     description: z.string().nullable(),
     imageId: z.string().guid().nullable(),
+    /** The alt of an own share image in this locale; null without one (or when it is inherited). */
+    imageAlt: z.string().nullable(),
     /** The page is served but asks not to be indexed; lists and the sitemap leave it out. */
     noindex: z.boolean(),
     /** An explicit canonical URL; null: the item's own address in this locale. */
@@ -191,6 +193,7 @@ export const getPublished = defineUseCase({
         title: doc.seo.title?.[chosen] ?? null,
         description: doc.seo.description?.[chosen] ?? null,
         imageId: effective.images.share.mediaId,
+        imageAlt: doc.seo.imageId ? (doc.seo.imageAlt?.[chosen] ?? null) : null,
         noindex: doc.seo.noindex,
         canonical: doc.seo.canonical ?? null,
       },

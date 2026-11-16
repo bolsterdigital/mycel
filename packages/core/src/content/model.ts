@@ -122,6 +122,13 @@ export const Seo = z
     noindex: z.boolean().default(false),
     canonical: CanonicalUrl.optional(),
     imageId: z.string().guid().optional(),
+    /**
+     * The alt of the own share image per locale (`og:image:alt`): alt text belongs to a use, so a
+     * share image chosen here is described here. Ignored without `imageId`.
+     */
+    imageAlt: localized(
+      z.string().min(1).max(1000).regex(/\S/, 'content.image.alt-empty')
+    ).optional(),
   })
   .strict();
 
@@ -332,6 +339,8 @@ export function localizedFields(
   if (doc.seo.title) fields.push({ path: ['seo', 'title'], value: doc.seo.title, required: false });
   if (doc.seo.description)
     fields.push({ path: ['seo', 'description'], value: doc.seo.description, required: false });
+  if (doc.seo.imageAlt)
+    fields.push({ path: ['seo', 'imageAlt'], value: doc.seo.imageAlt, required: false });
   if (doc.featured?.title)
     fields.push({ path: ['featured', 'title'], value: doc.featured.title, required: false });
   if (doc.featured?.description)

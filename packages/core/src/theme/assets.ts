@@ -5,6 +5,7 @@ import { defineUseCase } from '../registry.js';
 import { UseCaseError } from '../errors.js';
 import { base64ToBytes } from '../util/bytes.js';
 import { EXAMPLE_PNG } from '../media/service.js';
+import { planShareCardWalk } from '../content/published/share-card.js';
 import './ports.js';
 
 export const BrandKind = z.enum(['logo', 'font']);
@@ -114,6 +115,7 @@ export const putBrandAsset = defineUseCase({
     }
     const version = await ctx.brandAssets.replace(input.kind, input.baseVersion, asset);
     if (version === null) throw new UseCaseError('conflict', 'site.settings.conflict');
+    if (input.kind === 'logo') await planShareCardWalk(ctx);
     return view(version, asset);
   },
 });
@@ -128,6 +130,7 @@ export const removeBrandAsset = defineUseCase({
   handler: async (ctx, { kind, baseVersion }) => {
     const version = await ctx.brandAssets.replace(kind, baseVersion, null);
     if (version === null) throw new UseCaseError('conflict', 'site.settings.conflict');
+    if (kind === 'logo') await planShareCardWalk(ctx);
     return view(version, null);
   },
 });
