@@ -305,6 +305,19 @@ describe('media', () => {
   });
 
   describe('read, update and access', () => {
+    it('takes a licence from the closed list; only `other` carries its own name', async () => {
+      const m = await upload();
+      const update = (licence: unknown) =>
+        invoker.run(useCases.updateMedia, system, { id: m.id, licence } as never);
+      await expect(update({ code: 'other', text: 'Vrij voor pers' })).resolves.toMatchObject({
+        licence: { code: 'other', text: 'Vrij voor pers' },
+      });
+      await expectCode(update({ code: 'other' }), 'invalid_input');
+      await expectCode(update({ code: 'cc-by', text: 'CC BY 4.0' }), 'invalid_input');
+      await expectCode(update('CC BY 4.0'), 'invalid_input');
+      await expect(update(null)).resolves.toMatchObject({ licence: null });
+    });
+
     it('updates the editorial fields and never the file', async () => {
       const m = await upload();
       clock.advance(1000);
@@ -312,12 +325,12 @@ describe('media', () => {
         id: m.id,
         caption: { nl: 'Bijschrift' },
         credit: { work: { title: 'Guernica', maker: 'Picasso' }, photographer: 'A. Fotograaf' },
-        licence: 'CC BY 4.0',
+        licence: { code: 'cc-by' },
         focal: { x: 0.2, y: 0.8 },
       });
       expect(u).toMatchObject({
         caption: { nl: 'Bijschrift' },
-        licence: 'CC BY 4.0',
+        licence: { code: 'cc-by' },
         checksum: m.checksum,
       });
       expect(u.updatedAt).not.toBe(m.updatedAt);

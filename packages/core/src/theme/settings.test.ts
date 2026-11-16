@@ -128,14 +128,14 @@ describe('site images', () => {
     const { invoker, photo, usages } = await setup();
     expect(await invoker.run(useCases.getSiteImages, system, {})).toEqual({
       version: 0,
-      value: { defaultImageId: null },
+      value: { defaultImageId: null, workCredits: false },
     });
     expect(
       await invoker.run(useCases.updateSiteImages, system, {
         baseVersion: 0,
         images: { defaultImageId: photo },
       })
-    ).toEqual({ version: 1, value: { defaultImageId: photo } });
+    ).toEqual({ version: 1, value: { defaultImageId: photo, workCredits: false } });
     expect(usages()).toEqual([photo]);
     await expect(invoker.run(useCases.deleteMedia, system, { id: photo })).rejects.toMatchObject({
       code: 'conflict',

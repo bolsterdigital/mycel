@@ -7,6 +7,7 @@
 // `media:read`-only key.
 import {
   CreditKind,
+  LicenceCode,
   UseCaseError,
   can,
   useCases,
@@ -51,7 +52,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, cookies, re
   const m: MediaView = await loaded(
     rt.invoker.run(useCases.getMedia, principal, { id: params.id })
   );
-  const [usedIn, info] = await Promise.all([
+  const [usedIn, info, images] = await Promise.all([
     can(principal, 'content:read')
       ? rt.invoker.run(useCases.findItems, principal, {
           ref: { type: 'media', id: m.id },
@@ -59,6 +60,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, cookies, re
         })
       : null,
     rt.tenants.findBySlug(params.tenant),
+    can(principal, 'content:read') ? rt.invoker.run(useCases.getSiteImages, principal, {}) : null,
   ]);
   const expiresAt = new Date(rt.clock.now().getTime() + ORIGINAL_TTL_MS);
   const files = previewFiles(m);
@@ -84,11 +86,22 @@ export const load: PageServerLoad = async ({ parent, locals, params, cookies, re
       more: usedIn.next !== null,
     },
     locales: info?.locales ?? [],
+    // The work credit only where the site asked for it, or where this asset has one.
+    workCredits: !!images?.value.workCredits || m.credit.work !== null,
     backToList: recalledMediaPath(cookies, params.tenant, m.id),
   };
 };
 
 const orNull = (v: string) => (v.trim() === '' ? null : v.trim());
+
+/** The licence choice; the name field counts only for `other`, and `media.update` refuses an empty one. */
+function licence(data: FormData) {
+  const code = LicenceCode.safeParse(text(data, 'licence'));
+  if (!code.success) return null;
+  if (code.data !== 'other') return { code: code.data };
+  const name = text(data, 'licenceText').trim();
+  return name ? { code: code.data, text: name } : { code: code.data };
+}
 
 /** The editorial fields of the edit form, as `media.update` takes them. */
 function editorial(data: FormData, locales: readonly string[]) {
@@ -110,7 +123,7 @@ function editorial(data: FormData, locales: readonly string[]) {
     caption,
     credit,
     source: orNull(text(data, 'source')),
-    licence: orNull(text(data, 'licence')),
+    licence: licence(data),
     focal,
     access: (text(data, 'access') === 'restricted' ? 'restricted' : 'public') as MediaAccess,
   };

@@ -144,6 +144,50 @@ export const MediaFocal = z
   .strict();
 export type MediaFocal = z.infer<typeof MediaFocal>;
 
+/**
+ * The licence an image is used under, from a closed list: a site can name it and link
+ * it, and a reuser can read it. The Creative Commons ones link to their 4.0 deed (CC0 to its 1.0
+ * dedication); the rest are statements without a public text. `other` carries its own name in
+ * `text`, and only `other` has one. Rejected: free text (the CIIIC lesson: "CC-BY", "cc by 4.0"
+ * and "Creative Commons" for one licence, none of them linkable) and the full SPDX list (dozens
+ * of software licences nobody picks for a photo).
+ */
+export const LICENCE_CODES = [
+  'cc-by',
+  'cc-by-sa',
+  'cc-by-nc',
+  'cc-by-nd',
+  'cc0',
+  'all-rights-reserved',
+  'own-work',
+  'permission',
+  'other',
+] as const;
+export const LicenceCode = z.enum(LICENCE_CODES);
+export type LicenceCode = z.infer<typeof LicenceCode>;
+
+export const MediaLicence = z
+  .object({ code: LicenceCode, text: z.string().trim().min(1).max(100).optional() })
+  .strict()
+  .refine((l) => (l.code === 'other') === (l.text !== undefined), {
+    message: 'media.licence.text',
+    path: ['text'],
+  });
+export type MediaLicence = z.infer<typeof MediaLicence>;
+
+/** The public text a licence links to, or null for a statement that has none. */
+export const LICENCE_URLS: Record<LicenceCode, string | null> = {
+  'cc-by': 'https://creativecommons.org/licenses/by/4.0/',
+  'cc-by-sa': 'https://creativecommons.org/licenses/by-sa/4.0/',
+  'cc-by-nc': 'https://creativecommons.org/licenses/by-nc/4.0/',
+  'cc-by-nd': 'https://creativecommons.org/licenses/by-nd/4.0/',
+  cc0: 'https://creativecommons.org/publicdomain/zero/1.0/',
+  'all-rights-reserved': null,
+  'own-work': null,
+  permission: null,
+  other: null,
+};
+
 export const NO_CREDIT: MediaCredit = { work: null, photographer: null };
 export const CENTRE: MediaFocal = { x: 0.5, y: 0.5 };
 
@@ -176,7 +220,7 @@ export interface MediaRecord {
   caption: Record<string, string>;
   credit: MediaCredit;
   source: string | null;
-  licence: string | null;
+  licence: MediaLicence | null;
   focal: MediaFocal;
   state: MediaState;
   /** The actor who uploaded it (ADR 009 rule 9), stored as `storedActor` (ADR 035 rule 4). */
@@ -264,7 +308,7 @@ export const MediaView = z.object({
   caption: MediaCaption,
   credit: MediaCredit,
   source: z.string().nullable(),
-  licence: z.string().nullable(),
+  licence: MediaLicence.nullable(),
   focal: MediaFocal,
   state: MediaState,
   usageCount: z.number().int().nonnegative(),
