@@ -3,18 +3,13 @@
 // starts as a draft with its first revision; the answer is a 303 to its edit page. A refusal
 // re-renders the form with what was typed.
 //
-// An article can also start from the standard long read of ADR 012 rule 8. It is core's factory,
-// built here for the chosen locales and sent as the document's blocks, so every site has it
-// without a saved pattern. Rejected: saving it as a pattern when a tenant is created, which
-// existing tenants would miss and an editor could delete.
+// An article can also start from the standard long read of ADR 012 rule 8, built for the chosen
+// locales and sent as the document's blocks; a saved pattern goes to core as `patternId`. The
+// choice and the long read are shared with the empty column of the editor
+// (`lib/server/patterns/choice.ts`).
 import { fail, redirect } from '@sveltejs/kit';
-import {
-  ContentType,
-  MAX_PAGE_SIZE,
-  longReadPattern,
-  useCases,
-  type ContentDocumentInput,
-} from '@mycel/core';
+import { ContentType, useCases, type ContentDocumentInput } from '@mycel/core';
+import { LONG_READ, patternChoices, standardBlocks } from '#lib/server/patterns/choice.js';
 import { failureOf } from '#lib/server/admin/admin-actions.js';
 import { refusalOf } from '#lib/server/http/refuse.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
@@ -23,21 +18,11 @@ import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 
-/** The value of the standard long-read choice; not a pattern id, so it never reaches core. */
-const LONG_READ = 'standard:long-read';
-
 export const load: PageServerLoad = async ({ parent, locals, url }) => {
-  await parent();
-  const { patterns } = await runtime().invoker.run(useCases.listPatterns, locals.principal!, {
-    limit: MAX_PAGE_SIZE,
-  });
+  const { locale, tenant } = await parent();
   const type = ContentType.safeParse(url.searchParams.get('type')).data ?? 'page';
-  return {
-    type,
-    contentType: type,
-    patterns: patterns.map((p) => ({ id: p.id, type: p.intendedType, name: p.name })),
-    longRead: LONG_READ,
-  };
+  const patterns = await patternChoices(locals.principal!, type, [locale, tenant.defaultLocale]);
+  return { type, contentType: type, patterns };
 };
 
 /** Core's issue keys on a create, as admin copy. */
@@ -58,14 +43,12 @@ export const actions: Actions = {
       locales.flatMap((l) => (one(`title.${l}`).trim() ? [[l, one(`title.${l}`).trim()]] : []))
     );
     const pattern = one('patternId');
-    // Only for an article, and only with a locale: without one core refuses the locales anyway.
-    const longRead = pattern === LONG_READ && type === 'article' && locales.length > 0;
     const document = {
       type,
       title,
       defaultLocale: tenant.defaultLocale,
       locales,
-      blocks: longRead ? longReadPattern(locales).blocks : [],
+      blocks: standardBlocks(pattern, type, locales) ?? [],
     } as unknown as ContentDocumentInput;
     let id: string;
     try {

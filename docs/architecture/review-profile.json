@@ -190,6 +190,7 @@
         "apps/web/src/lib/server/admin/campaigns*",
         "apps/web/src/lib/server/admin/media-bulk*",
         "apps/web/src/lib/server/admin/list-memory*",
+        "apps/web/src/lib/server/patterns/**",
         "apps/web/src/lib/server/content/content-blocks*",
         "apps/web/src/lib/server/content/editor-references*",
         "apps/web/src/lib/server/content/block-names*",

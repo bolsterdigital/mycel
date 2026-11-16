@@ -4,7 +4,7 @@
 import { nativeTabNavigation, showEditorTab } from './lib/editor';
 import { createApp } from '@mycel/api';
 import { randomUUID } from 'node:crypto';
-import { UseCaseError, systemPrincipal, useCases } from '@mycel/core';
+import { systemPrincipal, useCases } from '@mycel/core';
 import { type APIRequestContext, type Browser, type Page, expect } from '@playwright/test';
 import { test } from './lib/evidence/page';
 import { expectNoAxeViolations } from './lib/axe';
@@ -17,6 +17,8 @@ import { exerciseBlockMove } from './lib/block-move';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { ADMIN, login } from './lib/login';
+import { LIVE_ADMIN, LIVE_READER, ensureLiveAdmin } from './lib/content-admin/live-accounts';
+import { freshContext, stranger } from './lib/content-admin/fresh-context';
 import { isA11y, onlyA11y, NAVIGATION_SCRIPT } from './lib/project';
 import { callApi, postUseCase, requireApi } from './lib/api';
 import {
@@ -45,28 +47,6 @@ const created = async (request: APIRequestContext, slug: string, document: objec
 
 test.describe('content-admin', () => {
   const SITE = 'http://probe.localhost:4173';
-  const LIVE_ADMIN = 'live-preview-admin@probe.test';
-  const LIVE_READER = 'live-preview-reader@probe.test';
-
-  async function ensureLiveAdmin() {
-    const probe = await tenantId();
-    await withInvoker(async (invoker) => {
-      for (const [email, capability] of [
-        [LIVE_ADMIN, 'tenant:admin'],
-        [LIVE_READER, 'content:read'],
-      ] as const) {
-        try {
-          await invoker.run(useCases.inviteMember, systemPrincipal(probe, 'e2e'), {
-            email,
-            capabilities: [capability],
-          });
-        } catch (e) {
-          if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
-        }
-      }
-    });
-  }
-
   test.use({
     locale: 'nl-NL',
     extraHTTPHeaders: {
@@ -80,22 +60,6 @@ test.describe('content-admin', () => {
     await ensureLiveAdmin();
     await login(page, '/admin/probe', LIVE_ADMIN);
   };
-
-  const address = () => `198.51.100.${Math.floor(Math.random() * 250) + 1}`;
-
-  /** Another browser, as the test's own: same origin, headers and JavaScript setting. */
-  const freshContext = (
-    browser: Browser,
-    locale = 'nl-NL',
-    viewport?: { width: number; height: number }
-  ) =>
-    browser.newContext({
-      locale,
-      ...(viewport ? { viewport } : {}),
-      javaScriptEnabled: isA11y(),
-      baseURL: 'http://127.0.0.1:4173',
-      extraHTTPHeaders: { 'x-forwarded-proto': 'http', 'x-forwarded-for': address() },
-    });
 
   const slugFor = (what: string) =>
     `a1-${what}-${test.info().project.name}-${randomUUID()}`.toLowerCase();
@@ -139,6 +103,7 @@ test.describe('content-admin', () => {
     if (isA11y())
       await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
     await page.locator('#title\\.nl').fill('Meteen in het document');
+    await expect(page.getByRole('option', { name: 'Longread' })).toHaveCount(0);
     await page.getByLabel('Begin met een patroon').selectOption(pattern.id);
     await page.getByRole('button', { name: 'Begin met een patroon', exact: true }).click();
     await expect(page).toHaveURL(/#blocks$/);
@@ -445,14 +410,6 @@ test.describe('content-admin', () => {
   });
 
   /** A second browser context logged in as an operator without a membership of probe. */
-  async function stranger(browser: Browser, fn: (page: Page) => Promise<void>) {
-    const context = await freshContext(browser);
-    const page = await context.newPage();
-    await login(page, '/admin', 'nobody@probe.test');
-    await fn(page);
-    await context.close();
-  }
-
   // ADR 026, with and without JavaScript: what someone else saved meanwhile merges into the save;
   // only a value both changed asks, mine checked, and "use theirs" takes theirs.
   test('a save on an outdated revision merges, and asks only about a value both changed', async ({
@@ -973,6 +930,26 @@ test.describe('content-admin', () => {
     expect(blocks.map((b: { type: string }) => b.type).join()).toBe('rich-text,quote,rich-text');
     expect(Object.keys(blocks[1].props.text)).toEqual(['nl']);
     await expectNoAxeViolations(page);
+  });
+
+  // "Nieuw artikel" lands in the empty column, with the long read too.
+  test('the empty column of a new article offers the long read', async ({ page, request }) => {
+    await login(page, '/admin/probe/content?type=article');
+    await page.getByRole('button', { name: 'Nieuw artikel' }).click();
+    const itemId = page.url().split('/').at(-1);
+    const column = page.locator('.item-blocks');
+    await expectNoAxeViolations(page);
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'empty column', '.item-blocks');
+    await column.getByLabel('Begin met een patroon').selectOption({ label: 'Longread' });
+    await column.getByRole('button', { name: 'Begin met een patroon' }).click();
+    await expect(page).toHaveURL(/#blocks$/);
+    for (const text of ['Begin met de kern', 'Een zin uit het verhaal', 'Schrijf hier het'])
+      await expect(page.getByText(text).filter({ visible: true }).first()).toBeVisible();
+    const d = (await callApi(request, 'content.item.get', { itemId })).revision.document;
+    expect(d.blocks.map((b: { type: string }) => b.type).join()).toBe('rich-text,quote,rich-text');
+    expect(Object.keys(d.blocks[1].props.text).sort()).toEqual(['en', 'nl']);
   });
 
   // Publication per locale stays in the one edit form (brief content-editor § A2).

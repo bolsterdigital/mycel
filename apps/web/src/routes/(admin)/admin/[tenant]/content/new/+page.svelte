@@ -4,8 +4,8 @@
      read, first and even when the site has no patterns of its own. The type comes from the menu
      item the editor came from. One native form; a failed post comes back with what was typed. -->
 <script lang="ts">
-  import { pickAny } from '@mycel/core';
   import { Choices, Field, Fieldset, FormPage, Notice } from '#lib/admin/ui/index.js';
+  import PatternChoice, { offers } from '#lib/admin/patterns/PatternChoice.svelte';
   import { ui, refusalCopy } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -25,8 +25,6 @@
   const locales = $derived(
     values ? ((values.locales as string[] | undefined) ?? []) : data.tenant.locales
   );
-  const name = (p: { name: Partial<Record<string, string>> }) =>
-    pickAny(p.name, data.locale, data.tenant.defaultLocale) ?? '';
 </script>
 
 <svelte:head>
@@ -88,29 +86,13 @@
     selected={locales}
     options={data.tenant.locales.map((l) => ({ value: l, label: l }))}
   />
-  {#if data.patterns.length || type === 'article'}
-    <Field id="pattern" label={t('admin.content.new.pattern')} locale={data.locale}>
-      {#snippet control(attributes)}
-        <select name="patternId" {...attributes}>
-          <option value="">{t('admin.content.new.noPattern')}</option>
-          {#if type === 'article'}
-            <optgroup label={t('admin.content.new.standard')}>
-              <option value={data.longRead} selected={v('patternId') === data.longRead}
-                >{t('admin.content.new.longRead')}</option
-              >
-            </optgroup>
-          {/if}
-          {#each ['page', 'article'] as const as group (group)}
-            {#if data.patterns.some((p) => p.type === group)}
-              <optgroup label={t(`admin.content.type.${group}`)}>
-                {#each data.patterns.filter((p) => p.type === group) as p (p.id)}
-                  <option value={p.id} selected={v('patternId') === p.id}>{name(p)}</option>
-                {/each}
-              </optgroup>
-            {/if}
-          {/each}
-        </select>
-      {/snippet}
-    </Field>
+  {#if offers(data.patterns)}
+    <PatternChoice
+      id="pattern"
+      locale={data.locale}
+      choices={data.patterns}
+      selected={v('patternId')}
+      optional
+    />
   {/if}
 </FormPage>

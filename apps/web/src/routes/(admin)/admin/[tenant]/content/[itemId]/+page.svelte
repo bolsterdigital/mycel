@@ -21,6 +21,7 @@
   import MergeNotice from '#lib/admin/conflict/MergeNotice.svelte';
   import EditPresence from '#lib/admin/presence/EditPresence.svelte';
   import Inherited from '#lib/admin/Inherited.svelte';
+  import PatternChoice, { offers } from '#lib/admin/patterns/PatternChoice.svelte';
   import { issueLabel } from '#lib/admin/issue-label.js';
   import { thumbPath } from '#lib/admin/ui/thumb.js';
   import {
@@ -723,14 +724,8 @@
     {/if}
     {#if data.blocks.length === 0 && !pending}
       <EmptyState title={t('admin.block.empty')} level={3} />
-      {#if data.canWrite && data.patterns.length}
-        <Select
-          id="patternId"
-          name="patternId"
-          label={t('admin.content.new.pattern')}
-          locale={data.locale}
-          options={data.patterns.map((p) => ({ value: p.id, label: p.name }))}
-        />
+      {#if data.canWrite && offers(data.patterns)}
+        <PatternChoice id="patternId" locale={data.locale} choices={data.patterns} />
         <Button variant="secondary" formaction={action('pattern')}
           >{t('admin.content.new.pattern')}</Button
         >
