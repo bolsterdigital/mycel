@@ -9,6 +9,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { forcedColorsProblems, layoutGate, setTextSize } from '../layout';
 import { expectNoAxeViolations } from '../axe';
 import { isA11y } from '../project';
+import { login } from '../login';
 import { CLS_LIMIT, loadLayoutShift } from './cls';
 import { publishMenus } from './seed';
 import { seedSiteSettings } from './settings-fixture';
@@ -269,4 +270,80 @@ async function attachJson(name: string, value: unknown) {
   const path = test.info().outputPath(name);
   await writeFile(path, JSON.stringify(value, null, 2));
   await test.info().attach(name, { path, contentType: 'application/json' });
+}
+
+/** The cards the preview lists for a fixture: each placed item, the main menu again as a column. */
+const previewCards = ({ links }: (typeof NAVIGATION_STATES)[number]) =>
+  (links.main?.length ?? 0) * (links.mainInFooter ? 2 : 1) + (links.actions?.length ?? 0);
+
+/**
+ * The same boundary fixture in the editor's navigation preview (brief site-navigation
+ * § 10): its site editor opens `/admin/<site>/navigation/preview/<locale>` in nl and en at 320
+ * and 1440 px with ordinary and 200% text. Per cell the layout gate measures the preview's
+ * placements, every card keeps its text inside, a link there stays in the admin or is whole, and
+ * in a11y the whole page passes axe. The preview renders no logo; a font fixture still fails its
+ * fonts, so the admin's own fallback is what is measured.
+ * Rejected: measuring the whole admin page with the gate, which would test the admin shell (its
+ * own suites do) and hide which part of the preview broke.
+ */
+export async function exerciseNavigationPreviewStress(
+  page: Page,
+  state: (typeof NAVIGATION_STATES)[number],
+  slug: string
+) {
+  const scope = '[id^="preview-"]';
+  if (state.fontFailure) await page.route('**/*.woff2', (route) => route.abort('failed'));
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const cells: { cell: string; cards: number }[] = [];
+  for (const locale of ['nl', 'en']) {
+    const path = `/admin/${slug}/navigation/preview/${locale}`;
+    for (const width of [320, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const text of ['', '200%']) {
+        if (cells.length) await page.goto(path);
+        else await login(page, path, `site-editor-${slug}@probe.test`);
+        const cell = `preview/${state.name}/${locale}/${width}/${text || '100%'}`;
+        await setTextSize(page, text);
+        await expect(page.locator('#preview-main')).toBeVisible();
+        const cards = page.locator(`:is(${scope}) .ui-menu-item`);
+        await expect(cards, cell).toHaveCount(previewCards(state));
+        await layoutGate(page, cell, scope);
+        const problems = await page.evaluate(
+          ({ scope, admin }) => {
+            const whole = (el: Element) =>
+              el.checkVisibility() && el.scrollWidth <= el.clientWidth + 1;
+            const out = [
+              ...document.querySelectorAll(
+                `:is(${scope}) :is(.ui-menu-item, .ui-menu-item-label, .ui-menu-item-facts, h3)`
+              ),
+            ]
+              .filter((el) => !whole(el))
+              .map((el) => `card text past its box: ${el.textContent?.trim().slice(0, 60)}`);
+            for (const a of document.querySelectorAll<HTMLAnchorElement>(`:is(${scope}) a`))
+              if (!new URL(a.href).pathname.startsWith(admin) && !whole(a))
+                out.push(`link leaves the preview and is not whole: ${a.href}`);
+            return out;
+          },
+          { scope, admin: `/admin/${slug}/` }
+        );
+        expect(problems, cell).toEqual([]);
+        if (width === 320 && text === '200%') {
+          await page.locator('#preview-main').scrollIntoViewIfNeeded();
+          await page.screenshot({
+            path: test.info().outputPath(`${cell.replaceAll('/', '-')}.png`),
+          });
+        }
+        await expectNoAxeViolations(page, { label: cell });
+        cells.push({ cell, cards: await cards.count() });
+      }
+    }
+  }
+  if (state.fontFailure) await page.unroute('**/*.woff2');
+  await attachJson(`navigation-preview-${state.name}.json`, {
+    state,
+    project: test.info().project.name,
+    fixtureHash: createHash('sha256').update(JSON.stringify(state)).digest('hex'),
+    scope,
+    cells,
+  });
 }
