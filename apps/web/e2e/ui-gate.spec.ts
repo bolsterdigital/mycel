@@ -1032,7 +1032,7 @@ test.describe('admin-shell', () => {
         'Content',
         ['Pages', 'Articles', 'Events', 'Zones', 'Campaigns', 'People and organisations'],
       ],
-      ['Library', ['Media']],
+      ['Library', ['Media', 'Patterns']],
     ] as const)
       await expect(nav.getByRole('list', { name: group }).getByRole('link')).toHaveText([...links]);
     // #114 (Jaap 2026-10-31): Manage apart from Settings, Team its own line under Manage, the
