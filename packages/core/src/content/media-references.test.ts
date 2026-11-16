@@ -387,6 +387,20 @@ describe('media references of blocks', () => {
       await expect(remove(photo)).resolves.toMatchObject({ id: photo });
     });
 
+    it('releases its usages when deleted, so the photo can go; a second delete is not_found', async () => {
+      const a = await pattern([image('a', photo)]);
+      await expectCode(remove(photo), 'conflict', 'media.in-use');
+      await expect(
+        invoker.run(useCases.deletePattern, system, { patternId: a.id })
+      ).resolves.toEqual({ patternId: a.id });
+      expect(usages(photo)).toEqual([]);
+      await expectCode(
+        invoker.run(useCases.deletePattern, system, { patternId: a.id }),
+        'not_found'
+      );
+      await expect(remove(photo)).resolves.toMatchObject({ id: photo });
+    });
+
     it('checks pattern references like a document', async () => {
       await expectCode(
         pattern([image('a', foreign)]),

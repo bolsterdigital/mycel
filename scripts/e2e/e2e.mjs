@@ -304,6 +304,13 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
     });
   }
 
+  // One saved pattern, so the UI gate measures a card of /admin/probe/patterns.
+  const doe = { type: 'heading', version: 1, props: { text: { nl: 'Doe mee', en: 'Join in' } } };
+  const call = { name: { nl: 'Oproep met aanmelding' }, intendedType: 'page', blocks: [doe] };
+  const { patterns } = await invoker.run(useCases.listPatterns, admin, { limit: 100 });
+  if (!patterns.some((p) => p.name.nl === call.name.nl))
+    await invoker.run(useCases.createPattern, admin, call);
+
   // An article with an author and a section, published in nl and en, for public-site.spec.ts
   // (TODO #8c2): `/articles/<slug>`, its `/en/` twin, and the public metadata of the read route.
   const story = { type: 'article', slug: 'bomen-in-de-straat' };

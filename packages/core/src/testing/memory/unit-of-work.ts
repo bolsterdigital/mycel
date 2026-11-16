@@ -161,7 +161,10 @@ export class MemoryUnitOfWork implements UnitOfWork {
           },
         },
         sections: sluggedRepository(s.sections),
-        patterns: entityRepository(s.patterns),
+        patterns: {
+          ...entityRepository(s.patterns),
+          remove: async (id) => s.patterns.delete(id),
+        },
         formMail: memoryFormMail(s),
         formFeeds: memoryFormFeeds(s),
         forms: memoryForms(s),
