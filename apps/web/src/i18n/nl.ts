@@ -1102,6 +1102,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.campaign.action.save': 'Campagne opslaan',
   'admin.campaign.action.open': 'Deelname openen',
   'admin.campaign.action.close': 'Deelname sluiten',
+  'admin.audit.op.content.access_tier.create': 'Toegangsniveau aangemaakt',
+  'admin.audit.op.content.access_tier.update': 'Toegangsniveau gewijzigd',
   'admin.audit.op.content.person_group.create': 'Personengroep toegevoegd',
   'admin.audit.op.content.person_group.update': 'Personengroep gewijzigd',
   'admin.audit.op.content.author.create': 'Auteur toegevoegd',
@@ -1157,6 +1159,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.site.image.update': 'Standaardbeeld gewijzigd',
   'admin.audit.op.site.retention.update': 'Bewaartermijn van inzendingen gewijzigd',
   'admin.audit.op.site.theme.update': 'Huisstijl gewijzigd',
+  'admin.audit.op.supporter.access_grant.create': 'Toegang aan supporter gegeven',
+  'admin.audit.op.supporter.access_grant.revoke': 'Toegang van supporter ingetrokken',
   'admin.audit.op.supporter.email.update': 'E-mailadres van supporter gewijzigd',
   'admin.audit.op.content.person.erase': 'Wissen van persoon aangevraagd',
   'admin.audit.op.supporter.erase': 'Wissen van supporter aangevraagd',
@@ -1846,7 +1850,6 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.issue.teaserLeadRequired':
     'alleen voor lezers met de intro als teaser: de intro ontbreekt',
   'admin.content.issue.eventStartRequired': 'het evenement heeft nog geen begintijd',
-  'admin.content.issue.tierUnverifiable': 'betaalde niveaus kunnen nog niet gepubliceerd worden',
   'admin.content.issue.referenceUnknown': 'verwijst naar iets dat niet (meer) bestaat',
   'admin.content.issue.authorOrganisation':
     'is een organisatie; alleen een persoon kan auteur zijn',

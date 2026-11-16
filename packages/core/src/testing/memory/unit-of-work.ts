@@ -161,6 +161,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
           },
         },
         sections: sluggedRepository(s.sections),
+        accessTiers: sluggedRepository(s.accessTiers),
         patterns: {
           ...entityRepository(s.patterns),
           remove: async (id) => s.patterns.delete(id),

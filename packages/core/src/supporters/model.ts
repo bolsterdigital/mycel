@@ -7,6 +7,26 @@
 import { z } from 'zod';
 import type { SupporterEvent } from './events.js';
 
+/** Why access was given without a payment (ADR 016 rule 2). */
+export const AccessGrantKind = z.enum(['comp', 'gift']);
+export type AccessGrantKind = z.infer<typeof AccessGrantKind>;
+
+/**
+ * The supporter's standing grant for one tier: the newest `access.granted` in fold order that no
+ * later `access.revoked` for that tier took back. `until` is a stored fact, never an expiry that
+ * something writes: `hasAccess` compares it with the clock at each read (ADR 019 rule 4), so an
+ * expired grant stays here until a revoke or a newer grant replaces it. No reason and no actor:
+ * those stay in the event, and a projection is what a read route may see.
+ */
+export const AccessGrant = z.object({
+  tierId: z.string().guid(),
+  kind: AccessGrantKind,
+  grantedAt: z.string().datetime({ offset: true }),
+  /** Exclusive end; null is open-ended. */
+  until: z.string().datetime({ offset: true }).nullable(),
+});
+export type AccessGrant = z.infer<typeof AccessGrant>;
+
 export const SupporterProjection = z.object({
   id: z.string().guid(),
   email: z.string().email(),
@@ -16,6 +36,8 @@ export const SupporterProjection = z.object({
   lists: z.array(z.string()),
   /** Lists signed up for but not yet confirmed through the double opt-in link. */
   pendingLists: z.array(z.string()),
+  /** One standing grant per tier, by tier id (ADR 016 rule 2). */
+  grants: z.array(AccessGrant).default([]),
   /** Position of the last folded event in fold order. */
   appliedThrough: z.object({ at: z.string().datetime({ offset: true }), id: z.string() }),
 });
@@ -74,6 +96,36 @@ function applyLists(lists: Set<string>, pending: Set<string>, event: SupporterEv
   }
 }
 
+/**
+ * Grant transitions, one grant per tier: a later grant replaces the earlier one (so a grant can
+ * be extended or shortened by granting again), a revoke removes it. An event whose props no
+ * longer name a tier (an erased supporter's events have empty props) changes nothing, so a
+ * re-fold after an erasure leaves no grant. Rejected: a list of every grant ever given, which
+ * would make the projection a second log and `hasAccess` a search through history.
+ */
+function applyGrants(grants: Map<string, AccessGrant>, event: SupporterEvent, at: string): void {
+  if (event.type !== 'access.granted' && event.type !== 'access.revoked') return;
+  const tierId = z.string().guid().safeParse(event.props['tier_id']);
+  if (!tierId.success) return;
+  if (event.type === 'access.revoked') {
+    grants.delete(tierId.data);
+    return;
+  }
+  const kind = AccessGrantKind.safeParse(event.props['kind']);
+  const until = event.props['until'];
+  // Fail closed: a grant whose kind or end cannot be read is no grant.
+  if (!kind.success) return;
+  if (until !== undefined && until !== null) {
+    if (typeof until !== 'string' || Number.isNaN(Date.parse(until))) return;
+  }
+  grants.set(tierId.data, {
+    tierId: tierId.data,
+    kind: kind.data,
+    grantedAt: at,
+    until: typeof until === 'string' ? new Date(until).toISOString() : null,
+  });
+}
+
 /** Fold the next event in fold order into `current`. The event must carry its `supporter_id`. */
 export function applyEvent(
   current: SupporterProjection | null,
@@ -90,11 +142,14 @@ export function applyEvent(
     lastActivity: at,
     lists: [],
     pendingLists: [],
+    grants: [],
     appliedThrough: position,
   };
   const lists = new Set(base.lists);
   const pending = new Set(base.pendingLists);
   applyLists(lists, pending, event);
+  const grants = new Map((base.grants ?? []).map((g) => [g.tierId, g]));
+  applyGrants(grants, event, at);
   const newEmail = event.props['new_email'];
   return {
     id,
@@ -106,6 +161,7 @@ export function applyEvent(
     lastActivity: at > base.lastActivity ? at : base.lastActivity,
     lists: [...lists].sort(),
     pendingLists: [...pending].sort(),
+    grants: [...grants.values()].sort((a, b) => (a.tierId < b.tierId ? -1 : 1)),
     appliedThrough: position,
   };
 }

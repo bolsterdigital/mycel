@@ -23,6 +23,10 @@ export const SupporterEventType = z.enum([
   'membership.ended',
   'supporter.erased',
   'supporter.email_changed',
+  // Comped or gifted access to a tier (ADR 016 rule 2), and its withdrawal as a fact of its own:
+  // the log is append-only, so a grant is never edited away.
+  'access.granted',
+  'access.revoked',
 ]);
 export type SupporterEventType = z.infer<typeof SupporterEventType>;
 

@@ -120,6 +120,9 @@ export async function ingest(
   event: SupporterEvent,
   withdrawalEvidence?: WithdrawalEvidence
 ): Promise<boolean> {
+  // Access is given by an admin's command (access.ts), never by an envelope that arrives: a
+  // producer or a backfill that names `access.granted` must not open a tier.
+  if (event.type === 'access.granted' || event.type === 'access.revoked') return false;
   await ctx.supporters.lock(event.email);
   if (!(await ctx.erasures.allows(event.email, event.lifecycle_id))) return false;
   if (event.lifecycle_id) {
@@ -152,6 +155,7 @@ export async function ingest(
       email: tombstoneEmail(old.id),
       lists: [],
       pendingLists: [],
+      grants: [],
     });
   }
   const appended = await appendAndFold(ctx, { ...event, supporter_id: id });
@@ -183,7 +187,7 @@ export async function ingest(
 }
 
 /** Append, then fold: on top when the event is newest, from the log when it arrived late. */
-async function appendAndFold(
+export async function appendAndFold(
   ctx: TransactionContext,
   event: SupporterEvent & { supporter_id: string }
 ): Promise<boolean> {

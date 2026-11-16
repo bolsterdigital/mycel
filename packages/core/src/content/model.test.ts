@@ -192,14 +192,6 @@ describe('readiness per locale (ADR 018 rule 9)', () => {
     );
   });
 
-  it('fails closed on tier access until tiers can be verified (#19)', () => {
-    const d = doc({ access: { level: 'tier', tierIds: ['01900000-0000-7000-8000-00000000c001'] } });
-    expect(readinessIssues(d, 'nl')).toContainEqual({
-      path: 'access.tierIds',
-      message: 'content.publish.tier-unverifiable',
-    });
-  });
-
   it('treats SEO overrides as optional: absent is derived, present must not be empty', () => {
     expect(
       readinessIssues(doc({ seo: { title: { nl: 'Zoektitel' } } }), 'en').map((i) => i.path)
