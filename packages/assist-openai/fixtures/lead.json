@@ -1,0 +1,18 @@
+{
+  "id": "chatcmpl-731",
+  "object": "chat.completion",
+  "created": 1763290800,
+  "model": "mistral-small",
+  "system_fingerprint": "fp_ollama",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"lead\":\"Bakers use less salt in their spiced biscuits this year.\"}"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": { "prompt_tokens": 96, "completion_tokens": 14, "total_tokens": 110 }
+}

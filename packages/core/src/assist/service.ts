@@ -22,7 +22,8 @@ import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
 import { jobKey } from '../jobs/types.js';
 import { AltResult, PENDING_TIMEOUT_MS, SettingsView, SuggestionView } from './model.js';
-import type { AssistSettings, AssistSuggestion } from './ports.js';
+import { LeadBlockIds, leadSource } from './lead.js';
+import type { AssistSettings, AssistSuggestion, AssistTask } from './ports.js';
 import './ports.js';
 import { iso } from '../util/date.js';
 import { Uuid, exampleId } from '../util/ids.js';
@@ -189,7 +190,9 @@ export const suggestAlt = defineUseCase({
       id,
       itemId: item.id,
       baseRevisionId: input.baseRevisionId,
+      task: 'alt',
       blockId: input.blockId,
+      sourceBlockIds: [],
       locale: input.locale,
       status: 'pending',
       value: null,
@@ -279,7 +282,29 @@ export const acceptSuggestion = defineUseCase({
     if (row.baseRevisionId !== item.latestRevisionId) refuse('conflict', 'stale');
     const revision = await ctx.content.revision(item.id, item.latestRevisionId);
     if (!revision) throw notFound('revision');
-    const translation = decodeTranslation(row.blockId);
+    const provenance = (task: AssistTask) => ({
+      suggestionId: row.id,
+      task,
+      provider: row.provider,
+      model: row.model!,
+      edited: value !== undefined && value !== row.value,
+    });
+    if (row.task === 'lead') {
+      // Only `lead[locale]` changes; the edited text passes the article's own lead schema.
+      if (item.type !== 'article' || !revision.document.locales.includes(row.locale))
+        refuse('conflict', 'stale');
+      const lead = (value ?? row.value!).trim();
+      const next = ContentDocument.safeParse({
+        ...revision.document,
+        lead: { ...(revision.document.lead ?? {}), [row.locale]: lead },
+      });
+      if (!next.success) refuse('invalid_input', 'lead-value');
+      const written = await writeRevision(ctx, item, next.data!, provenance('lead'));
+      if (!(await ctx.assist.decide(row.id, 'accepted', ctx.clock.now())))
+        refuse('conflict', 'not-ready');
+      return { revisionId: written.revision.id };
+    }
+    const translation = row.task === 'translate' ? decodeTranslation(row.blockId) : null;
     if (translation) {
       let parsedValue: unknown;
       try {
@@ -310,13 +335,7 @@ export const acceptSuggestion = defineUseCase({
         ...new Set([...(markers[translation.to] ?? []), ...translation.targets]),
       ];
       doc = ContentDocument.parse({ ...doc, machineTranslation: markers });
-      const written = await writeRevision(ctx, item, doc, {
-        suggestionId: row.id,
-        task: 'translate',
-        provider: row.provider,
-        model: row.model!,
-        edited: value !== undefined && value !== row.value,
-      });
+      const written = await writeRevision(ctx, item, doc, provenance('translate'));
       if (!(await ctx.assist.decide(row.id, 'accepted', ctx.clock.now())))
         refuse('conflict', 'not-ready');
       return { revisionId: written.revision.id };
@@ -342,13 +361,7 @@ export const acceptSuggestion = defineUseCase({
     if (blocks.every((block, index) => block === revision.document.blocks[index]))
       refuse('conflict', 'stale');
     const doc = ContentDocument.parse({ ...revision.document, blocks });
-    const written = await writeRevision(ctx, item, doc, {
-      suggestionId: row.id,
-      task: 'alt',
-      provider: row.provider,
-      model: row.model!,
-      edited: value !== undefined && value !== row.value,
-    });
+    const written = await writeRevision(ctx, item, doc, provenance('alt'));
     if (!(await ctx.assist.decide(row.id, 'accepted', ctx.clock.now())))
       refuse('conflict', 'not-ready');
     return { revisionId: written.revision.id };
@@ -403,8 +416,73 @@ export const suggestTranslation = defineUseCase({
       id,
       itemId: item.id,
       baseRevisionId: input.baseRevisionId,
+      task: 'translate',
       blockId: encodeTranslation({ from: input.from, to: input.to, targets }),
+      sourceBlockIds: [],
       locale: input.to,
+      status: 'pending',
+      value: null,
+      failure: null,
+      provider,
+      requestedBy: ctx.principal.actor.kind === 'operator' ? ctx.principal.actor.operatorId : null,
+      model: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.jobs.enqueue({
+      type: 'assist.run',
+      key: jobKey('assist.run', id),
+      runAt: now,
+      payload: { suggestionId: id },
+    });
+    return { suggestionId: id, status: 'pending' as const };
+  },
+});
+
+export const suggestLead = defineUseCase({
+  name: 'assist.lead.suggest',
+  kind: 'command',
+  description:
+    'Queue a lead proposal for an article from one to three of its text blocks in one locale.',
+  requires: 'ai:assist',
+  consumes: 'ai.monthly_max',
+  input: z
+    .object({
+      itemId: Uuid,
+      baseRevisionId: Uuid,
+      locale: z.string().min(2),
+      blockIds: LeadBlockIds,
+    })
+    .strict(),
+  output: z.object({ suggestionId: Uuid, status: z.literal('pending') }),
+  examples: [
+    {
+      input: {
+        itemId: exampleId(1),
+        baseRevisionId: exampleId(1),
+        locale: 'nl',
+        blockIds: ['example-text'],
+      },
+    },
+  ],
+  async handler(ctx, input) {
+    const { now, item, revision, provider, settings } = await assistGate(ctx, input);
+    const doc = revision.document;
+    if (item.type !== 'article') refuse('invalid_input', 'article');
+    if (!doc.locales.includes(input.locale)) refuse('invalid_input', 'locale');
+    if (doc.access.level !== 'public' && !settings.allowRestricted)
+      refuse('invalid_input', 'restricted-content');
+    const source = leadSource(doc, input.blockIds, input.locale);
+    if (!source.ok) return refuse('invalid_input', source.issue);
+    const id = ctx.ids.next();
+    await ctx.assist.insert({
+      id,
+      itemId: item.id,
+      baseRevisionId: input.baseRevisionId,
+      task: 'lead',
+      blockId: 'lead',
+      sourceBlockIds: input.blockIds,
+      locale: input.locale,
       status: 'pending',
       value: null,
       failure: null,

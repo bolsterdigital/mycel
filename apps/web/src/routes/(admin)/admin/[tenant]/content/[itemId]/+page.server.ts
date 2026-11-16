@@ -55,6 +55,7 @@ import { posted, type Posted } from '#lib/editor/block-form.js';
 import { arrange } from '#lib/server/content/arrange.js';
 import { failureOf, loaded, orNull, text } from '#lib/server/admin/admin-actions.js';
 import { actorNames, adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
+import { editAssist } from '#lib/server/admin/assist-settings.js';
 import {
   applyChoices,
   changesSince,
@@ -200,17 +201,6 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
   const siteUrl = item.publication.some((p) => p.publishedRevisionId)
     ? await adminSiteUrls(principal, tenant.slug)
     : null;
-  const assistSettings =
-    can(principal, 'ai:assist') && can(principal, 'content:write')
-      ? await invoker.run(useCases.getAssistSettings, principal, {})
-      : null;
-  const assistEnabled = !!(
-    assistSettings?.enabled &&
-    assistSettings.provider &&
-    assistSettings.consentedProvider === assistSettings.provider &&
-    principal.entitlements['ai.assist'] &&
-    (doc.access.level === 'public' || assistSettings.allowRestricted)
-  );
   const refs = await editorReferences(principal, doc.blocks, read, tenant.defaultLocale);
   rememberListFromReferer(cookies, request.headers.get('referer'), url, params.tenant, item.type);
   return {
@@ -223,7 +213,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     listPath: recalledListPath(cookies, params.tenant, item.type, item.id, item.profile),
     patterns: await patternChoices(principal, item.type, [work, tenant.defaultLocale], true),
     articleEditor: shown.length ? toArticleEditor(doc, work) : null,
-    assistEnabled,
+    ...(await editAssist(invoker, principal, item.type, doc, work)),
     machineTranslation: doc.machineTranslation ?? {},
     blocks: doc.blocks.map((b) => ({
       id: b.id,

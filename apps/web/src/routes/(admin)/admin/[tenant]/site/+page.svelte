@@ -274,6 +274,7 @@
             ><td>{t('admin.assist.sent.translate')}</td><td>{t('admin.assist.notSent.other')}</td
             ></tr
           >
+          <tr><td>{t('admin.assist.sent.lead')}</td><td>{t('admin.assist.notSent.lead')}</td></tr>
         {/snippet}
       </Table>
       <input type="hidden" name="provider" value={assist.settings.provider ?? ''} />
