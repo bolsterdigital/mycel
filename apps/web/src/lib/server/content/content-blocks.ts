@@ -58,7 +58,11 @@ export function itemLabel(item: Labelled, locale: string): string {
   return `${pickAny(item.title, locale) ?? item.slug} (/${item.slug})`;
 }
 
-/** The images and items the pickers offer: a page of each plus everything the blocks use. */
+/**
+ * The images, items and sections the pickers offer: a page of each plus everything the blocks
+ * use. Sections are `sectionChoices`, since the article's own section field already takes
+ * `sections` on the edit screen.
+ */
 export async function pickerOptions(
   principal: Principal,
   blocks: readonly Block[],
@@ -70,12 +74,13 @@ export async function pickerOptions(
   items: Option[];
   people: Option[];
   personGroups: Option[];
+  sectionChoices: Option[];
   upload: boolean;
 }> {
   const { invoker } = runtime();
   const used = blockReferences(blocks);
   const orNull = <T>(p: Promise<T>) => p.catch(() => null);
-  const [media, items] = await Promise.all([
+  const [media, items, sectionChoices] = await Promise.all([
     mediaChoices(principal, [
       ...new Set([...used.media, ...used.documents, ...used.audio, ...alsoChosen]),
     ]),
@@ -91,6 +96,15 @@ export async function pickerOptions(
         (id) => ({ id, label: id })
       );
     }),
+    invoker.run(useCases.listSections, principal, { limit: MAX_PAGE_SIZE }).then(({ sections }) =>
+      withAssigned(
+        used.sections,
+        sections.map((s) => ({ id: s.id, label: pickAny(s.title, locale) ?? s.slug })),
+        // A section that is gone keeps its id in the block until the editor picks another.
+        async () => null,
+        (id) => ({ id, label: id })
+      )
+    ),
   ]);
   const people = (await peopleDirectory(principal, invoker)).map((p) => ({
     id: p.id,
@@ -100,7 +114,14 @@ export async function pickerOptions(
     id: g.id,
     label: pickAny(g.name, locale) ?? g.id,
   }));
-  return { media, items, people, personGroups, upload: can(principal, 'media:write') };
+  return {
+    media,
+    items,
+    people,
+    personGroups,
+    sectionChoices,
+    upload: can(principal, 'media:write'),
+  };
 }
 
 /**

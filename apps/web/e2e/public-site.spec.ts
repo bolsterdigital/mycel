@@ -4,6 +4,7 @@
 // below was a spec of its own until TODO #50 folded the suite to its budget (testing.md
 // § End-to-end flows); each keeps its own fixtures.
 
+import { exerciseOverview } from './lib/blocks/overview';
 import { exercisePeopleGrid } from './lib/people/grid';
 import { exercisePublicPeople } from './lib/people/public';
 import { exercisePublishedRepresentations } from './lib/published/representations';
@@ -2101,6 +2102,12 @@ test('authored people grids show teams without exposing internal email or unavai
   page,
 }) => {
   await exercisePeopleGrid(page);
+});
+
+test('an editor picks a section and a pin for an overview, and a visitor pages through it', async ({
+  page,
+}) => {
+  await exerciseOverview(page);
 });
 
 // Menu items that land on a part of a page, on a site of their own so its published menu meets

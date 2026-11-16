@@ -50,3 +50,38 @@ for (const type of ['form', 'signup-form'] as const)
       expect(html).not.toContain('<select name="b.f.p.formId"');
     });
   });
+
+describe('overview', () => {
+  const block = { type: 'overview' as const, image: null };
+  const section = '01900000-0000-7000-8000-00000000f001';
+  const item = '01900000-0000-7000-8000-00000000f002';
+  const html = (sectionChoices?: { id: string; label: string }[]) =>
+    render(BlockFields, {
+      props: {
+        ...props,
+        block,
+        values: {
+          'b.f.p.sectionId': section,
+          'b.f.p.pinned.rows': '1',
+          'b.f.p.pinned.0.itemId': item,
+        },
+        references: {
+          ...refs,
+          items: [{ id: item, label: 'Pepernoten (/pepernoten)' }],
+          ...(sectionChoices ? { sectionChoices } : {}),
+        },
+      },
+    }).body;
+  it('offers the sections by name and the pins by title, both native selects', () => {
+    const out = html([{ id: section, label: 'Buurt' }]);
+    expect(out).toContain('<select name="b.f.p.sectionId"');
+    expect(out).toContain('<option value="">Alle rubrieken</option>');
+    expect(out).toContain(`<option value="${section}" selected="">Buurt</option>`);
+    expect(out).toContain(`<option value="${item}" selected="">Pepernoten (/pepernoten)</option>`);
+  });
+  it('keeps the section id editable where no list is offered', () => {
+    const out = html();
+    expect(out).not.toContain('<select name="b.f.p.sectionId"');
+    expect(out).toContain(`value="${section}"`);
+  });
+});

@@ -1900,6 +1900,8 @@ export const en = {
   'admin.block.type.campaign-card': 'Campaign card',
   'admin.block.type.overview': 'Overview',
   'admin.block.field.sectionId': 'Section',
+  'admin.block.section.all': 'All sections',
+  'admin.block.section.articles': 'Section and tags filter articles only.',
   'admin.block.field.tags': 'Tags (all)',
   'admin.block.field.tag': 'Tag',
   'admin.block.field.limit': 'Number',
