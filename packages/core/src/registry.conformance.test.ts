@@ -15,7 +15,7 @@ import {
 } from './principal.js';
 import { checkRegistry } from './registry-rules.js';
 import { UNAUDITED_COMMANDS } from './registry.js';
-import { ANONYMOUS_USE_CASES, type UseCase } from './registry.js';
+import { ANONYMOUS_USE_CASES, requiredCapabilities, type UseCase } from './registry.js';
 import { MemoryUnitOfWork, TENANT, principal, probeForm, probeTenant } from './testing/index.js';
 import { buildRegistry, useCases } from './use-cases.js';
 
@@ -255,6 +255,34 @@ describe('alsoRequires: the gate wants every capability', () => {
   );
   it('admits both', () => {
     expect(registry.authorize(both, member(['content:write', 'forms:write']))).toBe(true);
+  });
+});
+
+// ADR 018 rule 5 (amended 2026-11-16): a writer reads what they write. Every use case that needs
+// no more than content:read and content:write admits a key holding content:write alone; the
+// implication runs one way and stops there.
+describe('content:write holds content:read', () => {
+  const registry = buildRegistry();
+  const member = (capabilities: Capability[]) =>
+    principal({ actor: { kind: 'api-key', keyId: 'writer' }, capabilities });
+  const content = registry
+    .list()
+    .filter((u) => !u.actors || u.actors.includes('api-key'))
+    .filter((u) =>
+      requiredCapabilities(u).every((c) => c === 'content:read' || c === 'content:write')
+    );
+  it('covers the reads and the writes', () => {
+    expect(content.some((u) => u.requires === 'content:read')).toBe(true);
+    expect(content.some((u) => u.requires === 'content:write')).toBe(true);
+  });
+  it.each(content.map((u) => [u.name, u] as const))('%s admits content:write alone', (_n, u) => {
+    expect(registry.authorize(u, member(['content:write']))).toBe(true);
+  });
+  it('does not hold write for a reader, nor publish for a writer', () => {
+    const write = content.find((u) => u.requires === 'content:write')!;
+    const publish = registry.list().find((u) => u.requires === 'content:publish')!;
+    expect(registry.authorize(write, member(['content:read']))).toBe(false);
+    expect(registry.authorize(publish, member(['content:write']))).toBe(false);
   });
 });
 

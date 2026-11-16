@@ -10,7 +10,7 @@
 // captured as any other.
 // Rejected: `attention.summary.get` here plus `attention.list` on the two pages that list (two
 // reads of the same sources on those pages, for a list of at most a few hundred short rows).
-import { DEFAULT_OPERATOR_PREFERENCES, can, useCases } from '@mycel/core';
+import { DEFAULT_OPERATOR_PREFERENCES, can, heldCapabilities, useCases } from '@mycel/core';
 import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { contentLocale } from '#lib/server/content/content-locale.js';
 import { runtime } from '#lib/server/runtime.js';
@@ -33,7 +33,7 @@ export const load: LayoutServerLoad = async ({ locals, url, params, cookies }) =
       locales: tenant.locales,
       defaultLocale: tenant.defaultLocale,
     },
-    capabilities: principal.capabilities,
+    capabilities: heldCapabilities(principal.capabilities),
     email: session.email,
     timeZone: (await adminTimeZone(locals)).zone,
     dateFormat: (locals.preferences ?? DEFAULT_OPERATOR_PREFERENCES).dateFormat,
