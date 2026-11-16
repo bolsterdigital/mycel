@@ -282,6 +282,12 @@ export interface EntityRepository<T extends { id: string }> {
   update(entity: T): Promise<void>;
 }
 
+/** Patterns are the one entity an editor deletes outright: documents keep their own copies. */
+export interface PatternRepository extends EntityRepository<Pattern> {
+  /** Removes the row; false when there was none (or it belongs to another tenant). */
+  remove(id: string): Promise<boolean>;
+}
+
 export interface SluggedRepository<
   T extends { id: string; slug: string; updatedAt: string },
 > extends Omit<EntityRepository<T>, 'insert' | 'update'> {
@@ -363,6 +369,6 @@ declare module '../ports.js' {
     presence: PresenceRepository;
     authors: PersonRepository;
     sections: SluggedRepository<Section>;
-    patterns: EntityRepository<Pattern>;
+    patterns: PatternRepository;
   }
 }

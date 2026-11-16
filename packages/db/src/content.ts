@@ -21,6 +21,7 @@ import {
   upgradeFaqV1InDocument,
   type ContentRepository,
   type EntityRepository,
+  type PatternRepository,
   type ItemRecord,
   type LocaleState,
   type Paged,
@@ -739,7 +740,7 @@ export function sectionRepository(trx: Trx, tenantId: string): SluggedRepository
   };
 }
 
-export function patternRepository(trx: Trx, tenantId: string): EntityRepository<Pattern> {
+export function patternRepository(trx: Trx, tenantId: string): PatternRepository {
   const toPattern = (r: Selectable<Database['patterns']>): Pattern =>
     Pattern.parse({
       id: r.id,
@@ -784,6 +785,11 @@ export function patternRepository(trx: Trx, tenantId: string): EntityRepository<
     },
     async update(p) {
       await trx.updateTable('patterns').set(fields(p)).where('id', '=', p.id).execute();
+    },
+    async remove(id) {
+      // RLS scopes the delete to the tenant: another tenant's id deletes nothing and reads false.
+      const r = await trx.deleteFrom('patterns').where('id', '=', id).executeTakeFirst();
+      return r.numDeletedRows > 0n;
     },
   };
 }

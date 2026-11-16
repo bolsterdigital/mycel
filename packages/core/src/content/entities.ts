@@ -366,6 +366,29 @@ export const updatePattern = defineUseCase({
   },
 });
 
+/**
+ * Deleting a pattern takes it out of every chooser; documents made or filled from it keep their
+ * own copies (the copy is independent, ADR 013 rule 4 as refined 2026-11-16), so nothing else
+ * changes. Its media usages go with it under the media lock, so a photo only it held can then be
+ * deleted. Rejected: a trash with restore like content items, for a reusable template that any
+ * document still holding its blocks can save again.
+ */
+export const deletePattern = defineUseCase({
+  name: 'content.pattern.delete',
+  kind: 'command',
+  description: 'Delete a pattern; documents created or filled from it earlier keep their own copy.',
+  requires: 'content:write',
+  input: z.object({ patternId: z.string().guid() }),
+  output: z.object({ patternId: z.string().guid() }),
+  examples: [{ input: { patternId: exampleId(1) } }],
+  async handler(ctx, { patternId }) {
+    await ctx.media.lock();
+    if (!(await ctx.patterns.remove(patternId))) throw notFound('pattern');
+    await ctx.media.replaceUsages(`pattern:${patternId}`, []);
+    return { patternId };
+  },
+});
+
 export const getPattern = defineUseCase({
   name: 'content.pattern.get',
   kind: 'query',

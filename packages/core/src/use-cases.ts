@@ -74,6 +74,7 @@ import {
 import {
   createPerson,
   createPattern,
+  deletePattern,
   createSection,
   getPerson,
   getPattern,
@@ -282,6 +283,7 @@ export const useCases = {
   listSections,
   createPattern,
   updatePattern,
+  deletePattern,
   getPattern,
   listPatterns,
   getForm,

@@ -612,5 +612,15 @@ describe.skipIf(skip)('content operations conformance', () => {
         place: { at: 'end' },
       })
     ).rejects.toMatchObject({ code: 'not_found' });
+    // Nor delete it; A deletes it, and the copies already inserted stay.
+    await expect(
+      invoker.run(useCases.deletePattern, adminOf(tenantB), { patternId: pattern.id })
+    ).rejects.toMatchObject({ code: 'not_found' });
+    await invoker.run(useCases.deletePattern, adminOf(tenantA), { patternId: pattern.id });
+    await expect(
+      invoker.run(useCases.getPattern, adminOf(tenantA), { patternId: pattern.id })
+    ).rejects.toMatchObject({ code: 'not_found' });
+    const kept = await invoker.run(useCases.getItem, adminOf(tenantA), { itemId: target.itemId });
+    expect(kept.revision.document.blocks).toHaveLength(4);
   });
 });
