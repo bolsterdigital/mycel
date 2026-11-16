@@ -7,7 +7,8 @@ import { systemPrincipal } from '../principal.js';
 import { active, entitled } from '../entitlements/guards.js';
 import type { TenantAccess } from '../entitlements/model.js';
 import { mediaKey, variantFile } from '../media/model.js';
-import { AltResult, PENDING_TIMEOUT_MS } from './model.js';
+import { AltResult, LeadResult, PENDING_TIMEOUT_MS } from './model.js';
+import { leadSource } from './lead.js';
 import {
   TranslationResult,
   decodeTranslation,
@@ -15,6 +16,17 @@ import {
   translatedValue,
 } from './translation.js';
 import { TextModelError, type ModelFailure, type TextModel } from './ports.js';
+
+/** The fixed lead instruction; there is no free prompt field. */
+const LEAD_PROMPT =
+  'Write a lead for an article from the provided passages only: one paragraph of plain text in the language of the given locale, faithful to the passages. Add no facts, names or figures that are not in them, and no call to action. Return JSON with a lead field.';
+
+const classify = (error: unknown): ModelFailure =>
+  error instanceof TextModelError
+    ? error.failure
+    : error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
+      ? 'timeout'
+      : 'unavailable';
 
 interface RunOptions {
   uow: UnitOfWork;
@@ -54,7 +66,15 @@ export async function runAssistSuggestion(options: RunOptions): Promise<{ next?:
       (revision.document.access.level !== 'public' && !settings.allowRestricted)
     )
       return { row, failure: 'rejected' as const };
-    const translation = decodeTranslation(row.blockId);
+    if (row.task === 'lead') {
+      // The base check above already fails a changed or removed source block.
+      if (item.type !== 'article' || !revision.document.locales.includes(row.locale))
+        return { row, failure: 'rejected' as const };
+      const lead = leadSource(revision.document, row.sourceBlockIds, row.locale);
+      if (!lead.ok) return { row, failure: 'rejected' as const };
+      return { row, passages: lead.passages.map((p) => p.text) };
+    }
+    const translation = row.task === 'translate' ? decodeTranslation(row.blockId) : null;
     if (translation) {
       if (
         translation.to !== row.locale ||
@@ -141,12 +161,30 @@ export async function runAssistSuggestion(options: RunOptions): Promise<{ next?:
         }
       }
     } catch (error) {
-      failure =
-        error instanceof TextModelError
-          ? error.failure
-          : error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
-            ? 'timeout'
-            : 'unavailable';
+      failure = classify(error);
+    }
+  } else if (!failure && 'passages' in source && options.model) {
+    try {
+      const result = await options.model.complete({
+        task: 'lead',
+        system: LEAD_PROMPT,
+        parts: [
+          { kind: 'text', text: `Locale: ${source.row.locale}` },
+          ...source.passages.map((text) => ({ kind: 'text' as const, text })),
+        ],
+        output: LeadResult,
+        maxTokens: 600,
+        signal: AbortSignal.timeout(options.timeoutMs),
+      });
+      const parsed = LeadResult.safeParse(result.json);
+      if (!parsed.success) failure = 'invalid-output';
+      else {
+        value = parsed.data.lead;
+        modelName = result.model;
+        usage = result.usage;
+      }
+    } catch (error) {
+      failure = classify(error);
     }
   } else if (!failure && 'bytes' in source && options.model) {
     try {
@@ -172,12 +210,7 @@ export async function runAssistSuggestion(options: RunOptions): Promise<{ next?:
         usage = result.usage;
       }
     } catch (error) {
-      failure =
-        error instanceof TextModelError
-          ? error.failure
-          : error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
-            ? 'timeout'
-            : 'unavailable';
+      failure = classify(error);
     }
   } else if (!failure) failure = 'unavailable';
 
@@ -195,7 +228,7 @@ export async function runAssistSuggestion(options: RunOptions): Promise<{ next?:
     if (changed)
       ctx.log.info('assist.run.finished', {
         suggestionId,
-        task: 'translation' in source ? 'translate' : 'alt',
+        task: source.row.task,
         provider: source.row.provider,
         model: modelName,
         inputTokens: usage?.inputTokens ?? 0,

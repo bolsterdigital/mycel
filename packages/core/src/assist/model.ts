@@ -17,6 +17,22 @@ export const AltResult = z
   })
   .strict();
 
+/**
+ * A lead proposal: one trimmed paragraph without line breaks or markup. The schema checks
+ * the form, never the facts; the editor judges whether it is true to the text.
+ */
+export const LeadResult = z
+  .object({
+    lead: z
+      .string()
+      .trim()
+      .min(1)
+      .max(1000)
+      .regex(/^[^\r\n<>`]+$/)
+      .refine((v) => !/\*\*|__|\]\(/.test(v)),
+  })
+  .strict();
+
 export const SettingsView = z.object({
   enabled: z.boolean(),
   allowRestricted: z.boolean(),
@@ -30,7 +46,9 @@ export const SuggestionView = z.object({
   id: z.string().guid(),
   itemId: z.string().guid(),
   baseRevisionId: z.string().guid(),
+  task: z.enum(['alt', 'translate', 'lead']),
   blockId: z.string(),
+  sourceBlockIds: z.array(z.string()),
   locale: z.string(),
   status: z.enum(['pending', 'ready', 'failed', 'accepted', 'dismissed']),
   value: z.string().nullable(),

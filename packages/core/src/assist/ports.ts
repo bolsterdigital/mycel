@@ -4,6 +4,8 @@
 import type { z } from 'zod';
 
 export type ModelFailure = 'unavailable' | 'timeout' | 'rejected' | 'invalid-output';
+/** The named assistance tasks (ADR 021 rule 1); the suggestion row stores which one it is. */
+export type AssistTask = 'alt' | 'translate' | 'lead';
 
 export class TextModelError extends Error {
   constructor(readonly failure: ModelFailure) {
@@ -14,7 +16,7 @@ export class TextModelError extends Error {
 export interface TextModel {
   describe(): { label: string; models: { text: string; vision: string } };
   complete(request: {
-    task: 'alt' | 'translate';
+    task: AssistTask;
     system: string;
     parts: readonly (
       { kind: 'text'; text: string } | { kind: 'image'; contentType: string; bytes: Uint8Array }
@@ -41,7 +43,11 @@ export interface AssistSuggestion {
   id: string;
   itemId: string;
   baseRevisionId: string;
+  task: AssistTask;
+  /** The image block (alt), the encoded translation descriptor, or `lead` for a lead. */
   blockId: string;
+  /** The prose blocks a lead was asked from, in document order; empty for the other tasks. */
+  sourceBlockIds: string[];
   locale: string;
   status: 'pending' | 'ready' | 'failed' | 'accepted' | 'dismissed';
   value: string | null;

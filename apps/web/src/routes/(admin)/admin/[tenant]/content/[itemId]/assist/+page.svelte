@@ -1,8 +1,21 @@
 <script lang="ts">
-  import { ui } from '../../../../../../../i18n/index.js';
+  import { fill, ui } from '../../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
   let { data, form }: PageProps = $props();
   const t = $derived(ui(data.adminLocale));
+  const lead = $derived(data.task === 'lead');
+  /** A refused request keeps what was ticked; a retry starts from the suggestion's own blocks. */
+  const chosen = $derived(
+    form && 'blockIds' in form && form.blockIds ? form.blockIds : data.chosen
+  );
+  const passages = $derived(data.candidates.filter((c) => data.chosen.includes(c.blockId)));
+  const heading = $derived(
+    lead
+      ? t('admin.assist.lead')
+      : data.task === 'alt'
+        ? t('admin.assist.alt')
+        : t('admin.assist.translate')
+  );
 </script>
 
 <svelte:head>
@@ -11,9 +24,11 @@
 </svelte:head>
 <main class="page admin">
   <p><a href="/admin/{data.tenant.slug}/content/{data.itemId}">{t('admin.assist.back')}</a></p>
-  <h1>{data.task === 'alt' ? t('admin.assist.alt') : t('admin.assist.translate')}</h1>
-  <p>{t('admin.assist.source')} ({data.task === 'alt' ? data.locale : data.from})</p>
-  <blockquote>{data.source}</blockquote>
+  <h1>{heading}</h1>
+  {#if !lead}
+    <p>{t('admin.assist.source')} ({data.task === 'alt' ? data.locale : data.from})</p>
+    <blockquote>{data.source}</blockquote>
+  {/if}
   {#if form?.problem}<p role="alert">{t(`admin.assist.error.${form.problem}` as const)}</p>{/if}
   {#if data.stale || form?.problem === 'conflict'}
     <p role="alert">{t('admin.assist.stale')}</p>
@@ -21,17 +36,28 @@
   {#if data.suggestion?.status === 'pending' && !data.stale}
     <p role="status">{t('admin.assist.pending')}</p>
   {:else if data.suggestion?.status === 'ready' && !data.stale}
+    {#if lead && passages.length}
+      <section aria-labelledby="assist-based" class="passages">
+        <h2 id="assist-based">{t('admin.assist.lead.based')} ({data.locale})</h2>
+        {#each passages as passage (passage.blockId)}<blockquote>{passage.text}</blockquote>{/each}
+      </section>
+    {/if}
     <form method="post" action="?/accept{data.query}">
       <input type="hidden" name="suggestionId" value={data.suggestion.id} />
       <input type="hidden" name="baseRevisionId" value={data.revisionId} />
+      {#each lead ? data.chosen : [] as id (id)}
+        <input type="hidden" name="blockId" value={id} />
+      {/each}
       <label for="assist-value">{t('admin.assist.proposal')}</label>
       {#if data.task === 'translate'}<p>{t('admin.assist.markdown')}</p>{/if}
+      {#if lead}<p id="assist-check">{t('admin.assist.lead.check')}</p>{/if}
       <textarea
         id="assist-value"
         name="value"
-        rows="8"
-        maxlength={data.task === 'alt' ? 250 : undefined}
-        required>{form?.value ?? data.value}</textarea
+        rows={lead ? 5 : 8}
+        maxlength={data.task === 'alt' ? 250 : lead ? 1000 : undefined}
+        aria-describedby={lead ? 'assist-check' : undefined}
+        required>{form && 'value' in form ? form.value : data.value}</textarea
       >
       <div class="actions stack assist-actions">
         <button type="submit">{t('admin.assist.accept')}</button>
@@ -49,6 +75,33 @@
   {#if !data.suggestion || data.suggestion.status === 'failed' || data.stale || form?.problem === 'conflict'}
     <form method="post" action="?/request{data.query}">
       <input type="hidden" name="baseRevisionId" value={data.revisionId} />
+      {#if lead}
+        <fieldset aria-describedby="assist-lead-hint assist-lead-sent">
+          <legend>{t('admin.assist.lead.choose')} ({data.locale})</legend>
+          <p id="assist-lead-hint">{t('admin.assist.lead.hint')}</p>
+          <p id="assist-lead-sent">
+            {fill(t('admin.assist.lead.sent'), { locale: data.locale, provider: data.provider })}
+          </p>
+          {#each data.candidates as candidate, index (candidate.blockId)}
+            <div class="passage">
+              <input
+                type="checkbox"
+                id="lead-block-{candidate.blockId}"
+                name="blockId"
+                value={candidate.blockId}
+                checked={chosen.includes(candidate.blockId)}
+              />
+              <label for="lead-block-{candidate.blockId}"
+                >{fill(t('admin.assist.lead.block'), {
+                  n: index + 1,
+                  count: candidate.text.length,
+                })}</label
+              >
+              <blockquote>{candidate.text}</blockquote>
+            </div>
+          {/each}
+        </fieldset>
+      {/if}
       <button type="submit"
         >{data.suggestion ? t('admin.assist.retry') : t('admin.assist.request')}</button
       >
@@ -67,5 +120,38 @@
   }
   button {
     min-height: 2.75rem;
+  }
+  fieldset {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .passage {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.25rem 0.5rem;
+    align-items: start;
+  }
+  .passage input {
+    inline-size: 1.5rem;
+    block-size: 1.5rem;
+    margin: 0;
+  }
+  .passage blockquote {
+    grid-column: 2;
+  }
+  blockquote {
+    margin: 0;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+  .passages {
+    display: grid;
+    gap: 0.5rem;
+    margin-block-end: 1.5rem;
+  }
+  blockquote {
+    padding-inline-start: 0.75rem;
+    border-inline-start: 0.25rem solid var(--color-border-strong);
   }
 </style>

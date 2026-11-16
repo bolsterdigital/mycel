@@ -937,6 +937,8 @@ describe('assistance proposal boundary', () => {
           id: ctx.ids.next(),
           itemId: created.item.id,
           baseRevisionId: created.revision.id,
+          task: 'alt',
+          sourceBlockIds: [],
           blockId: 'photo',
           locale: 'nl',
           status: 'failed',
