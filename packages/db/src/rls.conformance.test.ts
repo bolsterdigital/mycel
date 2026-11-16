@@ -304,6 +304,8 @@ describe.skipIf(skip)('row level security conformance', () => {
         id: uuidv7(),
         itemId: page.id,
         baseRevisionId: page.latestRevisionId,
+        task: 'alt',
+        sourceBlockIds: [],
         blockId: 'fixture',
         locale: 'nl',
         status: 'failed',

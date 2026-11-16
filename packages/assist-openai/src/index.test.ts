@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { createServer, type RequestListener, type Server } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { TextModelError } from '@mycel/core';
+import { LeadResult, TextModelError } from '@mycel/core';
 import { OpenAITextModel } from './index.js';
 
 const fixture = (name: string) =>
@@ -84,6 +84,47 @@ it('uses the text model when no image is sent', async () => {
   const model = new OpenAITextModel({ ...options, fetch: fetcher });
   await model.complete({ ...request, parts: [{ kind: 'text', text: 'Bicycle' }] });
   expect(JSON.parse(fetcher.mock.calls[0]![1]!.body as string).model).toBe('text');
+});
+
+describe('lead task', () => {
+  const lead = {
+    ...request,
+    task: 'lead' as const,
+    system: 'Write a lead.',
+    parts: [
+      { kind: 'text' as const, text: 'Locale: en' },
+      { kind: 'text' as const, text: 'Bakers bake.' },
+    ],
+    output: LeadResult,
+    maxTokens: 600,
+  };
+
+  it('reads a recorded lead answer with the text model and a strict schema', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json(fixture('lead')));
+    const model = new OpenAITextModel({ ...options, fetch: fetcher });
+    await expect(model.complete(lead)).resolves.toEqual({
+      json: { lead: 'Bakers use less salt in their spiced biscuits this year.' },
+      model: 'mistral-small',
+      usage: { inputTokens: 96, outputTokens: 14 },
+    });
+    const sent = JSON.parse(fetcher.mock.calls[0]![1]!.body as string);
+    expect(sent.model).toBe('text');
+    expect(sent.response_format.json_schema.strict).toBe(true);
+    expect(sent.messages[1].content).toEqual([
+      { type: 'text', text: 'Locale: en' },
+      { type: 'text', text: 'Bakers bake.' },
+    ]);
+  });
+
+  it('refuses a lead answer that breaks the schema', async () => {
+    const recorded = fixture('lead');
+    const body = JSON.stringify({
+      ...recorded,
+      choices: [{ message: { content: '{"lead":"First line\\nsecond line"}' } }],
+    });
+    const model = new OpenAITextModel({ ...options, fetch: vi.fn(async () => new Response(body)) });
+    await expect(model.complete(lead)).rejects.toEqual(new TextModelError('invalid-output'));
+  });
 });
 
 describe('failure classification', () => {

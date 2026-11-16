@@ -1,6 +1,8 @@
 // The in-memory store partitions tenants by construction. This suite checks the new suggestion
 // and consent tables under real forced RLS: an id copied from one site is unusable on another.
 
+import { readFile } from 'node:fs/promises';
+import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Invoker, buildRegistry, systemPrincipal, useCases, type Principal } from '@mycel/core';
 import {
@@ -70,6 +72,8 @@ describe.skipIf(skip)('assistance tenant isolation', () => {
         id,
         itemId: created.item.id,
         baseRevisionId: created.revision.id,
+        task: 'alt',
+        sourceBlockIds: [],
         blockId: 'photo',
         locale: 'nl',
         status: 'ready',
@@ -107,5 +111,101 @@ describe.skipIf(skip)('assistance tenant isolation', () => {
         baseRevisionId: created.revision.id,
       })
     ).rejects.toMatchObject({ code: 'not_found' });
+  });
+
+  it('keeps a lead task with its source blocks per tenant, and 0065 types old rows by block id', async () => {
+    const pa = systemPrincipal(a, 'assist-test');
+    const pb = systemPrincipal(b, 'assist-test');
+    const created = await invoker.run(useCases.createItem, pa, {
+      slug: `assist-lead-${run}`,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'T' },
+        blocks: [],
+      },
+    });
+    const row = (id: string, task: 'alt' | 'translate' | 'lead', blockId: string) => ({
+      id,
+      itemId: created.item.id,
+      baseRevisionId: created.revision.id,
+      task,
+      blockId,
+      sourceBlockIds: task === 'lead' ? ['intro', 'body'] : [],
+      locale: 'nl',
+      status: 'pending' as const,
+      value: null,
+      failure: null,
+      provider: 'Fake model',
+      requestedBy: null,
+      model: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const lead = uuidv7();
+    await uow.run(pa, (ctx) => ctx.assist.insert(row(lead, 'lead', 'lead')));
+    expect(await uow.run(pa, (ctx) => ctx.assist.get(lead))).toMatchObject({
+      task: 'lead',
+      blockId: 'lead',
+      sourceBlockIds: ['intro', 'body'],
+    });
+    expect(await uow.run(pb, (ctx) => ctx.assist.get(lead))).toBeNull();
+    expect(await uow.run(pb, (ctx) => ctx.assist.list(created.item.id))).toEqual([]);
+
+    // Replay the 0065 backfill over rows written as before it (every row read as alt), inside a
+    // transaction under tenant a's context that is rolled back.
+    const migration = await readFile(
+      new URL('../migrations/0065_assist_task.sql', import.meta.url),
+      'utf8'
+    );
+    const backfill = /update assist_suggestions[^;]*;/.exec(migration)?.[0];
+    expect(backfill).toBeDefined();
+    const translation = uuidv7();
+    const alt = uuidv7();
+    const rollback = new Error('rollback');
+    const seen = await appDb
+      .transaction()
+      .execute(async (trx) => {
+        await sql`select set_config('app.tenant_id', ${a}, true)`.execute(trx);
+        for (const [id, blockId] of [
+          [translation, 'translate:{"from":"nl","to":"en","targets":["title"]}'],
+          [alt, 'photo'],
+        ] as const)
+          await trx
+            .insertInto('assist_suggestions')
+            .values({
+              id,
+              tenant_id: a,
+              item_id: created.item.id,
+              base_revision_id: created.revision.id,
+              task: 'alt',
+              block_id: blockId,
+              source_block_ids: [],
+              locale: 'nl',
+              status: 'failed',
+              value: null,
+              failure: 'rejected',
+              provider: 'Fake model',
+              requested_by: null,
+              model: null,
+              created_at: new Date(),
+              updated_at: new Date(),
+            })
+            .execute();
+        await sql.raw(backfill!).execute(trx);
+        const rows = await trx
+          .selectFrom('assist_suggestions')
+          .select(['id', 'task'])
+          .where('id', 'in', [translation, alt, lead])
+          .execute();
+        throw Object.assign(rollback, { rows });
+      })
+      .catch((e: Error & { rows?: { id: string; task: string }[] }) => {
+        if (e !== rollback) throw e;
+        return Object.fromEntries((e.rows ?? []).map((r) => [r.id, r.task]));
+      });
+    expect(seen).toEqual({ [translation]: 'translate', [alt]: 'alt', [lead]: 'lead' });
+    expect(await uow.run(pa, (ctx) => ctx.assist.get(translation))).toBeNull();
   });
 });

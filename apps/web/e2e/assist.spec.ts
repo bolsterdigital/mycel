@@ -532,6 +532,100 @@ for (const locale of ['nl-NL', 'en-GB']) {
         'Een geteste afbeelding'
       );
     });
+
+    test('lead proposal from chosen text: request, edit, dismiss, retry and accept without JavaScript', async ({
+      page,
+    }) => {
+      await signInToFreshSite(page);
+      await enable(page);
+      const prose = (text: string) => ({
+        nl: {
+          type: 'doc' as const,
+          content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+        },
+      });
+      const edit = await inSite(page, async (invoker, principal) => {
+        const created = await invoker.run(useCases.createItem, principal, {
+          slug: `assist-lead-${test.info().project.name}-${Date.now()}`,
+          document: {
+            type: 'article',
+            defaultLocale: 'nl',
+            locales: ['nl', 'en'],
+            title: { nl: 'Pepernoten', en: 'Spiced biscuits' },
+            lead: { nl: 'Oude lead', en: 'Old lead' },
+            blocks: [
+              {
+                id: 'intro',
+                type: 'rich-text',
+                version: 1,
+                props: { content: prose('Bakkers bakken dit jaar pepernoten met minder zout.') },
+              },
+              {
+                id: 'quote',
+                type: 'quote',
+                version: 1,
+                props: { text: { nl: 'Lekker!' }, attribution: { name: 'Proever' } },
+              },
+              {
+                id: 'body',
+                type: 'rich-text',
+                version: 1,
+                props: { content: prose('Het recept blijft verder gelijk.') },
+              },
+            ],
+          },
+        });
+        return `${base(page)}/content/${created.item.id}`;
+      });
+      await page.goto(edit);
+      await page.getByRole('link', { name: /^(Lead voorstellen|Suggest a lead)$/ }).click();
+      await expect(page).toHaveURL(`${edit}/assist?task=lead&locale=nl`);
+      // Before anything is sent: the exact passages and the processor that would receive them.
+      await expect(page.locator('main')).toContainText('Fake model');
+      await expect(page.locator('main')).toContainText('Het recept blijft verder gelijk.');
+      await expect(page.locator('main')).not.toContainText('Lekker!');
+      await expectNoAxeViolations(page);
+      const request = page.getByRole('button', { name: /^(Suggestie vragen|Request suggestion)$/ });
+      await request.click();
+      await expect(page.getByRole('alert')).toContainText(/een tot drie|one to three/);
+      await page.getByLabel(/^(Tekstblok|Text block) 1 /).check();
+      await page.getByLabel(/^(Tekstblok|Text block) 2 /).check();
+      await request.click();
+      const first = new URL(page.url()).searchParams.get('suggestion');
+      expect(first).toBeTruthy();
+      await ready(page);
+      await expect(page.locator('#assist-value')).toHaveValue(
+        'Bakkers bakken dit jaar pepernoten met minder zout. Het recept blijft verder gelijk.'
+      );
+      const shots = test.info().project.name;
+      for (const [name, width, zoom] of [
+        ['narrow', 320, '100%'],
+        ['combined', 320, '200%'],
+      ] as const) {
+        await page.setViewportSize({ width, height: 900 });
+        await setTextSize(page, zoom);
+        await layoutGate(page, `lead ${locale} ${name}`, '.assist-actions');
+        await page.screenshot({
+          path: test.info().outputPath(`lead-${locale}-${name}-${shots}.png`),
+          fullPage: true,
+        });
+      }
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.reload();
+      await page.getByRole('button', { name: /Suggestie negeren|Dismiss suggestion/ }).click();
+      await expect(page).toHaveURL(`${edit}/assist?task=lead&locale=nl`);
+      await page.getByLabel(/^(Tekstblok|Text block) 2 /).check();
+      await request.click();
+      expect(new URL(page.url()).searchParams.get('suggestion')).not.toBe(first);
+      await ready(page);
+      await page
+        .locator('#assist-value')
+        .fill('Pepernoten met minder zout, verder hetzelfde recept.');
+      await acceptWithKeyboard(page);
+      await expect(page.locator('textarea[name="lead.nl"]')).toHaveValue(
+        'Pepernoten met minder zout, verder hetzelfde recept.'
+      );
+    });
   });
 }
 

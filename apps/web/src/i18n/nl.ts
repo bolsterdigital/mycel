@@ -2394,6 +2394,23 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.assist.error.invalid_input': 'Het voorstel is ongeldig. Controleer de waarde.',
   'admin.assist.error.limit_exceeded': 'De limiet voor suggesties is bereikt.',
   'admin.assist.error.forbidden': 'Je mag deze actie niet uitvoeren.',
+  'admin.assist.sent.lead':
+    'Alleen de tekstblokken die je aanvinkt, als platte tekst met de woorden van een link, en de taalcode.',
+  'admin.assist.notSent.lead':
+    'Titel, andere blokken en talen, linkadressen, voetnoten, auteurs, media, formulieren, supporterdata, operatoridentiteit en sitenaam.',
+  'admin.assist.lead': 'Lead voorstellen',
+  'admin.assist.lead.choose': 'Tekst waarop de lead gebaseerd wordt',
+  'admin.assist.lead.hint': 'Kies een tot drie tekstblokken, samen hoogstens 3.000 tekens.',
+  'admin.assist.lead.sent':
+    'Alleen de aangevinkte tekst en de taalcode ({locale}) gaan naar {provider}. Linkadressen, voetnoten en de rest van het artikel blijven hier.',
+  'admin.assist.lead.block': 'Tekstblok {n} ({count} tekens)',
+  'admin.assist.lead.based': 'Gebaseerd op',
+  'admin.assist.lead.check': 'Controleer elk feit tegen het artikel voordat je de lead overneemt.',
+  'admin.assist.error.article': 'Een lead voorstellen kan alleen bij een artikel.',
+  'admin.assist.error.lead-source': 'Kies een tot drie tekstblokken met tekst in deze taal.',
+  'admin.assist.error.lead-too-long':
+    'De gekozen tekst is langer dan 3.000 tekens. Kies minder blokken.',
+  'admin.assist.error.lead-value': 'Vul een lead van hoogstens 1.000 tekens in.',
   'admin.ui.choices.chosen': 'Gekozen:',
   'admin.ui.choices.count': '{shown} van {total} zichtbaar',
   'admin.ui.choices.search': 'Zoeken',

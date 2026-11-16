@@ -51,6 +51,17 @@ export class FakeTextModel implements TextModel {
       });
     if (this.failure) throw new TextModelError(this.failure);
     let json = this.result;
+    if (request.task === 'lead' && this.result === defaultAlt) {
+      // The first 200 characters of the passages, flattened: deterministic and always valid.
+      const text = request.parts
+        .slice(1)
+        .map((part) => (part.kind === 'text' ? part.text : ''))
+        .join(' ')
+        .replace(/[\s<>`*_]+/g, ' ')
+        .slice(0, 200)
+        .trim();
+      json = { lead: text || 'Lead' };
+    }
     if (request.task === 'translate' && this.result === defaultAlt) {
       const part = request.parts[0];
       if (!part || part.kind !== 'text') throw new TextModelError('invalid-output');
@@ -68,7 +79,7 @@ export class FakeTextModel implements TextModel {
     }
     return {
       json,
-      model: request.task === 'translate' ? 'fake-text' : 'fake-vision',
+      model: request.task === 'alt' ? 'fake-vision' : 'fake-text',
       usage: { inputTokens: 1, outputTokens: 1 },
     };
   }

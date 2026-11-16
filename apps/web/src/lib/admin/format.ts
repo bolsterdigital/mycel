@@ -2,6 +2,10 @@
 // copy per page, which is how two pages start showing one file's size or one date differently.
 import { ui } from '../../i18n/index.js';
 
+/** A locale's name in its own language ("Nederlands", "English"), else its code. */
+export const languageName = (locale: string): string =>
+  new Intl.DisplayNames([locale], { type: 'language' }).of(locale) ?? locale;
+
 /** A byte count in the largest unit that keeps it above one (the media overview and detail). */
 export function formatBytes(n: number, locale: string): string {
   const [unit, d] =

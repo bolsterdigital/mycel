@@ -2366,6 +2366,23 @@ export const en = {
   'admin.assist.error.invalid_input': 'The proposal is invalid. Review the value and try again.',
   'admin.assist.error.limit_exceeded': 'The suggestion limit has been reached.',
   'admin.assist.error.forbidden': 'You cannot perform this action.',
+  'admin.assist.sent.lead':
+    'Only the text blocks you check, as plain text including the words of a link, and the language code.',
+  'admin.assist.notSent.lead':
+    'Title, other blocks and languages, link addresses, footnotes, authors, media, forms, supporter data, operator identity, and site name.',
+  'admin.assist.lead': 'Suggest a lead',
+  'admin.assist.lead.choose': 'Text to base the lead on',
+  'admin.assist.lead.hint': 'Choose one to three text blocks, at most 3,000 characters together.',
+  'admin.assist.lead.sent':
+    'Only the checked text and the language code ({locale}) go to {provider}. Link addresses, footnotes and the rest of the article stay here.',
+  'admin.assist.lead.block': 'Text block {n} ({count} characters)',
+  'admin.assist.lead.based': 'Based on',
+  'admin.assist.lead.check': 'Check every fact against the article before you accept the lead.',
+  'admin.assist.error.article': 'A lead can only be suggested for an article.',
+  'admin.assist.error.lead-source': 'Choose one to three text blocks with words in this language.',
+  'admin.assist.error.lead-too-long':
+    'The chosen text is longer than 3,000 characters. Choose fewer blocks.',
+  'admin.assist.error.lead-value': 'Enter a lead of at most 1,000 characters.',
   'admin.ui.choices.chosen': 'Chosen:',
   'admin.ui.choices.count': '{shown} of {total} shown',
   'admin.ui.choices.search': 'Search',

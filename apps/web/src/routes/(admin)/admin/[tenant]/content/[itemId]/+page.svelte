@@ -13,6 +13,7 @@
   import PublicationDrawer from '#lib/admin/ui/feedback/PublicationDrawer.svelte';
   import WritingSurface from '#lib/editor/WritingSurface.svelte';
   import ItemTitleField from '#lib/editor/ItemTitleField.svelte';
+  import { languageName } from '#lib/admin/format.js';
   import BlockFields from '#lib/admin/block-fields/BlockFields.svelte';
   import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
   import HeroConversion from '#lib/admin/hero-conversion/HeroConversion.svelte';
@@ -176,9 +177,6 @@
     })
   );
 
-  const languageName = (locale: string) =>
-    new Intl.DisplayNames([locale], { type: 'language' }).of(locale) ?? locale;
-
   type Publication = (typeof data.item.publication)[number];
   type Tone = 'neutral' | 'info' | 'success' | 'warning';
   /** A locale's state in words (brief edit-screen table stake 8). */
@@ -297,7 +295,8 @@
     {@const sources = docLocales.filter(
       (source: string) => source !== locale && !!v(`${field}.${source}`)
     )}
-    {#if sources.length}
+    {@const lead = target === 'lead' && data.leadAssist}
+    {#if sources.length || lead}
       <p class="ui-hint">
         {#each sources as source (source)}
           <a href={assist({ task: 'translate', from: source, to: locale, target })}>
@@ -305,6 +304,7 @@
             {label} ({locale})
           </a>
         {/each}
+        {#if lead}<a href={assist({ task: 'lead', locale })}>{t('admin.assist.lead')}</a>{/if}
       </p>
     {/if}
   {/if}

@@ -18,6 +18,11 @@ export const en = {
   'assist.error.unavailable': 'No assistance provider is available.',
   'assist.error.locale': 'This locale is not part of the item.',
   'assist.error.image': 'Choose a non-decorative image block.',
+  'assist.error.article': 'A lead can only be suggested for an article.',
+  'assist.error.lead-source': 'Choose one to three text blocks with words in this language.',
+  'assist.error.lead-too-long':
+    'The chosen text is longer than 3,000 characters. Choose fewer blocks.',
+  'assist.error.lead-value': 'Enter a lead of at most 1,000 characters.',
   'forms.error.inactive': 'This field is not active for your answers.',
   'forms.error.value': 'Enter a valid value for this field.',
   'forms.error.version': 'This form has changed. Reload the page and try again.',

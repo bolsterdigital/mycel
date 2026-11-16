@@ -1,6 +1,13 @@
 // A native suggestion page keeps the source and revision visible across 303 refreshes. Rejected:
 // accepting a suggestion id alone, which would let a forged POST select another field or item.
-import { can, decodeTranslation, translationValue, useCases, UseCaseError } from '@mycel/core';
+import {
+  can,
+  decodeTranslation,
+  leadCandidates,
+  translationValue,
+  useCases,
+  UseCaseError,
+} from '@mycel/core';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { contentLocale } from '#lib/server/content/content-locale.js';
@@ -70,6 +77,8 @@ const context = async (event: {
       !revision.document.locales.includes(locale)
     )
       refuse(404);
+  } else if (task === 'lead') {
+    if (item.type !== 'article' || !revision.document.locales.includes(locale)) refuse(404);
   } else if (task === 'translate') {
     if (
       from === to ||
@@ -79,7 +88,20 @@ const context = async (event: {
     )
       refuse(404);
   } else refuse(404);
-  return { tenant, principal, item, revision, task, locale, block, from, to, target, rt };
+  return {
+    tenant,
+    principal,
+    item,
+    revision,
+    task,
+    locale,
+    block,
+    from,
+    to,
+    target,
+    rt,
+    provider: settings.provider,
+  };
 };
 
 const urlOf = (url: URL, id?: string) => {
@@ -94,11 +116,13 @@ const matches = (
   c: Awaited<ReturnType<typeof context>>,
   suggestion: {
     itemId: string;
+    task: string;
     blockId: string;
     locale: string;
   }
 ) => {
-  if (suggestion.itemId !== c.item.id) return false;
+  if (suggestion.itemId !== c.item.id || suggestion.task !== c.task) return false;
+  if (c.task === 'lead') return suggestion.locale === c.locale;
   if (c.task === 'alt') return suggestion.blockId === c.block && suggestion.locale === c.locale;
   const descriptor = decodeTranslation(suggestion.blockId);
   return (
@@ -111,7 +135,14 @@ const matches = (
   );
 };
 
-const failure = (e: UseCaseError) => ({
+/** A refusal whose own reason the page words, else its code. */
+const SPECIFIC = ['article', 'lead-source', 'lead-too-long', 'lead-value'] as const;
+const failure = (e: UseCaseError) => {
+  const issue = e.issues?.[0]?.message.replace(/^assist\.error\./, '');
+  const specific = SPECIFIC.find((s) => s === issue);
+  return specific ? { status: 400, problem: specific } : coded(e);
+};
+const coded = (e: UseCaseError) => ({
   status:
     e.code === 'conflict'
       ? 409
@@ -126,14 +157,17 @@ const failure = (e: UseCaseError) => ({
 export const load: PageServerLoad = async (event) => {
   const parent = await event.parent();
   const c = await context(event);
+  const candidates = c.task === 'lead' ? leadCandidates(c.revision.document, c.locale) : [];
   const source =
-    c.task === 'alt'
-      ? ((
-          c.revision.document.blocks.find((b) => b.id === c.block) as {
-            props: { alt?: Record<string, string> };
-          }
-        ).props.alt?.[c.locale] ?? '')
-      : (translationValue(c.revision.document, c.target, c.from) ?? '');
+    c.task === 'lead'
+      ? ''
+      : c.task === 'alt'
+        ? ((
+            c.revision.document.blocks.find((b) => b.id === c.block) as {
+              props: { alt?: Record<string, string> };
+            }
+          ).props.alt?.[c.locale] ?? '')
+        : (translationValue(c.revision.document, c.target, c.from) ?? '');
   const id = event.url.searchParams.get('suggestion');
   const suggestion = id
     ? await read(event.locals, () =>
@@ -167,6 +201,9 @@ export const load: PageServerLoad = async (event) => {
     target: c.target,
     block: c.block,
     stale: !!suggestion && suggestion.baseRevisionId !== c.revision.id,
+    candidates,
+    chosen: suggestion?.sourceBlockIds ?? [],
+    provider: c.provider ?? '',
     tenant: { slug: c.tenant.slug },
     query: `&${event.url.searchParams.toString()}`,
   };
@@ -176,26 +213,37 @@ export const actions: Actions = {
   request: async (event) => {
     const c = await context(event);
     const data = await event.request.formData();
+    const blockIds = data.getAll('blockId').map(String);
+    // No box or more than three ticked is the editor's choice to correct, worded as such.
+    if (c.task === 'lead' && (blockIds.length < 1 || blockIds.length > 3))
+      return fail(400, { problem: 'lead-source' as const, blockIds });
     try {
       const result =
-        c.task === 'alt'
-          ? await c.rt.invoker.run(useCases.suggestAlt, c.principal, {
+        c.task === 'lead'
+          ? await c.rt.invoker.run(useCases.suggestLead, c.principal, {
               itemId: c.item.id,
               baseRevisionId: field(data, 'baseRevisionId'),
-              blockId: c.block,
               locale: c.locale,
+              blockIds,
             })
-          : await c.rt.invoker.run(useCases.suggestTranslation, c.principal, {
-              itemId: c.item.id,
-              baseRevisionId: field(data, 'baseRevisionId'),
-              from: c.from,
-              to: c.to,
-              targets: [c.target],
-            });
+          : c.task === 'alt'
+            ? await c.rt.invoker.run(useCases.suggestAlt, c.principal, {
+                itemId: c.item.id,
+                baseRevisionId: field(data, 'baseRevisionId'),
+                blockId: c.block,
+                locale: c.locale,
+              })
+            : await c.rt.invoker.run(useCases.suggestTranslation, c.principal, {
+                itemId: c.item.id,
+                baseRevisionId: field(data, 'baseRevisionId'),
+                from: c.from,
+                to: c.to,
+                targets: [c.target],
+              });
       redirect(303, urlOf(event.url, result.suggestionId));
     } catch (e) {
       const { status, problem } = failure(refusalOf(e));
-      return fail(status, { problem });
+      return fail(status, { problem, blockIds });
     }
   },
   accept: async (event) => {
