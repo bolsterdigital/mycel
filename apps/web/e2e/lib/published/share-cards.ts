@@ -55,17 +55,18 @@ export async function exerciseShareCards(page: Page) {
     return out;
   });
 
+  // A plain request, as a crawler fetches: the browser would answer a public page from its cache.
   const head = async (path: string) => {
-    await page.goto(path);
-    const meta = (property: string) =>
-      page.locator(`meta[property="${property}"]`).getAttribute('content');
+    const html = await (await page.request.get(path)).text();
+    const meta = (key: string) =>
+      new RegExp(`<meta (?:property|name)="${key}" content="([^"]*)"`).exec(html)?.[1] ?? null;
     return {
-      image: await meta('og:image'),
-      width: await meta('og:image:width'),
-      height: await meta('og:image:height'),
-      type: await meta('og:image:type'),
-      alt: await meta('og:image:alt'),
-      twitter: await page.locator('meta[name="twitter:card"]').getAttribute('content'),
+      image: meta('og:image')?.replaceAll('&amp;', '&') ?? null,
+      width: meta('og:image:width'),
+      height: meta('og:image:height'),
+      type: meta('og:image:type'),
+      alt: meta('og:image:alt'),
+      twitter: meta('twitter:card'),
     };
   };
 
@@ -89,7 +90,8 @@ export async function exerciseShareCards(page: Page) {
   expect(en.alt).toBe(`Kaart ${id} (en)`);
 
   // (b) The card itself: an immutable PNG; any other fingerprint is a 404.
-  const path = new URL(nl.image!).pathname;
+  // The absolute URL: the card lives on the site's primary hostname, as the head names it.
+  const path = nl.image!;
   const res = await page.request.get(path);
   expect(res.status()).toBe(200);
   expect(res.headers()['content-type']).toBe('image/png');

@@ -940,14 +940,20 @@ test('a page gets its featured image from the picker, and shares it when publish
   await expect(page.locator('#featuredImageId')).toContainText(filename);
   await expectNoAxeViolations(page);
 
-  // No share image of its own: the featured image is the one a share preview shows.
-  const html = await (await request.get(`${SITE}/${slug}`)).text();
+  // No share image of its own: the worker draws a card with the featured image beside the
+  // title, and a share preview shows that card (content-model.md § Share images).
+  let html = '';
+  await expect
+    .poll(async () => {
+      html = await (await request.get(`${SITE}/${slug}`)).text();
+      return /<meta property="og:image" content="[^"]*\/_share\//.test(html);
+    })
+    .toBe(true);
   const meta = (key: string) =>
     new RegExp(`<meta (?:property|name)="${key}" content="([^"]*)"`).exec(html)?.[1];
-  expect(meta('og:image')).toBe(`${SITE}/media/${id}/w400.webp`);
-  // A featured image has no alt to give: alt text belongs to a use, and this use has none.
-  expect(meta('og:image:alt')).toBeUndefined();
-  expect([meta('og:image:width'), meta('og:image:height')]).toEqual(['400', '300']);
+  // The card shows the title, so the title is its alt.
+  expect(meta('og:image:alt')).toBe(`Uitgelicht ${stamp}`);
+  expect([meta('og:image:width'), meta('og:image:height')]).toEqual(['1200', '630']);
   expect(meta('og:title')).toBe(`Uitgelicht ${stamp}`);
   expect(meta('og:url')).toBe(`${SITE}/${slug}`);
   expect(meta('twitter:card')).toBe('summary_large_image');
