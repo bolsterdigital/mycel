@@ -1538,24 +1538,26 @@ for (const state of NAVIGATION_STATES)
     });
 
 for (const state of NAVIGATION_STATES)
-  test(`navigation preview boundaries ${state.name}`, async ({ page }) => {
-    const { slug, hash } = await seedNavigationStress(state);
-    test.info().annotations.push({ type: 'fixture-sha256', description: hash });
-    await exerciseNavigationPreviewStress(page, state, slug);
-  });
-
-for (const state of NAVIGATION_STATES)
-  for (const kind of ['saved', 'live'] as const)
-    test(`item preview boundaries ${state.name} ${kind}`, async ({ page }) => {
-      if (kind === 'live') onlyA11y('the live preview is an enhancement');
-      const { slug, homeItemId, hash } = await seedNavigationStress(state);
+  for (const colors of ['none', 'active'] as const) {
+    test(`navigation preview boundaries ${state.name} ${colors}`, async ({ page }) => {
+      const { slug, hash } = await seedNavigationStress(state);
       test.info().annotations.push({ type: 'fixture-sha256', description: hash });
-      await exerciseItemPreviewStress(page, state, slug, homeItemId, kind);
+      await exerciseNavigationPreviewStress(page, state, slug, { colorModes: [colors] });
     });
+    for (const kind of ['saved', 'live'] as const)
+      test(`item preview boundaries ${state.name} ${kind} ${colors}`, async ({ page }) => {
+        if (kind === 'live') onlyA11y('the live preview is an enhancement');
+        const { slug, homeItemId, hash } = await seedNavigationStress(state);
+        test.info().annotations.push({ type: 'fixture-sha256', description: hash });
+        await exerciseItemPreviewStress(page, state, slug, homeItemId, kind, {
+          colorModes: [colors],
+        });
+      });
+  }
 
 // Keep each boundary fixture within the ordinary test budget, independent of the editor flow.
 for (const state of NAVIGATION_STATES)
-  for (const colors of ['none', 'active'] as const)
+  for (const colors of ['none', 'active'] as const) {
     test(`navigation boundaries ${state.name} ${colors} at real Chromium 400% browser zoom`, async () => {
       await withBrowserZoom(
         4,
@@ -1573,6 +1575,24 @@ for (const state of NAVIGATION_STATES)
         { javaScriptEnabled: isA11y() }
       );
     });
+    test(`preview boundaries ${state.name} ${colors} at real Chromium 400% browser zoom`, async () => {
+      await withBrowserZoom(
+        4,
+        async ({ page, before }) => {
+          const { slug, homeItemId, hash } = await seedNavigationStress(state);
+          test.info().annotations.push({ type: 'fixture-sha256', description: hash });
+          const zoomed = { widths: [0], colorModes: [colors], origin: 'http://127.0.0.1:4173' };
+          await exerciseNavigationPreviewStress(page, state, slug, zoomed);
+          await exerciseItemPreviewStress(page, state, slug, homeItemId, 'saved', {
+            ...zoomed,
+            signedIn: true,
+          });
+          expect(await page.evaluate(() => innerWidth)).toBeCloseTo(before.width / 4, 0);
+        },
+        { javaScriptEnabled: isA11y() }
+      );
+    });
+  }
 
 // A complete bilingual site: tenant chrome and theme through real use cases and the public
 // renderer, including the no-JavaScript/320 px/200% task gate (#11 E, ADR 009/013).

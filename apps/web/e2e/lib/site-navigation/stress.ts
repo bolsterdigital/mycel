@@ -256,7 +256,7 @@ export async function exerciseNavigationStress(
 }
 
 // Real browser zoom needs a physical-viewport capture; Playwright's CSS clip crops it.
-async function screenshot(page: Page, name: string, width: number) {
+export async function screenshot(page: Page, name: string, width: number) {
   const path = test.info().outputPath(`${name}.png`);
   if (width) await page.screenshot({ path });
   else {
@@ -281,73 +281,125 @@ const previewCards = ({ links }: (typeof NAVIGATION_STATES)[number]) =>
   (links.main?.length ?? 0) * (links.mainInFooter ? 2 : 1) + (links.actions?.length ?? 0);
 
 /**
+ * Where a preview matrix runs. A width of 0 keeps the viewport, as real browser zoom sets it;
+ * `origin` makes paths absolute for a context without a base URL (the zoom context);
+ * `signedIn` skips the login when an earlier helper in the same context already did it.
+ */
+export interface PreviewMatrix {
+  widths?: number[];
+  colorModes?: readonly ('none' | 'active')[];
+  origin?: string;
+  signedIn?: boolean;
+}
+
+/** In forced colours a card or badge keeps its shape only as a border on every side. */
+export function forcedShapeProblems(page: Page, scope: string): Promise<string[]> {
+  return page.evaluate(
+    (scope) =>
+      [...document.querySelectorAll(`:is(${scope}) :is(.ui-menu-item, .ui-badge)`)]
+        .filter((el) => el.checkVisibility())
+        .filter((el) => {
+          const style = getComputedStyle(el);
+          return (
+            style.forcedColorAdjust === 'none' ||
+            ['top', 'right', 'bottom', 'left'].some(
+              (side) =>
+                style.getPropertyValue(`border-${side}-style`) === 'none' ||
+                parseFloat(style.getPropertyValue(`border-${side}-width`)) === 0
+            )
+          );
+        })
+        .map((el) => `shape lost in forced colours: ${el.textContent?.trim().slice(0, 40)}`),
+    scope
+  );
+}
+
+/**
  * The same boundary fixture in the editor's navigation preview (brief site-navigation
- * § 10): its site editor opens `/admin/<site>/navigation/preview/<locale>` in nl and en at 320
- * and 1440 px with ordinary and 200% text. Per cell the layout gate measures the preview's
- * placements, every card keeps its text inside, a link there stays in the admin or is whole, and
- * in a11y the whole page passes axe. The preview renders no logo; a font fixture still fails its
- * fonts, so the admin's own fallback is what is measured.
+ * § 10): its site editor opens `/admin/<site>/navigation/preview/<locale>` in nl and en at 320,
+ * 768 and 1440 px (or at real browser zoom) with ordinary and 200% text, without and with forced
+ * colours. Per cell the layout gate measures the preview's placements, every card keeps its text
+ * inside, a link there stays in the admin or is whole, in forced colours every card and badge
+ * keeps its border, and in a11y the whole page passes axe. The preview renders no logo; a font
+ * fixture still fails its fonts, so the admin's own fallback is what is measured.
  * Rejected: measuring the whole admin page with the gate, which would test the admin shell (its
  * own suites do) and hide which part of the preview broke.
  */
 export async function exerciseNavigationPreviewStress(
   page: Page,
   state: (typeof NAVIGATION_STATES)[number],
-  slug: string
+  slug: string,
+  {
+    widths = [320, 768, 1440],
+    colorModes = ['none', 'active'],
+    origin = '',
+    signedIn = false,
+  }: PreviewMatrix = {}
 ) {
   const scope = '[id^="preview-"]';
   if (state.fontFailure) await page.route('**/*.woff2', (route) => route.abort('failed'));
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const cells: { cell: string; cards: number }[] = [];
-  for (const locale of ['nl', 'en']) {
-    const path = `/admin/${slug}/navigation/preview/${locale}`;
-    for (const width of [320, 1440]) {
-      await page.setViewportSize({ width, height: 900 });
-      for (const text of ['', '200%']) {
-        if (cells.length) await page.goto(path);
-        else await login(page, path, `site-editor-${slug}@probe.test`);
-        const cell = `preview/${state.name}/${locale}/${width}/${text || '100%'}`;
-        await setTextSize(page, text);
-        await expect(page.locator('#preview-main')).toBeVisible();
-        const cards = page.locator(`:is(${scope}) .ui-menu-item`);
-        await expect(cards, cell).toHaveCount(previewCards(state));
-        await layoutGate(page, cell, scope);
-        const problems = await page.evaluate(
-          ({ scope, admin }) => {
-            const whole = (el: Element) =>
-              el.checkVisibility() && el.scrollWidth <= el.clientWidth + 1;
-            const out = [
-              ...document.querySelectorAll(
-                `:is(${scope}) :is(.ui-menu-item, .ui-menu-item-label, .ui-menu-item-facts, h3)`
-              ),
-            ]
-              .filter((el) => !whole(el))
-              .map((el) => `card text past its box: ${el.textContent?.trim().slice(0, 60)}`);
-            for (const a of document.querySelectorAll<HTMLAnchorElement>(`:is(${scope}) a`))
-              if (!new URL(a.href).pathname.startsWith(admin) && !whole(a))
-                out.push(`link leaves the preview and is not whole: ${a.href}`);
-            return out;
-          },
-          { scope, admin: `/admin/${slug}/` }
-        );
-        expect(problems, cell).toEqual([]);
-        if (width === 320 && text === '200%') {
-          await page.locator('#preview-main').scrollIntoViewIfNeeded();
-          await page.screenshot({
-            path: test.info().outputPath(`${cell.replaceAll('/', '-')}.png`),
-          });
+  for (const colors of colorModes) {
+    await page.emulateMedia({ forcedColors: colors });
+    for (const locale of ['nl', 'en']) {
+      const path = `${origin}/admin/${slug}/navigation/preview/${locale}`;
+      for (const width of widths) {
+        if (width) await page.setViewportSize({ width, height: 900 });
+        for (const text of ['', '200%']) {
+          if (cells.length || signedIn) await page.goto(path);
+          else await login(page, path, `site-editor-${slug}@probe.test`);
+          const cell = `preview/${state.name}/${locale}/${width || 'browser-zoom'}/${text || '100%'}/${colors}`;
+          await setTextSize(page, text);
+          await expect(page.locator('#preview-main')).toBeVisible();
+          const cards = page.locator(`:is(${scope}) .ui-menu-item`);
+          await expect(cards, cell).toHaveCount(previewCards(state));
+          await layoutGate(page, cell, scope);
+          const problems = await page.evaluate(
+            ({ scope, admin }) => {
+              const whole = (el: Element) =>
+                el.checkVisibility() && el.scrollWidth <= el.clientWidth + 1;
+              const out = [
+                ...document.querySelectorAll(
+                  `:is(${scope}) :is(.ui-menu-item, .ui-menu-item-label, .ui-menu-item-facts, h3)`
+                ),
+              ]
+                .filter((el) => !whole(el))
+                .map((el) => `card text past its box: ${el.textContent?.trim().slice(0, 60)}`);
+              for (const a of document.querySelectorAll<HTMLAnchorElement>(`:is(${scope}) a`))
+                if (!new URL(a.href).pathname.startsWith(admin) && !whole(a))
+                  out.push(`link leaves the preview and is not whole: ${a.href}`);
+              return out;
+            },
+            { scope, admin: `/admin/${slug}/` }
+          );
+          if (colors === 'active') problems.push(...(await forcedShapeProblems(page, scope)));
+          expect(problems, cell).toEqual([]);
+          if (width === widths[0] && text === '200%') {
+            await page.locator('#preview-main').scrollIntoViewIfNeeded();
+            await screenshot(page, cell.replaceAll('/', '-'), width);
+          }
+          await expectNoAxeViolations(page, { label: cell });
+          cells.push({ cell, cards: await cards.count() });
         }
-        await expectNoAxeViolations(page, { label: cell });
-        cells.push({ cell, cards: await cards.count() });
       }
     }
   }
+  await page.emulateMedia({ forcedColors: 'none' });
   if (state.fontFailure) await page.unroute('**/*.woff2');
-  await attachJson(`navigation-preview-${state.name}.json`, {
-    state,
-    project: test.info().project.name,
-    fixtureHash: createHash('sha256').update(JSON.stringify(state)).digest('hex'),
-    scope,
-    cells,
-  });
+  await attachJson(
+    `navigation-preview-${state.name}-${widths.join('-')}-${colorModes.join('-')}.json`,
+    {
+      state,
+      project: test.info().project.name,
+      browser: page.context().browser()?.version(),
+      fixtureHash: createHash('sha256').update(JSON.stringify(state)).digest('hex'),
+      scope,
+      widths,
+      forcedColors: colorModes,
+      reducedMotion: 'reduce',
+      viewport: await page.evaluate(() => ({ width: innerWidth, ratio: devicePixelRatio })),
+      cells,
+    }
+  );
 }
