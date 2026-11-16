@@ -72,6 +72,8 @@ export interface TenantStore {
   items: Map<string, ItemRecord>;
   /** The items in the trash, by id, with when they went there (ADR 030). */
   trashedItems: Map<string, Date>;
+  /** Old addresses (0062), keyed `<type>:<slug>`. */
+  redirects: Map<string, { itemId: string; createdAt: Date }>;
   revisions: Map<string, Revision>;
   /** `site_navigation` and its revisions, locale pointers and refs (0056). */
   navigation: {
@@ -169,6 +171,7 @@ const emptyTenant = (): TenantStore => ({
   assistUsage: new Map(),
   items: new Map(),
   trashedItems: new Map(),
+  redirects: new Map(),
   revisions: new Map(),
   navigation: { head: null, revisions: new Map(), locales: new Map() },
   blockRefs: new Map(),

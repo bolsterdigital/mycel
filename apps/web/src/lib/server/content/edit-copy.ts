@@ -21,6 +21,7 @@ export const DONE: Record<string, UiKey> = {
   offer: 'admin.content.review.done.offer',
   withdrawOffer: 'admin.content.review.done.withdraw',
   translationApproved: 'admin.assist.approved',
+  oldAddressRemoved: 'admin.content.slug.oldRemoved',
 };
 
 /** Core's readiness and reference issues as admin copy; unknown keys get the generic line. */
@@ -71,5 +72,4 @@ export const SLUG_ISSUES: Record<string, UiKey> = {
   'content.slug.invalid': 'admin.content.error.slugInvalid',
   'content.slug.reserved': 'admin.content.error.slugReserved',
   'content.slug.taken': 'admin.content.error.slugTaken',
-  'content.slug.published': 'admin.content.error.slugPublished',
 };

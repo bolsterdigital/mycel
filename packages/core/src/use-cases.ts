@@ -96,6 +96,7 @@ import {
 } from './content/operations.js';
 import { convertHero, getHeroConversion } from './content/header/hero-conversion.js';
 import { getPublished } from './content/public.js';
+import { deleteRedirect, listRedirects, resolveRedirect } from './content/address/redirects.js';
 import { listPublished } from './content/published/list.js';
 import { getOverview } from './content/published/overview.js';
 import { findPublished } from './content/published/search.js';
@@ -244,6 +245,9 @@ export const useCases = {
   requestContentReview,
   withdrawContentReview,
   updateSlug,
+  resolveRedirect,
+  listRedirects,
+  deleteRedirect,
   insertBlock,
   insertPattern,
   moveBlock,

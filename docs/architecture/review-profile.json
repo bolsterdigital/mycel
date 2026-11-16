@@ -67,6 +67,7 @@
         "apps/web/src/lib/server/public/confirm*",
         "apps/web/src/lib/server/public/form-post*",
         "apps/web/src/lib/server/public/has-form*",
+        "apps/web/src/lib/server/public/old-address*",
         "apps/web/src/lib/server/media.ts",
         "apps/web/src/lib/server/content/preview.ts",
         "apps/web/src/routes/(preview)/**",
@@ -199,7 +200,7 @@
         "apps/web/src/lib/server/content/presence*",
         "apps/web/src/lib/server/content/edit-copy*",
         "apps/web/src/lib/server/content/edit-path*",
-        "apps/web/src/lib/server/content/edit-slug*",
+        "apps/web/src/lib/server/content/address/**",
         "apps/web/src/lib/server/content/conflict/**",
         "apps/web/src/lib/server/content/arrange*",
         "apps/web/src/lib/editor/**",
@@ -239,7 +240,8 @@
         "apps/web/src/lib/server/content/content-locale*",
         "apps/web/src/params.ts",
         "packages/api/src/content-read.ts",
-        "apps/web/src/lib/server/public/share-locale*"
+        "apps/web/src/lib/server/public/share-locale*",
+        "apps/web/src/lib/server/public/old-address*"
       ],
       "adrs": ["007", "012", "018"],
       "gates": [

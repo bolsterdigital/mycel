@@ -41,6 +41,24 @@ export const slugTaken = (type: ContentType, slug: string) =>
     [{ path: 'slug', message: 'content.slug.taken' }]
   );
 
+/**
+ * Whether `slug` of `type` is in use for an item other than `itemId`: an item's address, or an old
+ * address that forwards to another item (0062), so a new item cannot take over a link readers
+ * still follow. The unique key on the item still decides a race between two items; a race with a
+ * rename that is turning the slug into an old address is not covered (notes for later).
+ */
+export async function slugHeld(
+  ctx: TransactionContext,
+  type: ContentType,
+  slug: string,
+  itemId?: string
+): Promise<boolean> {
+  const holder = await ctx.content.findBySlug(type, slug);
+  if (holder && holder.id !== itemId) return true;
+  const forwards = await ctx.content.redirectOf(type, slug);
+  return forwards !== null && forwards !== itemId;
+}
+
 const titleOf = (document: ContentDocumentInput): string =>
   document.title[document.defaultLocale] ?? Object.values(document.title)[0] ?? '';
 
@@ -66,7 +84,7 @@ export async function firstFreeSlug(
     const suffix = n === 1 ? '' : `-${n}`;
     const slug = `${stem.slice(0, 63 - suffix.length).replace(/-+$/, '')}${suffix}`;
     if (type === 'page' && isReservedPageSlug(slug)) continue;
-    if (!(await ctx.content.findBySlug(type, slug))) return slug;
+    if (!(await slugHeld(ctx, type, slug))) return slug;
   }
   throw new UseCaseError('conflict', `no free slug for "${stem}"`);
 }

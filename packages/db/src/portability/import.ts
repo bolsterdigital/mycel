@@ -90,6 +90,7 @@ const IMPORT_RULE = {
   content_bulk_effects: 'as-exported',
   assist_settings: 'as-exported',
   content_item_locales: 'as-exported',
+  content_redirects: 'as-exported',
   content_block_refs: 'as-exported',
   content_search: 'as-exported',
   site_navigation_revisions: 'as-exported',

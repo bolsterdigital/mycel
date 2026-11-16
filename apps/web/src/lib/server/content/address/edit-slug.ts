@@ -4,11 +4,11 @@
 // would make every revision save a slug write too.
 
 import { useCases, type Principal } from '@mycel/core';
-import { runtime } from '../runtime.js';
-import { text } from '../admin/admin-actions.js';
-import { refusalOf } from '../http/refuse.js';
-import { SLUG_ISSUES } from './edit-copy.js';
-import type { UiKey } from '../../../i18n/index.js';
+import { runtime } from '../../runtime.js';
+import { text } from '../../admin/admin-actions.js';
+import { refusalOf } from '../../http/refuse.js';
+import { SLUG_ISSUES } from '../edit-copy.js';
+import type { UiKey } from '../../../../i18n/index.js';
 
 /**
  * The slug the form was rendered with (`baseSlug`, next to the field), so a tab that never touched

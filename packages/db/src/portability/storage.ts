@@ -622,6 +622,12 @@ export const STORAGE = {
     ],
     retention: SITE_KEPT,
   },
+  content_redirects: {
+    category: 'content',
+    owner: 'tenant',
+    copies: IDS_ONLY,
+    retention: { kind: 'kept', why: 'an old address forwards until an editor removes it' },
+  },
   content_block_refs: {
     category: 'content',
     owner: 'tenant',

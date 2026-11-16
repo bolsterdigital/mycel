@@ -178,20 +178,6 @@ describe('content items', () => {
       expect((await rename(item.id, 'article-only')).slug).toBe('article-only');
     });
 
-    it('keeps the slug once any locale went live, also after it went offline again', async () => {
-      const { item, revision } = await create(pageDoc('Hello.'));
-      await invoker.run(useCases.publishItem, admin, {
-        itemId: item.id,
-        revisionId: revision.id,
-        locale: 'en',
-      });
-      await invoker.run(useCases.unpublishItem, admin, { itemId: item.id, locale: 'en' });
-      await expect(rename(item.id, 'elders')).rejects.toMatchObject({
-        code: 'invalid_input',
-        issues: [{ path: 'slug', message: 'content.slug.published' }],
-      });
-    });
-
     it('needs content:write and a known item of the tenant', async () => {
       const { item } = await create();
       const reader = principal({ capabilities: ['content:read'] });

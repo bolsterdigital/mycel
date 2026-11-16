@@ -1097,6 +1097,7 @@ export const en = {
   'admin.audit.op.content.review.request': 'Offered for publication',
   'admin.audit.op.content.review.withdraw': 'Offer for publication withdrawn',
   'admin.audit.op.content.slug.update': 'Address changed',
+  'admin.audit.op.content.redirect.delete': 'Old address removed',
   'admin.audit.op.content.item.update': 'Page or article saved',
   'admin.audit.op.content.pattern.create': 'Pattern created',
   'admin.audit.op.content.pattern.update': 'Pattern changed',
@@ -1411,11 +1412,14 @@ export const en = {
   'admin.content.event.onlineUrlHint': 'For an event that can be followed online.',
   'admin.content.slug.change': 'Change address',
   'admin.content.slug.editHint':
-    'The last part of the address: lowercase letters, digits and hyphens. Saved with Save, and it can change until the first publication.',
-  'admin.content.slug.fixed':
-    'The address is fixed since the first publication, so links keep working.',
+    'The last part of the address: lowercase letters, digits and hyphens. Saved with Save. Once the item has been published, the old address keeps working and sends visitors here.',
+  'admin.content.slug.old': 'Old addresses',
+  'admin.content.slug.oldHint':
+    'These addresses send visitors to this item. Remove one when another item should get it.',
+  'admin.content.slug.oldRemove': 'Remove {path}',
+  'admin.content.slug.oldRemoved': 'The old address was removed and no longer sends visitors here.',
   'admin.content.slug.hint':
-    'The last part of the address. Leave it empty and it is made from the title. It can change until the first publication.',
+    'The last part of the address. Leave it empty and it is made from the title. You can change it later.',
   'admin.content.field.title': 'Title',
   'admin.content.field.lead': 'Lead',
   'admin.content.field.authors': 'Authors',
@@ -1741,8 +1745,6 @@ export const en = {
   'admin.content.error.invalid': 'This could not be saved. Check the fields and try again.',
   'admin.content.error.slugTaken': 'There is already an item of this type with this slug.',
   'admin.content.error.slugReserved': 'The site uses this slug itself. Choose another.',
-  'admin.content.error.slugPublished':
-    'This item has been published before; its address stays as it is.',
   'admin.content.error.slugInvalid':
     'A slug has only lowercase letters, digits and hyphens, and starts with a letter or digit.',
   'admin.content.error.defaultLocale': 'The item needs the site’s main language.',
