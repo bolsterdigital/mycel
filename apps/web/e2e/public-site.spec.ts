@@ -60,6 +60,7 @@ import {
   NAVIGATION_STATES,
   seedNavigationStress,
   exerciseNavigationStress,
+  exerciseNavigationPreviewStress,
 } from './lib/site-navigation/stress';
 import { WALK, seedSiteSettings } from './lib/site-navigation/settings-fixture';
 import { CAPTION_MONO, themeCss } from '../src/lib/theme/tokens';
@@ -1533,6 +1534,13 @@ for (const state of NAVIGATION_STATES)
       test.info().annotations.push({ type: 'fixture-sha256', description: hash });
       await exerciseNavigationStress(page, state, slug, locale);
     });
+
+for (const state of NAVIGATION_STATES)
+  test(`navigation preview boundaries ${state.name}`, async ({ page }) => {
+    const { slug, hash } = await seedNavigationStress(state);
+    test.info().annotations.push({ type: 'fixture-sha256', description: hash });
+    await exerciseNavigationPreviewStress(page, state, slug);
+  });
 
 // Keep each boundary fixture within the ordinary test budget, independent of the editor flow.
 for (const state of NAVIGATION_STATES)
