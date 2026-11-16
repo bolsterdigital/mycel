@@ -16,6 +16,7 @@ import {
   Invoker,
   buildRegistry,
   supporterIngestSubscriber,
+  emailKey,
   systemPrincipal,
   useCases,
 } from '@mycel/core';
@@ -87,11 +88,18 @@ describe.skipIf(skip)('erasure backups conformance', () => {
       await sql`set local role mycel_backup`.execute(trx);
       return fn(trx);
     });
-  const record = (tenantId: string, supporterId: string) =>
-    asBackup((trx) =>
-      sql`insert into erasure_backups (tenant_id, supporter_id, snapshot_id)
-          values (${tenantId}, ${supporterId}, ${SNAPSHOT}) on conflict do nothing`.execute(trx)
+  const addressOf = (key: 'a' | 'b') => `erabak-${key}-${run}@example.org`;
+  /** Tenant A's supporter had this address before; her registration holds its hash too (0058). */
+  const olderA = `erabak-a-older-${run}@example.org`;
+  /** One row of a registration, as `secure` records each line of the snapshot's register. */
+  const record = async (tenantId: string, supporterId: string, address: string) => {
+    const hash = await emailKey(tenantId, address, 'erasure');
+    return asBackup((trx) =>
+      sql`insert into erasure_backups (tenant_id, supporter_id, email_hash, snapshot_id)
+          values (${tenantId}, ${supporterId}, ${hash}, ${SNAPSHOT})
+          on conflict do nothing`.execute(trx)
     );
+  };
 
   beforeAll(async () => {
     await migrateSchema(operatorUrl);
@@ -117,7 +125,7 @@ describe.skipIf(skip)('erasure backups conformance', () => {
         await testTenant(operatorDb, `erabak-${key}-${run}`, { name: `Erasure backups ${key}` })
       ).id;
       await uow.run(systemPrincipal(tenants[key], 'erasure-backups-test'), (ctx) =>
-        ctx.erasures.register(erased[key], `erabak-${key}-${run}@example.org`)
+        ctx.erasures.register(erased[key], addressOf(key), key === 'a' ? [olderA] : [])
       );
     }
   });
@@ -130,6 +138,7 @@ describe.skipIf(skip)('erasure backups conformance', () => {
   });
 
   it('reports a fresh registration as not secured, since when it was made', async () => {
+    // One registration, also with the row for her older address beside it.
     const status = await erasureStatus(operatorDb, tenants.a);
     expect(status).toMatchObject({ registered: 1, secured: 0 });
     expect(status.oldestUnsecuredAt).toBeInstanceOf(Date);
@@ -138,7 +147,13 @@ describe.skipIf(skip)('erasure backups conformance', () => {
 
   it('counts a registration the backup recorded as secured, per tenant', async (ctx) => {
     if (!superuser) ctx.skip();
-    await record(tenants.a, erased.a);
+    await record(tenants.a, erased.a, addressOf('a'));
+    // A backup that holds one of her two rows would restore without the older address's hash.
+    await expect(erasureStatus(operatorDb, tenants.a)).resolves.toMatchObject({
+      registered: 1,
+      secured: 0,
+    });
+    await record(tenants.a, erased.a, olderA);
     await expect(erasureStatus(operatorDb, tenants.a)).resolves.toEqual({
       registered: 1,
       secured: 1,
@@ -153,17 +168,18 @@ describe.skipIf(skip)('erasure backups conformance', () => {
 
   it('adds no second row when the same registration is recorded again', async (ctx) => {
     if (!superuser) ctx.skip();
-    await record(tenants.a, erased.a);
+    await record(tenants.a, erased.a, addressOf('a'));
+    await record(tenants.a, erased.a, olderA);
     const { rows } = await asBackup((trx) =>
       sql<{ n: string }>`select count(*) as n from erasure_backups
                          where tenant_id = ${tenants.a}`.execute(trx)
     );
-    expect(Number(rows[0]!.n)).toBe(1);
+    expect(Number(rows[0]!.n)).toBe(2);
   });
 
   it('refuses a record of a registration that does not exist', async (ctx) => {
     if (!superuser) ctx.skip();
-    await expect(record(tenants.a, uuidv7())).rejects.toThrow(/foreign key/);
+    await expect(record(tenants.a, uuidv7(), addressOf('a'))).rejects.toThrow(/foreign key/);
   });
 
   // That the backup login writes nothing else (not the register, not tenant data) is read from
@@ -171,7 +187,7 @@ describe.skipIf(skip)('erasure backups conformance', () => {
 
   it('lets mycel_app read its own records and write none', async (ctx) => {
     if (!superuser) ctx.skip();
-    await record(tenants.b, erased.b);
+    await record(tenants.b, erased.b, addressOf('b'));
     const inTenant = <T>(tenantId: string, fn: (trx: Kysely<Database>) => Promise<T>) =>
       appDb.transaction().execute(async (trx) => {
         await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
@@ -180,11 +196,12 @@ describe.skipIf(skip)('erasure backups conformance', () => {
     const seen = await inTenant(tenants.a, (trx) =>
       sql<{ tenant_id: string }>`select tenant_id from erasure_backups`.execute(trx)
     );
-    expect(seen.rows.map((r) => r.tenant_id)).toEqual([tenants.a]);
+    expect(seen.rows.map((r) => r.tenant_id)).toEqual([tenants.a, tenants.a]);
+    const hash = await emailKey(tenants.a, addressOf('a'), 'erasure');
     await expect(
       inTenant(tenants.a, (trx) =>
-        sql`insert into erasure_backups (tenant_id, supporter_id, snapshot_id)
-            values (${tenants.a}, ${erased.a}, ${SNAPSHOT})`.execute(trx)
+        sql`insert into erasure_backups (tenant_id, supporter_id, email_hash, snapshot_id)
+            values (${tenants.a}, ${erased.a}, ${hash}, ${SNAPSHOT})`.execute(trx)
       )
     ).rejects.toThrow(/permission denied/);
     await expect(
@@ -270,19 +287,26 @@ describe.skipIf(skip)('erasure backups conformance', () => {
           .selectAll()
           .where('id', '=', lifecycleId)
           .executeTakeFirstOrThrow(),
-        registration: await trx
+        // Both rows of her registration: the current address and the older one (0058).
+        registrations: await trx
           .selectFrom('erasures')
           .selectAll()
           .where('supporter_id', '=', erased.a)
-          .executeTakeFirstOrThrow(),
+          .execute(),
       }));
+      expect(saved.registrations).toHaveLength(2);
       await withTenant(restoredDb, admin, async (trx) => {
         await trx.insertInto('supporter_lifecycles').values(saved.lifecycle).execute();
         await trx
           .insertInto('erasures')
-          .values({ ...saved.registration, actor: JSON.stringify(saved.registration.actor) })
+          .values(saved.registrations.map((r) => ({ ...r, actor: JSON.stringify(r.actor) })))
           .execute();
       });
+      // The overlay brought the older address's hash: a signup on it opens a lifecycle here too.
+      const onOlder = await restoredUow.run(admin, (c) =>
+        c.erasures.admit(olderA, uuidv7(), new Date())
+      );
+      expect(onOlder).toBeTruthy();
       expect(await restoredUow.run(admin, (c) => c.supporters.getProjection(address))).toBeNull();
       await applyErasures(restoredDb, tenantId);
       expect(await restoredUow.run(admin, (c) => c.submissions.findById(old.id))).toBeNull();

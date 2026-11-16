@@ -32,7 +32,7 @@ import { applyPersonErasures } from './people.js';
 export function memoryErasures(store: MemoryStore, principal: Principal, clock: Clock): Erasures {
   const tenantId = principal.tenantId;
   const s = store.for(tenantId);
-  const evidence = () => [...s.erasures].map(([supporterId, r]) => ({ supporterId, ...r }));
+  const evidence = () => registrationsOf(s.erasures);
   return {
     async admit(email, submissionId, at) {
       const hash = await emailKey(tenantId, email, 'erasure');
@@ -57,10 +57,22 @@ export function memoryErasures(store: MemoryStore, principal: Principal, clock: 
       const hash = await emailKey(tenantId, email, 'erasure');
       return allowsLifecycle(hash, lifecycleId, evidence(), [...s.supporterLifecycles.values()]);
     },
-    async register(supporterId, email) {
+    async carried(supporterId) {
+      const rows = [
+        ...[...s.projections.values()].filter((p) => p.id === supporterId),
+        ...[...s.events.values()].filter((e) => e.supporter_id === supporterId),
+      ];
+      return [...new Set(rows.map((r) => normalizeEmail(r.email)).filter((a) => !isTombstone(a)))];
+    },
+    async register(supporterId, email, older = []) {
       if (s.erasures.has(supporterId)) return;
+      const emailHash = await emailKey(tenantId, email, 'erasure');
+      const olderHashes = new Set<string>();
+      for (const a of older) olderHashes.add(await emailKey(tenantId, a, 'erasure'));
+      olderHashes.delete(emailHash);
       s.erasures.set(supporterId, {
-        emailHash: await emailKey(tenantId, email, 'erasure'),
+        emailHash,
+        ...(olderHashes.size ? { olderHashes: [...olderHashes] } : {}),
         erasedAt: clock.now(),
         actor: structuredClone(principal.actor),
       });
@@ -103,11 +115,21 @@ export function memoryErasures(store: MemoryStore, principal: Principal, clock: 
   };
 }
 
+/** The register as Postgres holds it: one boundary per id and address hash (0058). */
+const registrationsOf = (erasures: ReturnType<MemoryStore['for']>['erasures']) =>
+  [...erasures].flatMap(([supporterId, r]) =>
+    [r.emailHash, ...(r.olderHashes ?? [])].map((emailHash) => ({
+      supporterId,
+      emailHash,
+      erasedAt: r.erasedAt,
+    }))
+  );
+
 /** Every registered address, from the register's ids and from any value whose hash matches. */
 async function registeredAddresses(store: MemoryStore, tenantId: string): Promise<Set<string>> {
   const s = store.for(tenantId);
   const ids = new Set(s.erasures.keys());
-  const hashes = new Set([...s.erasures.values()].map((e) => e.emailHash));
+  const hashes = new Set(registrationsOf(s.erasures).map((e) => e.emailHash));
   const addresses = new Set<string>();
   const consider = async (value: string) => {
     if (
@@ -157,7 +179,7 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
       s.participations.delete(k);
       changed++;
     }
-  const registrations = [...s.erasures].map(([supporterId, r]) => ({ supporterId, ...r }));
+  const registrations = registrationsOf(s.erasures);
   const live = new Map(
     [...s.supporterLifecycles.values()]
       .filter((l) => liveLifecycle(l, registrations))

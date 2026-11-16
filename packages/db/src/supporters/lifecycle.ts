@@ -14,10 +14,16 @@ import { advisoryLock } from '../infra/roles.js';
 export const lockSupporter = async (trx: Kysely<Database>, tenantId: string, email: string) =>
   advisoryLock(trx, 'supporter', tenantId, await emailKey(tenantId, email, 'erasure'));
 
+/** The register: one boundary per id and address hash, an id's older addresses included (0058). */
+export async function registrations(trx: Kysely<Database>): Promise<ErasureBoundary[]> {
+  return (await trx.selectFrom('erasures').selectAll().execute()).map((r) => ({
+    supporterId: r.supporter_id,
+    emailHash: r.email_hash,
+    erasedAt: r.erased_at,
+  }));
+}
+
 export async function lifecycleEvidence(trx: Kysely<Database>) {
-  const registrations: ErasureBoundary[] = (
-    await trx.selectFrom('erasures').selectAll().execute()
-  ).map((r) => ({ supporterId: r.supporter_id, emailHash: r.email_hash, erasedAt: r.erased_at }));
   const lifecycles: SupporterLifecycle[] = (
     await trx.selectFrom('supporter_lifecycles').selectAll().execute()
   ).map((r) => ({
@@ -26,7 +32,7 @@ export async function lifecycleEvidence(trx: Kysely<Database>) {
     submissionId: r.submission_id,
     startedAt: r.started_at,
   }));
-  return { registrations, lifecycles };
+  return { registrations: await registrations(trx), lifecycles };
 }
 
 export function lifecycleRepository(trx: Kysely<Database>, tenantId: string) {

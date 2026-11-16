@@ -403,6 +403,40 @@ describe('ctx.erasures in memory', () => {
       );
     });
 
+    it('keeps a readmission on an older address of the erased supporter, then erases it on request', async () => {
+      // A signup after the request stays, for every address the id's rows carry (ADR 032 rule 4, amended 2026-11-16): the
+      // signup comes between the registration and apply, on the address she had before.
+      const old = await supporterId();
+      (uow.clock as FakeClock).advance(1);
+      await invoker().run(useCases.changeSupporterEmail, adminOf(), {
+        supporterId: old,
+        newEmail: 'current@example.org',
+        reason: 'test',
+      });
+      (uow.clock as FakeClock).advance(1);
+      await invoker().run(useCases.eraseSupporter, eraser(), { supporterId: old });
+      (uow.clock as FakeClock).advance(86_400_001);
+      await signup(TENANT, 'ada@example.org');
+      const next = await supporterId();
+      expect(next).not.toBe(old);
+      expect(uow.store.for(TENANT).supporterLifecycles.has(next)).toBe(true);
+      await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+      expect(await supporterId()).toBe(next);
+      expect(copies(TENANT, 'current@example.org')).toEqual(none);
+      const old_events = [...uow.store.for(TENANT).events.values()].filter(
+        (e) => e.supporter_id === old
+      );
+      expect(old_events.length).toBeGreaterThan(0);
+      for (const e of old_events) expect(e.email).toBe(tombstoneEmail(old));
+      expect(await uow.run(adminOf(), (ctx) => ctx.erasures.apply())).toBe(0);
+      await invoker().run(useCases.eraseSupporter, eraser(), { supporterId: next });
+      await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
+      expect(copies(TENANT, 'ada@example.org')).toEqual(none);
+      expect(await uow.run(adminOf(), (ctx) => ctx.erasures.status())).toMatchObject({
+        registered: 2,
+      });
+    });
+
     it('erases a readmitted lifecycle as its own request', async () => {
       const old = await supporterId();
       await invoker().run(useCases.eraseSupporter, eraser(), { supporterId: old });

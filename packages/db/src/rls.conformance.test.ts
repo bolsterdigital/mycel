@@ -101,8 +101,10 @@ describe.skipIf(skip)('row level security conformance', () => {
    * owner without that URL (the Mac) cannot, and the vacuity check below leaves the table out.
    */
   async function recordBackup(supporterId: string): Promise<boolean> {
-    const insert = sql`insert into erasure_backups (tenant_id, supporter_id, snapshot_id)
-                       values (${tenantId}, ${supporterId}, ${'ef'.repeat(32)})`;
+    // Every row of the registration, as backup.sh records each line of the register (0058).
+    const insert = sql`insert into erasure_backups (tenant_id, supporter_id, email_hash, snapshot_id)
+                       select tenant_id, supporter_id, email_hash, ${'ef'.repeat(32)}
+                       from erasures where tenant_id = ${tenantId} and supporter_id = ${supporterId}`;
     const backupUrl = process.env['DRILL_BACKUP_DATABASE_URL'];
     if (backupUrl) {
       const backupDb = createDb(backupUrl);

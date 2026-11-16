@@ -572,6 +572,7 @@ export interface Database {
     submission_id: string;
     started_at: Timestamp;
   };
+  /** The erasure register (0019): one row per supporter id and address hash since 0058. */
   erasures: {
     tenant_id: string;
     supporter_id: string;
@@ -590,6 +591,7 @@ export interface Database {
   erasure_backups: {
     tenant_id: string;
     supporter_id: string;
+    email_hash: string;
     snapshot_id: string;
     secured_at: Timestamp;
   };

@@ -838,6 +838,14 @@ export const STORAGE = {
           reason: 'records which snapshot holds a registration; no address (ADR 019 rule 8)',
         },
       },
+      {
+        field: 'email_hash',
+        subject: 'supporter',
+        route: {
+          kind: 'excluded',
+          reason: 'the key of the registration row the snapshot holds (0058); a hash, no address',
+        },
+      },
     ],
     retention: { kind: 'kept', why: 'as long as the registration it secures' },
   },

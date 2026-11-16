@@ -7,6 +7,12 @@
 // schema owner's login may enter it, so the worker and the CLI apply and a front that tries gets
 // a clear refusal.
 //
+// A registration is one row per address hash: the supporter's address and every other address
+// her own rows carried at that moment (0058, ADR 032 rule 4 as amended 2026-11-16), so a signup
+// on any of them after the request opens a lifecycle and apply keeps it. Registrations from
+// before 0058 have the one hash; apply still erases their ids' older addresses, without that
+// protection.
+//
 // The addresses to erase are not stored anywhere: apply finds them from the register each time, in
 // the supporter's projection and events (by id) and in projections and submission values whose
 // hash is registered (a restore can bring back a submission whose supporter was never ingested).
@@ -42,7 +48,12 @@ import {
 } from '@mycel/core';
 import { withTenant } from './index.js';
 import type { Database } from './infra/schema.js';
-import { lifecycleEvidence, lifecycleRepository, lockSupporter } from './supporters/lifecycle.js';
+import {
+  lifecycleEvidence,
+  lifecycleRepository,
+  lockSupporter,
+  registrations as readRegister,
+} from './supporters/lifecycle.js';
 import { advisoryLock, setRole } from './infra/roles.js';
 import { applyPersonErasures } from './people/erasures.js';
 
@@ -58,31 +69,53 @@ export function erasureRepository(
 ): Erasures {
   return {
     ...lifecycleRepository(trx, tenantId),
-    async register(supporterId, email) {
-      await lockSupporter(trx, tenantId, email);
+    async carried(supporterId) {
+      const rows = await trx
+        .selectFrom('supporters')
+        .select('email')
+        .where('id', '=', supporterId)
+        .union(trx.selectFrom('events').select('email').where('supporter_id', '=', supporterId))
+        .execute();
+      return [...new Set(rows.map((r) => normalizeEmail(r.email)).filter((a) => !isTombstone(a)))];
+    },
+
+    async register(supporterId, email, older = []) {
+      // One row per address hash (0058), all with one time and actor. `supporter.erase` already
+      // holds these locks in hash order; a direct caller takes them here.
+      const hashes = new Set<string>();
+      for (const address of [email, ...older]) {
+        await lockSupporter(trx, tenantId, address);
+        hashes.add(await emailKey(tenantId, address, 'erasure'));
+      }
+      const at = clock.now();
+      const actor = JSON.stringify(storedActor(principal.actor));
       await trx
         .insertInto('erasures')
-        .values({
-          tenant_id: tenantId,
-          supporter_id: supporterId,
-          email_hash: await emailKey(tenantId, email, 'erasure'),
-          erased_at: clock.now(),
-          actor: JSON.stringify(storedActor(principal.actor)),
-        })
-        .onConflict((oc) => oc.columns(['tenant_id', 'supporter_id']).doNothing())
+        .values(
+          [...hashes].map((hash) => ({
+            tenant_id: tenantId,
+            supporter_id: supporterId,
+            email_hash: hash,
+            erased_at: at,
+            actor,
+          }))
+        )
+        .onConflict((oc) => oc.columns(['tenant_id', 'supporter_id', 'email_hash']).doNothing())
         .execute();
     },
 
     async get(supporterId) {
-      const row = await trx
-        .selectFrom('erasures as e')
-        .leftJoin('erasure_backups as b', (j) =>
-          j.onRef('b.tenant_id', '=', 'e.tenant_id').onRef('b.supporter_id', '=', 'e.supporter_id')
-        )
-        .select(['e.erased_at', 'b.supporter_id as secured'])
-        .where('e.supporter_id', '=', supporterId)
-        .executeTakeFirst();
-      return row ? { registeredAt: row.erased_at, secured: row.secured !== null } : null;
+      // An id's rows are written in one transaction and copied by one statement, so a backup
+      // holds all of them or none; `secured` still asks for every row.
+      const { rows } = await sql<{ registered: Date | null; secured: boolean | null }>`
+        select min(e.erased_at) as registered, bool_and(b.supporter_id is not null) as secured
+        from erasures e
+        left join erasure_backups b using (tenant_id, supporter_id, email_hash)
+        where e.supporter_id = ${supporterId}`.execute(trx);
+      const row = rows[0];
+      return row?.registered
+        ? { registeredAt: row.registered, secured: row.secured === true }
+        : null;
     },
 
     async apply() {
@@ -95,11 +128,15 @@ export function erasureRepository(
 
     async status() {
       // As mycel_app under the tenant's context: both tables are readable to it, its rows only.
+      // Counted per supporter id: the rows for an id's older addresses are one registration.
       const { rows } = await sql<{ registered: string; secured: string; oldest: Date | null }>`
-        select count(*) as registered, count(b.supporter_id) as secured,
-               min(e.erased_at) filter (where b.supporter_id is null) as oldest
-        from erasures e
-        left join erasure_backups b using (tenant_id, supporter_id)`.execute(trx);
+        select count(*) as registered, count(*) filter (where r.secured) as secured,
+               min(r.erased_at) filter (where not r.secured) as oldest
+        from (
+          select min(e.erased_at) as erased_at, bool_and(b.supporter_id is not null) as secured
+          from erasures e
+          left join erasure_backups b using (tenant_id, supporter_id, email_hash)
+          group by e.supporter_id) r`.execute(trx);
       const r = rows[0]!;
       return {
         registered: Number(r.registered),
@@ -111,9 +148,12 @@ export function erasureRepository(
 }
 
 /**
- * Registrations one transaction locks and applies at most. Each holds one advisory lock
- * until commit, from a lock table every session of the cluster shares; at 64 locks per connection
- * slot a run of 15,000 failed with `out of shared memory`.
+ * Registered address hashes one transaction locks and applies at most. Each holds one advisory
+ * lock until commit, from a lock table every session of the cluster shares; at 64 locks per
+ * connection slot a run of 15,000 failed with `out of shared memory`. The further locks
+ * `eraseRows` takes for addresses the batch's ids carry without a registration of their own (a
+ * register from before 0058) come on top and are not counted here: a batch may hold more than
+ * this many locks, still far below that limit.
  */
 export const APPLY_BATCH = 1000;
 
@@ -257,9 +297,8 @@ async function eraseRows(
   tenantId: string,
   lockedHashes: ReadonlySet<string>
 ): Promise<number> {
-  const registrations = (await lifecycleEvidence(trx)).registrations.filter((r) =>
-    lockedHashes.has(r.emailHash)
-  );
+  // The register alone: which lifecycles are live is read below, after the further locks.
+  const registrations = (await readRegister(trx)).filter((r) => lockedHashes.has(r.emailHash));
   if (!registrations.length) return 0;
   const ids = new Set(registrations.map((r) => r.supporterId));
   const idList = [...ids];
@@ -304,8 +343,9 @@ async function eraseRows(
   for (const row of byId.events) await consider(row.email, row.supporter_id);
   const keys = new Set(hashes);
   for (const a of addresses) keys.add(await emailKey(tenantId, a, 'erasure'));
-  // An address those rows carry beside the registered one (an older address on the id's events)
-  // is erased too, so its signup lock is taken as well before liveness is read: a readmission on
+  // An address those rows carry without a registration of its own (an older address on the id's
+  // events, registered before 0058 recorded those) is erased too, so its signup lock is taken as
+  // well before liveness is read: a readmission on
   // it holds that lock until commit, and its lifecycle must be judged after that, not on
   // evidence from before. These locks come after the batch's sorted ones; a deadlock with another
   // apply holding one of them rolls this batch back for the next run.

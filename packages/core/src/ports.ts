@@ -140,7 +140,16 @@ export interface Erasures {
   admit(email: string, submissionId: string, at: Date): Promise<string | undefined | null>;
   /** No registered address is usable without its current explicit lifecycle evidence. */
   allows(email: string, lifecycleId?: string): Promise<boolean>;
-  register(supporterId: string, email: string): Promise<void>;
+  /**
+   * The addresses the supporter's own rows carry (projection and events), tombstones left out:
+   * the ones apply erases with the id, so the ones a registration ends (ADR 032 rule 4).
+   */
+  carried(supporterId: string): Promise<string[]>;
+  /**
+   * One registration: the id with the hash of `email` and of every address in `older`, under
+   * each address's lock. A later signup on any of them then needs a lifecycle of its own.
+   */
+  register(supporterId: string, email: string, older?: readonly string[]): Promise<void>;
   /** One supporter's registration and whether a backup holds it; null when it has none. */
   get(supporterId: string): Promise<ErasureRegistration | null>;
   apply(): Promise<number>;

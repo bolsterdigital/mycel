@@ -603,6 +603,7 @@ describe.skipIf(skip)('erasure conformance', () => {
         newEmail: current,
         reason: 'test',
       });
+      // Registered as before 0058, with the current address alone: `older` has no row.
       await uow.run(admin, (ctx) => ctx.erasures.register(id, current));
       let unlock!: () => void;
       let locked!: (pid: number) => void;
@@ -639,6 +640,52 @@ describe.skipIf(skip)('erasure conformance', () => {
       const after = await rowsOf(tenant);
       expect(holding(after, older)).toEqual([]);
       expect(holding(after, current)).toEqual([]);
+    } finally {
+      await closeTenantWork(operatorDb, [tenant]);
+    }
+  }, 30_000);
+
+  it('keeps a readmission on an older address of the erased supporter, then erases it on request', async () => {
+    // A signup after the request stays, for every address the id's rows carry (ADR 032 rule 4, amended 2026-11-16): she
+    // signed up on `older`, moved to `current` and is erased; the new signup on `older` comes
+    // between the registration and apply.
+    const tenant = (await testTenant(operatorDb, `erase-readmit-older-${run}`)).id;
+    const admin = systemPrincipal(tenant, 'erasure-test');
+    const older = `readmit-older-${run}@example.org`;
+    const current = `readmit-current-${run}@example.org`;
+    const projection = (address: string) =>
+      uow.run(admin, (ctx) => ctx.supporters.getProjection(address));
+    try {
+      await signup(tenant, older, uow);
+      await closeTenantWork(operatorDb, [tenant]);
+      const { id } = (await projection(older))!;
+      await invoker.run(useCases.changeSupporterEmail, admin, {
+        supporterId: id,
+        newEmail: current,
+        reason: 'test',
+      });
+      const request = await invoker.run(useCases.eraseSupporter, admin, { supporterId: id });
+      expect(request).toMatchObject({ created: true, applied: false });
+      await signup(tenant, older, uow);
+      await closeTenantWork(operatorDb, [tenant]);
+      const next = (await projection(older))!;
+      expect(next.id).not.toBe(id);
+      await applyErasures(operatorDb, tenant);
+      // She stays, with a lifecycle of her own; the old life and `current` are gone.
+      expect(await projection(older)).toEqual(next);
+      const kept = await rowsOf(tenant);
+      expect(kept['supporter_lifecycles']!.some((r) => r.includes(next.id))).toBe(true);
+      expect(holding(kept, current)).toEqual([]);
+      const oldLife = kept['events']!.filter((r) => r.includes(id));
+      expect(oldLife.length).toBeGreaterThan(0);
+      expect(oldLife.filter((r) => r.includes(older))).toEqual([]);
+      expect(await applyErasures(operatorDb, tenant)).toBe(0);
+      // A second request erases her too.
+      await invoker.run(useCases.eraseSupporter, admin, { supporterId: next.id });
+      await applyErasures(operatorDb, tenant);
+      expect(await projection(older)).toBeNull();
+      expect(holding(await rowsOf(tenant), older)).toEqual([]);
+      expect(await uow.run(admin, (ctx) => ctx.erasures.status())).toMatchObject({ registered: 2 });
     } finally {
       await closeTenantWork(operatorDb, [tenant]);
     }
