@@ -16,8 +16,9 @@
 // shift under concurrent edits), normalising in `update` (whoever sends the whole document sends
 // it canonical), and rebasing through the three-way merge of a save, which would put an insert
 // after a block someone else rewrote and merge a props patch into props it never read.
-// The one document field an operation changes is the teaser, when a paywall comes or goes
-// (`teaserFollowing`); on an older base that change needs a teaser nobody moved since.
+// The one document field an operation changes is the teaser, when a paywall comes or goes or
+// when a block teaser's count has to follow the blocks (`teaserFollowing`); on an older base that
+// change needs a teaser nobody moved since.
 
 import { z } from 'zod';
 import { notFound, UseCaseError } from '../errors.js';
@@ -228,7 +229,8 @@ const paywalls = (blocks: readonly Block[]) =>
  * The teaser after a block operation. Placing the first `paywall` block is the editor
  * choosing the marker teaser (ADR 018 rule 6: everything above the boundary the editor places), so
  * the same revision sets `marker`, whatever teaser it replaces; removing the last one while the
- * teaser is `marker` falls back to the default `lead`. Every other operation keeps the teaser.
+ * teaser is `marker` falls back to the default `lead`. A block teaser (`{ blocks: n }`) keeps
+ * the same blocks behind its boundary (`countFollowing`). Every other operation keeps the teaser.
  * Without this an editor could neither add nor remove a paywall on its own: each is refused until
  * the teaser changes, and the teaser cannot change first (`content.access.*`). Block operations
  * follow here; a front whose one save carries block edits (the article writer) applies the
@@ -242,12 +244,54 @@ export function teaserFollowing(
   doc: ContentDocument,
   blocks: readonly Block[]
 ): ContentDocument['access'] {
+  const teaser = paywallFollowing(doc, blocks);
+  if (teaser !== doc.access.teaser) return { ...doc.access, teaser };
+  if (typeof teaser !== 'object') return doc.access;
+  const count = countFollowing(doc.blocks, teaser.blocks, blocks);
+  return count === teaser.blocks ? doc.access : { ...doc.access, teaser: { blocks: count } };
+}
+
+/** The teaser a paywall that came or went leaves: the kind of teaser, which is the editor's. */
+function paywallFollowing(
+  doc: ContentDocument,
+  blocks: readonly Block[]
+): ContentDocument['access']['teaser'] {
   const [was, is] = [paywalls(doc.blocks), paywalls(blocks)];
-  if (was === 0 && is === 1 && doc.access.teaser !== 'marker')
-    return { ...doc.access, teaser: 'marker' };
-  if (was > 0 && is === 0 && doc.access.teaser === 'marker')
-    return { ...doc.access, teaser: 'lead' };
-  return doc.access;
+  if (was === 0 && is === 1 && doc.access.teaser !== 'marker') return 'marker';
+  if (was > 0 && is === 0 && doc.access.teaser === 'marker') return 'lead';
+  return doc.access.teaser;
+}
+
+/**
+ * The count of a block teaser after the block list changed (ADR 018 rule 6, amended 2026-11-16):
+ * no block from behind the boundary comes before it unless the editor sets the teaser. The new
+ * teaser is the leading run of blocks up to the last one that was in the teaser, stopping at the
+ * first block from behind the boundary. So a removal or a move out of the teaser shortens the
+ * count, an insert between teaser blocks lengthens it, and a block placed at the boundary itself,
+ * or the second part of a split there, falls behind it. A text block from behind the boundary that
+ * merged into the teaser's last text block takes that block with it: the count ends before it. The
+ * merge is read from the lists (a text block from behind the boundary is gone and the teaser's last
+ * text block changed), so a front that sends a whole edited list (the article writer) gets the
+ * same answer, at the price of a teaser one block short when one save both rewrites that last
+ * block and removes text behind the boundary. Rejected: the boundary as a block id, a second
+ * marker next to the `paywall` block with a migration of its own; refusing an operation that
+ * crosses the boundary, which blocks ordinary editing over a number the editor does not see there.
+ */
+function countFollowing(was: readonly Block[], count: number, is: readonly Block[]): number {
+  const teaser = new Map(was.slice(0, count).map((b) => [b.id, b]));
+  const behind = was.slice(count);
+  const paid = new Set(behind.map((b) => b.id));
+  let next = 0;
+  for (const [i, block] of is.entries()) {
+    if (paid.has(block.id)) break;
+    if (teaser.has(block.id)) next = i + 1;
+  }
+  const last = is[next - 1];
+  const present = new Set(is.map((b) => b.id));
+  const textGone = behind.some((b) => b.type === 'rich-text' && !present.has(b.id));
+  if (last?.type === 'rich-text' && textGone)
+    if (canonicalJson(last) !== canonicalJson(teaser.get(last.id))) return next - 1;
+  return next;
 }
 
 /**
@@ -255,6 +299,8 @@ export function teaserFollowing(
  * someone set another one since, writing ours would overwrite a value both changed (ADR 026), on
  * the access boundary. That is a `conflict` on `access.teaser`, like a block whose footing moved
  * (ADR 027 rule 1). An operation that leaves the teaser alone, or a teaser nobody moved, rebases.
+ * A block teaser's count that follows the blocks is no such change: it keeps the newest teaser's
+ * own boundary where it was, so it rebases too.
  * Rejected: following the newest teaser silently, which turned a `{ blocks: n }` chosen with the
  * preview open into the marker.
  */
@@ -265,10 +311,10 @@ function teaserMoved(
   onNewest: readonly Block[]
 ): MergeConflict | null {
   const changes = (doc: ContentDocument, blocks: readonly Block[]) =>
-    canonicalJson(teaserFollowing(doc, blocks).teaser) !== canonicalJson(doc.access.teaser);
+    paywallFollowing(doc, blocks) !== doc.access.teaser;
   if (canonicalJson(base.access.teaser) === canonicalJson(newest.access.teaser)) return null;
   if (!changes(base, onBase) && !changes(newest, onNewest)) return null;
-  const mine = teaserFollowing(base, onBase).teaser;
+  const mine = paywallFollowing(base, onBase);
   return { path: 'access.teaser', base: base.access.teaser, mine, theirs: newest.access.teaser };
 }
 
@@ -296,7 +342,7 @@ export const insertBlock = defineUseCase({
   name: 'content.block.insert',
   kind: 'command',
   description:
-    'Insert one block before or after a block id, or at the start or end, as a new revision; the block keeps a free id it was sent with, otherwise it gets one. The first paywall block sets access.teaser to marker in the same revision.' +
+    'Insert one block before or after a block id, or at the start or end, as a new revision; the block keeps a free id it was sent with, otherwise it gets one. The first paywall block sets access.teaser to marker in the same revision; a block teaser counts a block placed between its blocks, and one placed at its end falls behind it.' +
     REBASE,
   requires: 'content:write',
   input: z.object({ ...Target, block: BlockInput, place: Placement }),
@@ -373,7 +419,7 @@ export const moveBlock = defineUseCase({
   name: 'content.block.move',
   kind: 'command',
   description:
-    'Move one block before or after another block id, or to the start or end, as a new revision; text blocks that end up next to each other merge into the first.' +
+    'Move one block before or after another block id, or to the start or end, as a new revision; text blocks that end up next to each other merge into the first. A block teaser keeps the same blocks behind its boundary: its count ends before a block moved in from behind it.' +
     REBASE,
   requires: 'content:write',
   input: z.object({ ...Target, blockId: BlockId, place: Placement }),
@@ -408,7 +454,7 @@ export const removeBlock = defineUseCase({
   name: 'content.block.remove',
   kind: 'command',
   description:
-    'Remove one block by id as a new revision; text blocks that end up next to each other merge into the first. Removing the last paywall block of a marker teaser sets access.teaser to lead.' +
+    'Remove one block by id as a new revision; text blocks that end up next to each other merge into the first. Removing the last paywall block of a marker teaser sets access.teaser to lead; removing a block of a block teaser lowers its count.' +
     REBASE,
   requires: 'content:write',
   input: z.object({ ...Target, blockId: BlockId }),

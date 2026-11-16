@@ -537,3 +537,67 @@ it('refuses an ambiguous text join with its own issue and nothing else with it',
   expect(joined.errors).toEqual([]);
   expect(joined.blocks.map((block) => block.id)).toEqual(['a']);
 });
+
+// The writer's one save removes blocks without a block operation, so a block teaser follows
+// core's rule there too (`teaserFollowing`): nothing from behind the boundary comes before it.
+it('keeps the blocks behind a block teaser behind it when the writer removes or joins', () => {
+  const quote = blocks.find((block) => block.type === 'quote')!;
+  const prose = (id: string) =>
+    ({
+      id,
+      type: 'rich-text',
+      version: 1,
+      props: {
+        content: {
+          nl: {
+            type: 'doc',
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: id }] }],
+          },
+        },
+      },
+    }) as Block;
+  /** `gone`: cards the writer removed, and text blocks it left without words. */
+  const save = (list: Block[], count: number, gone: string[]) => {
+    const removedCardIds = gone.filter((id) => id === quote.id);
+    const base = ContentDocument.parse({
+      type: 'article',
+      defaultLocale: 'nl',
+      locales: ['nl', 'en'],
+      title: { nl: 'Artikel' },
+      access: { level: 'members', teaser: { blocks: count } },
+      blocks: list,
+    });
+    const content = list
+      .filter((block) => !removedCardIds.includes(block.id))
+      .map((block) =>
+        block.type === 'rich-text'
+          ? {
+              type: 'mycelProse',
+              attrs: { blockId: block.id },
+              content: gone.includes(block.id)
+                ? [{ type: 'paragraph' }]
+                : [{ type: 'paragraph', content: [{ type: 'text', text: block.id }] }],
+            }
+          : { type: 'mycelCard', attrs: { blockId: block.id } }
+      );
+    const post = new FormData();
+    post.set('articleEditor', JSON.stringify({ type: 'doc', content, removedCardIds }));
+    for (const [name, value] of Object.entries(formOf([quote]))) post.set(name, value);
+    const out = formDocument(
+      base,
+      { 'title.nl': 'Artikel', level: 'members', teaser: 'blocks', teaserBlocks: String(count) },
+      postedValues(Object.fromEntries(post.entries()) as Record<string, string>),
+      '2026-11-16',
+      'nl'
+    );
+    expect(out.errors).toEqual([]);
+    return [out.blocks.map((block) => block.id).join(' '), out.document.access?.teaser];
+  };
+  const list = [prose('x'), quote, prose('paid')];
+  // An emptied text block in the teaser: the count drops, `paid` stays the first block behind it.
+  expect(save(list, 2, ['x'])).toEqual([`${quote.id} paid`, { blocks: 1 }]);
+  // Counterproof: the same removal behind the boundary leaves the count alone.
+  expect(save(list, 2, ['paid'])).toEqual([`x ${quote.id}`, { blocks: 2 }]);
+  // The card between them gone: `paid` joins `x`, which leaves the teaser with it.
+  expect(save(list, 2, [quote.id])).toEqual(['x', { blocks: 0 }]);
+});
