@@ -2,7 +2,7 @@
 // is the main navigation and which of its items stand in the bar, the action buttons, the footer
 // columns and the legal links. One form, one save through `saveNavigation` on the revision the
 // form was loaded with, so core merges it per placement with what was saved since.
-import { can, useCases } from '@mycel/core';
+import { can, MAX_PAGE_SIZE, pickAny, useCases } from '@mycel/core';
 import {
   formOf,
   placementsFrom,
@@ -32,7 +32,20 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
       )
     : { nodes: [] };
   const check = new Map(nodes.map((n) => [n.nodeId, n]));
+  // The zones a pre-footer can be; a site has a handful, so one page covers them.
+  const zones = await loaded(
+    invoker.run(useCases.listItems, principal, {
+      type: 'page',
+      profile: 'zone',
+      limit: MAX_PAGE_SIZE,
+      sort: 'title',
+    })
+  );
   return {
+    zones: zones.items.map((z) => ({
+      value: z.id,
+      label: pickAny(z.title, contentLocale, z.defaultLocale) ?? z.slug,
+    })),
     baseRevisionId: state.revisionId,
     menus: state.document.menus.map((m) => ({ value: m.id, label: m.name })),
     form: formOf(state.document.placements, contentLocale),

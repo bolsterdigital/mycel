@@ -6,6 +6,7 @@
 
 import { exerciseOverview } from './lib/blocks/overview';
 import { exerciseEventPage } from './lib/events/event-page';
+import { exercisePrefooter } from './lib/prefooter/zone';
 import { exercisePeopleGrid } from './lib/people/grid';
 import { exercisePublicPeople } from './lib/people/public';
 import { exercisePublishedRepresentations } from './lib/published/representations';
@@ -2089,6 +2090,10 @@ test.describe('site-settings', () => {
 
 test('an event page shows when and where, in its header and its data', async ({ page }) => {
   await exerciseEventPage(page);
+});
+
+test('a zone stands above the footer, except where a page switches it off', async ({ page }) => {
+  await exercisePrefooter(page);
 });
 
 test('public profiles share policy across HTML, bylines and discovery', async ({ page }) => {

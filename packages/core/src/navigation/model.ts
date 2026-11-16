@@ -97,6 +97,11 @@ export const Placements = z
     actions: z.object({ menuId: NavigationId }).strict().nullable(),
     footer: z.array(z.object({ menuId: NavigationId, title: NavigationLabel.optional() }).strict()),
     legal: z.object({ menuId: NavigationId }).strict().nullable(),
+    /**
+     * The zone between the content and the footer (amendment of rule 4 of 2026-11-16): a
+     * page with the profile `zone`, by id. Absent or null: none.
+     */
+    prefooter: z.object({ itemId: z.string().guid() }).strict().nullable().optional(),
   })
   .strict();
 export type Placements = z.infer<typeof Placements>;

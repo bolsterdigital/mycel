@@ -182,13 +182,15 @@ export function navigationRepository(trx: Trx, tenantId: string): NavigationRepo
       const { rows } = await sql<{
         id: string;
         type: ContentType;
+        profile: PublishedTarget['profile'];
+        revision_id: string;
         slug: string;
         title: string | null;
         featured_title: string | null;
         access: PublishedTarget['access'];
         block_ids: string[];
       }>`
-        select i.id, i.type, i.slug,
+        select i.id, i.type, i.profile, r.id as revision_id, i.slug,
                r.document->'title'->>${locale} as title,
                r.document->'featured'->'title'->>${locale} as featured_title,
                coalesce(r.document->'access'->>'level', 'public') as access,
@@ -204,6 +206,8 @@ export function navigationRepository(trx: Trx, tenantId: string): NavigationRepo
         out.set(r.id, {
           itemId: r.id,
           type: r.type,
+          profile: r.profile,
+          revisionId: r.revision_id,
           slug: r.slug,
           title: r.title,
           featuredTitle: r.featured_title,

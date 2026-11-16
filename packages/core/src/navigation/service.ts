@@ -29,8 +29,14 @@ import {
 } from './model.js';
 import { checkNavigation, previewProblems, publicationCheck, targetIds } from './check.js';
 import type { NavigationHead, NavigationRevision, PublishedTarget } from './ports.js';
-import { BLOCKING_PROBLEMS, placedTargetIds, resolveNavigation } from './resolve.js';
+import {
+  BLOCKING_PROBLEMS,
+  placedTargetIds,
+  resolveNavigation,
+  type ResolvedNavigation,
+} from './resolve.js';
 import './ports.js';
+import '../content/ports.js';
 
 const RevisionId = z.string().guid();
 const IsoDate = z.string().datetime({ offset: true });
@@ -166,6 +172,29 @@ async function checkNewTargets(
 }
 
 /**
+ * A newly placed pre-footer must be a zone outside the trash; a page or an article there
+ * would show a whole item under every other one. One that was already placed may stay, as a
+ * content target may (a restore brings it back); it shows nothing until fixed.
+ */
+async function checkPrefooter(
+  ctx: TransactionContext,
+  next: NavigationDocument,
+  latest: NavigationDocument | null
+): Promise<void> {
+  const itemId = next.placements.prefooter?.itemId;
+  if (!itemId || itemId === latest?.placements.prefooter?.itemId) return;
+  const item = await ctx.content.get(itemId);
+  if (!item || item.profile !== 'zone')
+    refuse([
+      {
+        path: 'placements.prefooter.itemId',
+        message: 'site.navigation.prefooter.not-a-zone',
+        params: { itemId },
+      },
+    ]);
+}
+
+/**
  * Rule 9: a menu that a placement of a published revision uses cannot be removed from the draft;
  * take the placement offline first. The draft's own placements are checked by `navigationIssues`.
  */
@@ -206,8 +235,10 @@ async function store(
 ): Promise<NavigationRevision> {
   const issues = navigationIssues(revision.document);
   if (issues.length) refuse(issues);
-  if (!revision.restoredFrom)
+  if (!revision.restoredFrom) {
     await checkNewTargets(ctx, revision.document, latest?.document ?? null);
+    await checkPrefooter(ctx, revision.document, latest?.document ?? null);
+  }
   await checkRemovedMenus(ctx, revision.document, head);
   const stored: NavigationRevision = {
     ...revision,
@@ -450,6 +481,7 @@ const ResolvedPlacements = z.object({
   actions: z.array(ResolvedLink),
   footer: z.array(z.object({ title: z.string().nullable(), nodes: z.array(ResolvedNode) })),
   legal: z.object({ nodes: z.array(ResolvedNode) }).nullable(),
+  prefooter: z.object({ itemId: z.string().guid(), revisionId: RevisionId }).nullable(),
 });
 
 export const checkNavigationUseCase = defineUseCase({
@@ -479,7 +511,7 @@ export const checkNavigationUseCase = defineUseCase({
   examples: [{ input: { locale: 'nl' } }],
   async handler(ctx, { locale, revisionId }) {
     const id = revisionId ?? (await ctx.navigation.head())?.latestRevisionId;
-    const nothing = { main: null, actions: [], footer: [], legal: null };
+    const nothing = { main: null, actions: [], footer: [], legal: null, prefooter: null };
     if (!id) return { revisionId: null, nodes: [], preview: nothing, problems: [] };
     const revision = await ctx.navigation.revision(id);
     if (!revision) throw notFound('navigation revision');
@@ -510,17 +542,27 @@ export const resolveNavigationUseCase = defineUseCase({
   input: z.object({ locale: Locale }).strict(),
   output: ResolvedPlacements.extend({ revisionId: RevisionId.nullable() }),
   examples: [{ input: { locale: 'nl' } }],
-  async handler(ctx, { locale }) {
-    const empty = { revisionId: null, main: null, actions: [], footer: [], legal: null };
-    const pointer = (await ctx.navigation.head())?.publication.find((p) => p.locale === locale);
-    if (!pointer) return empty;
-    const revision = await ctx.navigation.revision(pointer.revisionId);
-    if (!revision) return empty;
-    const targets = await ctx.navigation.publishedTargets(
-      placedTargetIds(revision.document),
-      locale
-    );
-    const { navigation } = resolveNavigation(revision.document, locale, targets);
-    return { revisionId: revision.id, ...navigation };
-  },
+  handler: (ctx, { locale }) => publishedNavigation(ctx, locale),
 });
+
+/** The navigation a locale publishes, resolved as visitors see it; empty without one. */
+export async function publishedNavigation(
+  ctx: TransactionContext,
+  locale: string
+): Promise<ResolvedNavigation & { revisionId: string | null }> {
+  const empty = {
+    revisionId: null,
+    main: null,
+    actions: [],
+    footer: [],
+    legal: null,
+    prefooter: null,
+  };
+  const pointer = (await ctx.navigation.head())?.publication.find((p) => p.locale === locale);
+  if (!pointer) return empty;
+  const revision = await ctx.navigation.revision(pointer.revisionId);
+  if (!revision) return empty;
+  const targets = await ctx.navigation.publishedTargets(placedTargetIds(revision.document), locale);
+  const { navigation } = resolveNavigation(revision.document, locale, targets);
+  return { revisionId: revision.id, ...navigation };
+}

@@ -71,6 +71,8 @@ export function memoryNavigation(s: TenantStore, lock: () => Promise<void>): Nav
         out.set(id, {
           itemId: id,
           type: item.type,
+          profile: item.profile,
+          revisionId: revision.id,
           slug: item.slug,
           title: doc.title[locale] ?? null,
           featuredTitle: doc.featured?.title?.[locale] ?? null,

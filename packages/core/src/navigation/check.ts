@@ -76,9 +76,10 @@ export function checkNavigation(
   return out;
 }
 
-/** Every content item a document targets, in any menu. */
+/** Every content item a document targets, in any menu or as the placed zone. */
 export function targetIds(doc: NavigationDocument): string[] {
   const ids = new Set<string>();
+  if (doc.placements.prefooter) ids.add(doc.placements.prefooter.itemId);
   for (const menu of doc.menus)
     for (const node of menuNodes(menu))
       if (node.kind === 'link' && node.target.kind === 'content') ids.add(node.target.itemId);

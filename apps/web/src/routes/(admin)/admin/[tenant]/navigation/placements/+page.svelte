@@ -24,6 +24,10 @@
     id
       ? (data.menus.find((m) => m.value === id)?.label ?? id)
       : t('admin.navigation.placements.none');
+  const zoneName = (id: string) =>
+    id
+      ? (data.zones.find((z) => z.value === id)?.label ?? id)
+      : t('admin.navigation.placements.none');
   const itemName = (id: string) => data.bar?.items.find((i) => i.id === id)?.label ?? id;
   const said = (c: Choice) =>
     c.place === 'bar'
@@ -34,7 +38,9 @@
         ? `${fill(t('admin.navigation.placements.column'), { n: c.slot })}: ${menuName(c.menuId)}${
             c.title ? ` ("${c.title}")` : ''
           }`
-        : `${t(`admin.navigation.placement.${c.place}`)}: ${menuName(c.menuId)}`;
+        : c.place === 'prefooter'
+          ? `${t('admin.navigation.placement.prefooter')}: ${zoneName(c.itemId)}`
+          : `${t(`admin.navigation.placement.${c.place}`)}: ${menuName(c.menuId)}`;
   const yours = $derived(
     form?.mine && form.base
       ? changedChoices(postedForm(form.mine), data.form, form.base).map(said).join('; ')
@@ -153,6 +159,17 @@
       locale={data.locale}
       {options}
       value={value('legal', data.form.legal)}
+    />
+  </Fieldset>
+  <Fieldset legend={t('admin.navigation.placement.prefooter')}>
+    <Select
+      id="placement-prefooter"
+      name="prefooter"
+      label={t('admin.navigation.placements.prefooter.zone')}
+      hint={t('admin.navigation.placements.prefooter.hint')}
+      locale={data.locale}
+      options={[{ value: '', label: t('admin.navigation.placements.none') }, ...data.zones]}
+      value={value('prefooter', data.form.prefooter)}
     />
   </Fieldset>
 </FormPage>

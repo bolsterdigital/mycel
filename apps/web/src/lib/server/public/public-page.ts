@@ -25,6 +25,11 @@
 // says nothing about how long this visitor took to fill in the form. Rejected: a weak ETag (the
 // expired token stays), fetching the token outside the HTML (needs JavaScript, ADR 009), and a
 // validator that knows the token's age (a 304 still cannot replace the token).
+//
+// The pre-footer zone is part of the page: the zone the published navigation places
+// (`site.prefooter.get`), resolved like the page's own blocks, unless the item switches it off.
+// Its model is in the digest, and a form in it makes the page an item with a form, as above: a
+// newsletter zone makes every page it stands on `no-store`, which is the price of a timing token.
 
 import { createHash } from 'node:crypto';
 import {
@@ -86,8 +91,16 @@ export interface PublicItem {
   dropCap: boolean;
   head: PublicHead;
   structured: ReturnType<typeof articleData> | ReturnType<typeof eventData>;
+  /** The zone between the content and the footer, or null. */
+  prefooter: PublicZone | null;
   /** Strong, or null for an item with a form; see the comment at the top. */
   etag: string | null;
+}
+
+export interface PublicZone {
+  /** The accessible name of its `aside`. */
+  title: string;
+  model: RenderModel;
 }
 
 /** The site comes from the hooks (hostname or dev path, ADR 014), never from a route param. */
@@ -209,8 +222,17 @@ export async function loadPublicItem(
   const structured =
     articleData(item, head.canonical, locale, tenant.defaultLocale, url) ??
     eventData(item, head.canonical, locale);
-  const page = { tenant, item, locale, model, intro, dropCap, head, structured };
-  if (hasForm(model)) return { ...page, etag: null };
+  const prefooter =
+    item.prefooter === false
+      ? null
+      : await loadZone(source, reader, locale, {
+          base: sitePath(site, ''),
+          fallbackLocale: tenant.defaultLocale,
+          path: contentPath(item, locale, tenant.defaultLocale),
+          timeZone,
+        });
+  const page = { tenant, item, locale, model, intro, dropCap, head, structured, prefooter };
+  if (hasForm(model) || (prefooter && hasForm(prefooter.model))) return { ...page, etag: null };
   const chrome = await siteChrome(site);
   const brand = await siteBrand(site);
   // The resolved menus, not only their revision (ADR 036 rule 11): a republished target title or
@@ -228,12 +250,33 @@ export async function loadPublicItem(
         chrome,
         navigation,
         brand,
+        prefooter,
       })
     )
     .digest('base64url')
     .slice(0, 16);
   const etag = `"${item.revisionId}:${locale}:${theme.hash}:${digest}"`;
   return { ...page, etag };
+}
+
+/**
+ * The placed zone in this locale with its blocks resolved, or null. Its overview shows page 1
+ * whatever `?p=` the host page is on: the archive belongs to the page's own overview.
+ */
+async function loadZone(
+  source: Parameters<typeof resolveDocument>[0],
+  reader: Principal,
+  locale: string,
+  options: Omit<Parameters<typeof resolveDocument>[2], 'page'>
+): Promise<PublicZone | null> {
+  const { zone } = await runtime().invoker.run(useCases.getPrefooter, reader, { locale });
+  if (!zone) return null;
+  const model = await resolveDocument(
+    source,
+    { locale, title: zone.title, blocks: zone.blocks },
+    options
+  );
+  return model.blocks.length ? { title: zone.title, model } : null;
 }
 
 /** The widest webp variant up to this width: what the share previews ask for (1200 px). */

@@ -16,6 +16,8 @@
   import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
   import HeroConversion from '#lib/admin/hero-conversion/HeroConversion.svelte';
   import EventFields from '#lib/admin/event-fields/EventFields.svelte';
+  import PrefooterSwitch from '#lib/admin/prefooter-switch/PrefooterSwitch.svelte';
+  import ItemLocales from '#lib/admin/item-locales/ItemLocales.svelte';
   import BlockDrop from '#lib/admin/block-drop/BlockDrop.svelte';
   import PendingBlock from '#lib/admin/pending-block/PendingBlock.svelte';
   import ReviewOffer from '#lib/admin/review-offer/ReviewOffer.svelte';
@@ -36,7 +38,6 @@
     BlockText,
     Button,
     Checkbox,
-    Choices,
     DocumentOutline,
     EditPage,
     EmptyState,
@@ -124,7 +125,7 @@
   const multi = $derived(data.translations.length > 1);
   const base = $derived(`/admin/${data.tenant.slug}`);
   const article = $derived(data.item.type === 'article');
-  const listed = $derived(article ? 'article' : data.contentProfile ? 'event' : 'page');
+  const listed = $derived(article ? 'article' : (data.contentProfile ?? 'page'));
   /**
    * From this many blocks a page gets its compact table of contents (#66 PR 6d): about two
    * screens of closed cards. An article with JavaScript is one running editor, not cards.
@@ -880,19 +881,16 @@
       {/if}
     </Fieldset>
   {/if}
-  <Fieldset legend={t('admin.content.new.locales')} collapsed={folded}>
-    <Choices
-      id="locale"
-      name="locales"
-      type="checkbox"
-      legend={t('admin.content.new.locales')}
-      locale={data.locale}
-      hint={t('admin.content.edit.localesHint')}
-      selected={docLocales}
-      invalid={flagged('locales')}
-      options={data.locales.map((l) => ({ value: l, label: l }))}
-    />
-  </Fieldset>
+  {#if data.contentProfile !== 'zone'}
+    <PrefooterSwitch locale={data.locale} checked={v('noPrefooter') === 'on'} collapsed={folded} />
+  {/if}
+  <ItemLocales
+    locale={data.locale}
+    locales={data.locales}
+    selected={docLocales}
+    invalid={flagged('locales')}
+    collapsed={folded}
+  />
 {/snippet}
 
 {#snippet statusCard(p: Publication)}

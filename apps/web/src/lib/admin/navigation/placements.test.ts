@@ -107,10 +107,22 @@ describe('placementsFrom', () => {
     ]);
   });
 
+  it('places a zone above the footer, and takes it off again', () => {
+    const d = doc();
+    const zone = '01900000-0000-7000-8000-000000000abc';
+    const placed = placementsFrom(d, { ...formOf(d.placements, 'nl'), prefooter: zone }, 'nl')!;
+    expect(placed.prefooter).toEqual({ itemId: zone });
+    const off = { ...d, placements: placed };
+    expect(formOf(placed, 'nl').prefooter).toBe(zone);
+    expect(placementsFrom(off, { ...formOf(placed, 'nl'), prefooter: '' }, 'nl')!.prefooter).toBe(
+      null
+    );
+  });
+
   it('refuses a menu the document no longer has, and empties what is set to none', () => {
     const d = doc();
     expect(placementsFrom(d, { ...formOf(d.placements, 'nl'), actions: 'gone' }, 'nl')).toBeNull();
-    const none = { main: '', bar: null, actions: '', footer: [], legal: '' };
+    const none = { main: '', bar: null, actions: '', footer: [], legal: '', prefooter: '' };
     expect(placementsFrom(d, none, 'nl')).toEqual({
       main: null,
       actions: null,
