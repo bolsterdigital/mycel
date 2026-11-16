@@ -344,7 +344,7 @@ describe.skipIf(skip)('content conformance', () => {
       links: [{ label: 'Website', url: 'https://example.org', kind: 'website' }],
     });
     expect(await invoker.run(useCases.getPerson, admin, { personId: person.id })).toEqual(person);
-    // An organisation in the same register: the kind survives the database and an update (#249).
+    // An organisation in the same register: the kind survives the database and an update.
     const other = await invoker.run(useCases.createPerson, admin, {
       slug: `second-${run}`,
       kind: 'organisation',

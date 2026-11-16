@@ -1,6 +1,6 @@
 // A visitor sees exactly the authored team, with the same policy in both languages. The generic
 // block suite covers all column variants; this task proves real references, links and contacts,
-// and a group that mixes a person with an organisation (#249).
+// and a group that mixes a person with an organisation.
 import { expect, test, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { systemPrincipal, useCases } from '@mycel/core';
@@ -25,7 +25,7 @@ export async function exercisePeopleGrid(page: Page) {
       role: { nl: 'Bestuurslid', en: 'Board member' },
       links: [{ label: 'More about our work together', url: 'https://example.org/team' }],
     });
-    // A mixed group (#249): an organisation shows its logo whole and links to its website.
+    // A mixed group: an organisation shows its logo whole and links to its website.
     // Through the API: the e2e invoker has no image processor.
     const logo = await callApi(page.request, 'media.upload', {
       ...useCases.uploadMedia.examples[0]!.input,

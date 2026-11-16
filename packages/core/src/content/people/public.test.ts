@@ -293,7 +293,7 @@ describe('authored person grids', () => {
     expect(result.revision.document.blocks[0]?.type).toBe('people-grid');
   });
 
-  it('keeps an organisation in the register and the grid, never as author or profile (#249)', async () => {
+  it('keeps an organisation in the register and the grid, never as author or profile', async () => {
     const { invoker, admin, visitor, createPerson, article, grid } = setup();
     const org = await invoker.run(useCases.createPerson, admin, {
       slug: 'buurtfonds',

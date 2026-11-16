@@ -61,7 +61,7 @@ export async function exercisePeople(page: Page, request: APIRequestContext) {
   await expect(page).toHaveURL(/\/groups\/[^/]+\?saved=1$/);
   const groupId = new URL(page.url()).pathname.split('/').pop()!;
   await measure(page, 'group-form');
-  // An organisation (#249): its own create button, only its own fields, the kind filter.
+  // An organisation: its own create button, only its own fields, the kind filter.
   await page.goto(base);
   await page.getByRole('link', { name: 'Add organisation', exact: true }).click();
   await expect(page.locator('h1')).toHaveText('Add organisation');

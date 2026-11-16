@@ -134,7 +134,7 @@ export async function seedGroupedPerson(
     bytes: EXAMPLE_PNG,
     credit: { work: null, photographer: 'Fallback', photographerPersonId: person.id },
   });
-  // A mixed group: the organisation's kind travels with the register like any column (#249).
+  // A mixed group: the organisation's kind travels with the register like any column.
   const partner = await invoker.run(useCases.createPerson, admin, {
     slug: 'partner',
     kind: 'organisation',
