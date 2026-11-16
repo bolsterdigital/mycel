@@ -24,6 +24,7 @@ import '../jobs/ports.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
 import { exampleId } from '../util/ids.js';
+import { emailKey } from './email-key.js';
 import { isTombstone } from './erasure.js';
 import './ports.js';
 
@@ -69,15 +70,28 @@ export const eraseSupporter = defineUseCase({
     if (!existing) {
       const before = await ctx.supporters.getProjectionById(supporterId);
       if (!before) throw notFound('supporter');
-      // The read above was unlocked; under the address lock (the one ingest, admission and
-      // apply take, ADR 032 rule 5) the supporter must still have that address.
-      await ctx.supporters.lock(before.email);
+      // The reads here are unlocked; under the address locks (the one ingest, admission and
+      // apply take, ADR 032 rule 5) the supporter must still carry exactly these addresses. An
+      // address she had before is registered with the current one (rule 4, amended 2026-11-16):
+      // apply erases it with her id, so a signup on it after this request needs its own lifecycle
+      // to stay. In hash order, as an address change takes its two, so the two cannot deadlock.
+      const carried = await ctx.erasures.carried(supporterId);
+      const ordered = await Promise.all(
+        [...new Set([before.email, ...carried])].map(async (email) => ({
+          email,
+          hash: await emailKey(ctx.principal.tenantId, email, 'erasure'),
+        }))
+      );
+      for (const { email } of ordered.sort((a, b) => a.hash.localeCompare(b.hash)))
+        await ctx.supporters.lock(email);
       const current = await ctx.supporters.getProjectionById(supporterId);
-      if (!current || current.email !== before.email)
+      const locked = new Set(ordered.map((o) => o.email));
+      const older = (await ctx.erasures.carried(supporterId)).filter((a) => a !== before.email);
+      if (!current || current.email !== before.email || older.some((a) => !locked.has(a)))
         throw new UseCaseError('conflict', 'the supporter changed while the request ran; retry');
       // A concurrent request may have registered while this one waited for the lock.
       if (!(await ctx.erasures.get(supporterId))) {
-        await ctx.erasures.register(supporterId, current.email);
+        await ctx.erasures.register(supporterId, current.email, older);
         created = true;
       }
     }

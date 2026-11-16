@@ -66,18 +66,19 @@ snapshot() {
   echo "$id"
 }
 
-# Record that snapshot $2 holds the registrations in $1, a COPY text file whose first two
-# columns are tenant_id and supporter_id. Existing rows stay (the register is append-only, so a
-# later snapshot holds what an earlier one did). Runs only after restic succeeded.
+# Record that snapshot $2 holds the registrations in $1, a COPY text file whose first three
+# columns are tenant_id, supporter_id and email_hash (one row per address hash of a supporter,
+# 0058). Existing rows stay (the register is append-only, so a later snapshot holds what an
+# earlier one did). Runs only after restic succeeded.
 secure() {
-  awk -F '\t' 'NF { print $1 "\t" $2 }' "$1" >"$1.ids"
+  awk -F '\t' 'NF { print $1 "\t" $2 "\t" $3 }' "$1" >"$1.ids"
   psql --no-psqlrc --quiet --tuples-only --no-align --set=ON_ERROR_STOP=1 <<SQL
 begin;
-create temp table secured (tenant_id uuid, supporter_id uuid) on commit drop;
+create temp table secured (tenant_id uuid, supporter_id uuid, email_hash text) on commit drop;
 \\copy secured from '$1.ids'
 with added as (
-  insert into erasure_backups (tenant_id, supporter_id, snapshot_id)
-  select tenant_id, supporter_id, '$2' from secured
+  insert into erasure_backups (tenant_id, supporter_id, email_hash, snapshot_id)
+  select tenant_id, supporter_id, email_hash, '$2' from secured
   on conflict do nothing
   returning 1)
 select '[mycel-backup] erasures: ' || (select count(*) from secured) || ' in snapshot '
@@ -91,7 +92,7 @@ if [ "$mode" = erasures ]; then
   mkdir -p "$erasures_path"
   # One statement, so one snapshot of the register. The columns by name: restore-erasures.sh
   # reads them back by name, whatever a later migration adds to the table.
-  psql --no-psqlrc --quiet --set=ON_ERROR_STOP=1 --command="\\copy (select tenant_id, supporter_id, email_hash, erased_at, actor from erasures order by tenant_id, supporter_id) to '${erasures_path}/erasures.copy'"
+  psql --no-psqlrc --quiet --set=ON_ERROR_STOP=1 --command="\\copy (select tenant_id, supporter_id, email_hash, erased_at, actor from erasures order by tenant_id, supporter_id, email_hash) to '${erasures_path}/erasures.copy'"
   say "register: $(wc -l <"${erasures_path}/erasures.copy" | tr -d ' ') registrations"
   # The person register (ADR 034, 0050) as a set of its own beside it, in the same snapshot.
   psql --no-psqlrc --quiet --set=ON_ERROR_STOP=1 --command="\\copy (select tenant_id, person_id, erased_at, actor from person_erasures order by tenant_id, person_id) to '${erasures_path}/person-erasures.copy'"
@@ -214,8 +215,8 @@ EOF
 # the staging directory, so the next snapshot does not carry this run's leftovers.
 held=$(mktemp -d)
 pg_restore --data-only --table=erasures --file="$held/erasures.sql" "$db/mycel.dump"
-grep -q '^COPY public\.erasures (tenant_id, supporter_id,' "$held/erasures.sql" ||
-  die "the dump has no COPY block for erasures with tenant_id and supporter_id first"
+grep -q '^COPY public\.erasures (tenant_id, supporter_id, email_hash,' "$held/erasures.sql" ||
+  die "the dump has no COPY block for erasures with tenant_id, supporter_id and email_hash first"
 awk '/^COPY public\.erasures / { on = 1; next } /^\\\.$/ { on = 0 } on' \
   "$held/erasures.sql" >"$held/erasures.copy"
 

@@ -121,7 +121,16 @@ export interface TenantStore {
   audit: AuditEntry[];
   /** `erasures` (0019), keyed by supporter id: the hash of the address, never the address. */
   supporterLifecycles: Map<string, import('../../supporters/lifecycle.js').SupporterLifecycle>;
-  erasures: Map<string, { emailHash: string; erasedAt: Date; actor: Principal['actor'] }>;
+  erasures: Map<
+    string,
+    {
+      emailHash: string;
+      /** The other rows of the id in `erasures` (0058): hashes of addresses it had before. */
+      olderHashes?: string[];
+      erasedAt: Date;
+      actor: Principal['actor'];
+    }
+  >;
   /** `person_erasures` (0050, ADR 034), keyed by person id: append-only, never an address. */
   personErasures: Map<string, { erasedAt: Date; actor: Principal['actor'] }>;
   /**
