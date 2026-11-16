@@ -302,6 +302,31 @@ describe('a block teaser keeps the same blocks behind its boundary', () => {
     expect(shape(open)).toEqual(['t p', { blocks: 1 }]);
   });
 
+  it('text moved in from behind the boundary takes an earlier teaser text block with it too', async () => {
+    const blocks = [text('t', 'open'), headingBlock('x'), headingBlock('h'), text('paid', 'paid')];
+    const move = async (source: object[], blockId: string, place: object) =>
+      invoker.run(useCases.moveBlock, admin, {
+        ...(await item(source, 3)),
+        blockId,
+        place: place as never,
+      });
+    // `t` is not the teaser's last block: the count still ends before it.
+    const merged = await move(blocks, 'paid', { after: 't' });
+    expect(merged.merged).toEqual([{ from: 'paid', into: 't' }]);
+    expect(shape(merged)).toEqual(['t x h', { blocks: 0 }]);
+    // Counterproof: the same block moved behind the boundary leaves the count alone.
+    const behind = [...blocks, headingBlock('z')];
+    expect(shape(await move(behind, 'paid', { after: 'z' }))).toEqual([
+      't x h z paid',
+      { blocks: 3 },
+    ]);
+    // And a teaser text block that grows by its own teaser neighbour stays in the teaser.
+    const own = [text('t', 'open'), headingBlock('x'), text('u', 'more'), headingBlock('p')];
+    const grown = await move(own, 'u', { after: 't' });
+    expect(grown.merged).toEqual([{ from: 'u', into: 't' }]);
+    expect(shape(grown)).toEqual(['t x p', { blocks: 2 }]);
+  });
+
   it('a split inside the teaser counts both parts; at its end the second part falls behind', async () => {
     const split = async (count: number) =>
       invoker.run(useCases.splitInsertBlock, admin, {

@@ -269,11 +269,13 @@ function paywallFollowing(
  * first block from behind the boundary. So a removal or a move out of the teaser shortens the
  * count, an insert between teaser blocks lengthens it, and a block placed at the boundary itself,
  * or the second part of a split there, falls behind it. A text block from behind the boundary that
- * merged into the teaser's last text block takes that block with it: the count ends before it. The
- * merge is read from the lists (a text block from behind the boundary is gone and the teaser's last
- * text block changed), so a front that sends a whole edited list (the article writer) gets the
- * same answer, at the price of a teaser one block short when one save both rewrites that last
- * block and removes text behind the boundary. Rejected: the boundary as a block id, a second
+ * merged into a teaser text block takes that block with it, wherever it sits in the run: the count
+ * ends before the first such block, so the teaser blocks after it fall behind the boundary too. The
+ * merge is read from the lists (a text block from behind the boundary is gone and a teaser text
+ * block changed), so a front that sends a whole edited list (the article writer) gets the same
+ * answer, at the price of a shorter teaser when one save both rewrites a teaser text block and
+ * removes text behind the boundary. Rejected: looking only at the teaser's last block, which let a
+ * move next to an earlier text block through; the boundary as a block id, a second
  * marker next to the `paywall` block with a migration of its own; refusing an operation that
  * crosses the boundary, which blocks ordinary editing over a number the editor does not see there.
  */
@@ -286,12 +288,13 @@ function countFollowing(was: readonly Block[], count: number, is: readonly Block
     if (paid.has(block.id)) break;
     if (teaser.has(block.id)) next = i + 1;
   }
-  const last = is[next - 1];
   const present = new Set(is.map((b) => b.id));
-  const textGone = behind.some((b) => b.type === 'rich-text' && !present.has(b.id));
-  if (last?.type === 'rich-text' && textGone)
-    if (canonicalJson(last) !== canonicalJson(teaser.get(last.id))) return next - 1;
-  return next;
+  if (!behind.some((b) => b.type === 'rich-text' && !present.has(b.id))) return next;
+  const took = is.slice(0, next).findIndex((block) => {
+    const before = teaser.get(block.id);
+    return block.type === 'rich-text' && before && canonicalJson(block) !== canonicalJson(before);
+  });
+  return took === -1 ? next : took;
 }
 
 /**
