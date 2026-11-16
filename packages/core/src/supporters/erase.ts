@@ -75,6 +75,9 @@ export const eraseSupporter = defineUseCase({
       // address she had before is registered with the current one (rule 4, amended 2026-11-16):
       // apply erases it with her id, so a signup on it after this request needs its own lifecycle
       // to stay. In hash order, as an address change takes its two, so the two cannot deadlock.
+      // An older address that another supporter's rows carry is left out (second amendment of
+      // 2026-11-16): the request names one person, so it does not end that address, and apply
+      // erases on it only what is not tied to the other supporter.
       const carried = await ctx.erasures.carried(supporterId);
       const ordered = await Promise.all(
         [...new Set([before.email, ...carried])].map(async (email) => ({
@@ -91,7 +94,12 @@ export const eraseSupporter = defineUseCase({
         throw new UseCaseError('conflict', 'the supporter changed while the request ran; retry');
       // A concurrent request may have registered while this one waited for the lock.
       if (!(await ctx.erasures.get(supporterId))) {
-        await ctx.erasures.register(supporterId, current.email, older);
+        const held = new Set(await ctx.erasures.heldByOthers(supporterId, older));
+        await ctx.erasures.register(
+          supporterId,
+          current.email,
+          older.filter((a) => !held.has(a))
+        );
         created = true;
       }
     }

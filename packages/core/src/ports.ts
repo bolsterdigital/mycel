@@ -146,8 +146,16 @@ export interface Erasures {
    */
   carried(supporterId: string): Promise<string[]>;
   /**
+   * Which of `addresses` the rows of another supporter carry (projection or events, tombstones
+   * left out), when that other id has no registration of its own. Such an address is not ended
+   * by this supporter's request (ADR 032 rule 4, second amendment of 2026-11-16). Called under
+   * the addresses' locks.
+   */
+  heldByOthers(supporterId: string, addresses: readonly string[]): Promise<string[]>;
+  /**
    * One registration: the id with the hash of `email` and of every address in `older`, under
-   * each address's lock. A later signup on any of them then needs a lifecycle of its own.
+   * each address's lock. A later signup on any of them then needs a lifecycle of its own. The
+   * caller leaves out of `older` what `heldByOthers` returns.
    */
   register(supporterId: string, email: string, older?: readonly string[]): Promise<void>;
   /** One supporter's registration and whether a backup holds it; null when it has none. */

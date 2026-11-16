@@ -13,6 +13,14 @@
 // before 0058 have the one hash; apply still erases their ids' older addresses, without that
 // protection.
 //
+// An older address that another supporter's rows carry at the request is not registered (ADR
+// 032 rule 4, second amendment of 2026-11-16): the request names one person. Apply still finds
+// that address in her own rows, and erases on it her rows and every copy that is not tied to
+// the other supporter: a row of another id goes by a registered hash only, and a submission
+// that another unregistered supporter's event refers to stays with its outbox events, mail
+// intents and reconcile jobs (`holderSubmissions`). The same holds for an older address of a
+// registration from before 0058.
+//
 // The addresses to erase are not stored anywhere: apply finds them from the register each time, in
 // the supporter's projection and events (by id) and in projections and submission values whose
 // hash is registered (a restore can bring back a submission whose supporter was never ingested).
@@ -30,8 +38,10 @@
 import { sql, type Kysely, type RawBuilder } from 'kysely';
 import {
   erasedAddressMatcher,
+  holderSubmissions,
   liveLifecycle,
   protectsErasureCopy,
+  sparesHolderCopy,
   isTombstone,
   normalizeEmail,
   eraseOutboxProps,
@@ -60,6 +70,7 @@ import { applyPersonErasures } from './people/erasures.js';
 type Trx = Kysely<Database>;
 
 const TOMB = sql.raw(`'@${ERASED_DOMAIN}'`);
+const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 export function erasureRepository(
   trx: Trx,
@@ -77,6 +88,27 @@ export function erasureRepository(
         .union(trx.selectFrom('events').select('email').where('supporter_id', '=', supporterId))
         .execute();
       return [...new Set(rows.map((r) => normalizeEmail(r.email)).filter((a) => !isTombstone(a)))];
+    },
+
+    async heldByOthers(supporterId, addresses) {
+      // An operator's request, so one read of the tenant's events without an index on the
+      // address is accepted. SQL narrows (`plain`, ASCII lower case); core's normalisation
+      // decides, as in apply.
+      const wanted = new Set(addresses.map(normalizeEmail));
+      if (!wanted.size) return [];
+      const match = (column: string) =>
+        sql<boolean>`(not ${plain(sql.ref(column))} or translate(${sql.ref(column)}, ${UPPER}, ${UPPER.toLowerCase()}) = any(${[...wanted]}::text[]))`;
+      const { rows } = await sql<{ email: string }>`
+        select s.email from supporters s
+          where s.id <> ${supporterId} and ${match('s.email')}
+            and not exists (select 1 from erasures r where r.supporter_id = s.id)
+        union
+        select v.email from events v
+          where v.supporter_id <> ${supporterId} and ${match('v.email')}
+            and not exists (select 1 from erasures r where r.supporter_id = v.supporter_id)`.execute(
+        trx
+      );
+      return [...new Set(rows.map((r) => normalizeEmail(r.email)).filter((a) => wanted.has(a)))];
     },
 
     async register(supporterId, email, older = []) {
@@ -204,8 +236,6 @@ async function expireExports(trx: Trx, changedRows: boolean): Promise<number> {
         (select max(erased_at) from person_erasures)))`.execute(trx);
   return Number(r.numAffectedRows ?? 0n);
 }
-
-const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 /**
  * Core `normalizeEmail` (trim, then lower case) is the identity on text of ASCII characters that
@@ -337,7 +367,7 @@ async function eraseRows(
       .execute(),
     events: await trx
       .selectFrom('events')
-      .select(['id', 'supporter_id', 'email'])
+      .select(['id', 'supporter_id', 'email', 'source_ref'])
       .where(sql<boolean>`supporter_id = any(${idList}::uuid[])`)
       .execute(),
   };
@@ -378,7 +408,7 @@ async function eraseRows(
   const eventMatches = (
     await trx
       .selectFrom('events')
-      .select(['id', 'supporter_id', 'email'])
+      .select(['id', 'supporter_id', 'email', 'source_ref'])
       .where(byAddress('email'))
       .execute()
   ).filter((row) => !seen.events.has(row.id));
@@ -407,16 +437,31 @@ async function eraseRows(
   );
   const proven = (value: unknown, provenance: unknown) =>
     protectsErasureCopy(value, provenance, live, addressHashes);
+  // An address the ids' rows carry that no registration ends, in the whole register: by address
+  // it reaches no row of another id, and no copy of a submission that an event of another
+  // supporter without a registration refers to.
+  const registered = new Set(evidence.registrations.map((r) => r.emailHash));
+  const carriedOnly = new Set(
+    [...addressHashes].filter(([, hash]) => !registered.has(hash)).map(([a]) => a)
+  );
+  const ended = (email: string) => {
+    const address = normalizeEmail(email);
+    return addresses.has(address) && !carriedOnly.has(address);
+  };
+  const held = holderSubmissions(
+    events,
+    new Set(evidence.registrations.map((r) => r.supporterId)),
+    carriedOnly
+  );
+  const spared = (value: unknown, submissionId: unknown) =>
+    sparesHolderCopy(value, submissionId, held, addresses);
   const supporterIds = supporters
-    .filter(
-      (row) => !live.has(row.id) && (ids.has(row.id) || addresses.has(normalizeEmail(row.email)))
-    )
+    .filter((row) => !live.has(row.id) && (ids.has(row.id) || ended(row.email)))
     .map((row) => row.id);
   const eventRowIds = events
     .filter(
       (row) =>
-        !live.has(row.supporter_id ?? '') &&
-        (ids.has(row.supporter_id ?? '') || addresses.has(normalizeEmail(row.email)))
+        !live.has(row.supporter_id ?? '') && (ids.has(row.supporter_id ?? '') || ended(row.email))
     )
     .map((row) => row.id);
 
@@ -468,7 +513,9 @@ async function eraseRows(
         where tenant_id = ${tenantId} and strpos(props::text, '@') > 0`.execute(trx)
   ).rows.filter((row) => carries(row.props));
   const outbox = [];
-  for (const row of outboxCandidates) if (!proven(row.props, row.props)) outbox.push(row);
+  for (const row of outboxCandidates)
+    if (!proven(row.props, row.props) && !spared(row.props, row.props['submissionId']))
+      outbox.push(row);
   const eventIds = outbox.map((e) => e.id);
   count(
     await sql`delete from mail_sends where event_id::text = any(${eventIds}::text[])`.execute(trx)
@@ -477,7 +524,10 @@ async function eraseRows(
     select id, values, evaluation from form_submissions
       where strpos(values::text, '@') > 0`.execute(trx);
   const submissionIds = submissions.rows
-    .filter((row) => carries(row.values) && !proven(row.values, row.evaluation))
+    .filter(
+      (row) =>
+        carries(row.values) && !proven(row.values, row.evaluation) && !spared(row.values, row.id)
+    )
     .map((row) => row.id);
   count(
     await sql`delete from form_submissions where id = any(${submissionIds}::uuid[])`.execute(trx)
