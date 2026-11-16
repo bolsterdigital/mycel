@@ -36,7 +36,7 @@ import {
 import { forwarded, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi } from './lib/api';
-import { startPhotoStory } from './lib/photo-story';
+import { startPhotoStory } from './lib/content-admin/photo-story';
 import { openPublication } from './lib/publication';
 import { block, editorReady, reloadsEditor } from './lib/editor';
 

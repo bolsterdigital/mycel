@@ -4,9 +4,9 @@
 // text that was typed. Runs in `no-js` (native dialog invokers) and `a11y` alike. The caller
 // uploads the photos, through the real form, so they sit in the server's own blob store.
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
-import { callApi } from './api';
-import { expectNoAxeViolations } from './axe';
-import { NARROW, layoutGate, setTextSize } from './layout';
+import { callApi } from '../api';
+import { expectNoAxeViolations } from '../axe';
+import { NARROW, layoutGate, setTextSize } from '../layout';
 
 /** Pick `filename` in the picker of photo `n` (1-based), through its dialog. */
 async function pick(page: Page, n: number, filename: string) {
