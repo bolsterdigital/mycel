@@ -66,10 +66,23 @@ The `test-surface` flag is the cheap form of a holdout: tests and fixtures are t
 - The merge queue applies the same rule to CI itself: a queue run on exactly the tree of the reviewed PR head reuses that head's passed run (job `reuse` in both workflows, `scripts/queue-reuse.mjs`); any other tree, because `main` moved since the PR run, runs every job in full. A reviewer who brings a branch up to date with `main` before the enqueue gets the reuse; one who does not gets a full run, never a skipped one.
 - If `main` moves during a review, refresh the touched claim and its dependencies; do not re-prove the whole new `main`, and say what stayed out of view.
 - A model finding is a hypothesis until a path, a state and a reproducible counterproof carry it. An unknown dependency or an unclear provenance of the evidence gives `needs review`, not `pass`.
-- Every finding gets **one existing address** in the planning (a TODO item or a brief), deduplicated on cause and failure case; two findings with one cause are one item. A security finding is raised even when an item ceiling is reached.
+- Every finding gets **one existing address** in the planning, deduplicated on cause and failure case; two findings with one cause are one address. Whether that address is an item or a note is decided by [Item or note](#item-or-note). A security finding on a reachable path is raised even when an item ceiling is reached.
 - A defect that keeps appearing on one invariant goes back into the **right existing conformance or regression gate**, not into a new generic test layer. A form token that expires wants a test with elapsed time, a conditional GET and a real POST, not another HTML snapshot; an erasure that must survive a restore wants the window before the next backup in the drill.
 - A defect found **after** the merge is an escape. It is recorded with its class and the gate or rule that now catches that class, so the repair is to the machine, not only to the output. Flaky tests are fixed or removed the same day (testing.md rule 6).
 - Pruning carries the same burden as adding: name the call sites, duplicated lines or dead abstraction removed, show behaviour kept, count the exceptions introduced. Lines of code are not a quota; explicit code can be cheaper than a short generic layer.
+
+## Item or note
+
+A review that keeps turning theoretical cases into work items steers the build towards refinement and away from missing features (owner decision, 2026-11-16: features before edge cases). So a finding is triaged before it gets an address.
+
+- **Item** (a TODO item, repaired by a session that starts there): the failure is on the **main path**, meaning an ordinary editor, visitor or operator hits it in ordinary use without an unusual history; or it is a leak, an unauthorised read or write, or data loss on a path a principal can actually reach, however rare.
+- **Note** (one line in the planning's parked-notes list, with the PR it came from): everything else. A failure case that needs two or more unusual preconditions at once (two supporters on one address who both moved, a restore during an erasure) is a note. A note is not an item, not a brief, not a question for the owner and not a return check; it is picked up when a real installation shows the case, or when the owner asks.
+- **Counterproof scope**: the extra counterproof tests the PR's own behaviour claim on its main path. An adjacent scenario the PR did not claim is at most a note, unless it is a leak or data loss as above.
+- **Chain limit**: a delivered item gets at most one follow-up item out of its own review. A finding from the review of that follow-up is a note, with the same exception. A chain that has had its follow-up is closed; only the owner or a planning audit reopens it.
+- **Questions for the owner**: only when the answer changes what a user sees in ordinary use, or commits money, an external party or something irreversible. When both options are defensible and nobody notices the difference in ordinary use, the building session picks the simplest, records the choice in one line (a dated ADR addition or the brief) and builds on.
+- **Until the first production installation**: tenant isolation, authorisation, CSP and consent are hard from day one. Whatever only matters with real data at scale or in a real incident (further restore and recovery drills, scale behaviour, retention edges, rare concurrency, full boundary matrices beyond the shared gates) is a note until that installation is planned. Existing gates stay green; they are not widened for theoretical cases.
+
+The tier of a PR follows what the PR itself changes: `flagship-review` when it changes authentication, authorisation, a tenant or security boundary, or carries a migration that can lose data. A follow-up that refines behaviour inside a boundary that was already reviewed is ordinary work, also in a domain that sounds sensitive (erasure, consent, publication).
 
 ## Budget
 

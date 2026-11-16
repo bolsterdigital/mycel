@@ -86,6 +86,7 @@ Deviations from that way of working:
 1. **`docs/plans/` is a symlink to the private sibling `../mycel-planning`**, because this repository is public. Planning commits go in that sibling; on a fresh checkout: `ln -s ../../mycel-planning docs/plans`.
 2. **All commits are signed off** (`git commit -s`, DCO, ADR 006); CI refuses a PR without.
 3. **Review-and-merge follows `docs/architecture/review.md`** and, during the pilot (until 2026-11-06 or twelve reviews), registers each review in `docs/plans/reference/review-pilot-2026-10.md`: signals block, chosen lens, existing evidence, minutes. At most one extra counterproof per PR; never a fix or a merge out of the review itself.
+4. **Features before edge cases** (owner decision, 2026-11-16): a review finding off the main path is a parked note, not an item, a brief or a question for the owner; a delivered item gets at most one follow-up from its own review. The triage is `docs/architecture/review.md` § Item or note.
 
 ## Relation to Dreamkit
 
