@@ -88,7 +88,9 @@ export interface PublicItem {
 export async function loadPublicItem(
   site: Site,
   route: Pick<ContentRoute, 'type' | 'slug'>,
-  locale: string
+  locale: string,
+  /** The archive page of an overview (`?p=`); 1 without one. */
+  archivePage = 1
 ): Promise<PublicItem> {
   const { invoker, uow } = runtime();
   const { tenant } = site;
@@ -101,10 +103,20 @@ export async function loadPublicItem(
     throw e;
   }
   const source = runtimeSource({ invoker, uow, reader, defaultLocale: tenant.defaultLocale });
+  const { timeZone } = (await invoker.run(useCases.getSiteGeneral, reader, {})).value;
   const model = await resolveDocument(source, item, {
     base: sitePath(site, ''),
     fallbackLocale: tenant.defaultLocale,
+    page: archivePage,
+    path: contentPath(item, locale, tenant.defaultLocale),
+    timeZone,
   });
+  // A later page exists only where an overview with an archive still has entries on it.
+  if (
+    archivePage > 1 &&
+    !model.blocks.some((b) => b.type === 'overview' && b.newer !== null && b.entries.length)
+  )
+    refuse(404);
   const intro = await resolveIntro(
     source,
     {
@@ -121,7 +133,7 @@ export async function loadPublicItem(
                 section: item.section?.name ?? null,
               },
               locale,
-              (await invoker.run(useCases.getSiteGeneral, reader, {})).value.timeZone
+              timeZone
             ),
           }
         : {}),

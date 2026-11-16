@@ -205,6 +205,9 @@ export async function blockReferenceIssues(
   for (const id of refs.campaigns)
     if (!(await ctx.campaigns.get(id)))
       issues.push({ path, message: 'content.reference.campaign-unknown', params: { id } });
+  for (const id of refs.sections)
+    if (!(await ctx.sections.get(id)))
+      issues.push({ path, message: 'content.reference.section-unknown', params: { id } });
   for (const id of refs.media) {
     const issue = await imageIssue(ctx, id, path);
     if (issue) issues.push(issue);

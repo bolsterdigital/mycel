@@ -715,6 +715,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
           .replaceAll(EXAMPLE_IDS.item, signupItem.id)
           .replaceAll(EXAMPLE_IDS.form, formId)
           .replaceAll(EXAMPLE_IDS.campaign, cardCampaign.id)
+          .replaceAll(EXAMPLE_IDS.section, qualitySection.id)
       );
     const qualityImages = [landscape.id, portrait.id, square.id, panorama.id];
     await invoker.run(useCases.updatePerson, admin, {

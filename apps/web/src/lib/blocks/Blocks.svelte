@@ -10,6 +10,7 @@
   import CampaignCard from './CampaignCard.svelte';
   import CampaignNotice from './CampaignNotice.svelte';
   import Cards from './Cards.svelte';
+  import Overview from './Overview.svelte';
   import PeopleGrid from './PeopleGrid.svelte';
   import Cta from './Cta.svelte';
   import Faq from './Faq.svelte';
@@ -53,7 +54,8 @@
       ? model.blocks.find(
           (b) =>
             ((b.type === 'image' || b.type === 'hero') && b.image) ||
-            (b.type === 'people-grid' && b.people.some((p) => p.image))
+            (b.type === 'people-grid' && b.people.some((p) => p.image)) ||
+            (b.type === 'overview' && b.entries.some((e) => e.image))
         )?.id
       : undefined
   );
@@ -89,6 +91,8 @@
     <Cta anchor={anchors.get(block.id)} {block} {model} />
   {:else if block.type === 'people-grid'}
     <PeopleGrid anchor={anchors.get(block.id)} {block} {model} eager={block.id === firstImage} />
+  {:else if block.type === 'overview'}
+    <Overview anchor={anchors.get(block.id)} {block} {model} eager={block.id === firstImage} />
   {:else if block.type === 'cards'}
     <Cards anchor={anchors.get(block.id)} {block} {model} />
   {:else if block.type === 'file-download'}

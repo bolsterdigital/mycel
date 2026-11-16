@@ -116,6 +116,23 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
 
   function blockMarkdown(b: RenderBlock): string | null {
     switch (b.type) {
+      case 'overview':
+        return [
+          b.entries
+            .map((e) =>
+              [
+                `- ${link(e.title, e.href)} (${md(e.date.label)})`,
+                ...(b.layout === 'cards' && e.summary ? [`  ${md(e.summary)}`] : []),
+              ].join('\n')
+            )
+            .join('\n'),
+          ...[
+            b.newer && link(model.copy.overview.newer, b.newer),
+            b.older && link(model.copy.overview.older, b.older),
+          ].filter((l): l is string => !!l),
+        ]
+          .filter(Boolean)
+          .join('\n\n');
       case 'people-grid':
         return b.people
           .map((p) =>

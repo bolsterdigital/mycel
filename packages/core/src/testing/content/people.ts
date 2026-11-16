@@ -4,6 +4,7 @@ import type { Invoker } from '../../invoke.js';
 import type { Principal } from '../../principal.js';
 import { useCases } from '../../use-cases.js';
 import type { BlockInput } from '../../content/blocks.js';
+import { BLOCK_DEFINITIONS } from '../../content/block-types.js';
 
 export async function demoPerson(invoker: Invoker, principal: Principal): Promise<string> {
   let after: string | undefined;
@@ -40,4 +41,43 @@ export function peopleBlock(personId?: string): BlockInput {
       showContact: false,
     },
   };
+}
+
+// The demo page's team and its latest articles: the grid, a sentence, an overview of the newest
+// articles, as one run so the overview has text before it and the page's next sentence
+// after it. Here and not in demo-content.ts, which stands at its size ceiling.
+const paragraph = (text: string) => ({
+  type: 'doc' as const,
+  content: [{ type: 'paragraph' as const, content: [{ type: 'text' as const, text }] }],
+});
+
+export function teamAndNews(personId: string | undefined): BlockInput[] {
+  return [
+    peopleBlock(personId),
+    {
+      type: 'rich-text',
+      version: BLOCK_DEFINITIONS['rich-text'].version,
+      props: {
+        content: {
+          nl: paragraph('Wat we meten en wie we spreken, staat in onze nieuwste berichten.'),
+          en: paragraph('What we measure and whom we talk to is in our latest posts.'),
+        },
+      },
+    },
+    {
+      type: 'overview',
+      version: BLOCK_DEFINITIONS.overview.version,
+      props: {
+        source: 'article',
+        sectionId: null,
+        tags: [],
+        order: 'newest',
+        limit: '3',
+        pinned: [],
+        layout: 'cards',
+        archive: false,
+        width: 'wide',
+      },
+    },
+  ];
 }

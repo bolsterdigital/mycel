@@ -11,4 +11,5 @@ export const EXAMPLE_IDS = {
   document: exampleId(0xd003),
   audio: exampleId(0xd004),
   campaign: exampleId(0xc1),
+  section: exampleId(0x5ec1),
 } as const;

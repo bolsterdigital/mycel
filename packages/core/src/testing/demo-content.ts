@@ -17,7 +17,7 @@
 
 import type { z } from 'zod';
 import { pageWays } from './content/action-row.js';
-import { demoPerson, peopleBlock } from './content/people.js';
+import { demoPerson, teamAndNews } from './content/people.js';
 import { campaignCardBlocks, demoCampaign } from './content/campaign.js';
 import { demoReportPdf } from './content/report-pdf.js';
 import type { ContentItem } from '../content/model.js';
@@ -629,7 +629,7 @@ export function demoPage(refs: {
         image!,
         heading({ nl: 'Wat we doen', en: 'What we do' }),
         pageWork(),
-        peopleBlock(refs.personId),
+        ...teamAndNews(refs.personId),
         bridge(
           'Samen met de vrijwilligers gaan we langs bij bakkers en scholen.',
           'Together with our volunteers, we visit bakers and schools.'

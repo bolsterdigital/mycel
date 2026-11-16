@@ -13,7 +13,13 @@
 // `no-store`. No cookie is read or set.
 
 import { fail, redirect } from '@sveltejs/kit';
-import { anonymousPrincipal, contentPath, translate, useCases } from '@mycel/core';
+import {
+  OVERVIEW_MAX_PAGE,
+  anonymousPrincipal,
+  contentPath,
+  translate,
+  useCases,
+} from '@mycel/core';
 import { currentContext } from '@mycel/observability';
 import { ui } from '../../../../../i18n/index.js';
 import { localeOf, parseContentPath, thanksPath } from '#lib/server/public/content-route.js';
@@ -34,9 +40,20 @@ function target(locals: App.Locals, params: { locale?: string; path: string }) {
   return { site, route, locale };
 }
 
-export const load: PageServerLoad = async ({ params, locals, request, setHeaders }) => {
+/**
+ * The page of an overview's archive (`?p=2`): absent is 1; anything but 2 to 100 in plain
+ * digits is a 404, so one list has one address per page.
+ */
+function pageOf(url: URL): number {
+  const p = url.searchParams.get('p');
+  if (p === null) return 1;
+  if (!/^[1-9]\d{0,2}$/.test(p) || Number(p) < 2 || Number(p) > OVERVIEW_MAX_PAGE) refuse(404);
+  return Number(p);
+}
+
+export const load: PageServerLoad = async ({ params, locals, request, setHeaders, url }) => {
   const { site, route, locale } = target(locals, params);
-  const view = await loadPublicItem(site, route, locale);
+  const view = await loadPublicItem(site, route, locale, route.thanks ? 1 : pageOf(url));
   locals.lang = locale;
   const t = ui(locale);
 

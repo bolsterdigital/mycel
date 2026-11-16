@@ -7,6 +7,7 @@ import { compareItems, matchesItemDocument, matchesItemFilter } from '../../cont
 import { comparePublished } from '../../content/published/list.js';
 import { compareHits, matchesSearch, searchEntry } from '../../content/published/search.js';
 import type {
+  PublishedCardRow,
   BulkPlanRepository,
   ContentRepository,
   ItemMatch,
@@ -57,8 +58,41 @@ function memoryTrash(
 function memoryPublished(
   s: TenantStore,
   kept: () => ItemRecord[]
-): Pick<ContentRepository, 'listPublished' | 'searchPublished'> {
+): Pick<ContentRepository, 'listPublished' | 'searchPublished' | 'publishedCards'> {
   return {
+    async publishedCards({ locale, type, sectionId, tags, ids, exclude, order }, offset, limit) {
+      const rows: PublishedCardRow[] = kept().flatMap((item) => {
+        if (type && item.type !== type) return [];
+        if (ids && !ids.includes(item.id)) return [];
+        if (exclude?.includes(item.id)) return [];
+        const state = item.publication.find((p) => p.locale === locale && p.publishedRevisionId);
+        if (!state) return [];
+        const revision = s.revisions.get(state.publishedRevisionId!)!;
+        const doc = revision.document;
+        if (doc.access.level !== 'public') return [];
+        if (sectionId && (doc.type !== 'article' || doc.sectionId !== sectionId)) return [];
+        if (tags?.length && (doc.type !== 'article' || !tags.every((t) => doc.tags.includes(t))))
+          return [];
+        return [
+          {
+            itemId: item.id,
+            type: item.type,
+            slug: item.slug,
+            revisionId: revision.id,
+            firstPublishedAt: new Date(state.firstPublishedAt!.getTime()),
+            document: structuredClone(doc),
+          },
+        ];
+      });
+      const sign = order === 'newest' ? -1 : 1;
+      return rows
+        .sort(
+          (a, b) =>
+            sign * (a.firstPublishedAt.getTime() - b.firstPublishedAt.getTime()) ||
+            (a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0)
+        )
+        .slice(offset, offset + limit);
+    },
     async searchPublished({ tokens, locale }, offset, limit) {
       const hits: PublishedHit[] = kept().flatMap((item) => {
         const state = item.publication.find((p) => p.locale === locale && p.publishedRevisionId);

@@ -28,6 +28,7 @@ export const BLOCK_ICONS: Readonly<Record<BlockType, IconName>> = {
   form: 'clipboard-list',
   'signup-form': 'mail',
   'campaign-card': 'megaphone',
+  overview: 'newspaper',
   paywall: 'lock',
   hero: 'image',
 };
@@ -94,6 +95,8 @@ export const BLOCK_PRESENTATION: { readonly [T in BlockType]: BlockPresentation 
   'signup-form': { rest: 'text', display: [], source: [], stage: 'C3' },
   // ADR 033 rule 4: the campaign as the site shows it now, with its state and count.
   'campaign-card': { rest: 'text', display: ['variant', 'width'], source: [], stage: 'C3' },
+  // The generated fields for now; pickers for pins and the section follow with the editor work.
+  overview: { rest: 'text', display: ['layout', 'width'], source: [], stage: 'C3' },
   paywall: { rest: 'text', display: [], source: [], stage: 'C4' },
   hero: { rest: 'text', display: ['variant', 'width', 'align'], source: [], stage: 'C4' },
 };

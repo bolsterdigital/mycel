@@ -118,7 +118,8 @@ describe('demo content', () => {
         ),
       });
       expect(stored.blocks.length).toBeGreaterThanOrEqual(10);
-      expect(stored.blocks.length).toBeLessThanOrEqual(25);
+      // 26 since the overview block: the page shows its newest articles under the team, with a sentence between.
+      expect(stored.blocks.length).toBeLessThanOrEqual(26);
       expect(stored.lead?.['nl']).toBeTruthy();
       expect(stored.heroImageId).toBeDefined();
       for (const locale of ['nl', 'en']) expect(readinessIssues(stored, locale)).toEqual([]);

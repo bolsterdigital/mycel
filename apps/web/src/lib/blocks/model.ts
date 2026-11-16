@@ -64,6 +64,8 @@ export interface BlockCopy {
     /** In place of a form whose campaign does not accept participation now. */
     notOpen: Record<'upcoming' | 'closed', string>;
   };
+  /** The page links under an overview with an archive. */
+  overview: { older: string; newer: string; label: string };
 }
 
 export interface RenderImage {
@@ -286,6 +288,27 @@ export type RenderBlock = { id: string } & (
        * preview (`diagnose`), where an editor checks the form before participation opens.
        */
       diagnosis?: CampaignCardReason | 'upcoming' | 'closed';
+    }
+  | {
+      type: 'overview';
+      layout: 'cards' | 'list';
+      width: Width;
+      entries: {
+        id: string;
+        /** Site-root path of the item in this locale. */
+        href: string;
+        title: string;
+        summary: string | null;
+        /** First publication in this locale, in the site's time zone. */
+        date: { iso: string; label: string };
+        /** Decorative: the title beside it names the item. */
+        image: RenderImage | null;
+        pinned: boolean;
+        revisionId: string;
+      }[];
+      /** Site-root paths of the neighbouring pages; only with `archive` on. */
+      older: string | null;
+      newer: string | null;
     }
   | {
       type: 'campaign-card';

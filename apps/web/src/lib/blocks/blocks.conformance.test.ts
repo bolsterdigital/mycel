@@ -192,6 +192,23 @@ const fixtures: ResolveSource = {
   async formCampaign() {
     return null;
   },
+  // Two published articles in the asked locale, the first pinned when the block pins one, and a
+  // further page when the block keeps an archive. `adapter-rules.test.ts` proves which items a
+  // real list returns; this fixture proves only how a list renders.
+  async overview(props, locale) {
+    const entry = (n: number, pinned: boolean) => ({
+      id: `01900000-0000-7000-8000-00000000e00${n}`,
+      type: props.source,
+      slug: locale === 'nl' ? `bericht-${n}` : `post-${n}`,
+      revisionId: `01900000-0000-7000-8000-00000000e10${n}`,
+      date: `2026-11-0${n}T10:00:00.000Z`,
+      title: locale === 'nl' ? `Bericht ${n}` : `Post ${n}`,
+      summary: locale === 'nl' ? `Samenvatting ${n}.` : `Summary ${n}.`,
+      imageId: n === 1 ? EXAMPLE_IDS.image : null,
+      pinned,
+    });
+    return { entries: [entry(1, props.pinned.length > 0), entry(2, false)], older: props.archive };
+  },
 };
 
 const examples = BLOCK_TYPES.flatMap((type) =>
@@ -218,7 +235,7 @@ async function representations(blocks: Block[], locale: string, title = 'Titel')
   const model = await resolveDocument(
     fixtures,
     { locale, title, blocks: blocks.map((b) => projectBlock(b, locale)) },
-    { base: '', fallbackLocale: 'nl' }
+    { base: '', fallbackLocale: 'nl', path: locale === 'nl' ? '/overzicht' : '/en/overview' }
   );
   const html = render(Blocks, { props: { model } })
     .body.replace(/<!--[^>]*-->/g, '')

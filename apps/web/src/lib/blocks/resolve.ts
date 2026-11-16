@@ -34,6 +34,7 @@ import {
   type BlockProps,
   type ArticleHeader,
   type CampaignCard,
+  type Overview,
   formCampaignCard,
   type ProofChallenge,
   type Invoker,
@@ -83,6 +84,8 @@ export interface ResolveSource {
   campaignCard?(campaignId: string, locale: string): Promise<CampaignCard>;
   /** The card of the campaign a form is bound to, or null when it is bound to none. */
   formCampaign?(formId: string, locale: string): Promise<CampaignCard | null>;
+  /** What an overview block lists on one page; absent in fixtures without one. */
+  overview?(props: BlockProps<'overview'>, locale: string, page: number): Promise<Overview>;
 }
 
 /** The input: one locale of one published revision, already projected by the core. */
@@ -133,6 +136,8 @@ export function runtimeSource(deps: {
       invoker.run(useCases.getCampaignCard, reader, { campaignId, locale }),
     formCampaign: (formId, locale) =>
       uow.run(reader, (ctx) => formCampaignCard(ctx, formId, locale)),
+    overview: (props, locale, page) =>
+      invoker.run(useCases.getOverview, reader, { props, locale, page }),
     itemPath: (itemId, locale) =>
       uow.run(reader, async (ctx) => {
         const item = await ctx.content.get(itemId);
@@ -202,6 +207,11 @@ export function blockCopy(locale: string): BlockCopy {
         upcoming: t('block.campaign.notOpen.upcoming'),
         closed: t('block.campaign.notOpen.closed'),
       },
+    },
+    overview: {
+      older: t('block.overview.older'),
+      newer: t('block.overview.newer'),
+      label: t('block.overview.pages'),
     },
   };
 }
@@ -350,6 +360,14 @@ export async function resolveDocument(
      * carries it, so its HTML and data say nothing about a draft or archived campaign.
      */
     diagnose?: boolean;
+    /**
+     * The page of an overview with an archive (`?p=`) and the host's own site-root path, which
+     * its page links point at; page 1 without either.
+     */
+    page?: number;
+    path?: string;
+    /** The site's time zone for an overview's dates; UTC where a caller has none. */
+    timeZone?: string;
   }
 ): Promise<RenderModel> {
   const { locale } = projection;
@@ -393,6 +411,19 @@ export async function resolveDocument(
     const people = (await source.peopleGrid?.(b.props, locale)) ?? [];
     grids.set(b.id, people);
     for (const person of people) if (person.imageId) mediaIds.add(person.imageId);
+  }
+  // An overview reads its list once per block (one query for the list, one for the pins); only a
+  // block with an archive follows `?p=`, so a second overview on the page stays on page 1.
+  const page = options.page ?? 1;
+  const overviews = new Map<string, Overview>();
+  for (const b of blocks) {
+    if (b.type !== 'overview') continue;
+    const list = (await source.overview?.(b.props, locale, b.props.archive ? page : 1)) ?? {
+      entries: [],
+      older: false,
+    };
+    overviews.set(b.id, list);
+    for (const entry of list.entries) if (entry.imageId) mediaIds.add(entry.imageId);
   }
   const media = new Map<string, MediaView | null>();
   for (const id of mediaIds) media.set(id, await source.media(id));
@@ -504,9 +535,43 @@ export async function resolveDocument(
       return href && label ? [{ label, href }] : [];
     });
 
+  const timeZone = options.timeZone ?? 'UTC';
+  const pageLink = (n: number) =>
+    options.path === undefined ? null : n === 1 ? options.path : `${options.path}?p=${n}`;
+
   const out: RenderBlock[] = blocks.map((b): RenderBlock => {
     const id = b.id;
     switch (b.type) {
+      case 'overview': {
+        const list = overviews.get(id) ?? { entries: [], older: false };
+        const paged = b.props.archive;
+        return {
+          id,
+          type: 'overview',
+          layout: b.props.layout,
+          width: b.props.width,
+          entries: list.entries.map((e) => ({
+            id: e.id,
+            href: contentPath(e, locale, defaultLocale),
+            title: e.title,
+            summary: e.summary,
+            date: {
+              iso: new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date(e.date)),
+              label: new Intl.DateTimeFormat(locale, { timeZone, dateStyle: 'long' }).format(
+                new Date(e.date)
+              ),
+            },
+            image:
+              b.props.layout === 'cards' && e.imageId
+                ? renderImage(media.get(e.imageId) ?? null, { decorative: true, alt: null }, locale)
+                : null,
+            pinned: e.pinned,
+            revisionId: e.revisionId,
+          })),
+          older: paged && list.older ? pageLink(page + 1) : null,
+          newer: paged && page > 1 ? pageLink(page - 1) : null,
+        };
+      }
       case 'people-grid':
         return {
           id,

@@ -52,6 +52,8 @@ export * from './content/header/hero-conversion.js';
 export * from './content/entities.js';
 export * from './content/public.js';
 export * from './content/published/list.js';
+export * from './content/published/overview.js';
+export * from './content/blocks/overview.js';
 export * from './content/published/search.js';
 export * from './content/patterns.js';
 export * from './theme/model.js';
