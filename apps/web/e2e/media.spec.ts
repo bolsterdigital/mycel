@@ -1210,6 +1210,9 @@ function dropOn(page: Page, selector: string, files: Upload[], drop = true) {
   return page.evaluate(
     ({ selector, files, drop }) => {
       const target = document.querySelector(selector)!;
+      // A person drops on what they see: measure the target in view, not wherever typing left
+      // the page (posAtCoords outside the viewport answers nothing useful).
+      target.scrollIntoView({ block: 'center' });
       const box = target.getBoundingClientRect();
       const at = {
         clientX: box.left + box.width / 2,

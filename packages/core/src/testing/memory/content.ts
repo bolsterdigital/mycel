@@ -60,7 +60,12 @@ function memoryPublished(
   kept: () => ItemRecord[]
 ): Pick<ContentRepository, 'listPublished' | 'searchPublished' | 'publishedCards'> {
   return {
-    async publishedCards({ locale, type, sectionId, tags, ids, exclude, order }, offset, limit) {
+    async publishedCards(
+      { locale, type, sectionId, tags, ids, exclude, order, events },
+      offset,
+      limit
+    ) {
+      const starts = new Map<string, string>();
       const rows: PublishedCardRow[] = kept().flatMap((item) => {
         // A zone is shown inside pages, never as a card or a row of its own.
         if (item.profile === 'zone') return [];
@@ -75,6 +80,13 @@ function memoryPublished(
         if (sectionId && (doc.type !== 'article' || doc.sectionId !== sectionId)) return [];
         if (tags?.length && (doc.type !== 'article' || !tags.every((t) => doc.tags.includes(t))))
           return [];
+        if (events) {
+          const at = doc.type === 'page' && doc.profile === 'event' ? doc.event : undefined;
+          if (!at?.startsAt) return [];
+          const upcoming = (at.endsAt ?? at.startsAt) >= events.now;
+          if (upcoming !== (events.when === 'upcoming')) return [];
+          starts.set(item.id, at.startsAt);
+        }
         return [
           {
             itemId: item.id,
@@ -86,12 +98,20 @@ function memoryPublished(
           },
         ];
       });
+      const byId = (a: PublishedCardRow, b: PublishedCardRow) =>
+        a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0;
+      if (events) {
+        const sign = events.when === 'upcoming' ? 1 : -1;
+        const start = (r: PublishedCardRow) => starts.get(r.itemId)!;
+        return rows
+          .sort((a, b) => sign * start(a).localeCompare(start(b)) || byId(a, b))
+          .slice(offset, offset + limit);
+      }
       const sign = order === 'newest' ? -1 : 1;
       return rows
         .sort(
           (a, b) =>
-            sign * (a.firstPublishedAt.getTime() - b.firstPublishedAt.getTime()) ||
-            (a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0)
+            sign * (a.firstPublishedAt.getTime() - b.firstPublishedAt.getTime()) || byId(a, b)
         )
         .slice(offset, offset + limit);
     },

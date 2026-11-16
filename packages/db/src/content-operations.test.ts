@@ -575,4 +575,42 @@ describe.skipIf(skip)('content operations conformance', () => {
     expect(await live(adminOf(tenantA), formA)).toBe(before - 1);
     expect(await live(adminOf(tenantB), formA)).toBe(0);
   });
+
+  it('inserts a pattern as one revision with its references, and never across tenants', async () => {
+    const pattern = await invoker.run(useCases.createPattern, adminOf(tenantA), {
+      name: { nl: `Oproep ${run}` },
+      intendedType: 'page',
+      blocks: [{ ...heading('kop'), name: { nl: 'Kop' } }, signup('form', formA)] as never,
+    });
+    const created = await page('pattern-insert', [heading('a'), heading('b')]);
+    const target = { itemId: created.item.id, baseRevisionId: created.revision.id };
+    const out = await invoker.run(useCases.insertPattern, adminOf(tenantA), {
+      ...target,
+      patternId: pattern.id,
+      place: { before: 'b' },
+    });
+    const blocks = out.revision.document.blocks;
+    expect(blocks.map((b) => b.type)).toEqual(['heading', 'heading', 'signup-form', 'heading']);
+    expect(blocks[1]!.name).toEqual({ nl: 'Kop' });
+    expect(out.created).toEqual([blocks[1]!.id, blocks[2]!.id]);
+    expect((await refsOf(out.revision.id)).sort(byRow)).toEqual(expected(out.revision));
+    // Tenant B cannot reach A's pattern, not even into A's item id.
+    const other = await page('pattern-insert-b', [heading('a')], adminOf(tenantB));
+    await expect(
+      invoker.run(useCases.insertPattern, adminOf(tenantB), {
+        itemId: other.item.id,
+        baseRevisionId: other.revision.id,
+        patternId: pattern.id,
+        place: { at: 'end' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' });
+    await expect(
+      invoker.run(useCases.insertPattern, adminOf(tenantB), {
+        ...target,
+        baseRevisionId: out.revision.id,
+        patternId: pattern.id,
+        place: { at: 'end' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' });
+  });
 });

@@ -6,6 +6,7 @@
 
 import { exerciseOverview } from './lib/blocks/overview';
 import { exerciseEventPage } from './lib/events/event-page';
+import { exerciseAgenda } from './lib/events/agenda';
 import { exercisePrefooter } from './lib/prefooter/zone';
 import { exercisePeopleGrid } from './lib/people/grid';
 import { exercisePublicPeople } from './lib/people/public';
@@ -2092,6 +2093,8 @@ test.describe('site-settings', () => {
 test('an event page shows when and where, in its header and its data', async ({ page }) => {
   await exerciseEventPage(page);
 });
+
+test('an agenda lists upcoming and past events', async ({ page }) => exerciseAgenda(page));
 
 test('a zone stands above the footer, except where a page switches it off', async ({ page }) => {
   await exercisePrefooter(page);

@@ -88,6 +88,7 @@ import {
 import {
   findItems,
   insertBlock,
+  insertPattern,
   moveBlock,
   removeBlock,
   setBlockProps,
@@ -248,6 +249,7 @@ export const useCases = {
   listRedirects,
   deleteRedirect,
   insertBlock,
+  insertPattern,
   moveBlock,
   removeBlock,
   setBlockProps,

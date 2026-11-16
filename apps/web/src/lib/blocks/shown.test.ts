@@ -65,6 +65,8 @@ describe('a menu anchor lands only on a block that renders', () => {
       'overview-articles-cards',
       'overview-articles-list',
       'overview-pages-full',
+      'overview-events-upcoming',
+      'overview-events-past-list',
     ]);
   });
 });

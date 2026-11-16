@@ -10,6 +10,8 @@ export const DONE: Record<string, UiKey> = {
   blockDuplicated: 'admin.block.done.duplicated',
   blockRemoved: 'admin.block.done.removed',
   blockRestored: 'admin.block.done.restored',
+  patternInserted: 'admin.pattern.done.inserted',
+  patternSaved: 'admin.pattern.done.saved',
   heroConverted: 'admin.content.heroConversion.done',
   publish: 'admin.content.publication.done.publish',
   unpublish: 'admin.content.publication.done.unpublish',

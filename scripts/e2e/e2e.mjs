@@ -370,6 +370,38 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
       });
   }
 
+  // One upcoming and one past event for the agenda examples (`overview-events-*`), which would
+  // otherwise render only once another spec happened to publish an event. Far from now on both
+  // sides, so the turn never passes during a run.
+  for (const [slug, startsAt] of [
+    ['e2e-evenement-komend', '2099-06-01T20:00'],
+    ['e2e-evenement-geweest', '2001-06-01T20:00'],
+  ]) {
+    if ((await invoker.run(useCases.listItems, admin, { type: 'page', slug })).items.length)
+      continue;
+    const { item, revision } = await invoker.run(useCases.createItem, admin, {
+      slug,
+      document: {
+        type: 'page',
+        profile: 'event',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: {
+          nl: `Buurtavond ${startsAt.slice(0, 4)}`,
+          en: `Neighbourhood evening ${startsAt.slice(0, 4)}`,
+        },
+        event: { startsAt, location: { nl: 'Buurthuis', en: 'Community centre' } },
+        blocks: [],
+      },
+    });
+    for (const locale of ['nl', 'en'])
+      await invoker.run(useCases.publishItem, admin, {
+        itemId: item.id,
+        revisionId: revision.id,
+        locale,
+      });
+  }
+
   // Twenty draft articles for the generic gate's article list (routes.ts): a local
   // database gathers this many drafts after a few runs, and only then did the row actions clip
   // their confirm button, while a fresh CI shard with two drafts stayed green. Seeded here so every

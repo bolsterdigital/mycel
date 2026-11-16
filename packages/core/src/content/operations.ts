@@ -322,6 +322,53 @@ export const insertBlock = defineUseCase({
     ),
 });
 
+/**
+ * A copy of a pattern's blocks at a place: the composed block of ADR 013 rule 4 (its named slots
+ * are the blocks' editorial names, which the copy keeps). Every block gets a fresh id and the
+ * prose at either edge merges with prose it lands next to, as a move does, because a pattern that
+ * opens with text would otherwise be refused at most places. Ids of the copy that merged away were
+ * never there, so they are neither created nor retired. Rejected: one `content.block.insert` per
+ * block, which makes several revisions and can stop half way.
+ */
+export const insertPattern = defineUseCase({
+  name: 'content.block.insert_pattern',
+  kind: 'command',
+  description:
+    "Insert a copy of a pattern's blocks before or after a block id, or at the start or end, as one new revision; every copied block gets a new id and keeps its name, and text blocks that end up next to each other merge into the first." +
+    REBASE,
+  requires: 'content:write',
+  input: z.object({ ...Target, patternId: z.string().guid(), place: Placement }),
+  output: OperationResult,
+  examples: [{ input: { ...exampleTarget, patternId: exampleId(0x3), place: { after: 'intro' } } }],
+  async handler(ctx, { patternId, place: where, ...target }) {
+    const pattern = await ctx.patterns.get(patternId);
+    if (!pattern) throw notFound('pattern');
+    return mutate(
+      ctx,
+      target,
+      (blocks) => {
+        const copy = pattern.blocks.map(
+          ({ id: _id, ...b }) => ({ ...structuredClone(b), id: ctx.ids.next() }) as Block
+        );
+        const reversed = 'after' in where || ('at' in where && where.at === 'start');
+        let out = blocks;
+        for (const block of reversed ? [...copy].reverse() : copy) out = place(out, block, where);
+        const fresh = new Set(copy.map((b) => b.id));
+        const { blocks: normal, merged } = normalizeBlocks(out);
+        const gone = new Set(merged.map((m) => m.from));
+        const lost = merged.filter((m) => !fresh.has(m.from));
+        return {
+          blocks: normal,
+          created: copy.map((b) => b.id).filter((id) => !gone.has(id)),
+          retired: lost.map((m) => m.from),
+          merged: lost,
+        };
+      },
+      (blocks) => ({ blocks: [], places: [gap(blocks, where)] })
+    );
+  },
+});
+
 export const moveBlock = defineUseCase({
   name: 'content.block.move',
   kind: 'command',
