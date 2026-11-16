@@ -28,8 +28,8 @@ import { blockMovePlace } from '#lib/admin/block-move/place.js';
 import { toArticleEditor } from '#lib/editor/article-document.js';
 import { isDeepStrictEqual } from 'node:util';
 import { error, fail, redirect } from '@sveltejs/kit';
+import { chosenBlocks, patternChoices } from '#lib/server/patterns/choice.js';
 import {
-  pick,
   proposeHeroConversion,
   BLOCK_DEFINITIONS,
   insertableBlockTypes,
@@ -46,7 +46,6 @@ import {
   type Revision,
   type Principal,
   type TenantInfo,
-  MAX_PAGE_SIZE,
   isUuid,
   translationState,
 } from '@mycel/core';
@@ -220,10 +219,8 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     // Back to the list as it was left: its search, status, order and page, at this item's row.
     listPath: recalledListPath(cookies, params.tenant, item.type, item.id),
     patterns: doc.blocks.length
-      ? []
-      : (await invoker.run(useCases.listPatterns, principal, { limit: MAX_PAGE_SIZE })).patterns
-          .filter((p) => !p.intendedType || p.intendedType === item.type)
-          .map((p) => ({ id: p.id, name: pick(p.name, work, tenant.defaultLocale) ?? p.id })),
+      ? null
+      : await patternChoices(principal, item.type, [work, tenant.defaultLocale], true),
     articleEditor: shown.length ? toArticleEditor(doc, work) : null,
     assistEnabled,
     machineTranslation: doc.machineTranslation ?? {},
@@ -519,10 +516,12 @@ async function commit(
     if (opts.pattern) {
       if (base.blocks.length || read.blocks.length)
         throw new UseCaseError('conflict', 'Pattern requires an empty document');
-      const pattern = await rt.invoker.run(useCases.getPattern, principal, {
-        patternId: text(data, 'patternId'),
-      });
-      document.blocks = pattern.blocks.map(({ id: _id, ...block }) => block);
+      document.blocks = await chosenBlocks(
+        principal,
+        text(data, 'patternId'),
+        item.type,
+        base.locales
+      );
     }
     if (!opts.pattern) merging = { base, mine: document };
     // A conflict moves no address: checked before the slug's own transaction.
