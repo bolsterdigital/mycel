@@ -646,7 +646,7 @@ describe.skipIf(skip)('erasure conformance', () => {
   }, 30_000);
 
   it('keeps a readmission on an older address of the erased supporter, then erases it on request', async () => {
-    // MY-177 for every address the id's rows carry (ADR 032 rule 4, amended 2026-11-16): she
+    // A signup after the request stays, for every address the id's rows carry (ADR 032 rule 4, amended 2026-11-16): she
     // signed up on `older`, moved to `current` and is erased; the new signup on `older` comes
     // between the registration and apply.
     const tenant = (await testTenant(operatorDb, `erase-readmit-older-${run}`)).id;

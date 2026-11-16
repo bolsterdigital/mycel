@@ -1,6 +1,6 @@
--- 0058: a registration holds every address hash of its supporter (TODO #242; ADR 032 rule 4 as
--- amended 2026-11-16, owner decision MY-177 of 2026-11-06). Apply erases every address a
--- registered id's own rows carry, also one the supporter had before an address change, but the
+-- 0058: a registration holds every address hash of its supporter (ADR 032 rule 4 as amended
+-- 2026-11-16; owner decision of 2026-11-06 that a signup after an erasure request stays). Apply
+-- erases every address a registered id's own rows carry, also one she had before a change, but the
 -- register held only the current address's hash. A new explicit signup on the older address
 -- between the request and apply therefore found no registration, opened no lifecycle and was
 -- erased with the old life. The register now takes one row per (supporter id, address hash):

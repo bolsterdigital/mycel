@@ -404,7 +404,7 @@ describe('ctx.erasures in memory', () => {
     });
 
     it('keeps a readmission on an older address of the erased supporter, then erases it on request', async () => {
-      // MY-177 for every address the id's rows carry (ADR 032 rule 4, amended 2026-11-16): the
+      // A signup after the request stays, for every address the id's rows carry (ADR 032 rule 4, amended 2026-11-16): the
       // signup comes between the registration and apply, on the address she had before.
       const old = await supporterId();
       (uow.clock as FakeClock).advance(1);
