@@ -1,6 +1,6 @@
 // The teaser follows the paywall through the block operations (ADR 018 rule 6): the first paywall
-// sets the marker, removing the last one falls back to `lead`, every other operation keeps the
-// teaser, and on an older base an operation that would change the teaser is a `conflict` when
+// sets the marker, removing the last one falls back to `lead`, a block teaser keeps the same blocks
+// behind its boundary, every other operation keeps the teaser, and on an older base an operation that would change the teaser is a `conflict` when
 // someone set another teaser since (ADRs 026, 027). Kept apart from `operations.test.ts`, which
 // covers the operations themselves; the database conformance repeats the write path in Postgres.
 
@@ -197,8 +197,176 @@ describe('a paywall brings its teaser along', () => {
         place: { at: 'start' },
       });
       expect(out.revision.provenance).toMatchObject({ merged: { latestRevisionId: newer } });
-      expect(out.revision.document.access.teaser).toEqual({ blocks: 1 });
+      // The count follows the newest teaser: `more` stays the first block behind the boundary.
+      expect(out.revision.document.access.teaser).toEqual({ blocks: 2 });
       expect(ids(out.revision.document.blocks)).toEqual(['new', 'open', 'more']);
     });
+  });
+});
+
+// ADR 018 rule 6, amended 2026-11-16: no operation brings a block from behind the boundary
+// of a block teaser before it. Each operation has its counterproof: the same operation on the other
+// side of the boundary leaves the count alone.
+describe('a block teaser keeps the same blocks behind its boundary', () => {
+  let invoker: Invoker;
+  let admin: Principal;
+
+  beforeEach(() => {
+    invoker = new Invoker(buildRegistry(), new MemoryUnitOfWork());
+    admin = systemPrincipal(TENANT, 'test');
+  });
+
+  const text = (id: string, t: string) => ({
+    id,
+    type: 'rich-text' as const,
+    version: 1 as const,
+    props: { content: { nl: doc(para(t), para(`${t} 2`)), en: doc(para(t), para(`${t} 2`)) } },
+  });
+  /** A members item whose teaser is the first `count` blocks. */
+  const item = async (blocks: object[], count: number) => {
+    const { item, revision } = await invoker.run(useCases.createItem, admin, {
+      slug: `item-${Math.random().toString(36).slice(2)}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: 'Titel', en: 'Title' },
+        access: { level: 'members', teaser: { blocks: count } },
+        blocks,
+      } as never,
+    });
+    return { itemId: item.id, baseRevisionId: revision.id };
+  };
+  const four = () => item(['a', 'b', 'c', 'd'].map(headingBlock), 2);
+  const shape = (out: { revision: { document: { access: object; blocks: readonly Block[] } } }) => [
+    out.revision.document.blocks.map((b) => b.id).join(' '),
+    (out.revision.document.access as { teaser: unknown }).teaser,
+  ];
+
+  it.each([
+    ['a', 'b c d', 1],
+    ['d', 'a b c', 2],
+  ])('remove %s leaves %s', async (blockId, order, blocks) => {
+    const out = await invoker.run(useCases.removeBlock, admin, { ...(await four()), blockId });
+    expect(shape(out)).toEqual([order, { blocks }]);
+  });
+
+  it.each([
+    ['c', { at: 'start' as const }, 'c a b d', 0],
+    ['c', { after: 'a' }, 'a c b d', 1],
+    ['a', { after: 'c' }, 'b c a d', 1],
+    ['a', { after: 'b' }, 'b a c d', 2],
+    ['d', { before: 'c' }, 'a b d c', 2],
+  ])('move %s to %o gives %s', async (blockId, place, order, blocks) => {
+    const out = await invoker.run(useCases.moveBlock, admin, { ...(await four()), blockId, place });
+    expect(shape(out)).toEqual([order, { blocks }]);
+  });
+
+  it.each([
+    [{ at: 'start' as const }, 'new a b c d', 3],
+    [{ after: 'a' }, 'a new b c d', 3],
+    [{ after: 'b' }, 'a b new c d', 2],
+    [{ before: 'c' }, 'a b new c d', 2],
+    [{ at: 'end' as const }, 'a b c d new', 2],
+  ])('insert at %o gives %s', async (place, order, blocks) => {
+    const out = await invoker.run(useCases.insertBlock, admin, {
+      ...(await four()),
+      block: headingBlock('new'),
+      place,
+    });
+    expect(shape(out)).toEqual([order, { blocks }]);
+  });
+
+  it('text from behind the boundary that merges into the teaser takes that block with it', async () => {
+    const blocks = [headingBlock('a'), text('t', 'open'), headingBlock('x'), text('paid', 'paid')];
+    const merged = await invoker.run(useCases.removeBlock, admin, {
+      ...(await item(blocks, 3)),
+      blockId: 'x',
+    });
+    expect(merged.merged).toEqual([{ from: 'paid', into: 't' }]);
+    expect(shape(merged)).toEqual(['a t', { blocks: 1 }]);
+    // Counterproof: the same text removed outright leaves the teaser's own text in it.
+    const removed = await invoker.run(useCases.removeBlock, admin, {
+      ...(await item(blocks, 3)),
+      blockId: 'paid',
+    });
+    expect(shape(removed)).toEqual(['a t x', { blocks: 3 }]);
+    // And a merge on the teaser's side of the boundary only shortens the count by the gone block.
+    const open = await invoker.run(useCases.removeBlock, admin, {
+      ...(await item(
+        [text('t', 'one'), headingBlock('x'), text('u', 'two'), headingBlock('p')],
+        3
+      )),
+      blockId: 'x',
+    });
+    expect(shape(open)).toEqual(['t p', { blocks: 1 }]);
+  });
+
+  it('text moved in from behind the boundary takes an earlier teaser text block with it too', async () => {
+    const blocks = [text('t', 'open'), headingBlock('x'), headingBlock('h'), text('paid', 'paid')];
+    const move = async (source: object[], blockId: string, place: object) =>
+      invoker.run(useCases.moveBlock, admin, {
+        ...(await item(source, 3)),
+        blockId,
+        place: place as never,
+      });
+    // `t` is not the teaser's last block: the count still ends before it.
+    const merged = await move(blocks, 'paid', { after: 't' });
+    expect(merged.merged).toEqual([{ from: 'paid', into: 't' }]);
+    expect(shape(merged)).toEqual(['t x h', { blocks: 0 }]);
+    // Counterproof: the same block moved behind the boundary leaves the count alone.
+    const behind = [...blocks, headingBlock('z')];
+    expect(shape(await move(behind, 'paid', { after: 'z' }))).toEqual([
+      't x h z paid',
+      { blocks: 3 },
+    ]);
+    // And a teaser text block that grows by its own teaser neighbour stays in the teaser.
+    const own = [text('t', 'open'), headingBlock('x'), text('u', 'more'), headingBlock('p')];
+    const grown = await move(own, 'u', { after: 't' });
+    expect(grown.merged).toEqual([{ from: 'u', into: 't' }]);
+    expect(shape(grown)).toEqual(['t x p', { blocks: 2 }]);
+  });
+
+  it('a split inside the teaser counts both parts; at its end the second part falls behind', async () => {
+    const split = async (count: number) =>
+      invoker.run(useCases.splitInsertBlock, admin, {
+        ...(await item([text('t', 'open'), headingBlock('x'), headingBlock('p')], count)),
+        blockId: 't',
+        at: { nl: 1, en: 1 },
+        block: headingBlock('new'),
+      });
+    const inside = await split(2);
+    expect(inside.revision.document.access.teaser).toEqual({ blocks: 4 });
+    expect(inside.revision.document.blocks[4]?.id).toBe('p');
+    expect((await split(1)).revision.document.access.teaser).toEqual({ blocks: 1 });
+  });
+
+  it('a pattern placed between teaser blocks is counted', async () => {
+    const pattern = await invoker.run(useCases.createPattern, admin, {
+      name: { nl: 'Twee koppen' },
+      intendedType: 'page',
+      blocks: [headingBlock('p1'), headingBlock('p2')] as never,
+    });
+    const out = await invoker.run(useCases.insertPattern, admin, {
+      ...(await four()),
+      patternId: pattern.id,
+      place: { after: 'a' },
+    });
+    expect(out.revision.document.access.teaser).toEqual({ blocks: 4 });
+    expect(out.revision.document.blocks[4]?.id).toBe('c');
+  });
+
+  it('on an older base the count follows the newest teaser, no conflict', async () => {
+    const target = await four();
+    const { revision } = await invoker.run(useCases.getItem, admin, { itemId: target.itemId });
+    await invoker.run(useCases.updateItem, admin, {
+      ...target,
+      document: {
+        ...revision.document,
+        access: { level: 'members', teaser: { blocks: 3 } },
+      } as never,
+    });
+    const out = await invoker.run(useCases.removeBlock, admin, { ...target, blockId: 'a' });
+    expect(shape(out)).toEqual(['b c d', { blocks: 2 }]);
   });
 });
