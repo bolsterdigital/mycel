@@ -99,6 +99,7 @@ import { getPublished } from './content/public.js';
 import { deleteRedirect, listRedirects, resolveRedirect } from './content/address/redirects.js';
 import { listPublished } from './content/published/list.js';
 import { getOverview } from './content/published/overview.js';
+import { getFeed } from './content/published/feed.js';
 import { findPublished } from './content/published/search.js';
 import { getPublicPerson, listPublicPeople } from './content/people/public.js';
 import {
@@ -226,6 +227,7 @@ export const useCases = {
   getPublished,
   listPublished,
   getOverview,
+  getFeed,
   findPublished,
   getPublicPerson,
   listPublicPeople,

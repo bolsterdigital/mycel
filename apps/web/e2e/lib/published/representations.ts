@@ -145,6 +145,8 @@ export async function exercisePublishedRepresentations(page: Page) {
   expect(entry(before, `/en/articles/bomen-in-de-straat`)).toBeDefined();
   expect(entry(before, `/${slugs.plain}`)).toBeDefined();
   expect(entry(before, `/${slugs.hidden}`)).toBeUndefined();
+  // Canonical elsewhere: that other address is the one to index.
+  expect(entry(before, `/${slugs.canonical}`)).toBeUndefined();
   expect(entry(before, `/en/${slugs.draft}`)).toBeUndefined();
   expect(entry(before, `/${slugs.never}`)).toBeUndefined();
   expect(entry(before, `/articles/${slugs.members}`)).toBeDefined();

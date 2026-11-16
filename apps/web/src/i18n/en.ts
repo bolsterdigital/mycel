@@ -134,6 +134,8 @@ export const en = {
   'public.people.articles': 'Articles',
   'public.people.previous': 'Previous articles',
   'public.people.next': 'More articles',
+  'public.llms.pages': 'Pages',
+  'public.llms.articles': 'Articles',
   'public.search.title': 'Search',
   'public.search.resultsFor': 'Results for “{q}”',
   'public.search.description': 'Search the pages and articles of this site.',

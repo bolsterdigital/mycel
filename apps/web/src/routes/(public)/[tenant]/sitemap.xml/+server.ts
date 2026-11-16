@@ -1,6 +1,7 @@
 // The site's sitemap: every published locale of a page or article from the public list
 // (`content.published.list`, the publication pointers, never a draft), plus the public people.
-// A `noindex` locale is left out. A restricted item is listed with its address only: the list
+// A `noindex` locale is left out, and so is one whose canonical is another address (that address
+// is the one to index). A restricted item is listed with its address only: the list
 // carries no text, and its body stays behind the access rule (ADR 018; the public route answers
 // 404 until readers sign in). `lastmod` is the save of the published revision, so a later draft does not move
 // it. The alternates of a URL are the ones its page names in its own head (`public-page.ts`):
@@ -114,7 +115,7 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 
   const first = await segment(reader, from && from !== 'start' ? from : undefined);
   const content = first.rows
-    .filter((row) => !row.noindex)
+    .filter((row) => !row.noindex && !row.canonical)
     .map((row) => contentUrl(row, defaultLocale, absolute));
   if (from !== null)
     return respond(

@@ -25,12 +25,14 @@ export interface MarkdownOptions {
   canonicalUrl: string;
   /** The site's absolute root without a trailing slash; site-root paths are appended to it. */
   siteRoot: string;
+  /** The item's lead, a paragraph under the title (the HTML shows it in the intro). */
+  lead?: string | null;
 }
 
 type Inline = { type: 'text'; text: string; marks?: Mark[] } | { type: 'hard_break' };
 
 /** Characters with a meaning in inline Markdown, escaped so text stays text. */
-const md = (s: string): string => s.replace(/([\\`*_{}[\]()<>#+!|~])/g, '\\$1');
+export const md = (s: string): string => s.replace(/([\\`*_{}[\]()<>#+!|~])/g, '\\$1');
 const heading = (depth: number, text: string) =>
   `${'#'.repeat(Number(headingTag(depth).slice(1)))} ${md(text)}`;
 
@@ -107,7 +109,7 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
     return lines.join('\n');
   };
 
-  const out: string[] = [`# ${md(model.title)}`];
+  const out: string[] = [`# ${md(model.title)}`, ...(options.lead ? [md(options.lead)] : [])];
   for (const b of model.blocks) {
     const part = blockMarkdown(b);
     if (part) out.push(part);

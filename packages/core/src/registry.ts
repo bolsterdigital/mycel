@@ -100,6 +100,8 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   'content.redirect.resolve',
   // An overview block: published, public revisions in one locale only, as cards.
   'content.overview.get',
+  // A feed and llms.txt: the same public cards, without noindex or canonical-elsewhere items.
+  'content.feed.get',
   'content.public_person.get',
   'content.public_person.list',
   'form.get',

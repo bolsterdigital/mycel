@@ -61,7 +61,7 @@ function memoryPublished(
 ): Pick<ContentRepository, 'listPublished' | 'searchPublished' | 'publishedCards'> {
   return {
     async publishedCards(
-      { locale, type, sectionId, tags, ids, exclude, order, events },
+      { locale, type, sectionId, authorId, tags, ids, exclude, order, events },
       offset,
       limit
     ) {
@@ -78,6 +78,7 @@ function memoryPublished(
         const doc = revision.document;
         if (doc.access.level !== 'public') return [];
         if (sectionId && (doc.type !== 'article' || doc.sectionId !== sectionId)) return [];
+        if (authorId && (doc.type !== 'article' || !doc.authorIds.includes(authorId))) return [];
         if (tags?.length && (doc.type !== 'article' || !tags.every((t) => doc.tags.includes(t))))
           return [];
         if (events) {
@@ -157,6 +158,7 @@ function memoryPublished(
               publishedAt: new Date(p.publishedAt!.getTime()),
               updatedAt: new Date(revision.createdAt),
               noindex: doc.seo.noindex,
+              canonical: doc.seo.canonical ?? null,
               sectionId: section,
               access: doc.access.level,
             },

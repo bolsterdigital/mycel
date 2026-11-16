@@ -35,6 +35,9 @@
 //
 // An admin response no route gave a Cache-Control is `private, no-store` (http-cache.ts).
 //
+// A page or article read with `?format=md` is answered as Markdown before routing, from the same
+// read as its HTML (lib/server/public/text/markdown-page.ts).
+//
 // A served public page also gets the header that names its speculation rules
 // (lib/server/http/speculation.ts) and the one that names the API catalog (ops/well-known.ts).
 //
@@ -67,6 +70,7 @@ import {
 } from '#lib/server/http/security-headers.js';
 import { PRIVATE_NO_STORE, conditional } from '#lib/server/http/http-cache.js';
 import { applySpeculationRules } from '#lib/server/http/speculation.js';
+import { markdownResponse, wantsMarkdown } from '#lib/server/public/text/markdown-page.js';
 import { withItalicPreload } from '#lib/theme/tokens.js';
 
 const isAdmin = (path: string) => path === '/admin' || path.startsWith('/admin/');
@@ -191,6 +195,7 @@ const route: Handle = async ({ event, resolve }) => {
       event.locals.site = decision.site;
       event.locals.tenant = decision.site.tenant;
       setContext({ tenantId: decision.site.tenant.id });
+      if (wantsMarkdown(event.request, event.url)) return markdownResponse(decision.site, path);
       return render();
     case 'redirect':
       return new Response(null, { status: 301, headers: { location: decision.location } });
@@ -205,6 +210,8 @@ const route: Handle = async ({ event, resolve }) => {
       };
       event.locals.tenant = tenant;
       setContext({ tenantId: tenant.id });
+      if (wantsMarkdown(event.request, event.url))
+        return markdownResponse(event.locals.site, path.slice(decision.slug.length + 1));
       return render();
     }
     case 'root':
