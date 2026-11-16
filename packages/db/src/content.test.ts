@@ -454,6 +454,39 @@ describe.skipIf(skip)('content conformance', () => {
     ).rejects.toMatchObject({ code: 'invalid_input' });
   });
 
+  it('keeps an event page’s profile on the item, lists by it and refuses it on an article', async () => {
+    const admin = adminOf(tenantA);
+    const event = {
+      ...doc('Buurtavond'),
+      profile: 'event' as const,
+      event: {
+        startsAt: '2026-12-05T20:00',
+        location: { nl: 'Buurthuis', en: 'Community centre' },
+      },
+    };
+    const created = await invoker.run(useCases.createItem, admin, {
+      slug: `event-${run}`,
+      document: event,
+    });
+    await create('not-an-event');
+    const read = await invoker.run(useCases.getItem, admin, { itemId: created.item.id });
+    expect(read.item.profile).toBe('event');
+    expect(read.revision.document).toMatchObject({ profile: 'event', event: event.event });
+    const listed = await invoker.run(useCases.listItems, admin, { profile: 'event' });
+    expect(listed.items.map((i) => i.id)).toContain(created.item.id);
+    expect(listed.items.every((i) => i.profile === 'event')).toBe(true);
+    // Tenant B has no events of A's.
+    const other = await invoker.run(useCases.listItems, adminOf(tenantB), { profile: 'event' });
+    expect(other.items.map((i) => i.id)).not.toContain(created.item.id);
+    // The column takes only a page; the check is the database's, not only core's.
+    await expect(
+      sql`insert into content_items (id, tenant_id, type, profile, slug, title, default_locale,
+            locales, latest_revision_id, created_at, updated_at)
+          values (${uuidv7Ids.next()}, ${tenantA}, 'article', 'event', ${`bad-${run}`}, '{}'::jsonb,
+            'nl', '{nl}', ${created.revision.id}, now(), now())`.execute(operatorDb)
+    ).rejects.toThrow(/check/);
+  });
+
   it('makes a save wait for an open item lock and then see the newer base', async () => {
     // Deterministic counterpart of the race below: one transaction holds the row lock and saves
     // a revision behind a gate; a second save on the same base cannot run until it commits, and

@@ -215,9 +215,10 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     forms: refs.forms.choices,
     campaigns: refs.campaigns.choices,
     contentType: item.type,
+    contentProfile: item.profile,
     presence: await presenceOnLoad(principal, params.tenant, item.id, revision.id, names),
     // Back to the list as it was left: its search, status, order and page, at this item's row.
-    listPath: recalledListPath(cookies, params.tenant, item.type, item.id),
+    listPath: recalledListPath(cookies, params.tenant, item.type, item.id, item.profile),
     patterns: doc.blocks.length
       ? null
       : await patternChoices(principal, item.type, [work, tenant.defaultLocale], true),
@@ -261,6 +262,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     item: {
       id: item.id,
       type: item.type,
+      profile: item.profile,
       slug: item.slug,
       /** The address in the site's default locale, as the public site serves it. */
       path: contentPath(item, tenant.defaultLocale, tenant.defaultLocale),
@@ -310,6 +312,8 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     timeZone: zone,
     // Named next to the field only where the operator's own zone is not the site's (#88).
     timeZoneNamed: zone !== site,
+    // An event's times are the site's wall clock, whatever the operator's own zone (#248).
+    siteTimeZone: site,
     done: DONE[url.searchParams.get('done') ?? ''] ?? null,
     // "Undo" after a removal: `<revision>:<block>`, posted back as is to `restore`.
     undo:

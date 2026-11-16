@@ -218,6 +218,7 @@ export interface Database {
     id: string;
     tenant_id: string;
     type: 'page' | 'article';
+    profile: ColumnType<'event' | null, 'event' | null | undefined, never>;
     slug: string;
     title: Json<Record<string, string>>;
     default_locale: string;

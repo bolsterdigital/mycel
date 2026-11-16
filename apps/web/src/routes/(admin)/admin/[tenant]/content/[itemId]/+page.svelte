@@ -654,6 +654,51 @@
   {/if}
 {/snippet}
 
+<!-- An event's when and where (#248), between the lead and the hero image, where the public page
+     shows them. The times are the site's wall clock: the hint names its zone, also for an
+     operator with a zone of their own. -->
+{#snippet eventFields()}
+  <Fieldset legend={t('admin.content.event.title')}>
+    <Field
+      id="eventStartsAt"
+      name="eventStartsAt"
+      type="datetime-local"
+      label={t('admin.content.event.startsAt')}
+      hint={`${t('admin.content.event.zone')} ${data.siteTimeZone}`}
+      locale={data.locale}
+      value={v('eventStartsAt')}
+    />
+    <Field
+      id="eventEndsAt"
+      name="eventEndsAt"
+      type="datetime-local"
+      label={t('admin.content.event.endsAt')}
+      locale={data.locale}
+      value={v('eventEndsAt')}
+    />
+    <Field
+      id="eventLocation.{work}"
+      name="eventLocation.{work}"
+      label="{t('admin.content.event.location')} ({work})"
+      hint={t('admin.content.event.locationHint')}
+      locale={data.locale}
+      maxlength={500}
+      lang={work}
+      value={v(`eventLocation.${work}`)}
+    />
+    <Field
+      id="eventOnlineUrl"
+      name="eventOnlineUrl"
+      type="url"
+      label={t('admin.content.event.onlineUrl')}
+      hint={t('admin.content.event.onlineUrlHint')}
+      locale={data.locale}
+      maxlength={2048}
+      value={v('eventOnlineUrl')}
+    />
+  </Fieldset>
+{/snippet}
+
 {#snippet contentFields()}
   <!-- MY-110 B3 (ADR 025): title, lead and main image are one header, in the order the page
        shows them; the blocks follow as their own section. The heading is for the outline only:
@@ -669,6 +714,7 @@
     {@render translateLinks('title', 'title', work, t('admin.content.field.title'))}
     {@render area(`lead.${work}`, t('admin.content.field.lead'), 1000)}
     {@render translateLinks('lead', 'lead', work, t('admin.content.field.lead'))}
+    {#if data.item.profile === 'event'}{@render eventFields()}{/if}
     <MediaPicker
       id="heroImageId"
       name="heroImageId"
@@ -1137,7 +1183,13 @@
       locale={data.locale}
       back={{
         href: data.listPath,
-        label: t(article ? 'admin.content.filter.article' : 'admin.content.filter.page'),
+        label: t(
+          article
+            ? 'admin.content.filter.article'
+            : data.item.profile === 'event'
+              ? 'admin.content.filter.event'
+              : 'admin.content.filter.page'
+        ),
       }}
       title={fill(t('admin.content.edit.title'), { type: typeName })}
       state={mainPublication

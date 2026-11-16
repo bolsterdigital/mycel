@@ -13,6 +13,7 @@ import { seedFormActions } from './form-actions.fixture.js';
 import { checkLegacyActorImport } from './legacy-actors.fixture.js';
 import { checkLegacyPeopleImport, seedGroupedPerson } from './legacy-people.fixture.js';
 import { seedCampaign } from './campaigns.fixture.js';
+import { seedEvent } from './events.fixture.js';
 import { seedNavigation } from './navigation.fixture.js';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
@@ -261,6 +262,7 @@ describe.skipIf(skip)('tenant export and import', () => {
     });
     await seedCampaign(invoker, operatorDb, admin, email);
     await seedNavigation(invoker, admin);
+    await seedEvent(invoker, admin);
   }
   const files = async (dir: string) =>
     Object.fromEntries(
@@ -721,6 +723,10 @@ describe.skipIf(skip)('tenant export and import', () => {
         );
         expect(revisions).toContain('INTERNAL-EXPORT-NAME');
         expect(revisions).toContain('Internal export name');
+        // An event page's profile (#248) travels on the item, its details in the revision.
+        expect(revisions).toContain('"startsAt": "2026-12-05T20:00"');
+        const items = join(scratch.dir, 'a-again', 'tables', 'content_items.ndjson');
+        expect(await readFile(items, 'utf8')).toContain('"profile": "event"');
         // Memberships name the new pending operator here (operators/erasure.conformance.test.ts).
         for (const table of EXPORT_ORDER)
           if (!['tenant_hostnames', 'audit_log', 'tenant_memberships'].includes(table))

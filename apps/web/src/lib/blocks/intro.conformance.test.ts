@@ -19,7 +19,13 @@ import {
 } from '@mycel/core';
 import Page from '../../routes/(public)/[tenant]/[[locale=locale]]/[...path]/+page.svelte';
 import Credit from './Credit.svelte';
-import { renderMeta, resolveDocument, resolveIntro, type ResolveSource } from './resolve.js';
+import {
+  renderEvent,
+  renderMeta,
+  resolveDocument,
+  resolveIntro,
+  type ResolveSource,
+} from './resolve.js';
 
 const HERO = '01900000-0000-7000-8000-0000000086a1';
 
@@ -99,7 +105,7 @@ async function page(
   locale: 'nl' | 'en',
   theme: keyof typeof THEMES,
   heroAlt: Partial<Record<string, string>> | undefined = undefined,
-  head: { header?: 'standard' | 'cover'; hero?: boolean; meta?: boolean } = {}
+  head: { header?: 'standard' | 'cover'; hero?: boolean; meta?: boolean; event?: boolean } = {}
 ) {
   const model = await resolveDocument(
     source,
@@ -123,6 +129,20 @@ async function page(
               },
               locale,
               'Europe/Amsterdam'
+            ),
+          }
+        : {}),
+      ...(head.event
+        ? {
+            event: renderEvent(
+              {
+                startsAt: '2026-12-05T20:00',
+                endsAt: '2026-12-05T22:00',
+                location:
+                  locale === 'nl' ? 'Buurthuis, Kerkstraat 1' : 'Community centre, Kerkstraat 1',
+                onlineUrl: 'https://example.org/live',
+              },
+              locale
             ),
           }
         : {}),
@@ -253,6 +273,24 @@ describe('the two article headers (#105)', () => {
     expect(body).toContain('Sam $&amp; $` Vries');
     expect(body).toContain('<span class="credit-word">Foto: </span>');
   });
+});
+
+describe('an event page’s when and where (#248)', () => {
+  const at = (html: string, s: string) => html.indexOf(s);
+  for (const locale of ['nl', 'en'] as const)
+    it(`shows the date, place and online address under the lead in ${locale}`, async () => {
+      const html = await page(locale, 'default', undefined, { event: true });
+      await expect(html).toMatchFileSnapshot(`__snapshots__/item-intro-event.${locale}.html`);
+      expect(at(html, 'class="lead"')).toBeLessThan(at(html, 'page-event'));
+      expect(at(html, 'page-event')).toBeLessThan(at(html, 'page-hero'));
+      // The wall clock as entered, one day named once, no zone shift.
+      expect(html).toContain('datetime="2026-12-05T20:00"');
+      expect(html).toContain(
+        locale === 'nl' ? 'zaterdag 5 december 2026, 20:00–22:00' : 'Saturday, December 5, 2026'
+      );
+      expect(html).toContain(locale === 'nl' ? 'Buurthuis' : 'Community centre');
+      expect(html).toContain('href="https://example.org/live"');
+    });
 });
 
 describe('the hero image alt (#99)', () => {

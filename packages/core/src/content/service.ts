@@ -44,9 +44,11 @@ import {
   ContentDocument,
   ContentDocumentInput,
   ContentItem,
+  ContentProfile,
   ContentType,
   Revision,
   documentMedia,
+  profileOf,
   RevisionSummary,
   Slug,
   isReservedPageSlug,
@@ -76,6 +78,7 @@ export function toContentItem(r: ItemRecord): ContentItem {
   return {
     id: r.id,
     type: r.type,
+    profile: r.profile,
     slug: r.slug,
     title: r.title,
     defaultLocale: r.defaultLocale,
@@ -420,6 +423,7 @@ async function insertDraft(
   const item: ItemRecord = {
     id: itemId,
     type: doc.type,
+    profile: profileOf(doc),
     slug,
     title: doc.title,
     defaultLocale: doc.defaultLocale,
@@ -601,6 +605,8 @@ export const listItems = defineUseCase({
   requires: 'content:read',
   input: z.object({
     type: ContentType.optional(),
+    /** Only items with this profile: the events of a site. */
+    profile: ContentProfile.optional(),
     slug: Slug.optional(),
     ...itemListFields,
     after: z.string().guid().optional(),

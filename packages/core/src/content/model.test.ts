@@ -242,6 +242,76 @@ describe('the header layout (ADR 025 rule 3)', () => {
   });
 });
 
+describe('the event profile (ADR 022 rule 3, #248)', () => {
+  const event = {
+    type: 'page',
+    profile: 'event',
+    defaultLocale: 'nl',
+    locales: ['nl', 'en'],
+    title: { nl: 'Buurtavond', en: 'Neighbourhood evening' },
+    blocks: [],
+  };
+  const parse = (doc: object) => ContentDocument.safeParse(doc);
+  const messages = (doc: object) => {
+    const r = parse(doc);
+    return r.success ? [] : r.error.issues.map((i) => i.message);
+  };
+
+  it('lets a draft wait for every detail, and publishes only with a start', () => {
+    expect(parse(event).success).toBe(true);
+    expect(readinessIssues(ContentDocument.parse(event), 'nl')).toContainEqual({
+      path: 'event.startsAt',
+      message: 'content.publish.event-start-required',
+    });
+    const dated = ContentDocument.parse({ ...event, event: { startsAt: '2026-12-05T20:00' } });
+    expect(readinessIssues(dated, 'nl').map((i) => i.message)).not.toContain(
+      'content.publish.event-start-required'
+    );
+  });
+
+  it('takes wall-clock times and refuses an end before the start or without one', () => {
+    expect(messages({ ...event, event: { startsAt: '2026-12-05T20:00:00Z' } })).toContain(
+      'content.event.date-invalid'
+    );
+    expect(messages({ ...event, event: { startsAt: '2026-02-30T20:00' } })).toContain(
+      'content.event.date-invalid'
+    );
+    expect(
+      messages({ ...event, event: { startsAt: '2026-12-05T20:00', endsAt: '2026-12-05T19:00' } })
+    ).toContain('content.event.ends-before-start');
+    expect(messages({ ...event, event: { endsAt: '2026-12-05T22:00' } })).toContain(
+      'content.event.end-without-start'
+    );
+    expect(
+      parse({ ...event, event: { startsAt: '2026-12-05T20:00', endsAt: '2026-12-06T02:00' } })
+        .success
+    ).toBe(true);
+  });
+
+  it('needs the place in every published locale once given, and an http(s) online address', () => {
+    const placed = ContentDocument.parse({
+      ...event,
+      event: { startsAt: '2026-12-05T20:00', location: { nl: 'Buurthuis, Kerkstraat 1' } },
+    });
+    expect(readinessIssues(placed, 'en')).toContainEqual({
+      path: 'event.location',
+      message: 'content.publish.missing-translation',
+    });
+    expect(messages({ ...event, event: { onlineUrl: 'ftp://example.org' } })).toContain(
+      'content.event.online-url-invalid'
+    );
+  });
+
+  it('keeps the details to an event page: never on an ordinary page or an article', () => {
+    const { profile: _profile, ...page } = event;
+    expect(messages({ ...page, event: { startsAt: '2026-12-05T20:00' } })).toContain(
+      'content.event.not-an-event'
+    );
+    expect(parse({ ...event, type: 'article' }).success).toBe(false);
+    expect(parse({ ...event, profile: 'meeting' }).success).toBe(false);
+  });
+});
+
 describe('routes and tags (brief #8a § 2)', () => {
   it('turns a title into a valid slug, or nothing', () => {
     expect(slugFromTitle('  Wat we doen in 2026 ')).toBe('wat-we-doen-in-2026');

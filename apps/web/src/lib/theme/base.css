@@ -273,6 +273,23 @@
       aspect-ratio: 16 / 9;
     }
   }
+  /* An event's when and where (#248): under the lead in the lead's rail, each term above its value
+     so a long date or address wraps at 320 px without a column to squeeze it. */
+  .page > .page-event {
+    width: min(var(--lead-width), 100% - 2 * var(--gutter));
+    margin: 0 auto var(--space-3);
+    display: grid;
+    gap: var(--space-2);
+    text-align: center;
+  }
+  .page-event dt {
+    font-size: var(--step--1);
+    color: var(--color-muted-fg);
+  }
+  .page-event dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
   /* An article's line under its header (rule 3). */
   .page > .page-meta {
     margin-block: 0 var(--space-3);

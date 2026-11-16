@@ -104,6 +104,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
     return rows.map((r) => ({
       id: r.id,
       type: r.type,
+      profile: r.profile,
       slug: r.slug,
       title: r.title,
       defaultLocale: r.default_locale,
@@ -196,6 +197,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
     async list(filter, { order, after, offset, limit }) {
       const {
         type,
+        profile,
         slug,
         q,
         locale,
@@ -210,6 +212,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
       // Core's `matchesItemFilter` in SQL; `adapter-rules.test.ts` holds the two together.
       const matches: RawBuilder<boolean>[] = [];
       if (type) matches.push(sql<boolean>`i.type = ${type}`);
+      if (profile) matches.push(sql<boolean>`i.profile = ${profile}`);
       if (slug) matches.push(sql<boolean>`i.slug = ${slug}`);
       if (q) {
         // `%`, `_` and the backslash stand for themselves.
@@ -309,6 +312,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
               id: item.id,
               tenant_id: tenantId,
               type: item.type,
+              profile: item.profile,
               slug: item.slug,
               title: JSON.stringify(item.title),
               default_locale: item.defaultLocale,

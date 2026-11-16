@@ -29,6 +29,7 @@ import {
   LocaleStatus,
   readinessIssues,
   type ContentDocument,
+  type ContentProfile,
   type ContentType,
 } from './model.js';
 import type { ItemPage, ItemPosition, ItemRecord } from './ports.js';
@@ -69,6 +70,7 @@ export const itemListFields = {
 
 export interface ItemFilter {
   type?: ContentType | undefined;
+  profile?: ContentProfile | undefined;
   slug?: string | undefined;
   /** Contained, whatever the case, in the slug or in the title of any locale. */
   q?: string | undefined;
@@ -159,6 +161,7 @@ const sortTitle = (item: ItemRecord, locale?: string): string =>
 
 export function matchesItemFilter(item: ItemRecord, filter: ItemFilter): boolean {
   if (filter.type && item.type !== filter.type) return false;
+  if (filter.profile && item.profile !== filter.profile) return false;
   if (filter.slug && item.slug !== filter.slug) return false;
   if (filter.q) {
     const needle = filter.q.toLowerCase();

@@ -184,9 +184,11 @@ export const load: PageServerLoad = async ({ parent, locals, url, params, cookie
     trashed: url.searchParams.get('done') === 'deleted',
     type,
     contentType: type,
+    contentProfile: view.profile,
     workLocale: work,
     multi,
     view: {
+      profile: view.profile,
       q: view.q,
       status: view.status,
       author: view.author,
@@ -327,11 +329,14 @@ export const actions: Actions = {
           event.params.tenant
         );
         const type = ContentType.parse(form.get('type'));
+        // "New event" is a page with the event profile (#248); its date waits for the editor.
+        const isEvent = type === 'page' && form.get('profile') === 'event';
         return runtime().invoker.run(useCases.createItem, principal, {
           // A placeholder until the first save with a title; core then moves it there.
           slug: startSlug(type, randomUUID()),
           document: {
             type,
+            ...(isEvent ? { profile: 'event' as const } : {}),
             title: { [tenant.defaultLocale]: ui(tenant.defaultLocale)('admin.content.untitled') },
             defaultLocale: tenant.defaultLocale,
             locales: tenant.locales,

@@ -51,6 +51,8 @@
   const contentType = $derived(
     (page.data as { contentType?: unknown }).contentType === 'article' ? 'article' : 'page'
   );
+  /** An event is a page under Events (#248): `contentProfile` in the same page data. */
+  const events = $derived((page.data as { contentProfile?: unknown }).contentProfile === 'event');
   /** The shell's locale switch: a site with several locales, off on an edit screen. */
   const localeSwitch = $derived(
     data.tenant.locales.length > 1 && !(page.data as { itemLocale?: boolean }).itemLocale
@@ -84,9 +86,16 @@
           href: `${base}/content?type=${type}`,
           label: t(type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article'),
           icon: type === 'page' ? 'panels-top-left' : 'square-pen',
-          current: within('content') && contentType === type && !campaignPage,
+          current: within('content') && contentType === type && !campaignPage && !events,
         }))
       : [];
+    if (has('content:read'))
+      content.push({
+        href: `${base}/content?type=page&profile=event`,
+        label: t('admin.content.filter.event'),
+        icon: 'calendar',
+        current: within('content') && events,
+      });
     // Campaigns are content under Content (navigation choice 2026-10-31), after the two
     // stored types they are built from.
     if (has('content:read'))

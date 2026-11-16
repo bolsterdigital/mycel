@@ -13,6 +13,7 @@ import type { ItemFilter, ItemOrder } from './listing.js';
 import type {
   Author,
   ContentDocument,
+  ContentProfile,
   ContentType,
   Pattern,
   Revision,
@@ -23,6 +24,8 @@ import type {
 export interface ItemRecord {
   id: string;
   type: ContentType;
+  /** A page's type profile, fixed at creation; null on an ordinary page and every article. */
+  profile: ContentProfile | null;
   slug: string;
   /** The latest revision's title, kept on the item so lists need no revision reads. */
   title: Record<string, string>;

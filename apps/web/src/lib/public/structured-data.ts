@@ -1,6 +1,7 @@
 // JSON-LD is data, never executable markup. Escape HTML-significant bytes before placing the
 // generated script in a head; rejected: raw JSON.stringify, which permits a closing script tag.
 import type { PublishedItem, PublicPerson } from '@mycel/core';
+import { fromLocalInput } from './wall-clock.js';
 import { personPath } from './person-path.js';
 
 export function jsonLd(value: unknown): string {
@@ -26,6 +27,52 @@ export function personData(person: PublicPerson, canonical: string, image: strin
     ...(person.phone ? { telephone: person.phone } : {}),
     ...(image ? { image } : {}),
     ...(person.links.length ? { sameAs: person.links.map((link) => link.url) } : {}),
+  };
+}
+
+/**
+ * A wall-clock time of `zone` as ISO 8601 with the offset that zone has then
+ * (`2026-12-05T20:00:00+01:00`), which search engines ask of an event's dates.
+ */
+export function zonedIso(local: string, zone: string): string {
+  const instant = fromLocalInput(local, zone);
+  if (!instant) return local;
+  const minutes = Math.round((Date.parse(`${local}:00Z`) - instant.getTime()) / 60_000);
+  const sign = minutes < 0 ? '-' : '+';
+  const abs = Math.abs(minutes);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${local}:00${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+}
+
+/**
+ * An event page as schema.org `Event` (#248): only what the projection released in this locale.
+ * Attendance follows from what it has: a place, an online address or both. Null for every other
+ * item.
+ */
+export function eventData(item: PublishedItem, canonical: string, locale: string) {
+  const event = item.event;
+  if (!event) return null;
+  const place = event.location ? { '@type': 'Place', name: event.location } : null;
+  const online = event.onlineUrl ? { '@type': 'VirtualLocation', url: event.onlineUrl } : null;
+  const mode =
+    place && online
+      ? 'MixedEventAttendanceMode'
+      : online
+        ? 'OnlineEventAttendanceMode'
+        : 'OfflineEventAttendanceMode';
+  const locations = [place, online].filter((l) => l !== null);
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Event',
+    url: canonical,
+    name: item.title,
+    ...(item.lead ? { description: item.lead } : {}),
+    inLanguage: locale,
+    startDate: zonedIso(event.startsAt, event.timeZone),
+    ...(event.endsAt ? { endDate: zonedIso(event.endsAt, event.timeZone) } : {}),
+    eventStatus: 'https://schema.org/EventScheduled',
+    eventAttendanceMode: `https://schema.org/${mode}`,
+    ...(locations.length ? { location: locations.length === 1 ? locations[0] : locations } : {}),
   };
 }
 

@@ -29,6 +29,7 @@ export const ISSUE_COPY: Record<string, UiKey> = {
   'content.publish.machine-translation-unreviewed': 'admin.assist.unreviewed',
   'content.publish.teaser-lead-required': 'admin.content.issue.teaserLeadRequired',
   'content.publish.tier-unverifiable': 'admin.content.issue.tierUnverifiable',
+  'content.publish.event-start-required': 'admin.content.issue.eventStartRequired',
   'content.reference.author-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.author-organisation': 'admin.content.issue.authorOrganisation',
   'content.reference.section-unknown': 'admin.content.issue.referenceUnknown',
@@ -57,6 +58,10 @@ export const ISSUES: Record<string, UiKey> = {
   'content.access.tier-ids-required': 'admin.content.error.tier',
   'content.image.alt-required': 'admin.block.issue.altRequired',
   'content.image.alt-empty': 'admin.block.issue.altRequired',
+  'content.event.date-invalid': 'admin.content.error.eventDate',
+  'content.event.end-without-start': 'admin.content.error.eventEndWithoutStart',
+  'content.event.ends-before-start': 'admin.content.error.eventEndsBeforeStart',
+  'content.event.online-url-invalid': 'admin.content.error.eventOnlineUrl',
 };
 
 /** Core's refusals of a new slug, as admin copy. */

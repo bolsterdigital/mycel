@@ -16,6 +16,7 @@ import {
   listParams,
   listPath,
   listViewFrom,
+  NO_FILTERS,
   recalledListPath,
   rememberListFromReferer,
   translationTooBroad,
@@ -47,6 +48,7 @@ function jar(initial: Record<string, string> = {}) {
 describe('listViewFrom', () => {
   it('is the last saved first, unfiltered, on page one without a query', () => {
     expect(view('type=page')).toEqual({
+      profile: null,
       q: '',
       status: null,
       author: null,
@@ -61,6 +63,15 @@ describe('listViewFrom', () => {
       columns: null,
       per: null,
     });
+  });
+
+  it('reads the events of a site as a profile of pages, and keeps it in the URL', () => {
+    expect(view('profile=event', 'page').profile).toBe('event');
+    expect(view('profile=event').profile).toBeNull();
+    expect(view('profile=meeting', 'page').profile).toBeNull();
+    expect(listParams({ ...view('profile=event&q=x', 'page'), ...NO_FILTERS }).get('profile')).toBe(
+      'event'
+    );
   });
 
   it('reads a search, a status, an order and a page', () => {
@@ -251,6 +262,10 @@ describe('the way back from an item', () => {
     // Pages keep their own view.
     expect(recalledListPath(cookies, 'probe', 'page', ITEM)).toBe(
       `/admin/probe/content?type=page#item-${ITEM}`
+    );
+    // An event goes back to Events, whichever page list it was entered from (#248).
+    expect(recalledListPath(cookies, 'probe', 'page', ITEM, 'event')).toBe(
+      `/admin/probe/content?type=page&profile=event#item-${ITEM}`
     );
   });
 

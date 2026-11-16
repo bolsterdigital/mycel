@@ -15,6 +15,7 @@ import {
   CampaignCardReason,
   anonymousPrincipal,
   effectiveImages,
+  projectEvent,
   type ContentDocument,
   type TenantInfo,
   type Principal,
@@ -22,7 +23,7 @@ import {
   pick,
   useCases,
 } from '@mycel/core';
-import { renderMeta } from '../../blocks/resolve.js';
+import { renderEvent, renderMeta } from '../../blocks/resolve.js';
 import { PRIVATE_NO_STORE } from '../http/http-cache.js';
 import { runtime } from '../runtime.js';
 import { siteTenant, type Site } from '../site.js';
@@ -63,7 +64,11 @@ export async function introOf(
     heroImageId: effectiveImages(doc).hero.mediaId,
     heroAlt: doc.heroAlt?.[locale] ?? null,
   };
-  if (doc.type !== 'article') return header;
+  if (doc.type !== 'article') {
+    // The site's zone only names the offset in structured data; the header shows the wall clock.
+    const event = projectEvent(doc, locale, 'UTC');
+    return event ? { ...header, event: renderEvent(event, locale) } : header;
+  }
   const { invoker } = runtime();
   const found = async <T>(read: () => Promise<T>): Promise<T | null> => {
     try {
