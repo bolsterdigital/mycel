@@ -422,6 +422,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.navigation.anchor.none': 'Bovenaan',
   'admin.navigation.anchor.option': '{type}: {text}',
   'admin.navigation.anchor.gone': 'Een deel dat er niet meer is',
+  'admin.navigation.anchor.empty': '{part} (toont nu niets op de site)',
   'admin.navigation.anchor.unpublished':
     'Zodra de pagina in {locale} gepubliceerd is, kun je kiezen waar op de pagina de link uitkomt.',
   'admin.navigation.anchor.later':
@@ -537,6 +538,8 @@ export const nl: Partial<Record<UiKey, string>> = {
     'De pagina wordt niet getoond en het item heeft geen eigen tekst in {locale}, dus de subitems vallen ook weg.',
   'admin.navigation.problem.anchor-missing':
     'Het deel van de pagina waar het naar wees, is weg; het gaat naar het begin van de pagina.',
+  'admin.navigation.problem.anchor-empty':
+    'Het deel van de pagina waar het naar wijst, toont nu niets op de site, bijvoorbeeld een beeld dat niet openbaar is; het gaat naar het begin van de pagina.',
   'admin.navigation.problem.target-unknown':
     'De pagina bestaat niet meer; kies een andere voor je publiceert.',
   'admin.navigation.publish': 'Publiceren in {locale}',

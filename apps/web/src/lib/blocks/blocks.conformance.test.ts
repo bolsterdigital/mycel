@@ -45,6 +45,7 @@ import { headingTag } from './headings.js';
 import { renderMarkdown } from './markdown.js';
 import type { RenderModel } from './model.js';
 import { resolveDocument, type ResolveSource } from './resolve.js';
+import { shownBlockIds } from './shown.js';
 import { FONT_FILES, STEPS, themeCss, withItalicPreload } from '../theme/tokens.js';
 
 /** A fixed challenge, so the snapshots do not change per run. */
@@ -312,6 +313,8 @@ describe('every example renders to HTML and Markdown', () => {
         expect(model.blocks).toHaveLength(1);
         if (type !== 'paywall') expect(html).not.toBe('');
         else expect(html).toBe('');
+        // A menu anchor lands on every example but the boundary (`shown.ts`).
+        expect(shownBlockIds(model).has(block.id)).toBe(type !== 'paywall');
         // A paywall and a decorative image add nothing to the Markdown; everything else does.
         const silent =
           block.type === 'paywall' || (block.type === 'image' && block.props.decorative);

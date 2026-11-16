@@ -68,7 +68,8 @@ export interface ProblemRow {
   menu: string;
   /** The item's text in the locale; null when it has none there. */
   item: string | null;
-  code: Check['problems'][number]['code'];
+  /** Core's problems, and `anchor-empty`: the anchor's part shows nothing on the site now. */
+  code: Check['problems'][number]['code'] | 'anchor-empty';
   blocking: boolean;
 }
 
@@ -77,11 +78,15 @@ export function previewModel(
   document: NavigationDocument,
   check: Check,
   locale: string,
-  defaultLocale: string
+  defaultLocale: string,
+  emptyAnchors: readonly { menuId: string; nodeId: string }[] = []
 ) {
   const menus = Object.fromEntries(document.menus.map((m) => [m.id, m.name]));
   const label = new Map(check.nodes.map((n) => [`${n.menuId} ${n.nodeId}`, n.label]));
-  const problems: ProblemRow[] = check.problems.map((p) => ({
+  const problems: ProblemRow[] = [
+    ...check.problems,
+    ...emptyAnchors.map((a) => ({ ...a, code: 'anchor-empty' as const, blocking: false })),
+  ].map((p) => ({
     menu: menus[p.menuId] ?? p.menuId,
     item: label.get(`${p.menuId} ${p.nodeId}`) ?? null,
     code: p.code,

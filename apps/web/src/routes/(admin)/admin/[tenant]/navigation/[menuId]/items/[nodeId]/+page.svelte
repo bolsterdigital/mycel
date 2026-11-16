@@ -1,11 +1,12 @@
 <!-- The form of one menu item. A link: where it leads (the target picker of the edit screen: a
      select of pages and articles, the home and search pages, or an address; with JavaScript one
      search field), for a page where on it the link lands (the parts of its published revision; a
-     plain select that belongs to the saved page, so another page is saved first) and an optional
-     menu text of its own in the content locale, which when left empty follows the page's
-     published title. A group: only its text. Native controls; the picker
-     is an enhancement. After a conflict the fields hold what is saved now, and the notice repeats
-     what this editor had typed, so a second Save is a choice made with both in view. -->
+     plain select that belongs to the saved page, so another page is saved first; a part that
+     shows nothing on the site now says so) and an optional menu text of its own in the content
+     locale, which when left empty follows the page's published title. A group: only its text.
+     Native controls; the picker is an enhancement. After a conflict the fields hold what is saved
+     now, and the notice repeats what this editor had typed, so a second Save is a choice made with
+     both in view. -->
 <script lang="ts">
   import TargetPicker from '#lib/admin/block-fields/TargetPicker.svelte';
   import { Field, FormPage, Notice, Select } from '#lib/admin/ui/index.js';
@@ -34,18 +35,26 @@
   const gone = $derived(
     !!data.values.anchor && !!data.anchors && !data.anchors.some((a) => a.id === data.values.anchor)
   );
+  // The chosen part is there but shows nothing on the site now (a restricted image, a form that is
+  // not there): the link lands at the top of the page, as it does for a part that is gone.
+  const empty = $derived(
+    !!data.values.anchor && !!data.anchors?.some((a) => a.id === data.values.anchor && !a.shown)
+  );
   const anchorOptions = $derived([
     { value: '', label: t('admin.navigation.anchor.none') },
     ...(gone ? [{ value: data.values.anchor, label: t('admin.navigation.anchor.gone') }] : []),
-    ...(data.anchors ?? []).map((a) => ({
-      value: a.id,
-      label: a.text
+    ...(data.anchors ?? []).map((a) => {
+      const label = a.text
         ? fill(t('admin.navigation.anchor.option'), {
             type: t(`admin.block.type.${a.type}` as const),
             text: a.text,
           })
-        : t(`admin.block.type.${a.type}` as const),
-    })),
+        : t(`admin.block.type.${a.type}` as const);
+      return {
+        value: a.id,
+        label: a.shown ? label : fill(t('admin.navigation.anchor.empty'), { part: label }),
+      };
+    }),
   ]);
   // After a conflict the fields show what is saved now; what this editor typed stands in the notice.
   const yours = $derived(
@@ -87,6 +96,7 @@
         {#if yours}{fill(t('admin.navigation.error.yours'), { text: yours })}{/if}</Notice
       >{/if}
     {#if gone}<Notice tone="warning">{t('admin.navigation.problem.anchor-missing')}</Notice>{/if}
+    {#if empty}<Notice tone="warning">{t('admin.navigation.problem.anchor-empty')}</Notice>{/if}
   {/snippet}
   <input type="hidden" name="baseRevisionId" value={data.baseRevisionId ?? ''} />
   <input type="hidden" name="kind" value={data.kind} />

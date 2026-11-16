@@ -51,6 +51,7 @@ import {
   followAnchor,
   scrollLockKeepsWidth,
   seedAnchors,
+  warnEmptyAnchor,
 } from './lib/site-navigation/anchors';
 import { exerciseNavigationEtag } from './lib/site-navigation/etag';
 import { exerciseChromeMenus, exerciseEnhancedBar } from './lib/site-navigation/visitor';
@@ -2116,6 +2117,8 @@ test.describe('menu anchors', () => {
     await chooseAnchor(page, slug, site.tenantId, site.editor);
     await followAnchor(page, slug);
   });
+  test('an anchor on a part that shows nothing warns the editor', ({ page }) =>
+    warnEmptyAnchor(page, slug, site.editor));
   test('the menu dialog locks scrolling without shifting the page', ({ browser, baseURL }) => {
     onlyA11y('the dialog is the enhancement script');
     return scrollLockKeepsWidth(browser.browserType(), baseURL!, headers, slug);

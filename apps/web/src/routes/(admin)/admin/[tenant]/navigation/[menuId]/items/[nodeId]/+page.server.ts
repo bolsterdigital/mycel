@@ -2,7 +2,8 @@
 // home page or the search page, with an optional menu text of its own; or a group, which is only
 // a text above its sub-items. `new` adds one at the end of the menu (`?kind=group` for a group);
 // an id edits that node where it stands, sub-items and the other locales' texts kept. A link to a
-// page offers the parts of that page's published revision in the content locale as its anchor.
+// page offers the parts of that page's published revision in the content locale as its anchor,
+// each saying whether it shows anything on the site now.
 import { can, useCases } from '@mycel/core';
 import { editMenu, nodeOf, replaceNode } from '#lib/admin/navigation/menu-edit.js';
 import { loaded, text } from '#lib/server/admin/admin-actions.js';
