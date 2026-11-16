@@ -129,6 +129,14 @@
           },
         ]
       : [];
+    // The site's saved patterns (ADR 012 rule 8), next to the media they reuse.
+    if (has('content:read'))
+      library.push({
+        href: `${base}/patterns`,
+        label: t('admin.nav.patterns'),
+        icon: 'layers',
+        current: within('patterns'),
+      });
     const site = navEntries({
       base,
       pathname: path,
