@@ -2,6 +2,7 @@
 // Rejected: testing core alone, which cannot catch a front substituting a different provider.
 import {
   can,
+  headlineSource,
   leadCandidates,
   useCases,
   UseCaseError,
@@ -12,8 +13,8 @@ import {
 
 /**
  * What the edit screen offers (ADR 021): assistance at all, for a member who may ask and write on
- * a site that consented to its processor, and a lead from an article's own prose in the working
- * locale.
+ * a site that consented to its processor, a lead from an article's own prose and a headline from
+ * its own lead, both in the working locale.
  */
 export async function editAssist(
   invoker: Invoker,
@@ -33,8 +34,13 @@ export async function editAssist(
     principal.entitlements['ai.assist'] &&
     (doc.access.level === 'public' || settings.allowRestricted)
   );
-  const leadAssist = assistEnabled && type === 'article' && leadCandidates(doc, work).length > 0;
-  return { assistEnabled, leadAssist };
+  const article = assistEnabled && type === 'article';
+  /** The task a field offers from the article itself, keyed by the field's translation target. */
+  const ownAssist: Partial<Record<string, 'lead' | 'headline'>> = {
+    ...(article && leadCandidates(doc, work).length > 0 ? { lead: 'lead' as const } : {}),
+    ...(article && headlineSource(doc, work).ok ? { title: 'headline' as const } : {}),
+  };
+  return { assistEnabled, ownAssist };
 }
 
 export async function saveAssistSettings(invoker: Invoker, principal: Principal, data: FormData) {

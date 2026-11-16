@@ -1,0 +1,18 @@
+{
+  "id": "chatcmpl-732",
+  "object": "chat.completion",
+  "created": 1763290800,
+  "model": "mistral-small",
+  "system_fingerprint": "fp_ollama",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"headline\":\"Bakers cut the salt in spiced biscuits\"}"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": { "prompt_tokens": 61, "completion_tokens": 9, "total_tokens": 70 }
+}

@@ -23,6 +23,7 @@ import { defineUseCase } from '../registry.js';
 import { jobKey } from '../jobs/types.js';
 import { AltResult, PENDING_TIMEOUT_MS, SettingsView, SuggestionView } from './model.js';
 import { LeadBlockIds, leadSource } from './lead.js';
+import { headlineSource } from './headline.js';
 import type { AssistSettings, AssistSuggestion, AssistTask } from './ports.js';
 import './ports.js';
 import { iso } from '../util/date.js';
@@ -97,6 +98,36 @@ const findSuggestion = async (ctx: TransactionContext, id: string): Promise<Assi
   if (!row) throw notFound('suggestion');
   return row;
 };
+
+/** Stores a pending proposal and queues its worker; the row's own fields name task and source. */
+async function queueSuggestion(
+  ctx: TransactionContext,
+  now: Date,
+  row: Pick<
+    AssistSuggestion,
+    'itemId' | 'baseRevisionId' | 'task' | 'blockId' | 'sourceBlockIds' | 'locale' | 'provider'
+  >
+) {
+  const id = ctx.ids.next();
+  await ctx.assist.insert({
+    ...row,
+    id,
+    status: 'pending',
+    value: null,
+    failure: null,
+    requestedBy: ctx.principal.actor.kind === 'operator' ? ctx.principal.actor.operatorId : null,
+    model: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+  await ctx.jobs.enqueue({
+    type: 'assist.run',
+    key: jobKey('assist.run', id),
+    runAt: now,
+    payload: { suggestionId: id },
+  });
+  return { suggestionId: id, status: 'pending' as const };
+}
 
 export const getAssistSettings = defineUseCase({
   name: 'assist.settings.get',
@@ -185,31 +216,15 @@ export const suggestAlt = defineUseCase({
     if (block.props.decorative) refuse('invalid_input', 'image');
     const media = await ctx.media.get(block.props.mediaId);
     if (!media || media.deletedAt || media.kind !== 'image') refuse('invalid_input', 'image');
-    const id = ctx.ids.next();
-    await ctx.assist.insert({
-      id,
+    return queueSuggestion(ctx, now, {
       itemId: item.id,
       baseRevisionId: input.baseRevisionId,
       task: 'alt',
       blockId: input.blockId,
       sourceBlockIds: [],
       locale: input.locale,
-      status: 'pending',
-      value: null,
-      failure: null,
       provider,
-      requestedBy: ctx.principal.actor.kind === 'operator' ? ctx.principal.actor.operatorId : null,
-      model: null,
-      createdAt: now,
-      updatedAt: now,
     });
-    await ctx.jobs.enqueue({
-      type: 'assist.run',
-      key: jobKey('assist.run', id),
-      runAt: now,
-      payload: { suggestionId: id },
-    });
-    return { suggestionId: id, status: 'pending' as const };
   },
 });
 
@@ -289,6 +304,20 @@ export const acceptSuggestion = defineUseCase({
       model: row.model!,
       edited: value !== undefined && value !== row.value,
     });
+    if (row.task === 'headline') {
+      // Only `title[locale]` changes; the edited text passes the article's own title schema.
+      if (item.type !== 'article' || !headlineSource(revision.document, row.locale).ok)
+        refuse('conflict', 'stale');
+      const next = ContentDocument.safeParse({
+        ...revision.document,
+        title: { ...revision.document.title, [row.locale]: (value ?? row.value!).trim() },
+      });
+      if (!next.success) refuse('invalid_input', 'headline-value');
+      const written = await writeRevision(ctx, item, next.data!, provenance('headline'));
+      if (!(await ctx.assist.decide(row.id, 'accepted', ctx.clock.now())))
+        refuse('conflict', 'not-ready');
+      return { revisionId: written.revision.id };
+    }
     if (row.task === 'lead') {
       // Only `lead[locale]` changes; the edited text passes the article's own lead schema.
       if (item.type !== 'article' || !revision.document.locales.includes(row.locale))
@@ -411,31 +440,15 @@ export const suggestTranslation = defineUseCase({
       refuse('invalid_input', 'target');
     for (const target of targets)
       if (translationValue(doc, target, input.from) === null) refuse('invalid_input', 'target');
-    const id = ctx.ids.next();
-    await ctx.assist.insert({
-      id,
+    return queueSuggestion(ctx, now, {
       itemId: item.id,
       baseRevisionId: input.baseRevisionId,
       task: 'translate',
       blockId: encodeTranslation({ from: input.from, to: input.to, targets }),
       sourceBlockIds: [],
       locale: input.to,
-      status: 'pending',
-      value: null,
-      failure: null,
       provider,
-      requestedBy: ctx.principal.actor.kind === 'operator' ? ctx.principal.actor.operatorId : null,
-      model: null,
-      createdAt: now,
-      updatedAt: now,
     });
-    await ctx.jobs.enqueue({
-      type: 'assist.run',
-      key: jobKey('assist.run', id),
-      runAt: now,
-      payload: { suggestionId: id },
-    });
-    return { suggestionId: id, status: 'pending' as const };
   },
 });
 
@@ -474,30 +487,44 @@ export const suggestLead = defineUseCase({
       refuse('invalid_input', 'restricted-content');
     const source = leadSource(doc, input.blockIds, input.locale);
     if (!source.ok) return refuse('invalid_input', source.issue);
-    const id = ctx.ids.next();
-    await ctx.assist.insert({
-      id,
+    return queueSuggestion(ctx, now, {
       itemId: item.id,
       baseRevisionId: input.baseRevisionId,
       task: 'lead',
       blockId: 'lead',
       sourceBlockIds: input.blockIds,
       locale: input.locale,
-      status: 'pending',
-      value: null,
-      failure: null,
       provider,
-      requestedBy: ctx.principal.actor.kind === 'operator' ? ctx.principal.actor.operatorId : null,
-      model: null,
-      createdAt: now,
-      updatedAt: now,
     });
-    await ctx.jobs.enqueue({
-      type: 'assist.run',
-      key: jobKey('assist.run', id),
-      runAt: now,
-      payload: { suggestionId: id },
+  },
+});
+
+export const suggestHeadline = defineUseCase({
+  name: 'assist.headline.suggest',
+  kind: 'command',
+  description: 'Queue a headline proposal for an article from its own lead in one locale.',
+  requires: 'ai:assist',
+  consumes: 'ai.monthly_max',
+  input: z.object({ itemId: Uuid, baseRevisionId: Uuid, locale: z.string().min(2) }).strict(),
+  output: z.object({ suggestionId: Uuid, status: z.literal('pending') }),
+  examples: [{ input: { itemId: exampleId(1), baseRevisionId: exampleId(1), locale: 'nl' } }],
+  async handler(ctx, input) {
+    const { now, item, revision, provider, settings } = await assistGate(ctx, input);
+    const doc = revision.document;
+    if (item.type !== 'article') refuse('invalid_input', 'article');
+    if (!doc.locales.includes(input.locale)) refuse('invalid_input', 'locale');
+    if (doc.access.level !== 'public' && !settings.allowRestricted)
+      refuse('invalid_input', 'restricted-content');
+    const source = headlineSource(doc, input.locale);
+    if (!source.ok) return refuse('invalid_input', source.issue);
+    return queueSuggestion(ctx, now, {
+      itemId: item.id,
+      baseRevisionId: input.baseRevisionId,
+      task: 'headline',
+      blockId: 'headline',
+      sourceBlockIds: [],
+      locale: input.locale,
+      provider,
     });
-    return { suggestionId: id, status: 'pending' as const };
   },
 });

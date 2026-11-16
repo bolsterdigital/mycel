@@ -23,6 +23,9 @@ export const en = {
   'assist.error.lead-too-long':
     'The chosen text is longer than 3,000 characters. Choose fewer blocks.',
   'assist.error.lead-value': 'Enter a lead of at most 1,000 characters.',
+  'assist.error.headline-source':
+    'Write a lead in this language first; the headline is based on it.',
+  'assist.error.headline-value': 'Enter a headline of at most 200 characters.',
   'forms.error.inactive': 'This field is not active for your answers.',
   'forms.error.value': 'Enter a valid value for this field.',
   'forms.error.version': 'This form has changed. Reload the page and try again.',

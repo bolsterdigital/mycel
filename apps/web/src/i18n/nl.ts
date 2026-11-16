@@ -1005,6 +1005,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.result.error': 'Mislukt',
   'admin.status.subnav.overview': 'Overzicht',
   'admin.audit.op.assist.alt.suggest': 'Alt-tekst voorgesteld',
+  'admin.audit.op.assist.headline.suggest': 'Kop voorgesteld',
   'admin.audit.op.assist.lead.suggest': 'Lead voorgesteld',
   'admin.audit.op.assist.settings.update': 'Instellingen schrijfhulp gewijzigd',
   'admin.audit.op.assist.suggestion.accept': 'Suggestie overgenomen',
@@ -2416,6 +2417,19 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.assist.error.lead-too-long':
     'De gekozen tekst is langer dan 3.000 tekens. Kies minder blokken.',
   'admin.assist.error.lead-value': 'Vul een lead van hoogstens 1.000 tekens in.',
+  'admin.assist.sent.headline':
+    'Alleen de lead van het artikel in één taal, als platte tekst, en de taalcode.',
+  'admin.assist.notSent.headline':
+    'Titel, tekstblokken, andere talen, SEO-velden, links, auteurs, rubriek, tags, media, supporterdata, operatoridentiteit en sitenaam.',
+  'admin.assist.headline': 'Kop voorstellen',
+  'admin.assist.headline.source': 'Lead waarop de kop gebaseerd wordt',
+  'admin.assist.headline.sent':
+    'Alleen deze lead en de taalcode ({locale}) gaan naar {provider}. De titel en de rest van het artikel blijven hier.',
+  'admin.assist.headline.check':
+    'Controleer of de kop alleen zegt wat de lead zegt voordat je hem overneemt.',
+  'admin.assist.error.headline-source':
+    'Schrijf eerst een lead in deze taal; de kop wordt daarop gebaseerd.',
+  'admin.assist.error.headline-value': 'Vul een kop van hoogstens 200 tekens in.',
   'admin.ui.choices.chosen': 'Gekozen:',
   'admin.ui.choices.count': '{shown} van {total} zichtbaar',
   'admin.ui.choices.search': 'Zoeken',

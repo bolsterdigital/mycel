@@ -275,6 +275,10 @@
             ></tr
           >
           <tr><td>{t('admin.assist.sent.lead')}</td><td>{t('admin.assist.notSent.lead')}</td></tr>
+          <tr
+            ><td>{t('admin.assist.sent.headline')}</td><td>{t('admin.assist.notSent.headline')}</td
+            ></tr
+          >
         {/snippet}
       </Table>
       <input type="hidden" name="provider" value={assist.settings.provider ?? ''} />

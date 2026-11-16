@@ -7,8 +7,9 @@ import { systemPrincipal } from '../principal.js';
 import { active, entitled } from '../entitlements/guards.js';
 import type { TenantAccess } from '../entitlements/model.js';
 import { mediaKey, variantFile } from '../media/model.js';
-import { AltResult, LeadResult, PENDING_TIMEOUT_MS } from './model.js';
+import { AltResult, HeadlineResult, LeadResult, PENDING_TIMEOUT_MS } from './model.js';
 import { leadSource } from './lead.js';
+import { headlineSource } from './headline.js';
 import {
   TranslationResult,
   decodeTranslation,
@@ -20,6 +21,10 @@ import { TextModelError, type ModelFailure, type TextModel } from './ports.js';
 /** The fixed lead instruction; there is no free prompt field. */
 const LEAD_PROMPT =
   'Write a lead for an article from the provided passages only: one paragraph of plain text in the language of the given locale, faithful to the passages. Add no facts, names or figures that are not in them, and no call to action. Return JSON with a lead field.';
+
+/** The fixed headline instruction; the lead is the whole source. */
+const HEADLINE_PROMPT =
+  'Write one clear, factual headline for an article from the provided lead only, in the language of the given locale. Add no names, figures or claims that are not in the lead, and no call to action. Return JSON with a headline field.';
 
 const classify = (error: unknown): ModelFailure =>
   error instanceof TextModelError
@@ -73,6 +78,12 @@ export async function runAssistSuggestion(options: RunOptions): Promise<{ next?:
       const lead = leadSource(revision.document, row.sourceBlockIds, row.locale);
       if (!lead.ok) return { row, failure: 'rejected' as const };
       return { row, passages: lead.passages.map((p) => p.text) };
+    }
+    if (row.task === 'headline') {
+      // The base check above already fails a changed lead; a newer lead is never used instead.
+      const headline = item.type === 'article' && headlineSource(revision.document, row.locale);
+      if (!headline || !headline.ok) return { row, failure: 'rejected' as const };
+      return { row, lead: headline.lead };
     }
     const translation = row.task === 'translate' ? decodeTranslation(row.blockId) : null;
     if (translation) {
@@ -180,6 +191,29 @@ export async function runAssistSuggestion(options: RunOptions): Promise<{ next?:
       if (!parsed.success) failure = 'invalid-output';
       else {
         value = parsed.data.lead;
+        modelName = result.model;
+        usage = result.usage;
+      }
+    } catch (error) {
+      failure = classify(error);
+    }
+  } else if (!failure && 'lead' in source && options.model) {
+    try {
+      const result = await options.model.complete({
+        task: 'headline',
+        system: HEADLINE_PROMPT,
+        parts: [
+          { kind: 'text', text: `Locale: ${source.row.locale}` },
+          { kind: 'text', text: source.lead },
+        ],
+        output: HeadlineResult,
+        maxTokens: 200,
+        signal: AbortSignal.timeout(options.timeoutMs),
+      });
+      const parsed = HeadlineResult.safeParse(result.json);
+      if (!parsed.success) failure = 'invalid-output';
+      else {
+        value = parsed.data.headline;
         modelName = result.model;
         usage = result.usage;
       }

@@ -4,6 +4,8 @@
   let { data, form }: PageProps = $props();
   const t = $derived(ui(data.adminLocale));
   const lead = $derived(data.task === 'lead');
+  const headline = $derived(data.task === 'headline');
+  const proposed = $derived(form && 'value' in form ? form.value : data.value);
   /** A refused request keeps what was ticked; a retry starts from the suggestion's own blocks. */
   const chosen = $derived(
     form && 'blockIds' in form && form.blockIds ? form.blockIds : data.chosen
@@ -12,9 +14,11 @@
   const heading = $derived(
     lead
       ? t('admin.assist.lead')
-      : data.task === 'alt'
-        ? t('admin.assist.alt')
-        : t('admin.assist.translate')
+      : headline
+        ? t('admin.assist.headline')
+        : data.task === 'alt'
+          ? t('admin.assist.alt')
+          : t('admin.assist.translate')
   );
 </script>
 
@@ -25,7 +29,15 @@
 <main class="page admin">
   <p><a href="/admin/{data.tenant.slug}/content/{data.itemId}">{t('admin.assist.back')}</a></p>
   <h1>{heading}</h1>
-  {#if !lead}
+  {#if headline}
+    <div class="passages">
+      <p>{t('admin.assist.headline.source')} ({data.locale})</p>
+      <blockquote>{data.source}</blockquote>
+      <p>
+        {fill(t('admin.assist.headline.sent'), { locale: data.locale, provider: data.provider })}
+      </p>
+    </div>
+  {:else if !lead}
     <p>{t('admin.assist.source')} ({data.task === 'alt' ? data.locale : data.from})</p>
     <blockquote>{data.source}</blockquote>
   {/if}
@@ -50,15 +62,33 @@
       {/each}
       <label for="assist-value">{t('admin.assist.proposal')}</label>
       {#if data.task === 'translate'}<p>{t('admin.assist.markdown')}</p>{/if}
-      {#if lead}<p id="assist-check">{t('admin.assist.lead.check')}</p>{/if}
-      <textarea
-        id="assist-value"
-        name="value"
-        rows={lead ? 5 : 8}
-        maxlength={data.task === 'alt' ? 250 : lead ? 1000 : undefined}
-        aria-describedby={lead ? 'assist-check' : undefined}
-        required>{form && 'value' in form ? form.value : data.value}</textarea
-      >
+      {#if lead || headline}
+        <p id="assist-check">
+          {t(headline ? 'admin.assist.headline.check' : 'admin.assist.lead.check')}
+        </p>
+      {/if}
+      {#if headline}
+        <!-- One line: a title has no line breaks, so the field cannot make one. -->
+        <div class="ui-field">
+          <input
+            id="assist-value"
+            name="value"
+            maxlength="200"
+            aria-describedby="assist-check"
+            required
+            value={proposed}
+          />
+        </div>
+      {:else}
+        <textarea
+          id="assist-value"
+          name="value"
+          rows={lead ? 5 : 8}
+          maxlength={data.task === 'alt' ? 250 : lead ? 1000 : undefined}
+          aria-describedby={lead ? 'assist-check' : undefined}
+          required>{proposed}</textarea
+        >
+      {/if}
       <div class="actions stack assist-actions">
         <button type="submit">{t('admin.assist.accept')}</button>
         <button type="submit" class="secondary" formaction="?/dismiss{data.query}" formnovalidate

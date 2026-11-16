@@ -24,6 +24,9 @@ export const nl: Partial<Messages> = {
   'assist.error.lead-source': 'Kies een tot drie tekstblokken met tekst in deze taal.',
   'assist.error.lead-too-long': 'De gekozen tekst is langer dan 3.000 tekens. Kies minder blokken.',
   'assist.error.lead-value': 'Vul een lead van hoogstens 1.000 tekens in.',
+  'assist.error.headline-source':
+    'Schrijf eerst een lead in deze taal; de kop wordt daarop gebaseerd.',
+  'assist.error.headline-value': 'Vul een kop van hoogstens 200 tekens in.',
   'forms.error.inactive': 'Dit veld is niet actief voor je antwoorden.',
   'forms.error.value': 'Vul een geldige waarde in voor dit veld.',
   'forms.error.version': 'Dit formulier is gewijzigd. Herlaad de pagina en probeer opnieuw.',

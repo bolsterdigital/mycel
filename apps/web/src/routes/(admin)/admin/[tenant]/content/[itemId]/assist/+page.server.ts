@@ -77,7 +77,7 @@ const context = async (event: {
       !revision.document.locales.includes(locale)
     )
       refuse(404);
-  } else if (task === 'lead') {
+  } else if (task === 'lead' || task === 'headline') {
     if (item.type !== 'article' || !revision.document.locales.includes(locale)) refuse(404);
   } else if (task === 'translate') {
     if (
@@ -122,7 +122,7 @@ const matches = (
   }
 ) => {
   if (suggestion.itemId !== c.item.id || suggestion.task !== c.task) return false;
-  if (c.task === 'lead') return suggestion.locale === c.locale;
+  if (c.task === 'lead' || c.task === 'headline') return suggestion.locale === c.locale;
   if (c.task === 'alt') return suggestion.blockId === c.block && suggestion.locale === c.locale;
   const descriptor = decodeTranslation(suggestion.blockId);
   return (
@@ -136,7 +136,14 @@ const matches = (
 };
 
 /** A refusal whose own reason the page words, else its code. */
-const SPECIFIC = ['article', 'lead-source', 'lead-too-long', 'lead-value'] as const;
+const SPECIFIC = [
+  'article',
+  'lead-source',
+  'lead-too-long',
+  'lead-value',
+  'headline-source',
+  'headline-value',
+] as const;
 const failure = (e: UseCaseError) => {
   const issue = e.issues?.[0]?.message.replace(/^assist\.error\./, '');
   const specific = SPECIFIC.find((s) => s === issue);
@@ -161,13 +168,15 @@ export const load: PageServerLoad = async (event) => {
   const source =
     c.task === 'lead'
       ? ''
-      : c.task === 'alt'
-        ? ((
-            c.revision.document.blocks.find((b) => b.id === c.block) as {
-              props: { alt?: Record<string, string> };
-            }
-          ).props.alt?.[c.locale] ?? '')
-        : (translationValue(c.revision.document, c.target, c.from) ?? '');
+      : c.task === 'headline'
+        ? (c.revision.document.lead?.[c.locale] ?? '')
+        : c.task === 'alt'
+          ? ((
+              c.revision.document.blocks.find((b) => b.id === c.block) as {
+                props: { alt?: Record<string, string> };
+              }
+            ).props.alt?.[c.locale] ?? '')
+          : (translationValue(c.revision.document, c.target, c.from) ?? '');
   const id = event.url.searchParams.get('suggestion');
   const suggestion = id
     ? await read(event.locals, () =>
@@ -219,27 +228,33 @@ export const actions: Actions = {
       return fail(400, { problem: 'lead-source' as const, blockIds });
     try {
       const result =
-        c.task === 'lead'
-          ? await c.rt.invoker.run(useCases.suggestLead, c.principal, {
+        c.task === 'headline'
+          ? await c.rt.invoker.run(useCases.suggestHeadline, c.principal, {
               itemId: c.item.id,
               baseRevisionId: field(data, 'baseRevisionId'),
               locale: c.locale,
-              blockIds,
             })
-          : c.task === 'alt'
-            ? await c.rt.invoker.run(useCases.suggestAlt, c.principal, {
+          : c.task === 'lead'
+            ? await c.rt.invoker.run(useCases.suggestLead, c.principal, {
                 itemId: c.item.id,
                 baseRevisionId: field(data, 'baseRevisionId'),
-                blockId: c.block,
                 locale: c.locale,
+                blockIds,
               })
-            : await c.rt.invoker.run(useCases.suggestTranslation, c.principal, {
-                itemId: c.item.id,
-                baseRevisionId: field(data, 'baseRevisionId'),
-                from: c.from,
-                to: c.to,
-                targets: [c.target],
-              });
+            : c.task === 'alt'
+              ? await c.rt.invoker.run(useCases.suggestAlt, c.principal, {
+                  itemId: c.item.id,
+                  baseRevisionId: field(data, 'baseRevisionId'),
+                  blockId: c.block,
+                  locale: c.locale,
+                })
+              : await c.rt.invoker.run(useCases.suggestTranslation, c.principal, {
+                  itemId: c.item.id,
+                  baseRevisionId: field(data, 'baseRevisionId'),
+                  from: c.from,
+                  to: c.to,
+                  targets: [c.target],
+                });
       redirect(303, urlOf(event.url, result.suggestionId));
     } catch (e) {
       const { status, problem } = failure(refusalOf(e));

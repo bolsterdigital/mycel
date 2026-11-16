@@ -635,6 +635,69 @@ for (const locale of ['nl-NL', 'en-GB']) {
         'Pepernoten met minder zout, verder hetzelfde recept.'
       );
     });
+
+    test('headline proposal from the lead: request, dismiss, retry and accept without JavaScript', async ({
+      page,
+    }) => {
+      await signInToFreshSite(page);
+      await enable(page);
+      const edit = await inSite(page, async (invoker, principal) => {
+        const created = await invoker.run(useCases.createItem, principal, {
+          slug: `assist-headline-${test.info().project.name}-${Date.now()}`,
+          document: {
+            type: 'article',
+            defaultLocale: 'nl',
+            locales: ['nl', 'en'],
+            title: { nl: 'Werktitel', en: 'Working title' },
+            lead: { nl: 'Bakkers bakken dit jaar pepernoten met minder zout. De smaak blijft.' },
+            blocks: [],
+          },
+        });
+        return `${base(page)}/content/${created.item.id}`;
+      });
+      await page.goto(edit);
+      await page.getByRole('link', { name: /^(Kop voorstellen|Suggest a headline)$/ }).click();
+      await expect(page).toHaveURL(`${edit}/assist?task=headline&locale=nl`);
+      // Before anything is sent: the exact lead and the processor that would receive it.
+      await expect(page.locator('main blockquote')).toHaveText(
+        'Bakkers bakken dit jaar pepernoten met minder zout. De smaak blijft.'
+      );
+      await expect(page.locator('main')).toContainText('Fake model');
+      await expect(page.locator('main')).not.toContainText('Werktitel');
+      await expectNoAxeViolations(page);
+      const request = page.getByRole('button', { name: /^(Suggestie vragen|Request suggestion)$/ });
+      await request.click();
+      const first = new URL(page.url()).searchParams.get('suggestion');
+      expect(first).toBeTruthy();
+      await ready(page);
+      await expect(page.locator('#assist-value')).toHaveValue(
+        'Bakkers bakken dit jaar pepernoten met minder zout'
+      );
+      await expectNoAxeViolations(page);
+      const shots = test.info().project.name;
+      for (const [name, width, zoom] of [
+        ['narrow', 320, '100%'],
+        ['combined', 320, '200%'],
+      ] as const) {
+        await page.setViewportSize({ width, height: 900 });
+        await setTextSize(page, zoom);
+        await layoutGate(page, `headline ${locale} ${name}`, '.assist-actions');
+        await page.screenshot({
+          path: test.info().outputPath(`headline-${locale}-${name}-${shots}.png`),
+          fullPage: true,
+        });
+      }
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.reload();
+      await page.getByRole('button', { name: /Suggestie negeren|Dismiss suggestion/ }).click();
+      await expect(page).toHaveURL(`${edit}/assist?task=headline&locale=nl`);
+      await request.click();
+      expect(new URL(page.url()).searchParams.get('suggestion')).not.toBe(first);
+      await ready(page);
+      await page.locator('#assist-value').fill('Minder zout in de pepernoten');
+      await acceptWithKeyboard(page);
+      await expect(page.locator('[name="title.nl"]')).toHaveValue('Minder zout in de pepernoten');
+    });
   });
 }
 
