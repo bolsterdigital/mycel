@@ -1101,6 +1101,7 @@ export const en = {
   'admin.audit.op.content.item.update': 'Page or article saved',
   'admin.audit.op.content.pattern.create': 'Pattern created',
   'admin.audit.op.content.pattern.update': 'Pattern changed',
+  'admin.audit.op.content.pattern.delete': 'Pattern deleted',
   'admin.audit.op.content.section.create': 'Section created',
   'admin.audit.op.content.section.update': 'Section changed',
   'admin.audit.op.content.translation.approve': 'Translation approved',
