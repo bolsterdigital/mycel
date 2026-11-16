@@ -35,7 +35,9 @@ export async function relationshipChoices(
         invoker.run(useCases.listPeople, principal, { limit: MAX_PAGE_SIZE }).then(({ people }) =>
           withAssigned(
             authorIds,
-            people.map(author),
+            // An organisation is never an author (ADR 031, 2026-11-16); an assigned one still
+            // shows, so the save names the refusal instead of dropping it unseen.
+            people.filter((p) => p.kind === 'person').map(author),
             async (authorId) => {
               const a = isUuid(authorId)
                 ? await orNull(invoker.run(useCases.getPerson, principal, { personId: authorId }))

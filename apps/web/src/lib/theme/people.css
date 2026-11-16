@@ -71,6 +71,11 @@
   aspect-ratio: 4 / 5;
   object-fit: cover;
 }
+/* A logo keeps its own shape: contained in a landscape box, never cropped like a portrait. */
+.person-card-organisation img {
+  aspect-ratio: 3 / 2;
+  object-fit: contain;
+}
 .person-card p {
   white-space: pre-line;
   overflow-wrap: anywhere;

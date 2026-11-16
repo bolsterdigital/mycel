@@ -79,7 +79,7 @@ async function articleEntities(
   return {
     authors: await withAssigned(
       ids.authors,
-      authors.map(author),
+      authors.filter((a) => a.kind === 'person').map(author),
       async (authorId) => {
         const a = await orNull(invoker.run(useCases.getPerson, principal, { personId: authorId }));
         return a && author(a);

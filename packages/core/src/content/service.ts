@@ -289,6 +289,13 @@ export async function referenceIssues(
           message: 'content.reference.author-unknown',
           params: { id },
         });
+      // An organisation is in the register but is never an author (ADR 031, 2026-11-16).
+      else if ((await ctx.authors.get(id))?.kind === 'organisation')
+        issues.push({
+          path: 'authorIds',
+          message: 'content.reference.author-organisation',
+          params: { id },
+        });
     if (doc.sectionId && !(await ctx.sections.get(doc.sectionId)))
       issues.push({ path: 'sectionId', message: 'content.reference.section-unknown' });
   }

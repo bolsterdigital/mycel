@@ -551,6 +551,7 @@ export function authorRepository(trx: Trx, tenantId: string): SluggedRepository<
     Author.parse({
       id: r.id,
       slug: r.slug,
+      kind: r.kind,
       name: r.name,
       ...(r.role ? { role: r.role } : {}),
       ...(r.organisation ? { organisation: r.organisation } : {}),
@@ -608,6 +609,8 @@ export function authorRepository(trx: Trx, tenantId: string): SluggedRepository<
             id: a.id,
             tenant_id: tenantId,
             slug: a.slug,
+            // The kind is fixed at creation, so only the insert writes it (ADR 031, 2026-11-16).
+            kind: a.kind,
             created_at: a.createdAt,
             ...fields(a),
           })

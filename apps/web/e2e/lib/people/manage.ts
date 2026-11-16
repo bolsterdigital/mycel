@@ -61,8 +61,40 @@ export async function exercisePeople(page: Page, request: APIRequestContext) {
   await expect(page).toHaveURL(/\/groups\/[^/]+\?saved=1$/);
   const groupId = new URL(page.url()).pathname.split('/').pop()!;
   await measure(page, 'group-form');
+  // An organisation (#249): its own create button, only its own fields, the kind filter.
+  await page.goto(base);
+  await page.getByRole('link', { name: 'Add organisation', exact: true }).click();
+  await expect(page.locator('h1')).toHaveText('Add organisation');
+  for (const absent of ['#person-role', '#person-organisation', '#person-phone', '#person-policy'])
+    await expect(page.locator(absent)).toHaveCount(0);
+  const organisation = `Organisation ${unique}`;
+  await page.locator('#person-name').fill(organisation);
+  await page.locator('#person-bio').fill('A partner of ours.');
+  await page
+    .locator('summary')
+    .filter({ hasText: /^Links$/ })
+    .click();
+  await page.locator('#link-0').fill('https://example.org/partner');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page).toHaveURL(/\/people\/[^/]+\?saved=1$/);
+  const organisationId = new URL(page.url()).pathname.split('/').pop()!;
+  await withInvoker(async (invoker) => {
+    expect(
+      await invoker.run(useCases.getPerson, principal, { personId: organisationId })
+    ).toMatchObject({
+      kind: 'organisation',
+      name: organisation,
+      links: [{ url: 'https://example.org/partner', kind: 'website' }],
+    });
+  });
+  await page.goto(`${base}?q=${unique}`);
+  await page.locator('#people-kind').selectOption('organisation');
+  await page.getByRole('button', { name: 'Filter', exact: true }).click();
+  await expect(page.locator('#people tbody')).toContainText(organisation);
+  await expect(page.locator('#people tbody')).not.toContainText(name);
   await page.goto(`${base}?q=${unique}&group=${groupId}`);
   await expect(page.locator('#people tbody')).toContainText(name);
+  // The action group (two create buttons and groups) at 320 px and 200% text, in measure().
   await measure(page, 'people-list');
   const { item } = await callApi(request, 'content.item.create', {
     slug: `people-${unique}`,
@@ -80,6 +112,8 @@ export async function exercisePeople(page: Page, request: APIRequestContext) {
   await page.locator('[name="title.nl"]').fill('Unsaved title stays');
   const fold = page.locator('#authors details');
   await fold.locator('summary').click();
+  // An organisation is never an author, so the picker does not offer it.
+  await expect(page.locator('#authors')).not.toContainText(organisation);
   const added = `Author ${unique}`;
   await page.locator('#new-author-name').fill(added);
   await measure(page, 'author-picker');

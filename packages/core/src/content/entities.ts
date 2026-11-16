@@ -16,6 +16,7 @@ import { assignBlockIds, type BlockInput } from './blocks.js';
 import {
   Person,
   PersonInput,
+  PersonKind,
   Pattern,
   PatternInput,
   Section,
@@ -31,6 +32,7 @@ import {
 } from './service.js';
 import './ports.js';
 import { withoutErasedCredits } from './people/erasure.js';
+import { assertOrganisationFields } from './people/model.js';
 import { exampleId } from '../util/ids.js';
 
 const Limit = z.number().int().min(1).max(MAX_PAGE_SIZE).optional();
@@ -94,15 +96,25 @@ const BaseUpdatedAt = z.string().datetime({ offset: true });
 export const createPerson = defineUseCase({
   name: 'content.person.create',
   kind: 'command',
-  description: 'Create a person profile; a person need not have an operator account to be one.',
+  description:
+    'Create a person or, with kind organisation, an organisation in the register; neither needs an operator account. An organisation has no role, phone or profile page and cannot be an author.',
   requires: 'content:write',
   consumes: null,
   input: PersonInput.extend({ slug: Slug }),
   output: Person,
   examples: [
     { input: { slug: 'sam-de-vries', name: 'Sam de Vries', bio: { nl: 'Verslaggever.' } } },
+    {
+      input: {
+        slug: 'buurtfonds',
+        kind: 'organisation',
+        name: 'Buurtfonds',
+        links: [{ label: 'Website', url: 'https://example.org/', kind: 'website' }],
+      },
+    },
   ],
   async handler(ctx, { slug, ...fields }) {
+    assertOrganisationFields(fields);
     await assertFreeSlug(ctx.authors, slug, 'a person');
     const now = stamp(ctx);
     const author: Person = { ...fields, id: ctx.ids.next(), slug, createdAt: now, updatedAt: now };
@@ -115,9 +127,15 @@ export const updatePerson = defineUseCase({
   name: 'content.person.update',
   kind: 'command',
   description:
-    'Replace the fields of a person profile; the slug stays as it is. baseUpdatedAt is the updatedAt you read: when the profile changed since, the update fails with conflict naming when.',
+    'Replace the fields of a person or organisation; the slug and the kind stay as they are. baseUpdatedAt is the updatedAt you read: when the entry changed since, the update fails with conflict naming when.',
   requires: 'content:write',
-  input: PersonInput.extend({ personId: z.string().guid(), baseUpdatedAt: BaseUpdatedAt }),
+  // `kind` may be sent back as read; a different kind is refused, since an author or a profile
+  // page could otherwise turn into an organisation unseen.
+  input: PersonInput.extend({
+    kind: PersonKind.optional(),
+    personId: z.string().guid(),
+    baseUpdatedAt: BaseUpdatedAt,
+  }),
   output: Person,
   examples: [
     {
@@ -129,13 +147,21 @@ export const updatePerson = defineUseCase({
     },
   ],
   handler: (ctx, { personId, baseUpdatedAt, ...fields }) =>
-    updateEntity(ctx, ctx.authors, 'person', personId, baseUpdatedAt, (current, updatedAt) => ({
-      ...fields,
-      id: current.id,
-      slug: current.slug,
-      createdAt: current.createdAt,
-      updatedAt,
-    })),
+    updateEntity(ctx, ctx.authors, 'person', personId, baseUpdatedAt, (current, updatedAt) => {
+      if (fields.kind && fields.kind !== current.kind)
+        throw new UseCaseError('invalid_input', 'the kind of an entry is fixed at creation', [
+          { path: 'kind', message: 'content.person.kind-fixed' },
+        ]);
+      assertOrganisationFields({ ...fields, kind: current.kind });
+      return {
+        ...fields,
+        kind: current.kind,
+        id: current.id,
+        slug: current.slug,
+        createdAt: current.createdAt,
+        updatedAt,
+      };
+    }),
 });
 
 export const getPerson = defineUseCase({

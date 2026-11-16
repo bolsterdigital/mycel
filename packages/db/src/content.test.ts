@@ -344,10 +344,19 @@ describe.skipIf(skip)('content conformance', () => {
       links: [{ label: 'Website', url: 'https://example.org', kind: 'website' }],
     });
     expect(await invoker.run(useCases.getPerson, admin, { personId: person.id })).toEqual(person);
+    // An organisation in the same register: the kind survives the database and an update (#249).
     const other = await invoker.run(useCases.createPerson, admin, {
       slug: `second-${run}`,
+      kind: 'organisation',
       name: 'Other',
     });
+    const renamed = await invoker.run(useCases.updatePerson, admin, {
+      personId: other.id,
+      baseUpdatedAt: other.updatedAt,
+      name: 'Other foundation',
+    });
+    expect(await invoker.run(useCases.getPerson, admin, { personId: other.id })).toEqual(renamed);
+    expect(renamed.kind).toBe('organisation');
     const group = await invoker.run(useCases.createPersonGroup, admin, {
       name: { nl: 'Team' },
       personIds: [person.id, other.id],

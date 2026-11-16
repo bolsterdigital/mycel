@@ -1,9 +1,11 @@
 // A visitor sees exactly the authored team, with the same policy in both languages. The generic
-// block suite covers all column variants; this task proves real references, links and contacts.
+// block suite covers all column variants; this task proves real references, links and contacts,
+// and a group that mixes a person with an organisation (#249).
 import { expect, test, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { systemPrincipal, useCases } from '@mycel/core';
 import { withInvoker, tenantId } from '../invoker';
+import { callApi } from '../api';
 import { isA11y } from '../project';
 import { login } from '../login';
 import { editorReady, reloadsEditor } from '../editor';
@@ -23,9 +25,23 @@ export async function exercisePeopleGrid(page: Page) {
       role: { nl: 'Bestuurslid', en: 'Board member' },
       links: [{ label: 'More about our work together', url: 'https://example.org/team' }],
     });
+    // A mixed group (#249): an organisation shows its logo whole and links to its website.
+    // Through the API: the e2e invoker has no image processor.
+    const logo = await callApi(page.request, 'media.upload', {
+      ...useCases.uploadMedia.examples[0]!.input,
+      filename: `partner-${suffix}.png`,
+    });
+    const partner = await invoker.run(useCases.createPerson, principal, {
+      slug: `partner-${suffix}`,
+      kind: 'organisation',
+      name: 'Partner foundation',
+      imageId: logo.id,
+      bio: { nl: 'Steunt buurtinitiatieven.', en: 'Supports local initiatives.' },
+      links: [{ label: 'Website', url: 'https://partner.example/', kind: 'website' }],
+    });
     const group = await invoker.run(useCases.createPersonGroup, principal, {
       name: { nl: 'Bestuur', en: 'Board' },
-      personIds: [person.id],
+      personIds: [person.id, partner.id],
     });
     const created = await invoker.run(useCases.createItem, principal, {
       slug: `team-${suffix}`,
@@ -53,7 +69,15 @@ export async function exercisePeopleGrid(page: Page) {
         `/probe/${locale === 'en' ? 'en/' : ''}${created.item.slug}`
       );
       expect(response?.status()).toBe(200);
-      const card = page.locator('.person-card');
+      const org = page.locator('.person-card-organisation');
+      await expect(org.locator('h2 a')).toHaveAttribute('href', 'https://partner.example/');
+      await expect(org.locator('h2')).toHaveText(partner.name);
+      await expect(org.locator('img')).toHaveCSS('object-fit', 'contain');
+      await expect(org).toContainText(
+        locale === 'nl' ? 'Steunt buurtinitiatieven.' : 'Supports local initiatives.'
+      );
+      expect((await page.request.get(`/probe/people/${partner.slug}`)).status()).toBe(404);
+      const card = page.locator('.person-card:not(.person-card-organisation)');
       await expect(card).toHaveCount(1);
       await expect(card.locator('h2')).toHaveText(person.name);
       await expect(card.locator('h2 a')).toHaveCount(0);
@@ -82,7 +106,7 @@ export async function exercisePeopleGrid(page: Page) {
       pagePolicy: 'always',
     });
     await page.reload();
-    await expect(page.locator('.person-card h2 a')).toHaveAttribute(
+    await expect(page.locator('.person-card:not(.person-card-organisation) h2 a')).toHaveAttribute(
       'href',
       `/probe/en/people/${person.slug}`
     );

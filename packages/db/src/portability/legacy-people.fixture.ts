@@ -134,9 +134,16 @@ export async function seedGroupedPerson(
     bytes: EXAMPLE_PNG,
     credit: { work: null, photographer: 'Fallback', photographerPersonId: person.id },
   });
+  // A mixed group: the organisation's kind travels with the register like any column (#249).
+  const partner = await invoker.run(useCases.createPerson, admin, {
+    slug: 'partner',
+    kind: 'organisation',
+    name: 'Partner',
+    links: [{ label: 'Website', url: 'https://partner.example/', kind: 'website' }],
+  });
   await invoker.run(useCases.createPersonGroup, admin, {
     name: { nl: 'Redactie' },
-    personIds: [person.id],
+    personIds: [person.id, partner.id],
   });
   // The person register travels as a set of its own (ADR 034 rule 2): a registered, unapplied id.
   const gone = await invoker.run(useCases.createPerson, admin, { slug: 'gewist', name: 'Gewist' });

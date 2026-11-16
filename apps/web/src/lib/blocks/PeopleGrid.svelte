@@ -1,5 +1,6 @@
 <!-- Team members exist without profile pages. Only the resolved name link navigates; contact
-     links remain separate native controls, rather than nesting them in a clickable card. -->
+     links remain separate native controls, rather than nesting them in a clickable card. An
+     organisation shows its logo whole (contained, not cropped to a portrait) and links to its site. -->
 <script lang="ts">
   import type { RenderBlock, RenderModel } from './model.js';
   import { BLOCK_DEPTH, headingTag } from './headings.js';
@@ -26,7 +27,9 @@
 {#if block.people.length}
   <div id={anchor} class="block width-wide people-grid people-grid-{block.columns}">
     {#each block.people as person (person.id)}
-      <article class="person-card">
+      <article
+        class="person-card{person.kind === 'organisation' ? ' person-card-organisation' : ''}"
+      >
         {#if person.image}
           <Picture
             image={person.image}

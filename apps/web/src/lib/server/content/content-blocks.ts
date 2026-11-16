@@ -669,6 +669,7 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.video.id-invalid': 'admin.block.issue.videoId',
   'content.reference.person-group-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.author-unknown': 'admin.content.issue.referenceUnknown',
+  'content.reference.author-organisation': 'admin.content.issue.authorOrganisation',
   'content.people-grid.group-required': 'admin.content.issue.referenceUnknown',
   'content.reference.item-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.form-unknown': 'admin.content.issue.referenceUnknown',

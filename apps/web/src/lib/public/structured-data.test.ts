@@ -8,6 +8,7 @@ it('escapes closing script tags without changing the JSON value or publishing pr
   const hostile = '</script><img src=x onerror=alert(1)>\u2028\u2029';
   const person = {
     id: '00000000-0000-4000-8000-000000000001',
+    kind: 'person',
     slug: 'sam',
     name: hostile,
     bio: 'Bio',

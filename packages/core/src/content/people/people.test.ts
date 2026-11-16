@@ -35,6 +35,10 @@ describe('person register', () => {
     expect(personPageStatus({}, { pagePolicy: 'always' }, 0)).toBe('enabled');
     expect(personPageStatus({}, { pagePolicy: 'never' }, 10)).toBe('never');
   });
+  it('never gives an organisation a page, whatever its stored policy or the site says', () => {
+    for (const pagePolicy of ['auto', 'always'] as const)
+      expect(personPageStatus({}, { kind: 'organisation', pagePolicy }, 3)).toBe('organisation');
+  });
   it('preserves the site page choice when an older client edits only the time zone', async () => {
     const invoker = new Invoker(buildRegistry(), new MemoryUnitOfWork());
     const admin = systemPrincipal(TENANT, 'test');

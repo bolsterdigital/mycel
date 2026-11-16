@@ -33,8 +33,13 @@ export function personFields(data: FormData, locale: string, current?: Person) {
       });
   }
   const bio = localizedEdit(current?.bio, locale, text(data, 'bio'));
-  const role = localizedEdit(current?.role, locale, text(data, 'role'));
+  // The kind is chosen once, by the create button; an update keeps the stored one. An
+  // organisation's form has no role, phone or page fields, so nothing of them is posted.
+  const kind: Person['kind'] =
+    current?.kind ?? (text(data, 'kind') === 'organisation' ? 'organisation' : 'person');
+  const role = kind === 'person' ? localizedEdit(current?.role, locale, text(data, 'role')) : {};
   return {
+    kind,
     name: text(data, 'name').trim(),
     bio: Object.keys(bio).length ? bio : undefined,
     role: Object.keys(role).length ? role : undefined,
@@ -43,7 +48,7 @@ export function personFields(data: FormData, locale: string, current?: Person) {
     email: optional('email'),
     phone: optional('phone'),
     imageId: optional('imageId'),
-    pagePolicy: text(data, 'pagePolicy') as Person['pagePolicy'],
+    pagePolicy: (text(data, 'pagePolicy') || 'auto') as Person['pagePolicy'],
     links,
   };
 }

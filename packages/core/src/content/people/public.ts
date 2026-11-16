@@ -10,12 +10,13 @@ import { MAX_PAGE_SIZE } from '../../util/page-size.js';
 import { effectiveImages, effectiveSummary } from '../header/effective.js';
 import { MAX_TRANSLATION_WALK } from '../listing.js';
 import { statusOf } from '../lifecycle.js';
-import { Person, Slug } from '../model.js';
+import { Person, PersonKind, Slug } from '../model.js';
 import type { ItemRecord } from '../ports.js';
 import { personPageStatus } from './model.js';
 
 export const PublicPerson = z.object({
   id: z.string().guid(),
+  kind: PersonKind,
   slug: Slug,
   name: z.string(),
   bio: z.string().nullable(),
@@ -42,6 +43,7 @@ export type PublishedArticleCard = z.infer<typeof PublishedArticleCard>;
 export function projectPerson(person: Person, locale: string): PublicPerson {
   return {
     id: person.id,
+    kind: person.kind,
     slug: person.slug,
     name: person.name,
     bio: person.bio?.[locale] ?? null,
@@ -57,13 +59,17 @@ export function projectPerson(person: Person, locale: string): PublicPerson {
 /** A published article in any locale enables auto, even when its body is restricted. */
 export async function personPageEnabled(
   ctx: TransactionContext,
-  person: Pick<Person, 'id' | 'pagePolicy'>,
+  person: Pick<Person, 'id' | 'pagePolicy' | 'kind'>,
   site?: { personPages?: 'auto' | 'off' | undefined }
 ): Promise<boolean> {
   const general = site ?? (await ctx.siteSettings.general()).value;
   // Off and explicit policies need no content read. A bio or an unpublished draft never counts.
   let count = 0;
-  if (general.personPages !== 'off' && person.pagePolicy === 'auto') {
+  if (
+    general.personPages !== 'off' &&
+    person.kind !== 'organisation' &&
+    person.pagePolicy === 'auto'
+  ) {
     const page = await ctx.content.find(
       { live: true, type: 'article', ref: { type: 'author', id: person.id } },
       null,
