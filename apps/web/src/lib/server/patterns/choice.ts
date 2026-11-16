@@ -3,28 +3,38 @@
 // read of ADR 012 rule 8, core's factory built for the item's locales, so every site has it without
 // a saved pattern; then the site's own patterns, grouped by the type they are meant for.
 //
-// The long read's value is not a pattern id and never reaches `content.pattern.get`. Rejected:
-// saving it as a pattern when a tenant is created, which existing tenants would miss and an editor
+// The photo story, the other standard of rule 8, is offered by `content/new` only: core's factory
+// needs the tenant's photos with their alt text, which that form asks for before it creates the
+// item. The empty column has no such step, so it does not offer one it could only refuse.
+//
+// The standard values are not pattern ids and never reach `content.pattern.get`. Rejected:
+// saving them as patterns when a tenant is created, which existing tenants would miss and an editor
 // could delete; and a second long-read path in the editor that could drift from `content/new`.
 import {
   MAX_PAGE_SIZE,
   UseCaseError,
   longReadPattern,
+  photoStoryPattern,
   pickAny,
   useCases,
   type BlockInput,
   type ContentType,
   type Pattern,
   type Principal,
+  type StoryPhoto,
 } from '@mycel/core';
 import { runtime } from '#lib/server/runtime.js';
 
 /** The value of the standard long-read choice. */
 export const LONG_READ = 'standard:long-read';
+/** The value of the standard photo-story choice. */
+export const PHOTO_STORY = 'standard:photo-story';
 
 export interface PatternChoices {
   /** The long read's value, offered first under "Standard"; only for an article. */
   longRead: string | null;
+  /** The photo story's value, after the long read; only for an article in `content/new`. */
+  photoStory: string | null;
   /** The site's own patterns; `type` is the group each stands in. */
   own: { id: string; type: ContentType; name: string }[];
 }
@@ -42,6 +52,7 @@ export function choicesOf(
 ): PatternChoices {
   return {
     longRead: type === 'article' ? LONG_READ : null,
+    photoStory: type === 'article' && !only ? PHOTO_STORY : null,
     own: patterns
       .filter((p) => !only || p.intendedType === type)
       .map((p) => ({ id: p.id, type: p.intendedType, name: pickAny(p.name, ...locales) ?? p.id })),
@@ -61,15 +72,25 @@ export async function patternChoices(
   return choicesOf(patterns, type, locales, only);
 }
 
-/** The standard pattern `choice` names, for an item of `type` in `locales`; null for any other. */
+/**
+ * The standard pattern `choice` names, for an item of `type` in `locales`; null for any other.
+ * The photo story is built from `photos` and is null without one: the caller asks for them.
+ */
 export function standardBlocks(
   choice: string,
   type: ContentType,
-  locales: readonly string[]
+  locales: readonly string[],
+  photos: readonly StoryPhoto[] = []
 ): BlockInput[] | null {
   // Without a locale core refuses the document anyway; a page has no standard pattern.
-  if (choice !== LONG_READ || type !== 'article' || !locales.length) return null;
-  return longReadPattern(locales).blocks.map(({ id: _id, ...block }) => block as BlockInput);
+  if (type !== 'article' || !locales.length) return null;
+  const pattern =
+    choice === LONG_READ
+      ? longReadPattern(locales)
+      : choice === PHOTO_STORY && photos.length
+        ? photoStoryPattern(photos, locales)
+        : null;
+  return pattern?.blocks.map(({ id: _id, ...block }) => block as BlockInput) ?? null;
 }
 
 /**
@@ -85,7 +106,8 @@ export async function chosenBlocks(
 ): Promise<BlockInput[]> {
   const standard = standardBlocks(choice, type, locales);
   if (standard) return standard;
-  if (choice === LONG_READ) throw new UseCaseError('invalid_input', 'No long read for this item');
+  if (choice === LONG_READ || choice === PHOTO_STORY)
+    throw new UseCaseError('invalid_input', 'No standard pattern for this item');
   const pattern = await runtime().invoker.run(useCases.getPattern, principal, {
     patternId: choice,
   });

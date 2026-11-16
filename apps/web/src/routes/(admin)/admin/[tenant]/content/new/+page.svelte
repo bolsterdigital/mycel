@@ -2,11 +2,21 @@
      the title (editor trial 2026-10-28): a title per language, then an optional slug that core derives from the
      title when left empty, the languages and a pattern. An article also offers the standard long
      read, first and even when the site has no patterns of its own. The type comes from the menu
-     item the editor came from. One native form; a failed post comes back with what was typed. -->
+     item the editor came from. One native form; a failed post comes back with what was typed.
+     A photo story chosen without photos comes back with photo slots: per slot one of the site's
+     images, its description in each chosen language or "decorative". -->
 <script lang="ts">
-  import { Choices, Field, Fieldset, FormPage, Notice } from '#lib/admin/ui/index.js';
+  import {
+    Checkbox,
+    Choices,
+    Field,
+    Fieldset,
+    FormPage,
+    MediaPicker,
+    Notice,
+  } from '#lib/admin/ui/index.js';
   import PatternChoice, { offers } from '#lib/admin/patterns/PatternChoice.svelte';
-  import { ui, refusalCopy } from '../../../../../../i18n/index.js';
+  import { fill, ui, refusalCopy } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -94,5 +104,41 @@
       selected={v('patternId')}
       optional
     />
+  {/if}
+  {#if form?.photos}
+    <Fieldset legend={t('admin.content.new.photoStory.photos')}>
+      {#each Array.from({ length: form.photos.slots }, (_, n) => n) as n (n)}
+        <MediaPicker
+          id="photo-{n}"
+          name="photo.{n}.mediaId"
+          label={fill(t('admin.content.new.photoStory.photo'), { n: n + 1 })}
+          locale={data.locale}
+          value={v(`photo.${n}.mediaId`)}
+          options={form.photos.media}
+          {base}
+          upload={form.photos.upload}
+        >
+          {#snippet related()}
+            {#each locales as l (l)}
+              <Field
+                id="photo-{n}-alt-{l}"
+                name="photo.{n}.alt.{l}"
+                label="{t('admin.block.field.alt')} ({l})"
+                locale={data.locale}
+                maxlength={1000}
+                lang={l}
+                value={v(`photo.${n}.alt.${l}`)}
+              />
+            {/each}
+            <Checkbox
+              id="photo-{n}-decorative"
+              name="photo.{n}.decorative"
+              label={t('admin.block.field.decorative')}
+              checked={v(`photo.${n}.decorative`) !== ''}
+            />
+          {/snippet}
+        </MediaPicker>
+      {/each}
+    </Fieldset>
   {/if}
 </FormPage>

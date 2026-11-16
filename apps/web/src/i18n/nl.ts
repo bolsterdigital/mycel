@@ -1382,6 +1382,13 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.new.noPattern': 'Leeg',
   'admin.content.new.standard': 'Standaard',
   'admin.content.new.longRead': 'Longread',
+  'admin.content.new.photoStory': 'Fotoverhaal',
+  'admin.content.new.photoStory.photos': 'Foto’s voor het fotoverhaal',
+  'admin.content.new.photoStory.photo': 'Foto {n}',
+  'admin.content.new.photoStory.none':
+    'Een fotoverhaal begint met foto’s. Kies hieronder minstens één foto en beschrijf hem in elke taal.',
+  'admin.content.new.photoStory.alt':
+    'Beschrijf elke gekozen foto in elke taal, of vink aan dat hij decoratief is.',
   'admin.content.new.submit': 'Concept maken',
   'admin.content.new.page': 'Nieuwe pagina',
   'admin.content.new.article': 'Nieuw artikel',
