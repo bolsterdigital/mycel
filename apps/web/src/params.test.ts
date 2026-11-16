@@ -18,3 +18,13 @@ describe('locale param matcher', () => {
       if (match(slug)) expect(isReservedPageSlug(slug), slug).toBe(true);
   });
 });
+
+describe('feed param matcher', () => {
+  it('takes the two feed extensions and nothing else', () => {
+    const feed = (s: string) => {
+      const result = params.feed['~standard'].validate(s);
+      return !('issues' in result && result.issues);
+    };
+    expect(['xml', 'atom', 'json', 'XML', ''].map(feed)).toEqual([true, true, false, false, false]);
+  });
+});

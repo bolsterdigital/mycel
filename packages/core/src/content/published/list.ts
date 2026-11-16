@@ -35,6 +35,8 @@ export const PublishedListEntry = z.object({
   /** When the published revision was saved; a later draft does not move it. */
   updatedAt: z.string().datetime({ offset: true }),
   noindex: z.boolean(),
+  /** Set: the item's canonical address is elsewhere, so sitemaps and feeds leave it out. */
+  canonical: z.string().nullable(),
   sectionId: z.string().guid().nullable(),
   access: z.enum(['public', 'members', 'tier']),
 });
@@ -105,6 +107,7 @@ export const listPublished = defineUseCase({
         publishedAt: r.publishedAt.toISOString(),
         updatedAt: r.updatedAt.toISOString(),
         noindex: r.noindex,
+        canonical: r.canonical,
         sectionId: r.sectionId,
         access: r.access,
       })),

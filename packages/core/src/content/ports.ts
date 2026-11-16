@@ -98,6 +98,8 @@ export interface PublishedEntry {
   /** When the published revision was saved. */
   updatedAt: Date;
   noindex: boolean;
+  /** The published revision's canonical URL when it points elsewhere; null for its own address. */
+  canonical: string | null;
   sectionId: string | null;
   access: 'public' | 'members' | 'tier';
 }
@@ -112,6 +114,8 @@ export interface PublishedCardFilter {
   locale: string;
   type?: ContentType | undefined;
   sectionId?: string | undefined;
+  /** Articles whose published revision names this person among its authors. */
+  authorId?: string | undefined;
   /** Canonical tags (`canonicalTag`), all required. */
   tags?: readonly string[] | undefined;
   ids?: readonly string[] | undefined;

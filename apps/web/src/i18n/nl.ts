@@ -133,6 +133,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'public.people.articles': 'Artikelen',
   'public.people.previous': 'Vorige artikelen',
   'public.people.next': 'Meer artikelen',
+  'public.llms.pages': 'Pagina’s',
+  'public.llms.articles': 'Artikelen',
   'public.search.title': 'Zoeken',
   'public.search.resultsFor': 'Resultaten voor ‘{q}’',
   'public.search.description': 'Zoek in de pagina’s en artikelen van deze site.',

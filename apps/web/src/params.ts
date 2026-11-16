@@ -14,4 +14,6 @@ const LOCALE_SHAPE = /^[a-z]{2,3}(-[A-Z]{2})?$/;
 
 export const params = defineParams({
   locale: (param: string) => (LOCALE_SHAPE.test(param) ? param : undefined),
+  // `feed.xml` (RSS) or `feed.atom`: the extension names the format.
+  feed: (param: string) => (param === 'xml' || param === 'atom' ? param : undefined),
 });

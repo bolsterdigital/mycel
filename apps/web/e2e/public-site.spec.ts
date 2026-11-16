@@ -11,6 +11,7 @@ import { exercisePrefooter } from './lib/prefooter/zone';
 import { exercisePeopleGrid } from './lib/people/grid';
 import { exercisePublicPeople } from './lib/people/public';
 import { exercisePublishedRepresentations } from './lib/published/representations';
+import { exerciseFeeds } from './lib/published/feeds';
 import { exerciseOldAddresses } from './lib/published/old-addresses';
 import { exercisePublicSearch } from './lib/published/search';
 import { openPublication, closePublication } from './lib/publication';
@@ -2107,6 +2108,9 @@ test('public profiles share policy across HTML, bylines and discovery', async ({
 test('noindex, canonical, sitemap and robots.txt follow publication', async ({ page }) => {
   await exercisePublishedRepresentations(page);
 });
+
+test('feeds, Markdown and llms.txt list only public indexable content', ({ page }) =>
+  exerciseFeeds(page));
 
 test('an old address forwards to the item until an editor removes it', async ({ page }) => {
   await exerciseOldAddresses(page);

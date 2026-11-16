@@ -32,6 +32,7 @@ interface Row {
   published_at: Date | string;
   updated_at: Date | string;
   noindex: boolean;
+  canonical: string | null;
   section_id: string | null;
   access: Access;
 }
@@ -53,6 +54,7 @@ export function listPublished(trx: Kysely<Database>): ContentRepository['listPub
                    order by array_position(i.locales, p.locale)) as locales,
              r.id as revision_id, l.published_at, r.created_at as updated_at,
              coalesce((r.document->'seo'->>'noindex')::boolean, false) as noindex,
+             r.document->'seo'->>'canonical' as canonical,
              case when i.type = 'article' then r.document->>'sectionId' end as section_id,
              coalesce(r.document->'access'->>'level', 'public') as access
       from content_item_locales l
@@ -76,6 +78,7 @@ export function listPublished(trx: Kysely<Database>): ContentRepository['listPub
       publishedAt: new Date(r.published_at),
       updatedAt: new Date(r.updated_at),
       noindex: r.noindex,
+      canonical: r.canonical,
       sectionId: r.section_id,
       access: r.access,
     }));
@@ -101,7 +104,11 @@ interface CardRow {
  * compare as text in the byte order (`"C"`) the memory adapter's string comparison uses.
  */
 export function publishedCards(trx: Kysely<Database>): ContentRepository['publishedCards'] {
-  return async ({ locale, type, sectionId, tags, ids, exclude, order, events }, offset, limit) => {
+  return async (
+    { locale, type, sectionId, authorId, tags, ids, exclude, order, events },
+    offset,
+    limit
+  ) => {
     if (ids && ids.length === 0) return [];
     const start = sql`(r.document->'event'->>'startsAt') collate "C"`;
     const end = sql`coalesce(r.document->'event'->>'endsAt', r.document->'event'->>'startsAt') collate "C"`;
@@ -118,6 +125,7 @@ export function publishedCards(trx: Kysely<Database>): ContentRepository['publis
         and coalesce(r.document->'access'->>'level', 'public') = 'public'
         ${type ? sql`and i.type = ${type}` : sql``}
         ${sectionId ? sql`and i.type = 'article' and r.document->>'sectionId' = ${sectionId}` : sql``}
+        ${authorId ? sql`and i.type = 'article' and r.document->'authorIds' @> ${JSON.stringify([authorId])}::jsonb` : sql``}
         ${tags?.length ? sql`and i.type = 'article' and r.document->'tags' @> ${JSON.stringify(tags)}::jsonb` : sql``}
         ${ids ? sql`and l.item_id = any(${[...ids]}::uuid[])` : sql``}
         ${exclude?.length ? sql`and l.item_id <> all(${[...exclude]}::uuid[])` : sql``}
