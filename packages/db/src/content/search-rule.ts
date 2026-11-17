@@ -24,8 +24,10 @@ const pageDocument = <T extends Record<string, unknown>>(over: T = {} as T) => (
  * The site search (`content.published.find`): a question finds only what a visitor may read
  * now. Prefixes and folded accents match, every token must; a title hit ranks first, then the
  * newest publication; the other locale, a draft after publication, an unpublished locale, a
- * scheduled pin, a restricted item, `noindex`, the trash and another tenant are never found, and a
- * newly published revision replaces what the old one was found by.
+ * scheduled pin, `noindex`, the trash and another tenant are never found, and a newly published
+ * revision replaces what the old one was found by. A restricted item is found by its title and
+ * teaser, marked `restricted`, never by a word behind its boundary and never with an excerpt
+ * from there (reader access in Postgres: content/reader-search.test.ts).
  */
 export async function observeSearch(
   invoker: Invoker,
@@ -80,7 +82,22 @@ export async function observeSearch(
     title: { nl: 'Fietspad voor leden' },
     lead: { nl: 'De wethouder schrijft alleen voor leden.' },
     access: { level: 'members' },
-    blocks: [],
+    blocks: [
+      {
+        type: 'rich-text',
+        version: 1,
+        props: {
+          content: {
+            nl: {
+              type: 'doc',
+              content: [
+                { type: 'paragraph', content: [{ type: 'text', text: 'Het geheime besluit.' }] },
+              ],
+            },
+          },
+        },
+      },
+    ],
   });
   await publish(leden, 'nl');
   const concept = await create('concept', pageDocument({ title: { nl: 'Fietspad concept' } }));
@@ -119,6 +136,12 @@ export async function observeSearch(
     empty: await slugs('  '),
     otherTenant: await slugs('fietspad', 'nl', other),
     excerpt: (await find({ q: 'dorps', locale: 'nl' })).items[0]?.excerpt,
+    behindTheBoundary: await slugs('geheime'),
+    teaserHit: (await find({ q: 'leden', locale: 'nl' })).items.map((r) => ({
+      slug: r.slug,
+      restricted: r.restricted,
+      excerpt: r.excerpt.map((x) => x.text).join(''),
+    })),
     title: (await find({ q: 'dorps', locale: 'nl' })).items[0]?.title,
     firstPage: await find({ q: 'fietspad', locale: 'nl', limit: 1 }),
     secondPage: await find({ q: 'fietspad', locale: 'nl', limit: 1, page: 2 }),
@@ -160,8 +183,9 @@ export async function observeSearch(
 }
 
 export const expectedSearch = {
-  titleFirst: 'route raad',
-  prefix: 'route raad',
+  // The members' article ranks by its title, which its teaser shows everyone.
+  titleFirst: 'leden route raad',
+  prefix: 'leden route raad',
   notASuffix: '',
   foldedAccent: 'route',
   everyToken: 'route',
@@ -178,9 +202,15 @@ export const expectedSearch = {
     { text: '.', match: false },
   ],
   title: 'Het fietspad',
-  firstPage: { slugs: 'route', next: 2 },
-  secondPage: { slugs: 'raad', next: null },
-  draftOnly: { old: 'raad route', fresh: '' },
-  republished: { old: 'route', fresh: 'raad' },
+  // A word behind the boundary finds nothing for anyone who is no reader with access; the lead
+  // does, with an excerpt from the lead and the mark.
+  behindTheBoundary: '',
+  teaserHit: [
+    { slug: 'leden', restricted: true, excerpt: 'De wethouder schrijft alleen voor leden.' },
+  ],
+  firstPage: { slugs: 'leden', next: 2 },
+  secondPage: { slugs: 'route', next: 3 },
+  draftOnly: { old: 'leden raad route', fresh: '' },
+  republished: { old: 'leden route', fresh: 'raad' },
   restored: '',
 };

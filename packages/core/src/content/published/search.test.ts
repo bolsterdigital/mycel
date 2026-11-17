@@ -6,9 +6,13 @@ import {
   queryTokens,
   searchEntry,
   searchExcerpt,
+  searchOpens,
+  searchReaderOf,
   searchTexts,
   searchTokens,
 } from './search.js';
+
+const TIER = '01900000-0000-7000-8000-00000000a001';
 
 const doc = (over: Record<string, unknown> = {}) =>
   ContentDocument.parse({
@@ -69,9 +73,40 @@ describe('search entry', () => {
     expect(searchEntry(doc(), 'en')!.all).not.toContain('tweede');
   });
 
-  it('gives nothing to find a restricted or noindex revision by', () => {
-    expect(searchEntry(doc({ access: { level: 'members' } }), 'nl')).toBeNull();
+  it('gives nothing to find a noindex revision by', () => {
     expect(searchEntry(doc({ seo: { noindex: true } }), 'nl')).toBeNull();
+  });
+
+  it('gives a restricted revision its teaser tokens apart, with its access', () => {
+    const entry = searchEntry(doc({ access: { level: 'tier', tierIds: [TIER] } }), 'nl')!;
+    expect(entry.teaser).toEqual(['het', 'cafe', 'open', 'op', 'zondag']);
+    expect(entry.all).toContain('tweede');
+    expect(entry.access).toEqual({ level: 'tier', tierIds: [TIER] });
+    expect(searchEntry(doc(), 'nl')!.teaser).toBeNull();
+  });
+
+  it('matches the whole text only for a reader the entry opens to, the teaser for everyone', () => {
+    const members = searchEntry(doc({ access: { level: 'members' } }), 'nl')!;
+    const tier = searchEntry(doc({ access: { level: 'tier', tierIds: [TIER] } }), 'nl')!;
+    const nobody = { tierIds: [] };
+    expect(matchesSearch(members, ['tweede'])).toBeNull();
+    expect(matchesSearch(members, ['tweede'], nobody)).toEqual({ inTitle: false });
+    expect(matchesSearch(members, ['zondag'])).toEqual({ inTitle: false });
+    expect(matchesSearch(tier, ['tweede'], nobody)).toBeNull();
+    expect(matchesSearch(tier, ['tweede'], { tierIds: [TIER] })).toEqual({ inTitle: false });
+    expect(matchesSearch(tier, ['cafe'])).toEqual({ inTitle: true });
+    expect(searchOpens({ level: 'tier', tierIds: [] }, { tierIds: [TIER] })).toBe(false);
+  });
+
+  it('reads the tiers a reader stands in now, the end of a grant exclusive', () => {
+    const now = new Date('2026-11-17T12:00:00Z');
+    const grants = [
+      { tierId: 'a', until: null },
+      { tierId: 'b', until: '2026-11-17T12:00:00Z' },
+      { tierId: 'c', until: '2026-11-18T00:00:00Z' },
+    ];
+    expect(searchReaderOf({ grants }, now)).toEqual({ tierIds: ['a', 'c'] });
+    expect(searchReaderOf(null, now)).toBeNull();
   });
 
   it('matches when every token starts a word, and says whether the title carries them all', () => {

@@ -2,7 +2,8 @@
 // hostname where the reader cookie lives: a visitor gets the teaser and the gate, a signed-in
 // reader without the tier the same teaser, a reader with a grant the whole article, and the
 // teaser again the moment the grant ends inside the open session. Every hidden place carries a
-// sentinel, read in the HTML, the Markdown and the JSON read route; the caching headers are
+// sentinel, read in the HTML, the Markdown, the JSON read route and the site search
+// (reader-search.ts); the caching headers are
 // those a shared cache would act on. A restricted image behind the boundary reaches the reader
 // with access only, through a signed path that ends with the grant. The reader page lists the
 // access as it stands and ends, and leaves a newsletter (ADR 016 rule 1, self-service). The core
@@ -16,6 +17,7 @@ import { callApi, requireApi } from '../api';
 import { expectNoAxeViolations } from '../axe';
 import { tenantId, withInvoker } from '../invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from '../layout';
+import { readerSearch, visitorSearch } from './reader-search';
 
 const SITE = 'http://probe.localhost:4173';
 const PUBLIC_CACHE = 'public, max-age=60, stale-while-revalidate=600';
@@ -137,7 +139,8 @@ export async function exerciseRestrictedArticle(
   /** Fills in the sign-in form the page is on and follows the mailed link to its one button. */
   signIn: (email: string) => Promise<void>
 ) {
-  const { tierId, slug, itemId, photoId } = await fixtures(request, randomUUID().slice(0, 8));
+  const id = randomUUID().slice(0, 8);
+  const { tierId, slug, itemId, photoId } = await fixtures(request, id);
   const path = `/articles/${slug}`;
   const url = `${SITE}${path}`;
   const gate = page.locator('.reader-gate');
@@ -171,6 +174,8 @@ export async function exerciseRestrictedArticle(
   expect(JSON.parse(item)).toMatchObject({ gate: { prompt: 'signin' }, corrections: [] });
   expect(JSON.parse(item).blocks).toHaveLength(1);
   expect(leaks(item)).toEqual([]);
+  // Search: found by the title, never by `sentinel`, which stands only behind the boundary.
+  await visitorSearch(request, id, 'sentinel', HIDDEN);
 
   await page.goto(url);
   await expect(gate.getByRole('heading', { name: 'Log in om verder te lezen' })).toBeVisible();
@@ -202,6 +207,7 @@ export async function exerciseRestrictedArticle(
   );
   expect(leaks(await page.content())).toEqual([]);
   await expectNoAxeViolations(page);
+  await readerSearch(page, id, 'sentinel', { open: false, gate: true });
 
   // With a standing grant: the whole article, never a 304 on the teaser's validator.
   await grant(email, tierId, GRANT_SECONDS);
@@ -248,6 +254,7 @@ export async function exerciseRestrictedArticle(
 
   // The reader's own page: the address, the tier with its end, the newsletter and what the site
   // keeps; private, never cached, never another reader's.
+  await readerSearch(page, id, 'sentinel', { open: true });
   const account = await page.goto(`${SITE}/reader`);
   expect(account?.headers()['cache-control']).toBe('no-store');
   await expect(page.getByRole('heading', { level: 1, name: 'Mijn account' })).toBeVisible();

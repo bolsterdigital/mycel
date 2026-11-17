@@ -1,7 +1,8 @@
 // The site search page (`/search?q=`) as a visitor uses it: the GET form works without JavaScript,
-// the results are what a visitor may read (a title hit first, matches marked, a restricted,
-// `noindex` or never published item absent, a later draft not searched), the other locale has its
-// own page, and the page is `noindex` and cached like content. Core and the adapter-rules
+// the results are what a visitor may read (a title hit first, matches marked, a restricted item by
+// its teaser only and labelled "Voor leden", a `noindex` or never published item absent, a later
+// draft not searched), the other locale has its own page, and the page is `noindex` and cached
+// like content. A reader's search is reader-search.ts. Core and the adapter-rules
 // scenario cover the matrix of tenants, locales and revisions; this proves the route. In the
 // `a11y` project also axe and the layout gate (320 CSS px, 200% text) with results and with none.
 // Fixtures are made here.
@@ -55,6 +56,22 @@ export async function exercisePublicSearch(page: Page) {
       },
       ['nl', 'en']
     );
+    // Published before `tekst`, so it ranks after it: both are body hits, the newest first.
+    await make(
+      invoker,
+      principal,
+      slug('leden'),
+      {
+        type: 'article',
+        title: { nl: 'Alleen voor leden' },
+        lead: { nl: `Teaser ${word}.` },
+        blocks: [
+          { type: 'rich-text', version: 1, props: { content: { nl: para('Niet vinden') } } },
+        ],
+        access: { level: 'members' },
+      },
+      ['nl']
+    );
     const body = `Een langere tekst over de buurt waarin ${word} pas halverwege voorkomt.`;
     const later = await make(
       invoker,
@@ -83,17 +100,6 @@ export async function exercisePublicSearch(page: Page) {
     await make(
       invoker,
       principal,
-      slug('leden'),
-      {
-        type: 'article',
-        ...hidden,
-        access: { level: 'members' },
-      },
-      ['nl']
-    );
-    await make(
-      invoker,
-      principal,
       slug('noindex'),
       { type: 'page', ...hidden, seo: { noindex: true } },
       ['nl']
@@ -116,7 +122,8 @@ export async function exercisePublicSearch(page: Page) {
   await page.locator('main').getByRole('button', { name: 'Zoeken' }).click();
   await expect(page).toHaveURL(new RegExp(`/probe/search\\?q=\\+*${word}`));
 
-  // (b) Results: the title hit first, the body hit with its match marked; nothing else.
+  // (b) Results: the title hit first, the body hits with their match marked, the members' article
+  // by its lead with the label; nothing else, and nothing from behind its boundary.
   const res = await page.goto(`/probe/search?q=${word}`);
   expect(res?.status()).toBe(200);
   expect(res?.headers()['cache-control']).toBe('public, max-age=60, stale-while-revalidate=600');
@@ -125,7 +132,7 @@ export async function exercisePublicSearch(page: Page) {
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
   await expect(page.locator('main h1')).toHaveText(`Resultaten voor ‘${word}’`);
   const results = page.locator('.search-results > li');
-  await expect(results).toHaveCount(2);
+  await expect(results).toHaveCount(3);
   await expect(results.nth(0).locator('h2 a')).toHaveText(`Over ${word}`);
   await expect(results.nth(0).locator('h2 a')).toHaveAttribute('href', `/probe/${slug('titel')}`);
   await expect(results.nth(1).locator('h2 a')).toHaveText('Bomen en banken');
@@ -135,6 +142,10 @@ export async function exercisePublicSearch(page: Page) {
   );
   await expect(results.nth(1).locator('mark')).toHaveText(word);
   await expect(results.nth(1).locator('time')).toHaveAttribute('datetime', /^\d{4}-/);
+  await expect(results.nth(1).locator('.search-restricted')).toHaveCount(0);
+  await expect(results.nth(2).locator('h2 a')).toHaveText('Alleen voor leden');
+  await expect(results.nth(2).locator('.search-restricted')).toHaveText('Voor leden');
+  await expect(results.nth(2).locator('p mark')).toHaveText(word);
   await expect(page.locator('main')).not.toContainText('Niet vinden');
   await expect(page.locator('main')).not.toContainText('Concepttitel');
   // A replacement pattern in the question is shown as typed, not expanded into the title.

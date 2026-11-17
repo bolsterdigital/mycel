@@ -1,12 +1,15 @@
-// The site search over Postgres: `content_search` (0055) holds, per published locale
+// The site search over Postgres: `content_search` (0055, 0073) holds, per published locale
 // of an item, the tokens core derives from the published revision (`searchEntry`), as config-free
-// `tsvector`s. Kept out of content.ts so that file stays one adapter object.
+// `tsvector`s, and the access that revision asks for. Kept out of content.ts so that file stays
+// one adapter object.
 //
 // `indexPublished` runs wherever the repository writes an item's publication rows: it removes the
 // rows no pointer names any more and adds the ones a pointer names without a row. A revision is
-// immutable, so a row never needs an update; a restricted or `noindex` revision gets none.
+// immutable, so a row never needs an update; a `noindex` revision gets none.
 // `searchPublished` joins the publication pointer again and leaves the trash out, so a row that
-// stayed behind matches nothing.
+// stayed behind matches nothing. It matches `body` only where core's `searchOpens` would, stated
+// here once more in SQL for the tiers the reader stands in now, and `teaser` everywhere; a public
+// row has no teaser, its body is for everyone.
 //
 // A question becomes a `tsquery` by a cast, not by `to_tsquery`: the tokens are core's already
 // (letters and digits only, see `searchTokens`), and a configuration would fold them a second
@@ -58,9 +61,12 @@ export async function indexPublished(
     const entry = doc.success ? searchEntry(doc.data, row.locale) : null;
     if (!entry) continue;
     await sql`
-      insert into content_search (tenant_id, item_id, revision_id, locale, title, body)
+      insert into content_search
+        (tenant_id, item_id, revision_id, locale, title, body, teaser, access_level, tier_ids)
       values (${tenantId}, ${itemId}, ${row.revision_id}, ${row.locale},
-              array_to_tsvector(${entry.title}::text[]), array_to_tsvector(${entry.all}::text[]))
+              array_to_tsvector(${entry.title}::text[]), array_to_tsvector(${entry.all}::text[]),
+              ${entry.teaser ? sql`array_to_tsvector(${entry.teaser}::text[])` : null},
+              ${entry.access.level}, ${entry.access.tierIds}::uuid[])
     `.execute(trx);
   }
 }
@@ -109,13 +115,18 @@ interface Row {
 }
 
 export function searchPublished(trx: Kysely<Database>): ContentRepository['searchPublished'] {
-  return async ({ tokens, locale }, offset, limit) => {
+  return async ({ tokens, locale, reader }, offset, limit) => {
     if (!tokens.length) return [];
     // Core's tokens hold letters and digits only, so a quoted lexeme needs no escaping; the
     // quote and backslash are doubled all the same, so this line does not rest on that.
     const query = tokens
       .map((t) => `'${t.replace(/\\/g, '\\\\').replace(/'/g, "''")}':*`)
       .join(' & ');
+    // `searchOpens`: public, or a reader and `members`, or a reader standing in one of the tiers.
+    const opens = reader
+      ? sql`(s.access_level in ('public', 'members')
+             or (s.access_level = 'tier' and s.tier_ids && ${[...reader.tierIds]}::uuid[]))`
+      : sql`s.access_level = 'public'`;
     const { rows } = await sql<Row>`
       select s.item_id, i.type, i.slug, s.revision_id, l.published_at,
              s.title @@ ${query}::tsquery as in_title
@@ -124,7 +135,8 @@ export function searchPublished(trx: Kysely<Database>): ContentRepository['searc
         on l.item_id = s.item_id and l.locale = s.locale
        and l.published_revision_id = s.revision_id
       join content_items i on i.id = s.item_id and i.deleted_at is null
-      where s.locale = ${locale} and s.body @@ ${query}::tsquery
+      where s.locale = ${locale}
+        and ((${opens} and s.body @@ ${query}::tsquery) or s.teaser @@ ${query}::tsquery)
       order by in_title desc, date_trunc('milliseconds', l.published_at) desc, s.item_id asc
       limit ${limit} offset ${offset}
     `.execute(trx);
