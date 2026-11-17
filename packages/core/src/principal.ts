@@ -47,9 +47,7 @@ export type Capability = z.infer<typeof Capability>;
 export const PLANNED_CAPABILITIES: Readonly<Partial<Record<Capability, string>>> = {
   'supporters:export':
     'no supporter export exists; tenant.export.create requires tenant:admin (ADR 018 rule 5)',
-  'donations:read': 'donations (ADR 005) are not built',
-  'donations:write': 'donations (ADR 005) are not built',
-  'money:refund': 'donations (ADR 005) are not built',
+  'money:refund': 'refunding a donation (ADR 005) is not built',
 };
 
 /**

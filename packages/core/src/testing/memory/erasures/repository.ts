@@ -203,6 +203,12 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
       s.participations.delete(k);
       changed++;
     }
+  // The payment stays for the books, without the supporter it named (0072).
+  for (const payment of s.payments.values())
+    if (payment.supporterId && ids.has(payment.supporterId)) {
+      payment.supporterId = null;
+      changed++;
+    }
   const registrations = registrationsOf(s.erasures);
   const live = new Map(
     [...s.supporterLifecycles.values()]

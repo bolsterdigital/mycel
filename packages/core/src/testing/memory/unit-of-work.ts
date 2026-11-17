@@ -34,6 +34,8 @@ import { memoryBulkPlans, memoryContent, memoryPresence, memorySite } from './co
 import { memoryErasures } from './erasures/repository.js';
 import { memoryPersonErasures } from './erasures/people.js';
 import { memoryCampaigns } from './campaigns.js';
+import { memoryPayments } from './money/payments.js';
+import type { PaymentProvider } from '../../money/ports.js';
 import {
   FakeClock,
   FakeDns,
@@ -66,6 +68,8 @@ export interface MemoryDeps {
   store?: MemoryStore;
   log?: Logger;
   clock?: Clock;
+  /** Ascending by default; a case about order may hand out ids that run the other way. */
+  ids?: Ids;
   signer?: Signer;
   dns?: DnsResolver;
   platform?: PlatformConfig;
@@ -75,6 +79,7 @@ export interface MemoryDeps {
   assistProviderLabel?: string | null;
   mailchimpDiscovery?: MailchimpDiscovery;
   emailRenderer?: EmailRenderer;
+  paymentProvider?: PaymentProvider | null;
 }
 
 /**
@@ -88,7 +93,7 @@ export const memoryEmailRenderer: EmailRenderer = {
 export class MemoryUnitOfWork implements UnitOfWork {
   readonly store: MemoryStore;
   readonly clock: Clock;
-  readonly ids: Ids = new SequentialIds();
+  readonly ids: Ids;
   readonly signer: Signer;
   readonly dns: DnsResolver;
   readonly platform: PlatformConfig;
@@ -100,12 +105,14 @@ export class MemoryUnitOfWork implements UnitOfWork {
   readonly mailchimpDiscovery: MailchimpDiscovery;
   readonly assistProviderLabel: string | null;
   readonly emailRenderer: EmailRenderer;
+  readonly paymentProvider: PaymentProvider | null;
 
   constructor(deps: MemoryDeps = {}) {
     this.mailchimpDiscovery = deps.mailchimpDiscovery ?? unavailableMailchimp;
     this.log = deps.log ?? noopLogger;
     this.store = deps.store ?? new MemoryStore();
     this.clock = deps.clock ?? new FakeClock();
+    this.ids = deps.ids ?? new SequentialIds();
     this.signer = deps.signer ?? new FakeSigner();
     this.dns = deps.dns ?? new FakeDns();
     this.platform = deps.platform ?? memoryPlatform;
@@ -114,6 +121,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
     this.delivery = deps.delivery ?? appDelivery;
     this.assistProviderLabel = deps.assistProviderLabel ?? null;
     this.emailRenderer = deps.emailRenderer ?? memoryEmailRenderer;
+    this.paymentProvider = deps.paymentProvider ?? null;
   }
 
   async run<T>(principal: Principal, fn: (tx: TransactionContext) => Promise<T>): Promise<T> {
@@ -143,6 +151,8 @@ export class MemoryUnitOfWork implements UnitOfWork {
         },
         content: memoryContent(s),
         campaigns: memoryCampaigns(s),
+        payments: memoryPayments(s),
+        paymentProvider: this.paymentProvider,
         bulkPlans: memoryBulkPlans(s, bulkLock.lock),
         presence: memoryPresence(s),
         navigation: memoryNavigation(s, navigationLock.lock),

@@ -82,7 +82,7 @@ Flat keys, the names of ADR 015 rule 2. Missing keys get the default; an empty d
 | Key                       | Kind              | Default       | Enforced in                                               |
 | ------------------------- | ----------------- | ------------- | --------------------------------------------------------- |
 | `mailing.enabled`         | switch            | `true`        | planned (`scripts/gates/entitlements-enforced.test.mjs`)  |
-| `donations.enabled`       | switch            | `true`        | planned, phase 4 (`entitlements-enforced`)                |
+| `donations.enabled`       | switch            | `true`        | `donation.create`                                         |
 | `custom_domain`           | switch            | `true`        | `tenant.hostname.add`                                     |
 | `api_keys`                | switch            | `true`        | `tenant.key.create`                                       |
 | `remove_branding`         | switch            | `false`       | the public layout: `false` shows the credit               |

@@ -281,9 +281,9 @@ export async function pendingHashes(trx: Trx, tenantId: string): Promise<string[
     union
     select supporter_id from connection_intents where supporter_id = any(${ids}::uuid[])
     union
-    select supporter_id from campaign_participations where supporter_id = any(${ids}::uuid[])`.execute(
-    trx
-  );
+    select supporter_id from campaign_participations where supporter_id = any(${ids}::uuid[])
+    union
+    select supporter_id from payments where supporter_id = any(${ids}::uuid[])`.execute(trx);
   const open = new Set(byId.rows.map((r) => r.id));
   const pending = new Set(
     register.filter((r) => open.has(r.supporter_id)).map((r) => r.email_hash)
@@ -502,6 +502,12 @@ async function eraseRows(
     )
     select count(*)::text as deleted from gone`.execute(trx);
   changed += Number(participations.rows[0]?.deleted ?? 0);
+  // The payment stays for the books, without the supporter it named (0072).
+  count(
+    await sql`
+      update payments set supporter_id = null
+      where supporter_id = any(${supporterIds}::uuid[])`.execute(trx)
+  );
   // A reader session of an erased supporter ends here, before its clock runs out (ADR 016 rule 1).
   count(
     await sql`delete from reader_sessions where supporter_id = any(${supporterIds}::uuid[])`.execute(

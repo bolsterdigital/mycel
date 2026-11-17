@@ -13,6 +13,7 @@ import { seedFormActions } from './form-actions.fixture.js';
 import { checkLegacyActorImport } from './legacy-actors.fixture.js';
 import { checkLegacyPeopleImport, seedGroupedPerson } from './legacy-people.fixture.js';
 import { seedCampaign } from './campaigns.fixture.js';
+import { seedPayment } from './payments.fixture.js';
 import { seedEdition } from './editions.fixture.js';
 import { checkProfilesCarried, seedEvent } from './events.fixture.js';
 import { seedNavigation } from './navigation.fixture.js';
@@ -255,6 +256,7 @@ describe.skipIf(skip)('tenant export and import', () => {
       });
     });
     await seedCampaign(invoker, operatorDb, admin, email);
+    await seedPayment(operatorDb, admin, email);
     await seedNavigation(invoker, admin);
     await seedEvent(invoker, admin);
     await seedAccess(invoker, admin, email);
