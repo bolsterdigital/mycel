@@ -12,7 +12,7 @@ import { expectNoAxeViolations } from '../axe';
 import { pastMinimumFillTime } from '../form';
 import { tenantId, withInvoker } from '../invoker';
 import { NARROW, layoutGate, setTextSize } from '../layout';
-import { login } from '../login';
+import { forwarded, login } from '../login';
 import { isA11y } from '../project';
 
 /** A published page in Dutch with a fresh donation form on it; returns its slug. */
@@ -48,6 +48,9 @@ async function give(
   amount: { preset: RegExp } | { own: string },
   outcome: 'Betaald' | 'Mislukt'
 ) {
+  // A client address of its own: the spec's other posts share the file's one, and a post
+  // without JavaScript has a small hourly bucket per address (`forms/spam.ts`).
+  await page.context().setExtraHTTPHeaders(forwarded());
   await page.goto(`/probe/${slug}`);
   if ('preset' in amount) await page.getByRole('radio', { name: amount.preset }).check();
   else await page.getByLabel('Ander bedrag (€)').fill(amount.own);
