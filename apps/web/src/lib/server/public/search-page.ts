@@ -1,7 +1,17 @@
-// The visitor's site search (`/search?q=`): one GET form and server-rendered results from
-// `content.published.find`, which only ever finds public, indexable published locales and takes
-// title and excerpt from the live revision. This adapter turns the result into links, dates and
-// page links; it decides nothing about access.
+// The site search (`/search?q=`): one GET form and server-rendered results from
+// `content.published.find`, which finds published, indexable locales as far as the principal may
+// read them and takes title and excerpt from the live revision (a restricted item's teaser unless
+// the reader has access). This adapter turns the result into links, dates and page links, and a
+// `restricted` result into the same "members" label an overview card shows; it decides nothing
+// about access.
+//
+// The reader: a request that carries the reader cookie searches as the reader the core finds
+// behind it (`readerOfRequest`), and its answer is `personal`, as on a restricted item's page:
+// no ETag, and the route sends it `private, no-store`. Without the cookie the page is the
+// visitor's and public as before; every answer varies on the cookie, so a cache never hands a
+// reader's results to a visitor or the reverse. Rejected: resolving a reader for every search
+// (a session read per anonymous question) and a reader's result in a shared cache (it holds
+// excerpts from bodies only that reader may read).
 //
 // Input: `q` is trimmed, its whitespace folded and cut at MAX_SEARCH_QUERY, so an overlong
 // address still answers (the form field has the same maxlength); `page` is 1 to MAX_SEARCH_PAGE,
@@ -11,7 +21,7 @@
 //
 // Cost (anonymous, so the route bounds it): ten results a page, at most twenty pages, at most
 // eight tokens of two or more characters (core's `queryTokens`). Each result reads its revision
-// once more, so a page is one index query plus at most ten revision reads. The response is
+// once more, so a page is one index query plus at most ten revision reads. A visitor's response is
 // public and cached like a content page; results hold nothing a cached content page does not.
 // Measured (2026-11-14, 100 sites of 1,000 items plus one of 20,000, two locales, 250 words a
 // body): Postgres reads the asking site's rows through the primary key, whose first column the
@@ -19,6 +29,7 @@
 // prefix never walks another site's words. A query costs about 20 ms on a site of 1,000 items
 // and 120 to 300 ms on one of 20,000, rising with the size of that site only.
 import { createHash } from 'node:crypto';
+import type { Cookies } from '@sveltejs/kit';
 import {
   anonymousPrincipal,
   contentPath,
@@ -31,6 +42,7 @@ import { searchPath } from '../../public/search-path.js';
 import { refuse } from '../http/refuse.js';
 import { runtime } from '../runtime.js';
 import { sitePath, siteTenant, siteUrls, type Site } from '../site.js';
+import { READER_COOKIE, readerOfRequest } from './reader.js';
 import { siteBrand, siteChrome, siteNavigation, siteTheme } from './theme.js';
 
 /** Results per page; the use case allows up to 20. */
@@ -49,15 +61,17 @@ export function searchPage(raw: string | null): number | null {
   return page <= MAX_SEARCH_PAGE ? page : null;
 }
 
-export async function loadSearchPage(site: Site, locale: string, url: URL) {
+export async function loadSearchPage(site: Site, locale: string, url: URL, cookies: Cookies) {
   const q = searchQuery(url.searchParams.get('q'));
   const page = searchPage(url.searchParams.get('page'));
   if (page === null || (page > 1 && !q)) refuse(404);
   const { invoker } = runtime();
   const reader = anonymousPrincipal(siteTenant(site), ['content:read']);
+  const personal = cookies.get(READER_COOKIE) !== undefined;
+  const asker = (personal && (await readerOfRequest(cookies, site))) || reader;
   const { defaultLocale } = site.tenant;
   const result = q
-    ? await invoker.run(useCases.findPublished, reader, {
+    ? await invoker.run(useCases.findPublished, asker, {
         q,
         locale,
         page,
@@ -91,6 +105,7 @@ export async function loadSearchPage(site: Site, locale: string, url: URL) {
       excerpt: item.excerpt,
       publishedAt: item.publishedAt,
       date: date.format(new Date(item.publishedAt)),
+      restricted: item.restricted,
     })),
     previous: page > 1 ? pageHref(page - 1) : null,
     next: result.next ? pageHref(result.next) : null,
@@ -110,5 +125,5 @@ export async function loadSearchPage(site: Site, locale: string, url: URL) {
       JSON.stringify({ view, theme: theme.hash, chrome, navigation, brand, access: site.access })
     )
     .digest('base64url');
-  return { view, etag: `"search:${digest}"` };
+  return { view, etag: personal ? null : `"search:${digest}"` };
 }

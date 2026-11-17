@@ -1,7 +1,8 @@
 // The rebuild of the site search index (`reindexSearch`, `mycel search rebuild`, and the import of
 // an archive from before 0055). A tenant whose index rows are gone, as for items published before
 // the migration, finds nothing; after the rebuild it finds what a fresh publication would, no more
-// (restricted, `noindex` and drafts stay out), another tenant's rows are untouched, a second
+// (`noindex` and drafts stay out, a restricted item is found by its title), another tenant's rows
+// are untouched, a second
 // run changes nothing, and an item first published while the rebuild waits for a row lock keeps
 // its index row. Real Postgres only: the memory adapter has no index to lose. Skips without
 // DATABASE_URL; in CI that is a failure.
@@ -100,9 +101,9 @@ describe.skipIf(skip)('site search rebuild', () => {
     await owner.destroy();
   });
 
-  it('indexes the published, public, indexable locales again, and only those', async () => {
-    expect(await found(a)).toEqual(['open']);
-    expect(await rows(a)).toBe(2);
+  it('indexes the published, indexable locales again, and only those', async () => {
+    expect(await found(a)).toEqual(['leden', 'open']);
+    expect(await rows(a)).toBe(4);
     // As before 0055: the rows of tenant a are gone, its pages are not found.
     await owner.transaction().execute(async (trx) => {
       await enterTenant(trx, a);
@@ -110,22 +111,22 @@ describe.skipIf(skip)('site search rebuild', () => {
     });
     expect(await found(a)).toEqual([]);
 
-    // Three items have publication rows (open, leden, verborgen); only open gets index rows.
-    expect(await reindexSearch(owner, a)).toEqual({ items: 3, rows: 2 });
-    expect(await found(a)).toEqual(['open']);
-    expect(await found(a, 'en')).toEqual(['open']);
+    // Three items have publication rows (open, leden, verborgen); `verborgen` gets no index rows.
+    expect(await reindexSearch(owner, a)).toEqual({ items: 3, rows: 4 });
+    expect(await found(a)).toEqual(['leden', 'open']);
+    expect(await found(a, 'en')).toEqual(['leden', 'open']);
     expect(await found(b)).toEqual(['ander']);
     expect(await rows(b)).toBe(2);
 
     // A second run writes the same rows.
-    expect(await reindexSearch(owner, a)).toEqual({ items: 3, rows: 2 });
-    expect(await found(a)).toEqual(['open']);
+    expect(await reindexSearch(owner, a)).toEqual({ items: 3, rows: 4 });
+    expect(await found(a)).toEqual(['leden', 'open']);
   });
 
   it('keeps the row of an item first published while the rebuild waits for a lock', async () => {
     const admin = systemPrincipal(a, 'test');
     const open = await invoker.run(useCases.findPublished, admin, { q: word, locale: 'nl' });
-    const openId = open.items[0]!.id;
+    const openId = open.items.find((i) => i.slug === 'open')!.id;
     const fresh = await invoker.run(useCases.createItem, admin, {
       slug: 'nieuw',
       document: page('nieuw') as never,
@@ -164,6 +165,6 @@ describe.skipIf(skip)('site search rebuild', () => {
     release();
     await blocker;
     await rebuild;
-    expect(await found(a)).toEqual(['nieuw', 'open']);
+    expect(await found(a)).toEqual(['leden', 'nieuw', 'open']);
   });
 });

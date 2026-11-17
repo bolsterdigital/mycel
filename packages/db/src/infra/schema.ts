@@ -317,6 +317,10 @@ export interface Database {
     locale: string;
     title: string;
     body: string;
+    /** Tokens a visitor without access may match (0073); null for a public revision. */
+    teaser: string | null;
+    access_level: 'public' | 'members' | 'tier';
+    tier_ids: string[];
   };
   /** Old addresses of published items (0062): the slug stays held and forwards to the item. */
   content_redirects: {

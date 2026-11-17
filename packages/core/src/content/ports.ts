@@ -5,6 +5,7 @@
 
 import type { PersonGroup } from './people/model.js';
 import type { AccessTier } from './access/model.js';
+import type { SearchReader } from './published/search.js';
 
 import type { BulkPlan, BulkPhase, BulkResult } from './bulk/model.js';
 import type { PresenceEntry } from './presence/model.js';
@@ -156,8 +157,9 @@ export interface PublishedPosition {
 }
 
 /**
- * One hit of the site search (`content.published.find`): a published locale whose public,
- * indexable revision matches, with what the order needs. No text: the use case reads the revision.
+ * One hit of the site search (`content.published.find`): a published locale whose indexable
+ * revision matches for the asking reader, with what the order needs. No text: the use case reads
+ * the revision.
  */
 export interface PublishedHit {
   itemId: string;
@@ -249,13 +251,14 @@ export interface ContentRepository {
     limit: number
   ): Promise<PublishedCardRow[]>;
   /**
-   * The published locales in `locale`, outside the trash, whose published revision is public and
-   * indexable and matches every token as a prefix (core's `searchEntry` and `matchesSearch`), in
-   * the order of `compareHits`, from row `offset`. Only the revision a publication pointer names
-   * now can match: an older revision, a later draft and an unpublished locale never do.
+   * The published locales in `locale`, outside the trash, whose published revision is indexable
+   * and matches every token as a prefix for `reader` (core's `searchEntry` and `matchesSearch`:
+   * the whole text where `searchOpens`, else the teaser), in the order of `compareHits`, from row
+   * `offset`. Only the revision a publication pointer names now can match: an older revision, a
+   * later draft and an unpublished locale never do.
    */
   searchPublished(
-    query: { tokens: readonly string[]; locale: string },
+    query: { tokens: readonly string[]; locale: string; reader: SearchReader | null },
     offset: number,
     limit: number
   ): Promise<PublishedHit[]>;
