@@ -1,4 +1,4 @@
-<!-- A new petition or signup on the form pattern: the kind first, because it decides the
+<!-- A new petition, signup or fundraiser on the form pattern: the kind first, because it decides the
      form that comes with it, then a title per language, the languages, an optional address and an
      optional goal. One native form; a failed post comes back with what was typed. -->
 <script lang="ts">
@@ -55,6 +55,7 @@
     options={[
       { value: 'petition', label: t('admin.campaign.kind.petition') },
       { value: 'signup', label: t('admin.campaign.kind.signup') },
+      { value: 'fundraiser', label: t('admin.campaign.kind.fundraiser') },
     ]}
   />
   <Fieldset legend={t('admin.content.field.title')}>

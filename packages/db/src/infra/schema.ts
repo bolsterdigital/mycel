@@ -412,6 +412,8 @@ export interface Database {
     supporter_id: string | null;
     /** 0074: the form submission that started the payment, until it is gone. */
     submission_id: string | null;
+    /** 0075: the fundraiser the gift was given to. */
+    campaign_id: string | null;
     created_at: Timestamp;
     updated_at: Timestamp;
     paid_at: Timestamp | null;

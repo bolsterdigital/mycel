@@ -189,7 +189,12 @@ export interface RenderCampaign {
   summary: string | null;
   /** Decorative: the heading beside it names the campaign. */
   image: RenderImage | null;
-  counter: { participants: number; target: number | null } | null;
+  /** A fundraiser counts `raised` (minor units) against a target in minor units. */
+  counter: {
+    participants: number;
+    raised: { amount: number; currency: string } | null;
+    target: number | null;
+  } | null;
   revisionId: string;
 }
 

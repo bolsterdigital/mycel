@@ -33,6 +33,16 @@ export function memoryPayments(s: TenantStore): PaymentRepository {
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
           .slice(offset, offset + limit)
       ),
+    async raised(campaignIds, currency) {
+      const sums = new Map<string, { amount: number; gifts: number }>();
+      for (const p of rows.values()) {
+        if (p.status !== 'paid' || p.currency !== currency || !p.campaignId) continue;
+        if (!campaignIds.includes(p.campaignId)) continue;
+        const sum = sums.get(p.campaignId) ?? { amount: 0, gifts: 0 };
+        sums.set(p.campaignId, { amount: sum.amount + p.amount, gifts: sum.gifts + 1 });
+      }
+      return sums;
+    },
     due: async (before, limit) =>
       structuredClone(
         [...rows.values()]

@@ -10,6 +10,7 @@
   import { fill, ui } from '../../../i18n/index.js';
   import type { UiKey } from '../../../i18n/index.js';
   import type { CampaignPanel } from '../../server/admin/campaigns.js';
+  import { countFigures, goalInput } from '../../campaign-count.js';
 
   let {
     panel,
@@ -31,14 +32,11 @@
   const t = $derived(ui(locale));
   const f = 'campaign-form';
   const tone = { draft: 'neutral', open: 'success', closed: 'warning' } as const;
-  const number = (n: number) => n.toLocaleString(locale);
+  const figures = $derived(countFigures(panel, panel.target, locale));
   const count = $derived(
-    panel.target
-      ? fill(t('admin.campaign.count.ofTarget'), {
-          count: number(panel.participants),
-          target: number(panel.target),
-        })
-      : number(panel.participants)
+    figures.target === null
+      ? figures.count
+      : fill(t('admin.campaign.count.ofTarget'), { count: figures.count, target: figures.target })
   );
   const edits = $derived(panel.canWrite && !panel.archived);
 </script>
@@ -110,7 +108,7 @@
       label={t('admin.campaign.field.target')}
       hint={t('admin.campaign.field.target.hint')}
       {locale}
-      value={panel.target === null ? '' : String(panel.target)}
+      value={goalInput(panel.target, panel.kind)}
     />
     <div class="ui-choice">
       <input

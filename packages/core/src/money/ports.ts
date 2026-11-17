@@ -62,6 +62,14 @@ export interface PaymentRepository {
   save(payment: Payment): Promise<void>;
   /** Newest first. */
   list(filter: PaymentFilter, offset: number, limit: number): Promise<Payment[]>;
+  /**
+   * What the paid payments of each campaign add up to in `currency`, and how many there are;
+   * absent ids raised nothing. A refunded or charged-back payment is no longer `paid`.
+   */
+  raised(
+    campaignIds: readonly string[],
+    currency: string
+  ): Promise<Map<string, { amount: number; gifts: number }>>;
   /** Payments not yet settled (`created`, `open`) and unchanged since `before`, oldest first. */
   due(before: string, limit: number): Promise<Payment[]>;
   /** Append-only: an entry is never changed or removed. */

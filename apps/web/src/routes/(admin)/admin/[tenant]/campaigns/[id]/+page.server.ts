@@ -58,12 +58,12 @@ export const actions: Actions = {
   update: (event) =>
     answer(event, 'saved', async (principal, data, baseUpdatedAt) => {
       const { zone } = await adminTimeZone(event.locals);
-      const fields = campaignFields(data, zone, can(principal, 'content:publish'));
-      if (!fields) throw new UseCaseError('invalid_input', 'not a time or a whole number');
       // Milestones have no field yet: keep the stored ones that stay below the new target.
       const current = await run().run(useCases.getCampaign, principal, {
         campaignId: event.params.id,
       });
+      const fields = campaignFields(data, zone, can(principal, 'content:publish'), current.kind);
+      if (!fields) throw new UseCaseError('invalid_input', 'not a time or a whole number');
       const goal = fields.goal && {
         target: fields.goal.target,
         milestones: (current.goal?.milestones ?? []).filter((m) => m < fields.goal!.target),

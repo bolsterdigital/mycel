@@ -41,7 +41,7 @@ async function donationPage(project: string): Promise<string> {
 }
 
 /** Give on the page, end at the provider's screen with `outcome`, and land on the return page. */
-async function give(
+export async function give(
   page: Page,
   slug: string,
   email: string,
