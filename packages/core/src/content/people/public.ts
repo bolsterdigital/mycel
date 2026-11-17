@@ -7,6 +7,7 @@ import { Locale } from '../../i18n/locale.js';
 import type { TransactionContext } from '../../ports.js';
 import { defineUseCase } from '../../registry.js';
 import { MAX_PAGE_SIZE } from '../../util/page-size.js';
+import { cardDocument } from '../access/projection.js';
 import { effectiveImages, effectiveSummary } from '../header/effective.js';
 import { MAX_TRANSLATION_WALK } from '../listing.js';
 import { statusOf } from '../lifecycle.js';
@@ -36,7 +37,8 @@ export const PublishedArticleCard = z.object({
   lead: z.string().nullable(),
   featuredImageId: z.string().guid().nullable(),
   publishedAt: z.string().datetime({ offset: true }),
-  access: z.literal('public'),
+  /** Not `public`: the card says it is for members, and its address serves the teaser. */
+  access: z.enum(['public', 'members', 'tier']),
 });
 export type PublishedArticleCard = z.infer<typeof PublishedArticleCard>;
 
@@ -120,15 +122,10 @@ async function articleCard(
   const state = item.publication.find((s) => s.locale === locale && statusOf(s) === 'published');
   if (!state?.publishedRevisionId || !state.publishedAt) return null;
   const revision = await ctx.content.revision(item.id, state.publishedRevisionId);
-  const doc = revision?.document;
   // Another locale may publish a different author set. Never use latest-revision list fields.
-  if (
-    !doc ||
-    doc.type !== 'article' ||
-    doc.access.level !== 'public' ||
-    !doc.authorIds.includes(personId)
-  )
-    return null;
+  // A restricted article is a card from its teaser (`cardDocument`), as in an overview.
+  const doc = revision && cardDocument(revision.document);
+  if (!doc || doc.type !== 'article' || !doc.authorIds.includes(personId)) return null;
   return {
     id: item.id,
     slug: item.slug,

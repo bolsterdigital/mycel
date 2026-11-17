@@ -76,7 +76,8 @@
     <p class="ui-menu-item-label">
       {shown(row)}
       {#if row.kind === 'group'}<Badge>{t('admin.navigation.kind.group')}</Badge>{/if}
-      {#if row.state && row.state !== 'ok'}<Badge tone="warning"
+      {#if row.state && row.state !== 'ok'}<Badge
+          tone={row.state === 'restricted' ? 'neutral' : 'warning'}
           >{t(`admin.navigation.state.${row.state}`)}</Badge
         >{:else if !row.label && row.source !== 'system'}<Badge tone="warning"
           >{fill(t('admin.navigation.state.noLabel'), { locale: data.contentLocale })}</Badge

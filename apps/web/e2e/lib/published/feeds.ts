@@ -2,8 +2,8 @@
 // person, `?format=md` on a page's own address and `/llms.txt`, as a feed reader, an agent and
 // a crawler read them. The adapter-rules scenario (`feed-rule.ts`) covers which rows a feed lists;
 // this proves the routes: content types, nosniff, locale from the URL, escaping, the same 404 as
-// HTML, and that a restricted, noindex or canonical-elsewhere item is in no feed and not in
-// llms.txt.
+// HTML, that a restricted item is in the feed as its teaser (title and lead, never its body) and
+// that it, a noindex and a canonical-elsewhere item are not in llms.txt.
 import { expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { systemPrincipal, useCases, type Invoker, type Principal } from '@mycel/core';
@@ -63,7 +63,13 @@ export async function exerciseFeeds(page: Page) {
       invoker,
       principal,
       slugs.members,
-      article(slugs.members, `Geheim ${id}`, { sectionId, access: { level: 'members' } }),
+      article(slugs.members, `Geheim ${id}`, {
+        sectionId,
+        access: { level: 'members' },
+        blocks: [
+          { id: 'body', type: 'heading', version: 1, props: { text: { nl: `Romp ${id}` } } },
+        ],
+      }),
       ['nl']
     );
     await publish(
@@ -91,8 +97,8 @@ export async function exerciseFeeds(page: Page) {
     expect(res.headers()['x-content-type-options'], path).toBe('nosniff');
     return res.text();
   };
-  const leftOut = (body: string) => {
-    for (const s of [`Geheim ${id}`, `Verborgen ${id}`, `Elders ${id}`])
+  const leftOut = (body: string, restricted = [`Geheim ${id}`]) => {
+    for (const s of [...restricted, `Romp ${id}`, `Verborgen ${id}`, `Elders ${id}`])
       expect(body).not.toContain(s);
   };
 
@@ -101,7 +107,10 @@ export async function exerciseFeeds(page: Page) {
   expect(rss).toContain(`<title>Zout &amp; &lt;b&gt;suiker&lt;/b&gt; ${id}</title>`);
   expect(rss).toMatch(new RegExp(`<link>https?://[^<]+/articles/${slugs.open}</link>`));
   expect(rss).toContain(`<description>Samenvatting ${slugs.open}.</description>`);
-  leftOut(rss);
+  // The restricted article is its teaser: title and lead, linking to its address.
+  expect(rss).toContain(`<title>Geheim ${id}</title>`);
+  expect(rss).toContain(`<description>Samenvatting ${slugs.members}.</description>`);
+  leftOut(rss, []);
   const atom = await read(`/probe/en/sections/${section}/feed.atom`, 'application/atom+xml');
   expect(atom).toContain(`<title>Zout &amp; &lt;b&gt;suiker&lt;/b&gt; ${id} (en)</title>`);
   expect(atom).toContain(`Section ${id}</title>`);

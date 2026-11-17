@@ -130,6 +130,11 @@ export interface PublishedCardFilter {
    * `order`.
    */
   events?: { when: 'upcoming' | 'past'; now: string } | undefined;
+  /**
+   * Also restricted items (ADR 016). Off by default: a row carries the whole published document,
+   * so a caller that asks for these projects each one (`cardDocument`) before it shows anything.
+   */
+  restricted?: boolean | undefined;
 }
 
 /** One published locale with its published revision's document, for a card. */

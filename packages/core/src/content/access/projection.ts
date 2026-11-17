@@ -61,6 +61,17 @@ export function teaserDocument(doc: ContentDocument): ContentDocument {
   return { ...page, blocks };
 }
 
+/**
+ * What a card, a feed entry, a menu label or a share card of a published document may draw from:
+ * the document when it is public, else its teaser without any block (title, lead, header image
+ * and the explicit card and search fields). It does not depend on who reads: a card shows a
+ * reader with access no more than anyone else (ADR 018 rule 7); access opens the body only at the
+ * item's own address. So a summary never falls back to a paragraph behind or before the boundary.
+ */
+export function cardDocument(doc: ContentDocument): ContentDocument {
+  return doc.access.level === 'public' ? doc : { ...teaserDocument(doc), blocks: [] };
+}
+
 /** The reader behind this request's principal, read now; null for everyone who is not one. */
 export async function readerAccess(ctx: TransactionContext): Promise<ReaderAccess | null> {
   const { actor } = ctx.principal;

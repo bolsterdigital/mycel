@@ -6,13 +6,16 @@
 // update` on the head row, which locks nothing before the tenant's first save.
 //
 // `publishedTargets` reads the publication pointer and the few values a menu needs from the
-// published revision (title, featured title, access, top-level block ids) in one statement,
-// never a draft and never a whole document per row.
+// published revision (title, featured title, access, the teaser and the top-level block ids and
+// types, from which core's `anchorBlockIds` keeps what a visitor sees) in one statement, never a
+// draft and never a whole document per row.
 
 import { sql, type Kysely } from 'kysely';
 import {
+  anchorBlockIds,
   NavigationDocument,
   navigationReferences,
+  type ContentDocument,
   type ContentType,
   type NavigationRepository,
   type NavigationRevision,
@@ -188,14 +191,16 @@ export function navigationRepository(trx: Trx, tenantId: string): NavigationRepo
         title: string | null;
         featured_title: string | null;
         access: PublishedTarget['access'];
-        block_ids: string[];
+        teaser: unknown;
+        blocks: { id: string; type: string }[];
       }>`
         select i.id, i.type, i.profile, r.id as revision_id, i.slug,
                r.document->'title'->>${locale} as title,
                r.document->'featured'->'title'->>${locale} as featured_title,
                coalesce(r.document->'access'->>'level', 'public') as access,
-               array(select b->>'id' from jsonb_array_elements(r.document->'blocks') b
-                     where b->>'type' <> 'paywall') as block_ids
+               r.document->'access'->'teaser' as teaser,
+               coalesce((select jsonb_agg(jsonb_build_object('id', b->>'id', 'type', b->>'type'))
+                         from jsonb_array_elements(r.document->'blocks') b), '[]') as blocks
         from content_items i
         join content_item_locales l
           on l.item_id = i.id and l.locale = ${locale} and l.published_revision_id is not null
@@ -212,7 +217,10 @@ export function navigationRepository(trx: Trx, tenantId: string): NavigationRepo
           title: r.title,
           featuredTitle: r.featured_title,
           access: r.access,
-          blockIds: r.block_ids,
+          blockIds: anchorBlockIds({
+            access: { level: r.access, teaser: r.teaser ?? 'lead' },
+            blocks: r.blocks,
+          } as Pick<ContentDocument, 'access' | 'blocks'>),
         });
       return out;
     },

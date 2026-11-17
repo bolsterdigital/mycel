@@ -1,5 +1,5 @@
 // Generated share cards: what a link preview
-// shows for a published, public item that has no share image of its own. An editor's
+// shows for a published item that has no share image of its own. An editor's
 // `seo.imageId` is a full override and gets no card: the head shows exactly that image.
 //
 // A card is a pure function of its inputs: the title in one locale, the site's heading face and
@@ -18,8 +18,11 @@
 //
 // Rejected: a `share_cards` table (a second record of what the key already says, which an export
 // and a restore would have to carry), rendering on the first crawler request (a slow, unbounded
-// render per URL any visitor can name) and a card for restricted items (ADR 018 rule 7: their
-// published revision is not public, so they have no head to put it in).
+// render per URL any visitor can name).
+//
+// A restricted item has a card too, since its address serves the teaser and has a head (ADR 016
+// rule 3): drawn from `cardDocument`, so its title and the public header or featured photo,
+// never a block and never an asset that is not `public` (ADR 018 rule 7).
 
 import { z } from 'zod';
 import { notFound } from '../../errors.js';
@@ -33,6 +36,7 @@ import { defineUseCase } from '../../registry.js';
 import { resolveTheme } from '../../theme/contrast.js';
 import { sha256Hex } from '../../util/digest.js';
 import { exampleId } from '../../util/ids.js';
+import { cardDocument } from '../access/projection.js';
 import { effectiveImages } from '../header/effective.js';
 import { statusOf } from '../lifecycle.js';
 import type { ContentDocument } from '../model.js';
@@ -68,8 +72,8 @@ interface Plan {
 }
 
 /**
- * The card of one published locale, or null where it has none: not published, not public, a
- * zone, or a share image of its own. Reads the current pointer, never a planned revision.
+ * The card of one published locale, or null where it has none: not published, a zone, or a share
+ * image of its own. Reads the current pointer, never a planned revision.
  */
 async function planCard(
   ctx: TransactionContext,
@@ -82,8 +86,8 @@ async function planCard(
   if (!state || statusOf(state) !== 'published') return null;
   const revision = await ctx.content.revision(item.id, state.publishedRevisionId!);
   if (!revision) return null;
-  const doc: ContentDocument = revision.document;
-  if (doc.access.level !== 'public' || doc.seo.imageId) return null;
+  const doc: ContentDocument = cardDocument(revision.document);
+  if (doc.seo.imageId) return null;
 
   const theme = resolveTheme((await ctx.siteSettings.theme()).value);
   const primary = theme.palettes.light.primary;
@@ -136,7 +140,7 @@ export const getShareCard = defineUseCase({
   name: 'content.share_card.get',
   kind: 'query',
   description:
-    'The generated share card of one published, public locale of an item: its fingerprint once the card exists, null while it is being made or when the item has a share image of its own.',
+    'The generated share card of one published locale of an item (a restricted one drawn from its teaser): its fingerprint once the card exists, null while it is being made or when the item has a share image of its own.',
   requires: 'content:read',
   input: z.object({ itemId: z.string().guid(), locale: Locale }),
   output: z.object({ card: z.object({ fingerprint: z.string() }).nullable() }),

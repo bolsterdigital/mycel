@@ -10,6 +10,7 @@
 // steps are each complete on their own).
 
 import {
+  anchorBlockIds,
   NavigationTarget,
   MAX_PAGE_SIZE,
   type Block,
@@ -222,7 +223,8 @@ export interface AnchorChoice {
 
 /**
  * The parts of `itemId` a link can land on in `locale`: the top-level blocks of its published
- * revision there that render an element, as the resolver counts them (all but `paywall`). Null
+ * revision there that render an element, as the resolver counts them (`anchorBlockIds`: all but
+ * `paywall`, and of a restricted page only its teaser). Null
  * when the item is not published in that locale or cannot be read. The published revision, not
  * the latest: the site shows that one, and the resolver checks the anchor against it. Each says
  * whether it shows anything on the site now, as the visitor resolves it.
@@ -242,13 +244,11 @@ export async function anchorChoices(
   if (!latest || !published) return null;
   const got = published === latest.revision.id ? latest : await read(published);
   if (!got) return null;
-  // A page for members only gets no menu link at all (ADR 036 rule 8): nothing to warn about.
-  const shown =
-    got.revision.document.access.level === 'public'
-      ? await shownAnchors(principal.tenantId, latest.item, locale)
-      : null;
+  // A page for members only offers the parts of its teaser: what a visitor sees there.
+  const shown = await shownAnchors(principal.tenantId, latest.item, locale);
+  const visible = new Set(anchorBlockIds(got.revision.document));
   return got.revision.document.blocks
-    .filter((b) => b.type !== 'paywall')
+    .filter((b) => visible.has(b.id))
     .map((b) => ({
       id: b.id,
       type: b.type,

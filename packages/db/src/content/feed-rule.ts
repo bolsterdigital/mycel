@@ -18,9 +18,9 @@ const article = <T extends Record<string, unknown>>(slug: string, over: T = {} a
 });
 
 /**
- * A feed (`content.feed.get`): the newest published public articles in the asked locale,
- * by first publication, narrowed to a section or to an author's articles; never noindex, a
- * canonical elsewhere, restricted, a draft or another tenant. An unknown section or a person
+ * A feed (`content.feed.get`): the newest published articles in the asked locale, by first
+ * publication, narrowed to a section or to an author's articles, a restricted one as its teaser
+ * marked `restricted`; never noindex, a canonical elsewhere, a draft or another tenant. An unknown section or a person
  * without a public page is not found. The published list carries the canonical, so the sitemap
  * can leave such an item out.
  */
@@ -64,7 +64,7 @@ export async function observeFeed(
   await publish(drie, 'nl');
   const pagina = await create('pagina', { ...article('pagina'), type: 'page' });
   await publish(pagina, 'nl');
-  // Never in a feed: noindex, canonical elsewhere, restricted, a draft, another tenant.
+  // Never in a feed: noindex, canonical elsewhere, a draft, another tenant.
   const noindex = await create('noindex', article('noindex', { seo: { noindex: true } }));
   await publish(noindex, 'nl');
   const elders = await create(
@@ -74,7 +74,14 @@ export async function observeFeed(
   await publish(elders, 'nl');
   const leden = await create(
     'leden',
-    article('leden', { authorIds: [sam.id], access: { level: 'members' }, lead: { nl: 'L.' } })
+    article('leden', {
+      authorIds: [sam.id],
+      access: { level: 'members' },
+      lead: { nl: 'L.' },
+      blocks: [
+        { id: 'body', type: 'heading', version: 1, props: { text: { nl: 'SENTINEL-BODY' } } },
+      ],
+    })
   );
   await publish(leden, 'nl');
   await create('concept', article('concept', { authorIds: [sam.id] }));
@@ -109,23 +116,27 @@ export async function observeFeed(
       summary: site.entries.at(-1)!.summary,
       name: site.name,
     },
+    restricted: site.entries
+      .filter((e) => e.restricted)
+      .map((e) => `${e.slug}: ${e.summary}${JSON.stringify(e).includes('SENTINEL') ? '!' : ''}`),
     otherTenant: await slugs({}, other),
     canonicalInList: list.filter((r) => r.canonical).map((r) => r.slug),
   };
 }
 
 export const expectedFeed = {
-  site: 'drie twee een',
+  site: 'drie leden twee een',
   english: 'een',
   pages: 'pagina',
   section: 'drie een',
   sectionName: 'Salt',
-  author: 'een',
+  author: 'leden een',
   authorName: 'Sam',
   noSection: 'not_found',
   noPublicPage: 'not_found',
   limit: 'drie',
   entry: { title: 'Titel een', summary: 'Kort.', name: null },
+  restricted: ['leden: L.'],
   otherTenant: 'vreemd',
   canonicalInList: ['elders'],
 };

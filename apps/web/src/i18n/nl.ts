@@ -417,7 +417,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.navigation.source.title': 'Paginatitel',
   'admin.navigation.source.system': 'Standaardnaam',
   'admin.navigation.state.unpublished': 'Pagina niet gepubliceerd',
-  'admin.navigation.state.restricted': 'Alleen voor leden: niet getoond',
+  'admin.navigation.state.restricted': 'Alleen voor leden: bezoekers zien de inleiding',
   'admin.navigation.state.missing': 'Pagina bestaat niet meer',
   'admin.navigation.state.noLabel': 'Geen tekst in {locale}',
   'admin.navigation.field.name': 'Naam',
@@ -429,7 +429,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.navigation.field.label.inherits':
     'Laat leeg om de titel van de pagina te gebruiken: "{title}".',
   'admin.navigation.field.label.inheritsRestricted':
-    'Laat leeg om de titel van de pagina te gebruiken: "{title}". De pagina is alleen voor leden, dus bezoekers zien deze link niet.',
+    'Laat leeg om de titel van de pagina te gebruiken: "{title}". De pagina is alleen voor leden: bezoekers zien de link en de inleiding.',
   'admin.navigation.field.label.groupHint': 'De tekst boven de subitems.',
   'admin.navigation.field.url.hint': 'Begint met / voor een plek op deze site, of met https://.',
   'admin.navigation.field.anchor': 'Waar op de pagina',
@@ -553,8 +553,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.navigation.problem.where': '{item} in {menu}',
   'admin.navigation.problem.label-missing':
     'Het heeft geen tekst in {locale}; vul die in voor je publiceert.',
-  'admin.navigation.problem.target-unavailable':
-    'De pagina is niet openbaar gepubliceerd in {locale}.',
+  'admin.navigation.problem.target-unavailable': 'De pagina is niet gepubliceerd in {locale}.',
   'admin.navigation.problem.children-unreachable':
     'De pagina wordt niet getoond en het item heeft geen eigen tekst in {locale}, dus de subitems vallen ook weg.',
   'admin.navigation.problem.anchor-missing':
@@ -1283,6 +1282,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'block.overview.older': 'Toon ouder',
   'block.overview.newer': 'Toon nieuwer',
   'block.overview.pages': 'Meer in dit overzicht',
+  'block.overview.restricted': 'Voor leden',
   'block.campaign.notOpen.upcoming': 'Meedoen kan nog niet.',
   'block.campaign.notOpen.closed': 'Meedoen kan niet meer: deze campagne is gesloten.',
   'block.lightbox.enlarge': 'grotere versie',

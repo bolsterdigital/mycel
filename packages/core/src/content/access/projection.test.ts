@@ -16,6 +16,7 @@ import { SupporterEvent } from '../../supporters/events.js';
 import { ingest } from '../../supporters/service.js';
 import { FakeClock, MemoryUnitOfWork, TENANT, principal } from '../../testing/index.js';
 import { buildRegistry, useCases } from '../../use-cases.js';
+import { publicItemPath } from '../../mailing/email.js';
 import type { ContentDocument } from '../model.js';
 import { teaserBlocks, teaserDocument } from './projection.js';
 
@@ -310,6 +311,40 @@ describe('the access projection of a published item', () => {
     expect(hidden(elsewhere)).toEqual([]);
   });
 
+  it('lists and links a restricted item as its teaser card, the same for a reader with access', async () => {
+    const t = await tier('donateurs');
+    const item = await article('stuk', { level: 'tier', tierIds: [t.id], teaser: 'marker' });
+    const ada = await reader('ada@example.org');
+    await invoker.run(useCases.createAccessGrant, admin(), {
+      supporterId: ada.supporterId,
+      tierId: t.id,
+      kind: 'comp',
+      reason: 'test',
+    });
+    const card = { title: 'Titel', summary: 'De lead.', restricted: true };
+    const answers = [];
+    for (const as of [visitor(), ada.as]) {
+      const overview = await invoker.run(useCases.getOverview, as, { props: {}, locale: 'nl' });
+      expect(overview.entries).toEqual([expect.objectContaining(card)]);
+      const feed = await invoker.run(useCases.getFeed, as, { locale: 'nl' });
+      expect(feed.entries).toEqual([expect.objectContaining(card)]);
+      const person = await invoker.run(useCases.getPublicPerson, as, {
+        slug: 'sam-stuk',
+        locale: 'nl',
+      });
+      expect(person.articles).toEqual([
+        expect.objectContaining({ title: 'Titel', lead: 'De lead.', access: 'tier' }),
+      ]);
+      answers.push([overview, feed, person]);
+    }
+    expect(answers[1]).toEqual(answers[0]);
+    expect(hidden(answers)).toEqual([]);
+    // A link to it is a link in the published locale only (ADR 016 rule 3).
+    const path = (locale: string) =>
+      uow.run(visitor(), (ctx) => publicItemPath(ctx, item.id, locale, 'nl'));
+    expect([await path('nl'), await path('en')]).toEqual(['/articles/stuk', null]);
+  });
+
   it('leaves a restricted event without its when and where', async () => {
     const { item, revision } = await invoker.run(useCases.createItem, admin(), {
       slug: 'avond',
@@ -343,6 +378,14 @@ describe('the access projection of a published item', () => {
     expect(hidden(answer)).toEqual([]);
     const ada = await reader('ada@example.org');
     expect((await read('avond', ada.as, 'page')).event?.location).toBe('SENTINEL-PLACE');
+    // An agenda sorts by when, so it leaves a restricted event out altogether.
+    for (const when of ['upcoming', 'past'] as const) {
+      const agenda = await invoker.run(useCases.getOverview, visitor(), {
+        props: { source: 'event', when },
+        locale: 'nl',
+      });
+      expect(agenda.entries).toEqual([]);
+    }
   });
 
   it('shows nothing for a marker teaser that lost its boundary', () => {

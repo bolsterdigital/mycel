@@ -67,6 +67,7 @@
               />{/if}
             <h3><a href={article.href}>{article.title}</a></h3>
             <time datetime={article.publishedAt}>{article.date}</time>
+            {#if article.access !== 'public'}<p>{t('block.overview.restricted')}</p>{/if}
             {#if article.lead}<p>{article.lead}</p>{/if}
           </article>
         {/each}

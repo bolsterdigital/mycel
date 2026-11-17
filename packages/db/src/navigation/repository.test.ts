@@ -166,7 +166,7 @@ describe.skipIf(skip)('navigation conformance (Postgres)', () => {
     });
   });
 
-  it('nav-offline: hides restricted and offline targets, keeps a labelled branch', async () => {
+  it('nav-offline: hides offline targets, links a restricted one, keeps a labelled branch', async () => {
     const ids = {
       parent: await page(a, 'campagnes'),
       child: await page(a, 'actie'),
@@ -188,6 +188,7 @@ describe.skipIf(skip)('navigation conformance (Postgres)', () => {
       'anchored:link',
       'trashed:link',
       'foreign:link',
+      'restricted:link',
     ]);
     expect(nl.main.nodes[2].target.anchor).toBeUndefined();
   });

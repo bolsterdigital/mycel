@@ -27,6 +27,8 @@ export function overviewFixture(props: BlockProps<'overview'>, locale: string): 
     imageId: n === 1 ? EXAMPLE_IDS.image : null,
     event: event(n),
     pinned,
+    // The second is for members (an agenda leaves those out): the card names it.
+    restricted: n === 2 && props.source !== 'event',
   });
   return { entries: [entry(1, props.pinned.length > 0), entry(2, false)], older: props.archive };
 }

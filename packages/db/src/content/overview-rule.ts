@@ -21,12 +21,13 @@ const article = <T extends Record<string, unknown>>(slug: string, over: T = {} a
 });
 
 /**
- * An overview block's list (`content.overview.get`): published, public revisions in the asked
- * locale only, filtered by type, section and every tag, ordered by first publication with the
- * item id breaking a tie; pins on top in the editor's order, a pin not published in this locale
- * dropping out; page 2 continuing page 1. A draft after publication, an unpublished or other
- * locale, a scheduled pin, a restricted item, the trash and another tenant never appear, and a
- * republish does not move an item.
+ * An overview block's list (`content.overview.get`): published revisions in the asked locale
+ * only, filtered by type, section and every tag, ordered by first publication with the item id
+ * breaking a tie; pins on top in the editor's order, a pin not published in this locale dropping
+ * out; page 2 continuing page 1. A restricted item is a card marked `restricted` with its title
+ * and lead, never its body. A draft after publication, an unpublished or other locale, a
+ * scheduled pin, the trash and another tenant never appear, and a republish does not move an
+ * item.
  */
 export async function observeOverview(
   invoker: Invoker,
@@ -66,16 +67,21 @@ export async function observeOverview(
   await publish(elders, 'nl');
   const pagina = await create('pagina', { ...article('pagina'), type: 'page' });
   await publish(pagina, 'nl');
-  // Never in a list: restricted, scheduled, unpublished, in the trash, another tenant, a draft.
+  // A card from its teaser: the title and the lead, never the body behind it.
+  clock.advance(1000);
   const leden = await create(
     'leden',
     article('leden', {
       ...inBuurt,
       lead: { nl: 'Voor leden.', en: 'Members.' },
       access: { level: 'members' },
+      blocks: [
+        { id: 'body', type: 'heading', version: 1, props: { text: { nl: 'SENTINEL-BODY' } } },
+      ],
     })
   );
   await publish(leden, 'nl');
+  // Never in a list: scheduled, unpublished, in the trash, another tenant, a draft.
   const gepland = await create('gepland', article('gepland', inBuurt));
   await invoker.run(useCases.scheduleItem, admin, {
     itemId: gepland.id,
@@ -124,7 +130,8 @@ export async function observeOverview(
     const { entries, older } = await get(props, locale, page, by);
     return `${entries.map((e) => `${e.slug}${e.pinned ? '*' : ''}`).join(' ')}${older ? ' +' : ''}`;
   };
-  const first = (await get({ sectionId: buurt.id, limit: '1' })).entries[0];
+  const first = (await get({ sectionId: buurt.id, limit: '2' })).entries[1];
+  const members = (await get({ sectionId: buurt.id, limit: '1' })).entries[0];
   return {
     articles: await slugs({}),
     oldest: await slugs({ order: 'oldest' }),
@@ -147,6 +154,12 @@ export async function observeOverview(
       summary: first.summary,
       revisionIsPublished: first.revisionId === nieuw.latestRevisionId,
     },
+    restricted: members && {
+      title: members.title,
+      summary: members.summary,
+      restricted: members.restricted,
+      body: JSON.stringify(members).includes('SENTINEL'),
+    },
     // A page source carries no section or tags.
     pageWithSection: await get({ source: 'page', sectionId: buurt.id }).then(
       () => 'answered',
@@ -166,7 +179,13 @@ async function observeAgenda(invoker: Invoker, admin: Principal, clock: Clock, p
   const zone = (await invoker.run(useCases.getSiteGeneral, admin, {})).value.timeZone;
   const at = (hours: number) =>
     wallClock(new Date(clock.now().getTime() + hours * 3_600_000), zone);
-  const event = async (slug: string, startsAt: string, endsAt?: string, publish = true) => {
+  const event = async (
+    slug: string,
+    startsAt: string,
+    endsAt?: string,
+    publish = true,
+    over: Record<string, unknown> = {}
+  ) => {
     const { item } = await invoker.run(useCases.createItem, admin, {
       slug,
       document: {
@@ -177,6 +196,7 @@ async function observeAgenda(invoker: Invoker, admin: Principal, clock: Clock, p
         title: { nl: `Titel ${slug}`, en: `Title ${slug}` },
         event: { startsAt, ...(endsAt ? { endsAt } : {}), location: { nl: 'Buurthuis' } },
         blocks: [],
+        ...over,
       } as never,
     });
     if (publish)
@@ -196,6 +216,11 @@ async function observeAgenda(invoker: Invoker, admin: Principal, clock: Clock, p
   const gisteren = await event('gisteren', at(-24), at(-22));
   await event('lang-geleden', at(-240));
   await event('concept-evenement', at(5), undefined, false);
+  // An agenda sorts by when, which a members' event keeps to its members: it is left out.
+  await event('ledenavond', at(6), undefined, true, {
+    lead: { nl: 'Voor leden.' },
+    access: { level: 'members' },
+  });
   const list = async (when: 'upcoming' | 'past', extra: Record<string, unknown> = {}) => {
     const { entries, older } = await invoker.run(useCases.getOverview, admin, {
       props: { source: 'event', when, limit: '3', ...extra },
@@ -247,25 +272,26 @@ async function observeAgenda(invoker: Invoker, admin: Principal, clock: Clock, p
 
 export const expectedOverview = {
   // `midden` was republished last, and stays where its first publication put it.
-  articles: 'elders-rubriek nieuw midden oud',
-  oldest: 'oud midden nieuw elders-rubriek',
+  articles: 'leden elders-rubriek nieuw midden oud',
+  oldest: 'oud midden nieuw elders-rubriek leden',
   pages: 'pagina',
-  section: 'nieuw midden oud',
+  section: 'leden nieuw midden oud',
   oneTag: 'midden oud',
   everyTag: 'oud',
   english: 'oud',
-  pinsOnTop: 'oud* pagina* elders-rubriek +',
+  pinsOnTop: 'oud* pagina* leden +',
   pinNotInLocale: 'oud',
-  pinRestricted: 'elders-rubriek nieuw +',
-  page1: 'oud* elders-rubriek +',
-  page2: 'nieuw midden',
-  page3: '',
+  pinRestricted: 'leden* elders-rubriek +',
+  page1: 'oud* leden +',
+  page2: 'elders-rubriek nieuw +',
+  page3: 'midden',
   otherTenant: 'vreemd',
   card: {
     title: 'Titel nieuw',
     summary: 'Kort en nieuw.',
     revisionIsPublished: true,
   },
+  restricted: { title: 'Titel leden', summary: 'Voor leden.', restricted: true, body: false },
   pageWithSection: 'invalid_input',
   agenda: {
     before: { upcoming: 'bezig morgen ook-morgen +', past: 'gisteren lang-geleden' },

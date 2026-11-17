@@ -148,6 +148,34 @@ describe('generated share cards', () => {
     expect((await drawing((await card())!.fingerprint)).photo).toEqual(expect.any(Number));
   });
 
+  it('a restricted item gets a card from its teaser: the title, never a restricted photo', async () => {
+    const closed = await invoker.run(useCases.uploadMedia, admin, {
+      filename: 'leden.png',
+      contentType: 'image/png',
+      bytes: EXAMPLE_PNG,
+      access: 'restricted',
+    });
+    const body = {
+      id: 'body',
+      type: 'heading',
+      version: 1,
+      props: { text: { nl: 'SENTINEL-BODY' } },
+    };
+    await publish(
+      await save({
+        lead: { nl: 'Voor leden.' },
+        featuredImageId: closed.id,
+        blocks: [body],
+        access: { level: 'members', teaser: 'lead' },
+      })
+    );
+    await runJobs();
+    const found = await card();
+    const drawn = await drawing(found!.fingerprint);
+    expect(drawn).toMatchObject({ title: 'Pepernoten', photo: null });
+    expect(JSON.stringify(drawn)).not.toContain('SENTINEL');
+  });
+
   it('a theme change plans one walk that redraws every published locale', async () => {
     await publish(first);
     await runJobs();

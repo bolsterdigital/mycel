@@ -5,6 +5,7 @@
 
 import { navigationReferences } from '../../navigation/model.js';
 import type { NavigationRepository, PublishedTarget } from '../../navigation/ports.js';
+import { anchorBlockIds } from '../../navigation/resolve.js';
 import type { TenantStore } from './store.js';
 
 export function memoryNavigation(s: TenantStore, lock: () => Promise<void>): NavigationRepository {
@@ -77,7 +78,7 @@ export function memoryNavigation(s: TenantStore, lock: () => Promise<void>): Nav
           title: doc.title[locale] ?? null,
           featuredTitle: doc.featured?.title?.[locale] ?? null,
           access: doc.access.level,
-          blockIds: doc.blocks.filter((b) => b.type !== 'paywall').map((b) => b.id),
+          blockIds: anchorBlockIds(doc),
         });
       }
       return out;

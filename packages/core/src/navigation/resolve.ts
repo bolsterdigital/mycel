@@ -3,8 +3,10 @@
 // passes them in, so the memory and Postgres adapters resolve alike and there is no N+1.
 //
 // The label of a node is its own text in the locale, else the target's published featured title,
-// else its published title, in that locale; nothing else. A target that is not published publicly
-// in the locale renders nothing. A link with children whose target disappeared keeps its children
+// else its published title, in that locale; nothing else. A target that is not published in the
+// locale, or is a zone, renders nothing. A restricted target is a link like any other: its address
+// serves the teaser (ADR 016 rule 3), and its title and featured title are part of that teaser, so
+// a menu shows nothing a visitor cannot read there and grants nothing. A link with children whose target disappeared keeps its children
 // as a group only with its own label; otherwise the branch goes and `problems` names the children
 // that became unreachable. Paths of content targets are built by the front (`contentPath` needs
 // the site's default locale, and `searchPath` lives in the web app): core returns the target.
@@ -12,7 +14,8 @@
 // `i18n.fallback` (ADR 018 rule 9) does not exist in code yet, so a missing locale is not replaced
 // by another; when the setting lands, the fallback locale is a second `publishedTargets` read.
 
-import type { ContentType } from '../content/model.js';
+import { teaserBlocks } from '../content/access/projection.js';
+import type { ContentDocument, ContentType } from '../content/model.js';
 import { menuNodes, placedMenuIds } from './model.js';
 import type { Menu, NavigationDocument, NavigationNode } from './model.js';
 import type { PublishedTarget } from './ports.js';
@@ -66,6 +69,12 @@ export interface NavigationProblem {
   children?: string[];
 }
 
+/** What `PublishedTarget.blockIds` holds for a published document; both adapters call this. */
+export function anchorBlockIds(doc: Pick<ContentDocument, 'access' | 'blocks'>): string[] {
+  const blocks = doc.access.level === 'public' ? doc.blocks : teaserBlocks(doc);
+  return blocks.filter((b) => b.type !== 'paywall').map((b) => b.id);
+}
+
 export const BLOCKING_PROBLEMS: ReadonlySet<NavigationProblem['code']> = new Set(['label-missing']);
 
 type AnyNode = NavigationNode | NonNullable<NavigationNode['children']>[number];
@@ -92,7 +101,7 @@ export function resolveNavigation(
     if (t.kind === 'system')
       return { id: node.id, kind: 'link', label: own, target: { kind: 'system', page: t.page } };
     const found = targets.get(t.itemId);
-    if (!found || found.access !== 'public' || found.profile === 'zone') {
+    if (!found || found.profile === 'zone') {
       problems.push({ menuId, nodeId: node.id, code: 'target-unavailable' });
       return null;
     }

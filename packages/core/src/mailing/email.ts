@@ -140,8 +140,9 @@ export const EMAIL_FALLBACK_TYPES: readonly BlockType[] = [
 ];
 
 /**
- * The public site-root path of an item in a locale, or null: published in that locale with a
- * public published revision, the rule of `content.published.get`.
+ * The public site-root path of an item in a locale, or null: published in that locale, the rule
+ * of `content.published.get`. A restricted item has an address (its teaser, ADR 016 rule 3), so a
+ * link to it is a link; a zone has none.
  */
 export async function publicItemPath(
   ctx: TransactionContext,
@@ -150,11 +151,9 @@ export async function publicItemPath(
   defaultLocale: string
 ): Promise<string | null> {
   const item = await ctx.content.get(itemId);
-  if (!item) return null;
+  if (!item || item.profile === 'zone') return null;
   const state = item.publication.find((s) => s.locale === locale && statusOf(s) === 'published');
   if (!state?.publishedRevisionId) return null;
-  const revision = await ctx.content.revision(item.id, state.publishedRevisionId);
-  if (!revision || revision.document.access.level !== 'public') return null;
   return contentPath(item, locale, defaultLocale);
 }
 

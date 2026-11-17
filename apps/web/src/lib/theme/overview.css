@@ -29,7 +29,8 @@
   color: inherit;
 }
 .overview-date,
-.overview-place {
+.overview-place,
+.overview-access {
   font-size: var(--step--1);
 }
 .overview-list .overview-item {

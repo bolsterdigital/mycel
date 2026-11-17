@@ -179,7 +179,7 @@ describe('runtimeSource', () => {
     expect(await source.media('01900000-0000-7000-8000-0000000000ff')).toBeNull();
   });
 
-  it('gives an item a path only when it is public and published in that locale', async () => {
+  it('gives an item a path when it is published in that locale, also one for members', async () => {
     const { source, page, invoker } = await setup();
     const both = await page('both', ['nl', 'en']);
     const nlOnly = await page('nl-only', ['nl']);
@@ -198,7 +198,8 @@ describe('runtimeSource', () => {
     expect(await source.itemPath(nlOnly, 'nl')).toBe('/nl-only');
     expect(await source.itemPath(nlOnly, 'en')).toBeNull();
     expect(await source.itemPath(draft, 'nl')).toBeNull();
-    expect(await source.itemPath(members, 'nl')).toBeNull();
+    // Its address serves the teaser, so a link to it is a link (ADR 016 rule 3).
+    expect(await source.itemPath(members, 'nl')).toBe('/members');
     expect(await source.itemPath(article, 'nl')).toBe('/articles/article');
     expect(await source.itemPath('01900000-0000-7000-8000-0000000000ff', 'nl')).toBeNull();
   });
