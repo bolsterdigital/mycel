@@ -44,7 +44,7 @@ import {
 } from './fakes.js';
 import { memoryFormMail, memoryForms, memoryRateLimits, memorySubmissions } from './forms.js';
 import { MemoryJobRecovery, MemoryScheduler } from './operations/jobs.js';
-import { memoryMailSends } from './mailing.js';
+import { memoryMailEditions, memoryMailSends } from './mailing.js';
 import type { EmailRenderer } from '../../mailing/ports.js';
 import { MemoryBlobStore, memoryImageProcessor, memoryMedia } from './media.js';
 import {
@@ -192,6 +192,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         supporters: memorySupporters(s, ids),
         admissions: memoryAdmissions(s, tenantId, clock),
         mailSends: memoryMailSends(s),
+        mailEditions: memoryMailEditions(s),
         signinLinks: memorySigninLinks(s),
         readerSessions: memoryReaderSessions(s),
         operators: memoryOperators(store.operators),

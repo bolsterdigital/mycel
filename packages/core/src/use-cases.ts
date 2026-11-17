@@ -129,6 +129,7 @@ import { getForm, submitForm } from './forms/service.js';
 import { confirmSubscription, previewConfirmation } from './mailing/service.js';
 import { getEmail } from './mailing/email.js';
 import { confirmOptOut, previewOptOut } from './mailing/unsubscribe.js';
+import { getEdition, sendEdition, testEdition } from './mailing/edition.js';
 import {
   bulkDeleteMedia,
   deleteMedia,
@@ -318,6 +319,9 @@ export const useCases = {
   confirmOptOut,
   previewOptOut,
   getEmail,
+  getEdition,
+  testEdition,
+  sendEdition,
   getSupporter,
   changeSupporterEmail,
   eraseSupporter,

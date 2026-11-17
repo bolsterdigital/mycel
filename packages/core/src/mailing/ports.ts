@@ -99,6 +99,8 @@ export interface MailSendsRepository {
    * with a count; never an address.
    */
   daily(since: Date, now: Date, zone: string): Promise<MailDayCount[]>;
+  /** How many attempts of this subscriber started at or after `since`: the throughput count. */
+  attemptedSince(subscriber: string, since: Date): Promise<number>;
 }
 
 export interface MailDayCount {
@@ -117,9 +119,44 @@ export interface EmailRenderer {
   render(email: EmailDocument): RenderedEmail;
 }
 
+/** One locale of an edition: the revision that was published then and the mail made from it. */
+export interface MailEditionLocale {
+  locale: string;
+  revisionId: string;
+  subject: string;
+  html: string;
+  text: string;
+}
+
+/**
+ * One send of one item to one list, as it was sent (ADR 018 rule 4). The repository can add an
+ * edition and move its delivery state; nothing changes what was sent.
+ */
+export interface MailEdition {
+  id: string;
+  itemId: string;
+  list: string;
+  /** Confirmed members of the list when it was sent. */
+  recipients: number;
+  sentAt: Date;
+  /** The last supporter id the delivery handled; null before the first. */
+  deliveredThrough: string | null;
+  /** When the delivery reached the end of the list. */
+  completedAt: Date | null;
+  locales: MailEditionLocale[];
+}
+
+export interface MailEditionsRepository {
+  insert(edition: Omit<MailEdition, 'deliveredThrough' | 'completedAt'>): Promise<void>;
+  get(id: string): Promise<MailEdition | null>;
+  advance(id: string, supporterId: string): Promise<void>;
+  complete(id: string, at: Date): Promise<void>;
+}
+
 declare module '../ports.js' {
   interface TransactionContext {
     mailSends: MailSendsRepository;
+    mailEditions: MailEditionsRepository;
     emailRenderer: EmailRenderer;
   }
 }

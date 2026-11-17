@@ -1141,6 +1141,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.form.submit': 'Formulier verstuurd',
   'admin.audit.op.mailing.opt_in.confirm': 'Inschrijving bevestigd',
   'admin.audit.op.mailing.opt_out.confirm': 'Afgemeld',
+  'admin.audit.op.mailing.edition.test': 'Testmail van nieuwsbrief verstuurd',
+  'admin.audit.op.mailing.edition.send': 'Nieuwsbrief verstuurd',
   'admin.audit.op.media.restore': 'Bestand hersteld',
   'admin.audit.op.media.bulk.delete': 'Bestanden naar de prullenbak',
   'admin.audit.op.media.delete': 'Bestand verwijderd',

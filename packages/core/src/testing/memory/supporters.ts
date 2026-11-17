@@ -32,6 +32,14 @@ export function memorySupporters(s: TenantStore, ids: Ids): SupporterRepository 
       [...s.projections.values()].find((p) => p.email === email) ?? null,
     getProjectionById: async (id) => s.projections.get(id) ?? null,
     saveProjection: async (p) => void s.projections.set(p.id, structuredClone(p)),
+    members: async (list, { after, limit }) =>
+      [...s.projections.values()]
+        .filter((p) => p.lists.includes(list) && (after === null || p.id > after))
+        .sort((a, b) => (a.id < b.id ? -1 : 1))
+        .slice(0, limit)
+        .map((p) => structuredClone(p)),
+    countMembers: async (list) =>
+      [...s.projections.values()].filter((p) => p.lists.includes(list)).length,
   };
 }
 

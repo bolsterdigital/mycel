@@ -1,7 +1,12 @@
 // Kysely implementation of the transactional mail intent port, under the tenant's RLS context.
 
 import { sql, type Kysely, type Selectable } from 'kysely';
-import { type MailSend, type MailSendsRepository } from '@mycel/core';
+import {
+  type MailEdition,
+  type MailEditionsRepository,
+  type MailSend,
+  type MailSendsRepository,
+} from '@mycel/core';
 import type { Database } from './infra/schema.js';
 
 type Trx = Kysely<Database>;
@@ -127,6 +132,88 @@ export function mailSendsRepository(trx: Trx, tenantId: string): MailSendsReposi
         order by 1
       `.execute(trx);
       return rows;
+    },
+    async attemptedSince(subscriber, since) {
+      const row = await trx
+        .selectFrom('mail_sends')
+        .select(sql<string>`count(*)`.as('n'))
+        .where('tenant_id', '=', tenantId)
+        .where('subscriber', '=', subscriber)
+        .where('attempted_at', '>=', since)
+        .executeTakeFirstOrThrow();
+      return Number(row.n);
+    },
+  };
+}
+
+/**
+ * Editions as they were sent (0070): one row per locale, inserted together. `mycel_app` may
+ * move `delivered_through` and `completed_at` and nothing else, so no method here can change
+ * what was sent.
+ */
+export function mailEditionsRepository(trx: Trx, tenantId: string): MailEditionsRepository {
+  return {
+    async insert(edition) {
+      await trx
+        .insertInto('mail_editions')
+        .values(
+          edition.locales.map((l) => ({
+            tenant_id: tenantId,
+            id: edition.id,
+            locale: l.locale,
+            item_id: edition.itemId,
+            revision_id: l.revisionId,
+            list: edition.list,
+            subject: l.subject,
+            html: l.html,
+            text: l.text,
+            recipients: edition.recipients,
+            sent_at: edition.sentAt,
+          }))
+        )
+        .execute();
+    },
+    async get(id) {
+      const rows = await trx
+        .selectFrom('mail_editions')
+        .selectAll()
+        .where('id', '=', id)
+        .orderBy('locale')
+        .execute();
+      const first = rows[0];
+      if (!first) return null;
+      const edition: MailEdition = {
+        id: first.id,
+        itemId: first.item_id,
+        list: first.list,
+        recipients: first.recipients,
+        sentAt: new Date(first.sent_at),
+        deliveredThrough: first.delivered_through,
+        completedAt: first.completed_at ? new Date(first.completed_at) : null,
+        locales: rows.map((r) => ({
+          locale: r.locale,
+          revisionId: r.revision_id,
+          subject: r.subject,
+          html: r.html,
+          text: r.text,
+        })),
+      };
+      return edition;
+    },
+    async advance(id, supporterId) {
+      await trx
+        .updateTable('mail_editions')
+        .set({ delivered_through: supporterId })
+        .where('id', '=', id)
+        .execute();
+    },
+    async complete(id, at) {
+      await trx
+        .updateTable('mail_editions')
+        .set({ completed_at: at })
+        .where('id', '=', id)
+        .where('completed_at', 'is', null)
+        .execute();
     },
   };
 }

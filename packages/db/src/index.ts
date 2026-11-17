@@ -73,7 +73,7 @@ import {
   formRepository,
   submissionRepository,
 } from './forms.js';
-import { mailSendsRepository } from './mailing.js';
+import { mailEditionsRepository, mailSendsRepository } from './mailing.js';
 import { rateLimiter } from './operations/rate-limit.js';
 import { supporterRepository } from './supporters.js';
 import type { Database } from './infra/schema.js';
@@ -283,6 +283,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           supporters: supporterRepository(trx, tenantId, deps.ids),
           admissions: supporterAdmissions(trx, tenantId, deps.clock),
           mailSends: mailSendsRepository(trx, tenantId),
+          mailEditions: mailEditionsRepository(trx, tenantId),
           operators: operatorRepository(trx),
           members: membershipRepository(trx, tenantId),
           attentionReads: attentionReadsRepository(trx),

@@ -88,7 +88,8 @@ Flat keys, the names of ADR 015 rule 2. Missing keys get the default; an empty d
 | `remove_branding`         | switch            | `false`       | the public layout: `false` shows the credit               |
 | `blocks`                  | `{ type: false }` | `{}` (all on) | (per block type when a tree is saved)                     |
 | `supporters.max`          | limit             | 100 000       | `form.submit`, for a new address only                     |
-| `mail.monthly_max`        | limit             | 1 000 000     | planned (`scripts/gates/entitlements-enforced.test.mjs`)  |
+| `mail.monthly_max`        | limit             | 1 000 000     | form mail and `mailing.edition.send`                      |
+| `mail.bulk_per_minute`    | limit             | 120           | `mailing.edition.deliver`: newsletter throughput          |
 | `media.storage_max_bytes` | limit             | 50 GiB        | `media.upload` (original plus every variant)              |
 | `operators.max`           | limit             | 50            | `tenant.member.invite` (members plus pending invitations) |
 | `custom_domains.max`      | limit             | 20            | `tenant.hostname.add`                                     |

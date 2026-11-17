@@ -60,8 +60,10 @@ export interface DeliveryDeps {
 /**
  * Builds the message a subscriber sends for an event, or null when it sends none. The job
  * rebuilds it from the outbox event, so the address never has to be stored with the intent.
+ * `key` is the intent's key: a subscriber that sends one event to many recipients (an edition)
+ * reads the recipient from it; one message per event needs only the event.
  */
-export type MailSource = (event: DomainEvent) => Promise<MailMessage | null>;
+export type MailSource = (event: DomainEvent, key?: string) => Promise<MailMessage | null>;
 /** Keyed by subscriber name; what `mail.reconcile` looks up. */
 export type MailSources = Readonly<Record<string, MailSource>>;
 
@@ -80,6 +82,23 @@ export const mailCorrelation = (tenantId: string, message: MailMessage): Promise
 
 export const intentKey = (subscriber: string, eventId: string): string =>
   `${subscriber}:${eventId}`;
+
+/**
+ * The key of one recipient's intent for an event that goes to many: `<subscriber>:<recipient>:
+ * <event id>`. The recipient is an opaque id, never an address.
+ */
+export const recipientIntentKey = (
+  subscriber: string,
+  recipientId: string,
+  eventId: string
+): string => `${subscriber}:${recipientId}:${eventId}`;
+
+/** Whether `key` is an intent of this subscriber for this event, in either shape. */
+export const intentOf = (key: string, subscriber: string, eventId: string): boolean =>
+  key === intentKey(subscriber, eventId) ||
+  (key.startsWith(`${subscriber}:`) &&
+    key.endsWith(`:${eventId}`) &&
+    key.length > subscriber.length + eventId.length + 2);
 
 const runAs =
   (deps: Pick<DeliveryDeps, 'uow'>, tenantId: string, subscriber: string) =>
@@ -172,9 +191,10 @@ export async function sendOnce(
   deps: DeliveryDeps,
   event: Pick<DomainEvent, 'id' | 'tenantId'> & Partial<Pick<DomainEvent, 'props'>>,
   subscriber: string,
-  message: MailMessage
+  message: MailMessage,
+  /** `recipientIntentKey(...)` for one recipient of many; the event's own key otherwise. */
+  key = intentKey(subscriber, event.id)
 ): Promise<SendOutcome> {
-  const key = intentKey(subscriber, event.id);
   const run = runAs(deps, event.tenantId, subscriber);
 
   const props =
@@ -237,12 +257,12 @@ export async function reconcileMail(
   deps: DeliveryDeps,
   event: Pick<DomainEvent, 'id' | 'tenantId'> & Partial<Pick<DomainEvent, 'props'>>,
   subscriber: string,
-  message: MailMessage
+  message: MailMessage,
+  key = intentKey(subscriber, event.id)
 ): Promise<JobOutcome> {
-  const outcome = await sendOnce(deps, event, subscriber, message);
+  const outcome = await sendOnce(deps, event, subscriber, message, key);
   if (TERMINAL.has(outcome)) return {};
   const now = deps.clock.now();
-  const key = intentKey(subscriber, event.id);
   const run = runAs(deps, event.tenantId, subscriber);
   const intent = await run((ctx) => ctx.mailSends.get(key));
   if (intent?.attemptedAt && now.getTime() >= intent.attemptedAt.getTime() + RECONCILE_GIVE_UP_MS) {

@@ -50,6 +50,13 @@ export function withinLimit(
 }
 
 /**
+ * A limit as a number, for work that paces itself by it instead of refusing at it (the bulk mail
+ * throughput): a rate has no "current plus one" for `withinLimit` to compare.
+ */
+export const limitOf = (principal: Pick<Principal, 'entitlements'>, limit: LimitName): number =>
+  principal.entitlements[limit];
+
+/**
  * For work that runs outside `Invoker.run` (a scheduled publication, TODO #8a): the same answer
  * `guardSuspended` gives a command. A job handler calls it before it changes anything visible
  * and, on `suspended`, returns `{ next }` to try again later without losing its payload (the
