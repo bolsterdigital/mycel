@@ -30,7 +30,7 @@ import './ports.js';
 
 const Timestamp = z.string().datetime({ offset: true });
 
-const ReaderAccessEntry = z.object({
+export const ReaderAccessEntry = z.object({
   tierId: z.string().guid(),
   /** The tier's name per locale, as the site publishes it. */
   name: localized(z.string()),
@@ -71,7 +71,11 @@ async function ownSession(ctx: TransactionContext): Promise<ReaderSession> {
   return session;
 }
 
-async function accessOf(
+/**
+ * A supporter's grants with their tier names, in the tiers' order: the reader's own page shows
+ * them, and so does the admin's page of one supporter (`supporters/timeline.ts`).
+ */
+export async function accessOf(
   ctx: TransactionContext,
   supporter: SupporterProjection,
   now: Date

@@ -10,6 +10,7 @@ import { expect, type APIRequestContext, type TestInfo } from '@playwright/test'
 import { systemPrincipal, useCases } from '@mycel/core';
 import { testTenant } from '@mycel/db/testing';
 import { asOwner, withInvoker } from '../invoker';
+import { shareCardOf } from '../published/share-cards';
 import { publishMenus } from './seed';
 
 async function seed() {
@@ -90,6 +91,9 @@ export async function exerciseNavigationEtag(request: APIRequestContext, info: T
     expect(cached.etag).toBe(etag);
   };
   try {
+    // The head names the page's share card once the worker drew it, and the head is in the ETag:
+    // wait for both cards, or a card drawn between two reads answers 200 where the test expects 304.
+    for (const locale of ['nl', 'en']) await shareCardOf(request, path(locale));
     const before = { nl: await read('nl'), en: await read('en') };
     for (const locale of ['nl', 'en'] as const) {
       expect(before[locale].links).toEqual([

@@ -8,7 +8,8 @@
 // block lists (`core/content/published/overview.ts`, scenario in `content/overview-rule.ts`), and what a
 // feed lists (`core/content/published/feed.ts`, scenario in `content/feed-rule.ts`), and where an
 // old address forwards (`core/content/address/redirects.ts`, scenario in `content/redirect-rule.ts`), and whom a
-// supporter list shows (`core/supporters/listing.ts`, scenario in `supporters/list-rule.ts`). One scenario, one
+// supporter list shows (`core/supporters/listing.ts`, scenario in `supporters/list-rule.ts`), and what one
+// supporter's page shows (`core/supporters/timeline.ts`, scenario in `supporters/timeline-rule.ts`). One scenario, one
 // expected record, run once over the memory adapter and once over Postgres; a rule that one
 // adapter keeps on its own shows up as a difference here. Rejected: a suite per adapter, which
 // is how memory came to block a `resolved` intent while Postgres kept it.
@@ -48,6 +49,7 @@ import { expectedOverview, observeOverview } from './content/overview-rule.js';
 import { expectedFeed, observeFeed } from './content/feed-rule.js';
 import { expectedRedirects, observeRedirects } from './content/redirect-rule.js';
 import { expectedSupporterList, observeSupporterList } from './supporters/list-rule.js';
+import { expectedSupporterTimeline, observeSupporterTimeline } from './supporters/timeline-rule.js';
 import { closeTenantWork, requireDatabase, testTenant } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -716,8 +718,17 @@ async function observe({ uow, clock, tenant, apply }: Adapter) {
     systemPrincipal(await tenant(), 'adapter-rules'),
     apply
   );
+  const supporterTimeline = await observeSupporterTimeline(
+    invoker,
+    uow,
+    systemPrincipal(await tenant(), 'adapter-rules'),
+    systemPrincipal(await tenant(), 'adapter-rules'),
+    clock,
+    apply
+  );
   return {
     supporterList,
+    supporterTimeline,
     readmission,
     credential,
     frozen,
@@ -854,6 +865,7 @@ const expected = {
   overview: expectedOverview,
   feed: expectedFeed,
   supporterList: expectedSupporterList,
+  supporterTimeline: expectedSupporterTimeline,
   redirects: expectedRedirects,
   publishedList: {
     // Not `ingetrokken:nl` (unpublished), not `gepland` (its pin has not run).
