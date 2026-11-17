@@ -4,6 +4,9 @@
 export const en = {
   'forms.default.petitionThanks': 'Thank you! Check your inbox and confirm your signature.',
   'forms.default.signupThanks': 'Thank you! Check your inbox and confirm your subscription.',
+  'forms.default.petitionSubmit': 'Sign the petition',
+  'forms.default.signupSubmit': 'Sign up',
+  'forms.default.rsvpSubmit': 'Register',
   'forms.default.submit': 'Send',
   'forms.default.thankYou': 'Thank you',
   'forms.default.email': 'Email',

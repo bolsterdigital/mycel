@@ -270,6 +270,25 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.supporter.access.openEnded': 'Geen einddatum',
   'admin.supporter.access.standing': 'Actief',
   'admin.supporter.access.expired': 'Verlopen',
+  'admin.supporter.grant': 'Toegang geven',
+  'admin.supporter.grant.title': 'Toegang geven tot een toegangsniveau',
+  'admin.supporter.grant.replace':
+    'Een nieuwe toekenning voor hetzelfde niveau vervangt de bestaande.',
+  'admin.supporter.grant.until': 'Tot (optioneel)',
+  'admin.supporter.grant.until.hint': 'Leeg laten voor toegang zonder einde.',
+  'admin.supporter.grant.reason': 'Reden',
+  'admin.supporter.grant.reason.hint':
+    'Blijft in de geschiedenis van deze supporter en wordt nooit openbaar getoond.',
+  'admin.supporter.grant.done': 'Toegang gegeven.',
+  'admin.supporter.grant.noTiers': 'Deze site heeft nog geen toegangsniveaus. Maak er een onder',
+  'admin.supporter.grant.tiersLink': 'Leestoegang',
+  'admin.supporter.grant.conflict':
+    'Deze supporter is intussen gewijzigd of gewist. Laad de pagina opnieuw.',
+  'admin.supporter.grant.gone':
+    'Dat toegangsniveau of die toegang bestaat niet meer. Laad de pagina opnieuw.',
+  'admin.supporter.grant.invalid': 'Controleer het toegangsniveau, de reden en het eindmoment.',
+  'admin.supporter.revoke': 'Toegang terugnemen',
+  'admin.supporter.revoke.done': 'Toegang teruggenomen.',
   'admin.supporter.timeline': 'Tijdlijn',
   'admin.supporter.timeline.intro': 'Nieuwste eerst.',
   'admin.supporter.timeline.count.one': '{n} gebeurtenis',

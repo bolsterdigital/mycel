@@ -1,17 +1,32 @@
 <!-- One supporter (brief MY-251 PR 2): the address and when they were seen, their lists, the
      campaigns they took part in, the access they hold and a timeline of what they did, newest
-     first, in the admin's zone. Read-only: nothing here changes a supporter, so the page has no
-     form and works without JavaScript. Sections of the overview pattern with stacked tables, so
-     nothing scrolls sideways at 320 CSS px; a state (awaiting confirmation, withdrawn, expired) is
-     said in words, not by colour alone. -->
+     first, in the admin's zone. One thing changes here: an administrator gives or takes back
+     access to a tier (ADR 016), each in a native dialog with a plain form post, so the page works
+     without JavaScript; everyone else reads. The two triggers are one action group that stacks
+     when narrow (skill ui-action-layout). Sections of the overview pattern with stacked tables,
+     so nothing scrolls sideways at 320 CSS px; a state (awaiting confirmation, withdrawn,
+     expired) is said in words, not by colour alone. -->
 <script lang="ts">
-  import { Badge, MetaList, PageHeader, Section, StatusLine, Table } from '#lib/admin/ui/index.js';
+  import {
+    Actions,
+    Badge,
+    Button,
+    Dialog,
+    Field,
+    MetaList,
+    Notice,
+    PageHeader,
+    Section,
+    Select,
+    StatusLine,
+    Table,
+  } from '#lib/admin/ui/index.js';
   import { formatWhen } from '#lib/admin/format.js';
   import { eventSentence } from '#lib/admin/supporters/words.js';
-  import { plural, ui } from '../../../../../../i18n/index.js';
+  import { plural, refusalCopy, ui } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
-  let { data }: PageProps = $props();
+  let { data, form }: PageProps = $props();
   const t = $derived(ui(data.locale));
   const base = $derived(`/admin/${data.tenant.slug}`);
   const s = $derived(data.supporter);
@@ -28,10 +43,19 @@
     ...s.pendingLists.map((id) => ({ id, pending: true })),
   ]);
   const older = $derived(data.eventTotal - data.events.length);
+  const failed = $derived(form && 'error' in form ? form : null);
+  const done = $derived(form && 'done' in form && form.done ? form : null);
+  const standing = $derived(data.access.filter((a) => a.standing));
+  const zoneHint = $derived(
+    `${t('admin.supporter.grant.until.hint')} ${t('admin.content.publication.zone')} ${data.timeZone}`
+  );
 </script>
 
 <svelte:head
-  ><title>{s.email} · {t('admin.supporters.title')} · {data.tenant.name}</title></svelte:head
+  ><title
+    >{failed ? `${t('error.prefix')} ` : ''}{s.email} · {t('admin.supporters.title')} · {data.tenant
+      .name}</title
+  ></svelte:head
 >
 
 <main class="page admin">
@@ -45,6 +69,12 @@
     ]}
     description={t('admin.supporter.intro')}
   />
+
+  {#if failed}
+    <Notice tone="error" title={t('error.summary.title')}><p>{refusalCopy(t, failed)}</p></Notice>
+  {:else if done}
+    <Notice tone="success"><p>{t(done.done)}</p></Notice>
+  {/if}
 
   <Section id="supporter-facts" title={t('admin.supporter.facts')} locale={data.locale}>
     <MetaList
@@ -181,6 +211,92 @@
       </Table>
     {:else}
       <StatusLine tone="none" text={t('admin.supporter.access.none')} />
+    {/if}
+    {#if data.canGrant && !data.tiers.length}
+      <p class="ui-hint">
+        {t('admin.supporter.grant.noTiers')}
+        <a href="{base}/access">{t('admin.supporter.grant.tiersLink')}</a>
+      </p>
+    {:else if data.canGrant}
+      <Actions stack>
+        <Dialog
+          id="grant-access"
+          title={t('admin.supporter.grant.title')}
+          trigger={t('admin.supporter.grant')}
+          variant="primary"
+          locale={data.locale}
+        >
+          <form method="post" action="?/grant" class="ui-fields">
+            <Select
+              id="grant-tier"
+              name="tierId"
+              required
+              label={t('admin.supporter.access.tier')}
+              hint={t('admin.supporter.grant.replace')}
+              locale={data.locale}
+              options={data.tiers.map((tier) => ({ value: tier.id, label: tier.name }))}
+            />
+            <Select
+              id="grant-kind"
+              name="kind"
+              required
+              label={t('admin.supporter.access.how')}
+              locale={data.locale}
+              options={[
+                { value: 'comp', label: t('admin.supporter.access.comp') },
+                { value: 'gift', label: t('admin.supporter.access.gift') },
+              ]}
+            />
+            <Field
+              id="grant-until"
+              name="until"
+              type="datetime-local"
+              label={t('admin.supporter.grant.until')}
+              hint={zoneHint}
+              locale={data.locale}
+            />
+            <Field
+              id="grant-reason"
+              name="reason"
+              required
+              maxlength={500}
+              label={t('admin.supporter.grant.reason')}
+              hint={t('admin.supporter.grant.reason.hint')}
+              locale={data.locale}
+            />
+            <Actions><Button>{t('admin.supporter.grant')}</Button></Actions>
+          </form>
+        </Dialog>
+        {#if standing.length}
+          <Dialog
+            id="revoke-access"
+            title={t('admin.supporter.revoke')}
+            trigger={t('admin.supporter.revoke')}
+            locale={data.locale}
+          >
+            <form method="post" action="?/revoke" class="ui-fields">
+              <Select
+                id="revoke-tier"
+                name="tierId"
+                required
+                label={t('admin.supporter.access.tier')}
+                locale={data.locale}
+                options={standing.map((a) => ({ value: a.tierId, label: a.name }))}
+              />
+              <Field
+                id="revoke-reason"
+                name="reason"
+                required
+                maxlength={500}
+                label={t('admin.supporter.grant.reason')}
+                hint={t('admin.supporter.grant.reason.hint')}
+                locale={data.locale}
+              />
+              <Actions><Button>{t('admin.supporter.revoke')}</Button></Actions>
+            </form>
+          </Dialog>
+        {/if}
+      </Actions>
     {/if}
   </Section>
 
