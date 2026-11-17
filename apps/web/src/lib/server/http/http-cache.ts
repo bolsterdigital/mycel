@@ -5,7 +5,7 @@
 //     same validators, so a revalidation costs no body (the page has rendered, but the bytes
 //     are not sent);
 //   - a 404 gets `no-store` unless the route said otherwise: an item that is unpublished or
-//     restricted now may be public later, and a shared cache must not keep the 404 meanwhile;
+//     in the trash now may be public later, and a shared cache must not keep the 404 meanwhile;
 //   - a `no-store` response carries no validator, `private, no-store` included. SvelteKit adds
 //     an ETag of its own to a page the route gave none, and a form page (#30A) must never be
 //     revalidated into a 304 that keeps an old timing token, not even by `If-None-Match: *`; a
