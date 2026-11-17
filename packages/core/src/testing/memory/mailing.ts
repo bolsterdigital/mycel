@@ -111,6 +111,18 @@ export function memoryMailEditions(s: TenantStore): MailEditionsRepository {
       const row = s.mailEditions.get(id);
       return row ? structuredClone(row) : null;
     },
+    forItem: async (itemId) =>
+      [...s.mailEditions.values()]
+        .filter((e) => e.itemId === itemId)
+        .sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime() || (a.id < b.id ? 1 : -1))
+        .map(({ deliveredThrough: _d, locales, ...e }) =>
+          structuredClone({
+            ...e,
+            locales: locales
+              .map(({ locale, subject }) => ({ locale, subject }))
+              .sort((a, b) => (a.locale < b.locale ? -1 : 1)),
+          })
+        ),
     async advance(id, supporterId) {
       const row = s.mailEditions.get(id);
       if (row) row.deliveredThrough = supporterId;

@@ -160,8 +160,35 @@ export function valuesOf(doc: ContentDocument): FormValues {
     v.authorIds = [...doc.authorIds];
     v.sectionId = doc.sectionId ?? '';
     v.tags = doc.tags.join(', ');
+    if (doc.delivery.email) {
+      v.emailOn = 'on';
+      v.emailList = doc.delivery.email.listId;
+      put('emailSubject', doc.delivery.email.subject);
+    }
   }
   return v;
+}
+
+/**
+ * An article's `delivery` from the newsletter panel: read where the form showed it
+ * (`emailShown`), kept otherwise. Off is no `email`; on needs a list. An empty subject in the
+ * shown locale is that locale's title, as the field starts out.
+ */
+function deliveryFrom(
+  doc: Extract<ContentDocument, { type: 'article' }>,
+  v: FormValues,
+  subject: Record<string, string>,
+  title: Partial<Record<string, string>>,
+  shown: string | null | undefined
+): Extract<ContentDocument, { type: 'article' }>['delivery'] {
+  if (!('emailShown' in v)) return doc.delivery;
+  const { email: _email, ...delivery } = doc.delivery;
+  const listId = one(v, 'emailList') || doc.delivery.email?.listId;
+  if (one(v, 'emailOn') !== 'on' || !listId) return delivery;
+  const filled = { ...subject };
+  const named = shown ? title[shown] : undefined;
+  if (shown && !filled[shown] && named) filled[shown] = named.slice(0, 200);
+  return { ...delivery, email: { listId, subject: filled } };
 }
 
 /**
@@ -296,8 +323,10 @@ export function documentFrom(
     presentation?: { header?: 'standard' | 'cover' };
   };
   const header = 'headerLayout' in v ? one(v, 'headerLayout') : doc.presentation?.header;
+  const subject = pick('emailSubject', doc.delivery.email?.subject);
   return {
     ...article,
+    delivery: deliveryFrom(doc, v, subject, common.title, shown),
     ...(header === 'cover' ? { presentation: { header } } : {}),
     type: 'article',
     authorIds: keepOrder(doc.authorIds, many(v, 'authorIds')),

@@ -1816,7 +1816,45 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.email.preview.frame': 'De e-mail van {title}',
   'admin.email.preview.text': 'Tekstversie',
   'admin.email.panel.title': 'Nieuwsbrief',
-  'admin.email.panel.hint': 'Bekijk hoe dit artikel eruitziet als het per e-mail wordt verstuurd.',
+  'admin.email.panel.hint':
+    'Verstuur dit artikel ook naar de inschrijvers van een lijst. Wat er uitgaat is de gepubliceerde versie.',
+  'admin.email.field.on': 'Ook per mail versturen',
+  'admin.email.field.list': 'Lijst',
+  'admin.email.field.subject': 'Onderwerp van de e-mail',
+  'admin.email.field.subject.hint': 'Begint als de titel.',
+  'admin.email.noLists':
+    'Deze site heeft nog geen inschrijfformulier en dus geen lijst om naar te versturen.',
+  'admin.email.test': 'Test naar mij sturen',
+  'admin.email.send.one': 'Versturen naar {n} inschrijver',
+  'admin.email.send.other': 'Versturen naar {n} inschrijvers',
+  'admin.email.sent.one': 'Verstuurd op {at} naar {n} inschrijver.',
+  'admin.email.sent.other': 'Verstuurd op {at} naar {n} inschrijvers.',
+  'admin.email.sent.delivering': 'Wordt nog bezorgd.',
+  'admin.email.sent.view': 'Bekijk zoals verstuurd',
+  'admin.email.outcome.tested': 'Er is een test onderweg naar je eigen adres.',
+  'admin.email.outcome.sent': 'De nieuwsbrief wordt verstuurd.',
+  'admin.email.refused.notPublished':
+    'Publiceer het artikel eerst: de gepubliceerde versie wordt verstuurd.',
+  'admin.email.refused.restricted': 'Artikelen voor leden worden niet per mail verstuurd.',
+  'admin.email.refused.noDelivery':
+    'De gepubliceerde versie staat niet op versturen per mail. Zet “Ook per mail versturen” aan, sla op en publiceer.',
+  'admin.email.refused.noSubject':
+    'Een gepubliceerde taal heeft nog geen onderwerp voor de e-mail. Vul het in en publiceer opnieuw.',
+  'admin.email.refused.listsDiffer':
+    'De gepubliceerde talen noemen verschillende lijsten. Publiceer ze opnieuw met dezelfde lijst.',
+  'admin.email.refused.limit': 'Deze site heeft zijn maximum aan mails voor deze maand bereikt.',
+  'admin.email.refused.other': 'De nieuwsbrief kon niet worden verstuurd.',
+  'admin.email.send.title': 'Per mail versturen: {title}',
+  'admin.email.send.hint':
+    'Dit verstuurt de gepubliceerde versie naar alle bevestigde inschrijvers van de lijst, ieder in de taal waarin die zich inschreef. Je kunt het niet terugdraaien.',
+  'admin.email.send.recipients': 'Inschrijvers',
+  'admin.email.send.locales': 'Talen',
+  'admin.email.send.subject': 'Onderwerp ({language})',
+  'admin.email.send.cancel': 'Annuleren',
+  'admin.email.send.actions': 'Versturen',
+  'admin.email.edition.title': 'Verstuurde e-mail: {title}',
+  'admin.email.edition.hint':
+    'Dit is de e-mail zoals die is verstuurd. Latere wijzigingen aan het artikel veranderen hem niet.',
   'admin.content.revisions.by': '{when} door {who}',
   'admin.content.revisions.latest': 'nieuwste',
   'admin.content.revisions.preview': 'Voorbeeld, opent een nieuw tabblad',

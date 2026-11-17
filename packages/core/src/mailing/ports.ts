@@ -146,9 +146,16 @@ export interface MailEdition {
   locales: MailEditionLocale[];
 }
 
+/** An edition without its mail, for a list of what an item was sent as. */
+export type MailEditionSummary = Omit<MailEdition, 'locales' | 'deliveredThrough'> & {
+  locales: Pick<MailEditionLocale, 'locale' | 'subject'>[];
+};
+
 export interface MailEditionsRepository {
   insert(edition: Omit<MailEdition, 'deliveredThrough' | 'completedAt'>): Promise<void>;
   get(id: string): Promise<MailEdition | null>;
+  /** The editions of one item, newest first. */
+  forItem(itemId: string): Promise<MailEditionSummary[]>;
   advance(id: string, supporterId: string): Promise<void>;
   complete(id: string, at: Date): Promise<void>;
 }

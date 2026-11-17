@@ -125,6 +125,45 @@ describe('the pre-footer switch in the form', () => {
   });
 });
 
+describe("an article's newsletter in the form", () => {
+  const today = '2026-11-17';
+  it('turns on with a list and a subject that starts as the title, per shown locale', () => {
+    const shown = { ...valuesOf(article), emailShown: '1', emailOn: 'on', emailList: 'nieuws' };
+    const on = documentFrom(article, shown, today, 'en');
+    expect(on).toHaveProperty('delivery', {
+      web: true,
+      email: { listId: 'nieuws', subject: { en: 'Report' } },
+    });
+    // The other locale keeps its subject; a typed one is kept as typed.
+    const stored = ContentDocument.parse(
+      documentFrom(article, { ...shown, 'emailSubject.nl': 'Nieuwsbrief' }, today, 'nl')
+    );
+    const values = valuesOf(stored);
+    expect(values).toMatchObject({ emailOn: 'on', emailList: 'nieuws' });
+    expect(documentFrom(stored, { ...values, emailShown: '1' }, today, 'en')).toHaveProperty(
+      'delivery.email.subject',
+      { nl: 'Nieuwsbrief', en: 'Report' }
+    );
+  });
+
+  it('turns off without the box, and keeps the choice of a form without the panel', () => {
+    const on = ContentDocument.parse(
+      documentFrom(
+        article,
+        { ...valuesOf(article), emailShown: '1', emailOn: 'on', emailList: 'nieuws' },
+        today,
+        'nl'
+      )
+    );
+    const values: Record<string, string | string[]> = { ...valuesOf(on), emailShown: '1' };
+    expect(values['emailOn']).toBe('on');
+    delete values['emailOn'];
+    expect(documentFrom(on, values, today, 'nl')).toHaveProperty('delivery', { web: true });
+    delete values['emailShown'];
+    expect(documentFrom(on, values, today, 'nl')).toHaveProperty('delivery.email.listId', 'nieuws');
+  });
+});
+
 describe('documentFrom(valuesOf(doc))', () => {
   it('gives the same document back, blocks included', () => {
     for (const doc of [article, page, featuredPage, eventPage])

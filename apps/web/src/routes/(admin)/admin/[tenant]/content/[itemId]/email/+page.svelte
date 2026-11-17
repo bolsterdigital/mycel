@@ -1,5 +1,5 @@
-<!-- The e-mail preview of one item: the subject, the mail as a recipient's client
-     shows it, in a frame of its own (its inline styles need their own policy), and the text part
+<!-- The e-mail preview of one item, or a sent edition of it as it went out: the subject, the mail
+     as a recipient's client shows it, in a frame of its own (its inline styles need their own policy), and the text part
      under a disclosure. A link per language; works without JavaScript. The frame is sandboxed
      without `allow-same-origin`, so its document has an opaque origin and cannot reach the admin;
      `allow-scripts` is there only so accessibility checks can enter it, since the frame's own
@@ -7,7 +7,7 @@
 <script lang="ts">
   import { MetaList, SubNav } from '#lib/admin/ui/index.js';
   import { languageName } from '#lib/admin/format.js';
-  import { fill, ui } from '../../../../../../../i18n/index.js';
+  import { fill, plural, ui } from '../../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();
@@ -21,14 +21,21 @@
 </svelte:head>
 
 <main class="page admin email-preview">
-  <h1>{fill(t('admin.email.preview.title'), { title })}</h1>
+  <h1>
+    {fill(t(data.edition ? 'admin.email.edition.title' : 'admin.email.preview.title'), { title })}
+  </h1>
   <p><a href={base}>{t('admin.email.preview.back')}</a></p>
-  <p class="ui-hint">{t('admin.email.preview.hint')}</p>
+  {#if data.edition}
+    <p>{plural(t, 'admin.email.sent', data.edition.recipients, { at: data.edition.at })}</p>
+    <p class="ui-hint">{t('admin.email.edition.hint')}</p>
+  {:else}
+    <p class="ui-hint">{t('admin.email.preview.hint')}</p>
+  {/if}
   {#if data.locales.length > 1}
     <SubNav
       label={t('admin.email.preview.locales')}
       items={data.locales.map((l) => ({
-        href: `${base}/email?locale=${l}`,
+        href: `${base}/email?${new URLSearchParams({ locale: l, ...(data.edition ? { edition: data.edition.id } : {}) })}`,
         label: languageName(l),
         current: l === data.work,
       }))}

@@ -3,6 +3,7 @@
 import { sql, type Kysely, type Selectable } from 'kysely';
 import {
   type MailEdition,
+  type MailEditionSummary,
   type MailEditionsRepository,
   type MailSend,
   type MailSendsRepository,
@@ -199,6 +200,33 @@ export function mailEditionsRepository(trx: Trx, tenantId: string): MailEditions
         })),
       };
       return edition;
+    },
+    async forItem(itemId) {
+      // Index `mail_editions_item`; the mail itself stays in the table.
+      const rows = await trx
+        .selectFrom('mail_editions')
+        .select(['id', 'list', 'recipients', 'sent_at', 'completed_at', 'locale', 'subject'])
+        .where('item_id', '=', itemId)
+        .orderBy('sent_at', 'desc')
+        .orderBy('id', 'desc')
+        .orderBy('locale')
+        .execute();
+      const editions = new Map<string, MailEditionSummary>();
+      for (const r of rows) {
+        const known = editions.get(r.id);
+        if (known) known.locales.push({ locale: r.locale, subject: r.subject });
+        else
+          editions.set(r.id, {
+            id: r.id,
+            itemId,
+            list: r.list,
+            recipients: r.recipients,
+            sentAt: new Date(r.sent_at),
+            completedAt: r.completed_at ? new Date(r.completed_at) : null,
+            locales: [{ locale: r.locale, subject: r.subject }],
+          });
+      }
+      return [...editions.values()];
     },
     async advance(id, supporterId) {
       await trx

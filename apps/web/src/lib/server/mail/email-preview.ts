@@ -10,7 +10,7 @@
 
 import { useCases, type Principal } from '@mycel/core';
 import { runtime } from '../runtime.js';
-import { adminSiteUrls } from '../site.js';
+import { emailSite } from './newsletter.js';
 
 export const EMAIL_FRAME_POLICY = [
   "default-src 'none'",
@@ -21,22 +21,35 @@ export const EMAIL_FRAME_POLICY = [
   "frame-ancestors 'self'",
 ].join('; ');
 
-/** The path of the frame route that serves the rendered HTML. */
-export const emailFramePath = (slug: string, itemId: string, locale: string) =>
-  `/admin/${slug}/preview/email/${itemId}?locale=${encodeURIComponent(locale)}`;
+/** The path of the frame route that serves the rendered HTML; with `edition`, that one as sent. */
+export const emailFramePath = (
+  slug: string,
+  itemId: string,
+  locale: string,
+  edition: string | null = null
+) =>
+  `/admin/${slug}/preview/email/${itemId}?${new URLSearchParams({ locale, ...(edition ? { edition } : {}) })}`;
 
+/**
+ * The latest revision as mail (`mailing.email.get`), or with `edition` a sent edition as it went
+ * out (`mailing.edition.get`): the same page and frame show both.
+ */
 export async function renderItemEmail(
   principal: Principal,
   tenant: { slug: string; name: string; defaultLocale: string },
   itemId: string,
-  locale: string
-) {
-  const root = (await adminSiteUrls(principal, tenant.slug))('/').replace(/\/$/, '');
-  return runtime().invoker.run(useCases.getEmail, principal, {
-    itemId,
-    locale,
-    site: { name: tenant.name, url: root, defaultLocale: tenant.defaultLocale },
-  });
+  locale: string,
+  edition: string | null = null
+): Promise<{ subject: string; html: string; text: string }> {
+  const site = await emailSite(principal, tenant);
+  return edition
+    ? runtime().invoker.run(useCases.getEdition, principal, {
+        itemId,
+        locale,
+        site,
+        editionId: edition,
+      })
+    : runtime().invoker.run(useCases.getEmail, principal, { itemId, locale, site });
 }
 
 /**
