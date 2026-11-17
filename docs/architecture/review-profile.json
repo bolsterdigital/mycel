@@ -55,6 +55,8 @@
         "packages/core/src/forms/**",
         "packages/core/src/campaigns/**",
         "packages/db/src/campaigns/**",
+        "packages/core/src/money/**",
+        "packages/db/src/money/**",
         "packages/core/src/navigation/**",
         "packages/db/src/navigation/**",
         "packages/core/src/mailing/**",
