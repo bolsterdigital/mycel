@@ -208,5 +208,20 @@ export function createBrandProcessor(): BrandProcessor {
     async font(bytes) {
       validateWoff2(bytes);
     },
+    // The touch icon and manifest icons: the stored derivative, never the upload, fitted
+    // within 80% of the square so a rounded home-screen mask does not cut the mark, on the
+    // theme's background and flattened, because iOS fills a transparent icon with black.
+    async icon(logo, size, background) {
+      const inner = Math.round(size * 0.8);
+      const mark = await sharp(logo, { limitInputPixels: 4_000_000 })
+        .resize(inner, inner, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .png()
+        .toBuffer();
+      return sharp({ create: { width: size, height: size, channels: 4, background } })
+        .composite([{ input: mark, gravity: 'centre' }])
+        .flatten({ background })
+        .png()
+        .toBuffer();
+    },
   };
 }

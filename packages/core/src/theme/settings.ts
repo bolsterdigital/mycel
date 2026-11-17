@@ -20,6 +20,7 @@ import { DEFAULT_TIME_ZONE, IanaTimeZone } from '../util/time-zone.js';
 import { imageIssue } from '../content/service.js';
 import '../media/ports.js';
 import { SiteRetention } from '../ops/retention.js';
+import { AiUse } from './ai-use.js';
 
 const Footer = z.record(z.string().min(2).max(12), z.string().trim().max(500));
 /** A site-relative path or an `https:` URL; site navigation targets share it (ADR 036 rule 3). */
@@ -52,7 +53,12 @@ export const DEFAULT_CHROME: SiteChrome = { footer: {} };
  * general setting needs no new use case.
  */
 export const SiteGeneral = z
-  .object({ timeZone: IanaTimeZone, personPages: z.enum(['auto', 'off']).optional() })
+  .object({
+    timeZone: IanaTimeZone,
+    personPages: z.enum(['auto', 'off']).optional(),
+    // Which machine uses the site reserves; absent is `open` (`ai-use.ts`).
+    aiUse: AiUse.optional(),
+  })
   .strict();
 export type SiteGeneral = z.infer<typeof SiteGeneral>;
 export const DEFAULT_GENERAL: SiteGeneral = { timeZone: DEFAULT_TIME_ZONE };
@@ -173,7 +179,7 @@ export const updateSiteGeneral = defineUseCase({
   name: 'site.general.update',
   kind: 'command',
   description:
-    'Update general settings at a known version; omitted personPages preserves its current choice.',
+    'Update general settings at a known version; an omitted personPages or aiUse preserves its current choice.',
   requires: 'content:write',
   input: z.object({ baseVersion: version, general: SiteGeneral }).strict(),
   output: GeneralState,

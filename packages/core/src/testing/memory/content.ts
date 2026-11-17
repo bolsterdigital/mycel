@@ -378,6 +378,7 @@ export function memorySite(
         licence: null,
       }),
       font: async () => {},
+      icon: async (logo) => logo,
     },
   };
 }

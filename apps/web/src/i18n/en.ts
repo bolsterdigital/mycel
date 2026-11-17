@@ -2698,6 +2698,14 @@ export const en = {
   'admin.site.general.timeZone.hint':
     'The admin plans and shows times in this zone, unless someone chose their own under Preferences.',
   'admin.site.general.save': 'Save time zone',
+  'admin.site.ai.title': 'Use by AI',
+  'admin.site.ai.label': 'What may AI services do with the published content?',
+  'admin.site.ai.hint':
+    'Search engines always keep finding the site. The choice is in robots.txt and in every page; Mycel cannot stop a service that ignores it.',
+  'admin.site.ai.open': 'Everything: read, answer and train',
+  'admin.site.ai.no-training': 'Read and answer, no training',
+  'admin.site.ai.search-only': 'Search engines only',
+  'admin.site.ai.save': 'Save AI choice',
   'admin.site.retention.title': 'Keeping submissions',
   'admin.site.retention.current': 'This site keeps form submissions for {months}.',
   'admin.site.retention.months': 'Retention term',

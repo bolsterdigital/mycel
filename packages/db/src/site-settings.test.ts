@@ -47,6 +47,7 @@ describe.skipIf(skip)('site settings conformance', () => {
           licence: null,
         }),
         font: async () => {},
+        icon: async (logo) => logo,
       },
     })
   );

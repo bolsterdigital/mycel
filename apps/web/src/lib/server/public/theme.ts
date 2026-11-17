@@ -9,6 +9,7 @@ import {
   type DropCap,
   type ResolvedTheme,
   type SiteChrome,
+  type SiteGeneral,
 } from '@mycel/core';
 import { preloadFonts, themeCss, themeHash } from '../../theme/tokens.js';
 import { runtime } from '../runtime.js';
@@ -26,6 +27,7 @@ export interface SiteTheme {
 
 const bySite = new WeakMap<Site, Promise<SiteTheme>>();
 const chromeBySite = new WeakMap<Site, Promise<SiteChrome>>();
+const generalBySite = new WeakMap<Site, Promise<SiteGeneral>>();
 /** What `site.navigation.resolve` returns: the published navigation of one locale. */
 export type SiteNavigation = Awaited<ReturnType<(typeof useCases.resolveNavigation)['handler']>>;
 const navigationBySite = new WeakMap<Site, Map<string, Promise<SiteNavigation>>>();
@@ -52,6 +54,14 @@ export function siteBrand(site: Site) {
 }
 export const brandPath = (kind: 'logo' | 'font', version: number) =>
   `/_brand/${kind}/${version}.${kind === 'logo' ? 'webp' : 'woff2'}`;
+/** The square icon sizes: the iOS touch icon, then the two a web app manifest names. */
+export const ICON_SIZES = [180, 192, 512] as const;
+/**
+ * The address of a square icon of the logo on `background`: logo version and colour are in the
+ * name, so a new logo or theme gets a new address and the old one may be cached forever.
+ */
+export const iconPath = (version: number, background: string, size: number) =>
+  `/_brand/icon/${version}-${background.slice(1).toLowerCase()}-${size}.png`;
 
 async function loadSiteTheme(site: Site): Promise<SiteTheme> {
   const { value: theme } = await runtime().invoker.run(
@@ -93,6 +103,22 @@ export function siteTheme(site: Site): Promise<SiteTheme> {
   if (!found) {
     found = loadSiteTheme(site);
     bySite.set(site, found);
+  }
+  return found;
+}
+
+/** The general settings, read once per request like the chrome (robots.txt, TDM reservation). */
+export function siteGeneral(site: Site): Promise<SiteGeneral> {
+  let found = generalBySite.get(site);
+  if (!found) {
+    found = runtime()
+      .invoker.run(
+        useCases.getSiteGeneral,
+        anonymousPrincipal(siteTenant(site), ['content:read']),
+        {}
+      )
+      .then(({ value }) => value);
+    generalBySite.set(site, found);
   }
   return found;
 }

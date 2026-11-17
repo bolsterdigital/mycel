@@ -108,6 +108,7 @@ describe.skipIf(skip)('tenant export and import', () => {
         licence: null,
       }),
       font: async () => {},
+      icon: async (logo) => logo,
     },
     connectionCredentialKey: '10'.repeat(32),
   });
