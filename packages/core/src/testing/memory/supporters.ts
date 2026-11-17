@@ -8,6 +8,11 @@ import {
   type SupporterRepository,
 } from '../../supporters/ports.js';
 import { emailKey } from '../../supporters/email-key.js';
+import {
+  afterPosition,
+  compareSupporters,
+  matchesSupporterFilter,
+} from '../../supporters/listing.js';
 import type { ReaderSession, SigninLink } from '../../readers/model.js';
 import type { ReaderSessionRepository, SigninLinkRepository } from '../../readers/ports.js';
 import type { TenantStore } from './store.js';
@@ -40,6 +45,18 @@ export function memorySupporters(s: TenantStore, ids: Ids): SupporterRepository 
         .map((p) => structuredClone(p)),
     countMembers: async (list) =>
       [...s.projections.values()].filter((p) => p.lists.includes(list)).length,
+    async page(filter, { after, limit }) {
+      const matches = [...s.projections.values()]
+        .filter((p) => matchesSupporterFilter(p, filter))
+        .sort(compareSupporters);
+      return {
+        rows: matches
+          .filter((p) => after === null || afterPosition(p, after))
+          .slice(0, limit)
+          .map((p) => structuredClone(p)),
+        total: matches.length,
+      };
+    },
   };
 }
 

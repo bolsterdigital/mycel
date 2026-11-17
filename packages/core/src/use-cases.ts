@@ -154,6 +154,7 @@ import { closeJob, getOpsStatus, retryJob } from './ops/service.js';
 import { getAttentionSummary, listAttention, updateAttentionSeenAt } from './attention/service.js';
 import { UseCaseRegistry, type UseCase } from './registry.js';
 import { changeSupporterEmail, getSupporter } from './supporters/service.js';
+import { listSupporters } from './supporters/listing.js';
 import { createAccessGrant, revokeAccessGrant } from './supporters/access.js';
 import {
   completeSignin,
@@ -324,6 +325,7 @@ export const useCases = {
   testEdition,
   sendEdition,
   getSupporter,
+  listSupporters,
   changeSupporterEmail,
   eraseSupporter,
   getSupporterErasure,

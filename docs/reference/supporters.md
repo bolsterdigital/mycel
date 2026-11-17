@@ -40,6 +40,8 @@ Today the `supporters.ingest` subscriber maps `newsletter.subscribed` and `conse
 
 `supporter.get` (capability `supporters:read`, MCP resource `mycel://supporters/{email}`) returns `id`, `email`, `firstSeen`, `lastActivity`, `lists` (confirmed consent; the only lists a sender may use), `pendingLists` (signed up, not yet confirmed) and `appliedThrough`.
 
+`supporter.list` (same capability) lists the supporters of the site, newest `lastActivity` first and the higher id first within one moment: `id`, `email`, `lists`, `pendingLists`, `firstSeen` and `lastActivity` per row, `total` for every match and `next`, the cursor (`<epoch ms>.<supporter id>`) to pass as `after`. `list` narrows to supporters on that list, confirmed or pending; `status` (`confirmed` or `pending`) only together with `list`; `q` is the start of the normalised address, taken literally, never a substring. An erased supporter is never listed. The rules live in `packages/core/src/supporters/listing.ts` and one adapter-rules scenario holds memory and Postgres to them. The admin shows the list at `/admin/<tenant>/supporters` (Manage, for `supporters:read`); neither the search term nor an address is logged.
+
 Fold order is `occurred_at` compared as an instant, then `id` by code unit, which matches `collate "C"` on `events.id`. Because a late event triggers a re-fold, every arrival order of the same events ends in the same projection. List transitions: `newsletter.subscribed` with `confirmed: false` adds a pending list unless it is already confirmed; `newsletter.subscribed` without that flag, and `consent.given`, confirm it; `newsletter.unsubscribed` and `consent.withdrawn` remove it from both.
 
 ### Access grants
