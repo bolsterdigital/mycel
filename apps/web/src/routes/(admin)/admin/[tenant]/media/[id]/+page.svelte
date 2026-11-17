@@ -18,7 +18,7 @@
   } from '#lib/admin/ui/index.js';
   import { formatBytes } from '#lib/admin/format.js';
   import { shortId, withAbsent } from '#lib/admin/people/absent.js';
-  import { fill, ui, refusalCopy } from '../../../../../../i18n/index.js';
+  import { fill, plural, ui, refusalCopy } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -33,12 +33,10 @@
   const failure = $derived.by(() => {
     if (!failed) return '';
     const n = 'n' in failed ? Number(failed.n) : 0;
-    // One key per plural form; the server names the "other" form.
-    const error =
-      n === 1 && failed.error === 'admin.media.error.inUse.other'
-        ? 'admin.media.error.inUse.one'
-        : failed.error;
-    return refusalCopy(t, { ...failed, error }, { n, filename: m.filename });
+    // The server names the refusal by its base form; the count picks the language's form.
+    if (failed.error === 'admin.media.error.inUse.other')
+      return plural(t, 'admin.media.error.inUse', n, { filename: m.filename });
+    return refusalCopy(t, failed, { n, filename: m.filename });
   });
   const titleOf = (item: { title: Record<string, string>; def: string }) =>
     pickAny(item.title, data.locale, item.def) ?? '';
@@ -63,9 +61,7 @@
     },
     {
       term: t('admin.media.usage'),
-      value: fill(t(m.usageCount === 1 ? 'admin.media.usage.one' : 'admin.media.usage.other'), {
-        n: m.usageCount,
-      }),
+      value: plural(t, 'admin.media.usage', m.usageCount),
     },
     ...(data.usedIn?.items.length
       ? [

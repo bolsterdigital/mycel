@@ -5,7 +5,7 @@
 // Rejected: the sentence from core (copy belongs in the web front's catalog, ADR 007) and a link
 // per source to the status page only (an offer is solved in its editor, a connection on its page).
 import type { AttentionItem } from '@mycel/core';
-import { fill, type UiKey } from '../../../i18n/index.js';
+import { fill, plural, type Ui, type UiKey } from '../../../i18n/index.js';
 
 /** Job types with a name in the catalogue; any other type is "other". */
 const NAMED = [
@@ -28,9 +28,9 @@ export const taskName = (t: (key: UiKey) => string, type: string) =>
   t(`admin.status.task.${taskKind(type)}` as const);
 
 /** One notification in a sentence. */
-export function attentionText(t: (key: UiKey) => string, item: AttentionItem): string {
+export function attentionText(t: Ui, item: AttentionItem): string {
   const n = (key: 'admin.status.attention.mail' | 'admin.status.attention.erasure') =>
-    fill(t(`${key}.${item.count === 1 ? 'one' : 'many'}` as const), { count: String(item.count) });
+    plural(t, key, item.count);
   switch (item.source) {
     case 'job':
       return fill(t('admin.attention.item.job'), { task: taskName(t, item.detail ?? '') });

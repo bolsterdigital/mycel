@@ -35,7 +35,7 @@
   import { navEntries } from '#lib/admin/nav.js';
   import { MANAGE_SOURCES } from '#lib/admin/attention/words.js';
   import '#lib/admin/attention/attention.css';
-  import { fill, ui } from '../../../../i18n/index.js';
+  import { plural, ui } from '../../../../i18n/index.js';
   import type { LayoutProps } from './$types';
 
   let { data, children }: LayoutProps = $props();
@@ -62,13 +62,7 @@
 
   const attention = $derived(typeof data.attention === 'object' ? data.attention : null);
   const unread = $derived(attention?.summary.unread ?? 0);
-  const bellLabel = $derived(
-    unread
-      ? fill(t(unread === 1 ? 'admin.attention.bell.one' : 'admin.attention.bell.many'), {
-          count: unread,
-        })
-      : undefined
-  );
+  const bellLabel = $derived(unread ? plural(t, 'admin.attention.bell', unread) : undefined);
   const manageAsks = $derived(
     attention?.items.some((i) => MANAGE_SOURCES.includes(i.source)) ?? false
   );

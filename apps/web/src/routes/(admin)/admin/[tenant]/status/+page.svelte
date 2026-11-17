@@ -30,7 +30,14 @@
   import { formatWhen } from '#lib/admin/format.js';
   import { actorLabel, operationKey, resultKey } from '#lib/admin/audit-words.js';
   import { taskKind as named, taskName as nameOf } from '#lib/admin/attention/words.js';
-  import { fill, ui, type UiKey, refusalCopy } from '../../../../../i18n/index.js';
+  import {
+    fill,
+    plural,
+    ui,
+    type PluralKey,
+    type UiKey,
+    refusalCopy,
+  } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -51,8 +58,7 @@
     });
 
   const taskName = (type: string) => nameOf(t, type);
-  const count = (key: string, n: number) =>
-    fill(t(`${key}.${n === 1 ? 'one' : 'many'}` as UiKey), { count: String(n) });
+  const count = (key: PluralKey, n: number) => plural(t, key, n);
 
   const ANCHOR = { job: '#jobs', mail: '#mail', erasure: '#erasures' } as const;
   const attention = $derived(

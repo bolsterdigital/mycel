@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { en } from './en.js';
-import { refusalCopy, ui } from './index.js';
+import { plural, refusalCopy, ui } from './index.js';
 import { nl } from './nl.js';
 
 const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
@@ -22,6 +22,33 @@ describe('web UI catalogs', () => {
         JSON.stringify(placeholders(en[key as keyof typeof en]))
     );
     expect(differ.map(([key]) => key)).toEqual([]);
+  });
+});
+
+describe('counted phrases', () => {
+  const keys = Object.keys(en);
+  const forms = (form: string) =>
+    keys.filter((k) => k.endsWith(`.${form}`)).map((k) => k.slice(0, -form.length - 1));
+
+  it('give every one-form an other-form, the fallback for every language', () => {
+    expect(forms('one').filter((base) => !keys.includes(`${base}.other`))).toEqual([]);
+  });
+
+  it('use only the CLDR forms Dutch and English have, with the count as {n}', () => {
+    // `.many` is a CLDR form of its own (Polish, Russian), never "more than one".
+    expect(keys.filter((k) => /\.(zero|two|few|many)$/.test(k))).toEqual([]);
+    const counted = forms('one').flatMap((base) => [`${base}.one`, `${base}.other`]);
+    expect(counted.filter((k) => !en[k as keyof typeof en].includes('{n}'))).toEqual([]);
+  });
+
+  it('pick the form by the language rules, not by n === 1', () => {
+    expect(plural(ui('en'), 'admin.attention.count', 1)).toBe('1 notification');
+    expect(plural(ui('en'), 'admin.attention.count', 0)).toBe('0 notifications');
+    expect(plural(ui('nl'), 'admin.attention.count', 2)).toBe('2 meldingen');
+    // French counts 0 as `one`; Polish 2 is `few`, which no catalog has, so it falls back to other.
+    expect(plural(ui('fr'), 'admin.attention.count', 0)).toBe('0 notification');
+    expect(plural(ui('pl'), 'admin.attention.count', 2)).toBe('2 notifications');
+    expect(plural(ui('en'), 'admin.media.list.count', 1200, { n: '1,200' })).toBe('1,200 files');
   });
 });
 

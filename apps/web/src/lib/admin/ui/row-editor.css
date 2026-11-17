@@ -30,7 +30,7 @@
     border: 0;
   }
   .ui-row-style legend {
-    float: left;
+    float: inline-start;
     margin-inline-end: var(--space-1);
     padding: 0;
     font-weight: 600;

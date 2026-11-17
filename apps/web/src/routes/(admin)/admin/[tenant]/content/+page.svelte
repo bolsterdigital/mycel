@@ -27,7 +27,7 @@
     Table,
   } from '#lib/admin/ui/index.js';
   import { formatWhen } from '#lib/admin/format.js';
-  import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
+  import { fill, plural, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -57,16 +57,13 @@
   const listed = $derived(data.view.profile ?? data.type);
   const kind = $derived(t(`admin.content.filter.${listed}`));
   const number = (n: number) => new Intl.NumberFormat(data.locale).format(n);
-  const plural = (
-    key:
-      | 'admin.content.list.found'
-      | `admin.content.list.count.${'page' | 'article' | 'event' | 'zone'}`,
-    n: number
-  ) => fill(t(`${key}.${n === 1 ? 'one' : 'other'}` as const), { n: number(n) });
   const count = $derived(
-    data.filtered
-      ? plural('admin.content.list.found', data.total)
-      : plural(`admin.content.list.count.${listed}`, data.total)
+    plural(
+      t,
+      data.filtered ? 'admin.content.list.found' : `admin.content.list.count.${listed}`,
+      data.total,
+      { n: number(data.total) }
+    )
   );
   // Without any, a reader would open a menu with nothing in it. Taking offline needs a live page.
   const nameOf = (item: (typeof data.items)[number]) => item.title || t('admin.content.untitled');

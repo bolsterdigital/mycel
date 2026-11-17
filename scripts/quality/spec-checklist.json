@@ -1107,8 +1107,9 @@
     "rtl-support": {
       "category": "internationalisation",
       "level": "recommended",
-      "status": "open",
-      "gap": "no right-to-left locale is offered; logical properties are not enforced"
+      "status": "covered",
+      "file": "packages/core/src/i18n/locale.test.ts",
+      "note": "<html dir> follows the locale of the response (textDirection from Intl.Locale text info); the web-rules gate refuses a physical left or right in a stylesheet; admin fields for a right-to-left content locale do not set dir yet"
     },
     "writing-modes": {
       "category": "internationalisation",
@@ -1126,8 +1127,9 @@
     "plural-rules": {
       "category": "internationalisation",
       "level": "recommended",
-      "status": "open",
-      "gap": "catalog strings have no plural categories"
+      "status": "covered",
+      "file": "apps/web/src/i18n/catalog.test.ts",
+      "note": "counted phrases have .one and .other forms with {n}; plural() picks the form with Intl.PluralRules and falls back to .other, and a gate refuses a form chosen by n === 1"
     },
     "idn-support": {
       "category": "internationalisation",

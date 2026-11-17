@@ -4,7 +4,7 @@
 <script lang="ts">
   import BulkResults from '#lib/admin/media/BulkResults.svelte';
   import { Actions, Button, Notice, OverviewPage, Table } from '#lib/admin/ui/index.js';
-  import { fill, refusalCopy, ui } from '../../../../../../i18n/index.js';
+  import { fill, plural, refusalCopy, ui } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -16,8 +16,7 @@
   const inUse = $derived(done?.results.filter((r) => r.status === 'in-use') ?? []);
   const inUseFiles = $derived(data.files.filter((f) => f.usageCount > 0).length);
   const number = (n: number) => new Intl.NumberFormat(data.locale).format(n);
-  const usage = (n: number) =>
-    fill(t(n === 1 ? 'admin.media.usage.one' : 'admin.media.usage.other'), { n });
+  const usage = (n: number) => plural(t, 'admin.media.usage', n, { n: number(n) });
 </script>
 
 <svelte:head><title>{t('admin.media.bulk.title')} · {data.tenant.name}</title></svelte:head>
@@ -71,16 +70,9 @@
     <Actions><Button variant="link" href={data.back}>{t('admin.media.bulk.back')}</Button></Actions>
   {:else}
     <p id="media-bulk-summary">
-      {fill(
-        t(
-          data.files.length === 1
-            ? 'admin.media.bulk.summary.one'
-            : 'admin.media.bulk.summary.other'
-        ),
-        {
-          n: number(data.files.length),
-        }
-      )}
+      {plural(t, 'admin.media.bulk.summary', data.files.length, {
+        n: number(data.files.length),
+      })}
       {t('admin.media.bulk.scope')}
     </p>
     {#if inUseFiles}

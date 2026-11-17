@@ -28,7 +28,7 @@
   import { formatBytes, formatWhen } from '#lib/admin/format.js';
   import AdminScript from '#lib/admin/trusted/AdminScript.svelte';
   import { THUMB, thumbPath } from '#lib/admin/ui/thumb.js';
-  import { fill, ui, refusalCopy } from '../../../../../i18n/index.js';
+  import { fill, plural, ui, refusalCopy } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -59,14 +59,9 @@
     })}`;
   const number = (n: number) => new Intl.NumberFormat(data.locale).format(n);
   const count = $derived(
-    fill(
-      t(
-        data.filtered
-          ? (`admin.content.list.found.${data.total === 1 ? 'one' : 'other'}` as const)
-          : (`admin.media.list.count.${data.total === 1 ? 'one' : 'other'}` as const)
-      ),
-      { n: number(data.total) }
-    )
+    plural(t, data.filtered ? 'admin.content.list.found' : 'admin.media.list.count', data.total, {
+      n: number(data.total),
+    })
   );
   const chipLabel = (chip: (typeof data.chips)[number]) =>
     chip.name === 'kind'
@@ -83,8 +78,7 @@
       now,
       relative: data.dateFormat !== 'absolute',
     });
-  const usage = (n: number) =>
-    fill(t(n === 1 ? 'admin.media.usage.one' : 'admin.media.usage.other'), { n });
+  const usage = (n: number) => plural(t, 'admin.media.usage', n, { n: number(n) });
   const access = (a: string) =>
     t(a === 'restricted' ? 'admin.media.access.restricted' : 'admin.media.access.public');
   const dimensions = (m: { width: number | null; height: number | null }) =>

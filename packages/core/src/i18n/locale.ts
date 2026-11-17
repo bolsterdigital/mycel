@@ -10,6 +10,43 @@ export type Locale = z.infer<typeof Locale>;
 
 export type Localized<T> = Partial<Record<string, T>>;
 
+/** Languages written right to left, for a runtime whose `Intl.Locale` has no text info. */
+const RIGHT_TO_LEFT = new Set([
+  'ar',
+  'arc',
+  'ckb',
+  'dv',
+  'fa',
+  'he',
+  'ks',
+  'ps',
+  'sd',
+  'ug',
+  'ur',
+  'yi',
+]);
+
+/**
+ * The writing direction of a locale, for `dir` next to every `lang` a page sets: from the
+ * runtime's CLDR data (`Intl.Locale` text info), else from the language list above, else
+ * left to right. Rejected: a direction setting per tenant locale, which a site owner would have
+ * to know and could get wrong while the language already says it.
+ */
+export function textDirection(locale: string): 'ltr' | 'rtl' {
+  let found: string | undefined;
+  try {
+    const info = new Intl.Locale(locale) as Intl.Locale & {
+      getTextInfo?: () => { direction?: string };
+      textInfo?: { direction?: string };
+    };
+    found = (info.getTextInfo?.() ?? info.textInfo)?.direction;
+  } catch {
+    return 'ltr';
+  }
+  if (found === 'rtl' || found === 'ltr') return found;
+  return RIGHT_TO_LEFT.has(locale.split('-')[0] ?? locale) ? 'rtl' : 'ltr';
+}
+
 /** Schema for a localisable field: a non-empty map from locale to value. */
 export function localized<T extends z.ZodTypeAny>(schema: T): z.ZodRecord<typeof Locale, T> {
   return z

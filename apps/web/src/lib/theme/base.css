@@ -433,12 +433,14 @@
     }
   }
   :is(.page, .page > :where(.preview-selectable)) > .layout-float-left {
-    float: left;
-    margin: 0 var(--float-inner) var(--space-2) var(--float-outer);
+    float: inline-start;
+    margin-block: 0 var(--space-2);
+    margin-inline: var(--float-outer) var(--float-inner);
   }
   :is(.page, .page > :where(.preview-selectable)) > .layout-float-right {
-    float: right;
-    margin: 0 var(--float-outer) var(--space-2) var(--float-inner);
+    float: inline-end;
+    margin-block: 0 var(--space-2);
+    margin-inline: var(--float-inner) var(--float-outer);
   }
   .page
     :is(

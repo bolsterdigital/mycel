@@ -57,7 +57,7 @@
   import { Formatting } from '#lib/editor/formatting.svelte.js';
   import { INSERTABLE_BLOCK_TYPES } from '@mycel/core';
   import { formatWhen } from '#lib/admin/format.js';
-  import { fill, ui } from '../../../../../i18n/index.js';
+  import { fill, plural, ui } from '../../../../../i18n/index.js';
   import { PATTERNS } from './patterns.js';
   import type { PageProps } from './$types';
 
@@ -174,7 +174,7 @@
     <StatusLine text={t('admin.status.jobs.none')} />
     <StatusLine tone="none" text={t('admin.status.waiting.none')} />
     <StatusLine tone="unknown" text={t('admin.status.verdict.unknown')} />
-    <StatusLine tone="attention" text={t('admin.status.verdict.one')} />
+    <StatusLine tone="attention" text={plural(t, 'admin.status.verdict', 1)} />
   </Section>
 
   <section aria-labelledby="ui-badges">
@@ -565,7 +565,7 @@
         { term: t('admin.media.access'), value: t('admin.media.access.public') },
         {
           term: t('admin.media.usage'),
-          value: t('admin.media.usage.one'),
+          value: plural(t, 'admin.media.usage', 1),
           href: `${base}/content`,
         },
       ]}

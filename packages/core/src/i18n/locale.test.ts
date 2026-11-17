@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickAny } from './locale.js';
+import { pickAny, textDirection } from './locale.js';
 
 describe('pickAny', () => {
   it('takes the first locale that has a value, in the order asked', () => {
@@ -18,5 +18,16 @@ describe('pickAny', () => {
 
   it('has nothing to give for an empty map', () => {
     expect(pickAny({}, 'en')).toBeUndefined();
+  });
+});
+
+describe('textDirection', () => {
+  it('writes Arabic, Hebrew, Persian and Urdu right to left, every other locale left to right', () => {
+    for (const rtl of ['ar', 'he', 'fa', 'ur', 'ar-EG']) expect(textDirection(rtl)).toBe('rtl');
+    for (const ltr of ['nl', 'en', 'de', 'pt-BR', 'tr']) expect(textDirection(ltr)).toBe('ltr');
+  });
+
+  it('falls back to left to right for a tag the runtime cannot parse', () => {
+    expect(textDirection('not a locale')).toBe('ltr');
   });
 });

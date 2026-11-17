@@ -14,17 +14,14 @@
     Notice,
     OverviewPage,
   } from '#lib/admin/ui/index.js';
-  import { fill, refusalCopy, ui } from '../../../../../i18n/index.js';
+  import { fill, plural, refusalCopy, ui } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
   const t = $derived(ui(data.locale));
   const failed = $derived(form && 'error' in form ? form : null);
   const done = $derived(form && 'done' in form && form.done ? form : null);
-  const size = (n: number) =>
-    fill(t(n === 1 ? 'admin.pattern.manage.blocksOne' : 'admin.pattern.manage.blocksMany'), {
-      n: String(n),
-    });
+  const size = (n: number) => plural(t, 'admin.pattern.manage.blocks', n);
 </script>
 
 <svelte:head>
