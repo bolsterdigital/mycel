@@ -4,7 +4,12 @@
 import type { TransactionContext } from '../ports.js';
 import type { ConnectionAttempt, ConnectionFailure, ConnectionIntent } from './intents.js';
 
-export const CONNECTION_PROVIDERS = ['webhook', 'mailchimp'] as const;
+/**
+ * `mollie` is no outbound feed: it holds a site's Mollie API key for the payment adapter (ADR 005
+ * rule 3, MY-252 PR 3), with no forms, scopes or destination, and the connection worker never
+ * dispatches to it.
+ */
+export const CONNECTION_PROVIDERS = ['webhook', 'mailchimp', 'mollie'] as const;
 export type ConnectionProvider = (typeof CONNECTION_PROVIDERS)[number];
 export type ConnectionState = 'active' | 'paused' | 'disconnected';
 export const CONNECTION_DIRECTIONS = ['outbound'] as const;
@@ -18,6 +23,7 @@ export type ConnectionDirection = (typeof CONNECTION_DIRECTIONS)[number];
 export const PROVIDER_RECONCILES: Readonly<Record<ConnectionProvider, boolean>> = {
   webhook: false,
   mailchimp: true,
+  mollie: false,
 };
 export type ConnectionAuthority = 'mycel' | 'external';
 

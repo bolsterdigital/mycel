@@ -1,0 +1,12 @@
+{
+  "status": 422,
+  "title": "Unprocessable Entity",
+  "detail": "The amount is lower than the minimum",
+  "field": "amount",
+  "_links": {
+    "documentation": {
+      "href": "https://docs.mollie.com/overview/handling-errors",
+      "type": "text/html"
+    }
+  }
+}

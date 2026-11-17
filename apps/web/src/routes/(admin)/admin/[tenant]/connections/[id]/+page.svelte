@@ -120,7 +120,9 @@
         <Actions>
           {#if c.state === 'active'}
             <Button formaction="?/pause">{t('admin.connections.pause')}</Button>
-            <Button variant="secondary" formaction="?/test">{t('admin.connections.test')}</Button>
+            {#if c.provider !== 'mollie'}<Button variant="secondary" formaction="?/test"
+                >{t('admin.connections.test')}</Button
+              >{/if}
           {:else}
             <Button formaction="?/resume">{t('admin.connections.resume')}</Button>
           {/if}
@@ -228,50 +230,50 @@
             maxlength={160}
             value={c.purpose}
           />
-          <Field
-            id="edit-destination"
-            name="destination"
-            type="url"
-            label={t('admin.connections.destination')}
-            locale={data.locale}
-            required
-            value={c.destination ?? ''}
-          />
-          <Field
-            id="edit-scopes"
-            size="m"
-            name="consentScopes"
-            label={t('admin.connections.scopes')}
-            locale={data.locale}
-            required
-            value={c.consentScopes.join(', ')}
-          />
-          {#if c.provider === 'mailchimp'}
-            <Field
-              id="edit-confirmation"
-              label={t('admin.mailchimp.confirmationOwner')}
+          {#if c.provider !== 'mollie'}<Field
+              id="edit-destination"
+              name="destination"
+              type="url"
+              label={t('admin.connections.destination')}
               locale={data.locale}
-            >
-              {#snippet control(a)}<select {...a} name="confirmationOwner">
-                  <option value="mycel" selected={c.consentAuthority === 'mycel'}>Mycel</option>
-                  <option value="external" selected={c.consentAuthority === 'external'}
-                    >Mailchimp</option
-                  >
-                </select>{/snippet}
-            </Field>
-          {/if}
-          <fieldset>
-            <legend>{t('admin.mailchimp.forms')}</legend>
-            {#each data.forms as f}<div class="ui-choice">
-                <input
-                  type="checkbox"
-                  id={`connection-form-${f.id}`}
-                  name="formIds"
-                  value={f.id}
-                  checked={c.formIds.includes(f.id)}
-                /><label for={`connection-form-${f.id}`}>{f.list} · {f.id}</label>
-              </div>{/each}
-          </fieldset>
+              required
+              value={c.destination ?? ''}
+            />
+            <Field
+              id="edit-scopes"
+              size="m"
+              name="consentScopes"
+              label={t('admin.connections.scopes')}
+              locale={data.locale}
+              required
+              value={c.consentScopes.join(', ')}
+            />
+            {#if c.provider === 'mailchimp'}
+              <Field
+                id="edit-confirmation"
+                label={t('admin.mailchimp.confirmationOwner')}
+                locale={data.locale}
+              >
+                {#snippet control(a)}<select {...a} name="confirmationOwner">
+                    <option value="mycel" selected={c.consentAuthority === 'mycel'}>Mycel</option>
+                    <option value="external" selected={c.consentAuthority === 'external'}
+                      >Mailchimp</option
+                    >
+                  </select>{/snippet}
+              </Field>
+            {/if}
+            <fieldset>
+              <legend>{t('admin.mailchimp.forms')}</legend>
+              {#each data.forms as f}<div class="ui-choice">
+                  <input
+                    type="checkbox"
+                    id={`connection-form-${f.id}`}
+                    name="formIds"
+                    value={f.id}
+                    checked={c.formIds.includes(f.id)}
+                  /><label for={`connection-form-${f.id}`}>{f.list} · {f.id}</label>
+                </div>{/each}
+            </fieldset>{/if}
           <Actions><Button>{t('admin.connections.save')}</Button></Actions>
         </Fieldset>
       </form>
@@ -308,7 +310,11 @@
           type="password"
           autocomplete="new-password"
           label={t(
-            c.provider === 'mailchimp' ? 'admin.mailchimp.apiKey' : 'admin.connections.secret'
+            c.provider === 'mailchimp'
+              ? 'admin.mailchimp.apiKey'
+              : c.provider === 'mollie'
+                ? 'admin.mollie.apiKey'
+                : 'admin.connections.secret'
           )}
           locale={data.locale}
           required

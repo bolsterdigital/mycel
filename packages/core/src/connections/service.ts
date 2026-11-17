@@ -8,7 +8,7 @@ import { checkDestination } from './destination.js';
 import { defineUseCase } from '../registry.js';
 import type { TransactionContext } from '../ports.js';
 import { CONNECTION_DIRECTIONS, CONNECTION_PROVIDERS, type ConnectionRecord } from './ports.js';
-import { isFrozen } from './rules.js';
+import { MOLLIE_API_KEY, isFrozen } from './rules.js';
 import { Uuid, exampleId } from '../util/ids.js';
 
 const shortText = z.string().trim().min(1).max(160);
@@ -129,6 +129,11 @@ export const createConnection = defineUseCase({
       throw new UseCaseError('invalid_input', 'Mailchimp audience destination required');
     if (input.provider === 'webhook' && input.destination === null)
       throw new UseCaseError('invalid_input', 'webhook destination required');
+    if (
+      input.provider === 'mollie' &&
+      (input.destination !== null || input.formIds.length || input.consentScopes.length)
+    )
+      throw new UseCaseError('invalid_input', 'a Mollie connection has no destination or forms');
     if (input.destination !== null) await checkDestination(ctx.dns, input.destination);
     return asView(await ctx.connections.insert({ id: ctx.ids.next(), ...input }, ctx.clock.now()));
   },
@@ -165,6 +170,11 @@ export const updateConnection = defineUseCase({
       throw new UseCaseError('invalid_input', 'Mailchimp audience destination required');
     if (prior.provider === 'webhook' && nextDestination === null)
       throw new UseCaseError('invalid_input', 'webhook destination required');
+    if (
+      prior.provider === 'mollie' &&
+      (nextDestination !== null || changes.formIds?.length || changes.consentScopes?.length)
+    )
+      throw new UseCaseError('invalid_input', 'a Mollie connection has no destination or forms');
     if (changes.destination) await checkDestination(ctx.dns, changes.destination);
     return changed(await ctx.connections.update(id, baseVersion, changes, ctx.clock.now()));
   },
@@ -226,6 +236,8 @@ export const replaceConnectionCredential = defineUseCase({
   async handler(ctx, { id, baseVersion, secret }) {
     const prior = await find(ctx, id);
     refuseFrozen(prior);
+    if (prior.provider === 'mollie' && !MOLLIE_API_KEY.test(secret))
+      throw new UseCaseError('invalid_input', 'not a Mollie API key (test_… or live_…)');
     if (prior.provider === 'mailchimp') {
       let account;
       try {

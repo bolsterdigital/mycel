@@ -42,7 +42,11 @@ import { auditRepository } from './audit.js';
 import { applicationName } from './infra/sessions.js';
 import { siteSettingsRepository, brandAssetsRepository } from './site-settings.js';
 import { connectionIntentsRepository } from './connections/connection-intents.js';
-import { connectionRepository, credentialKey } from './connections/connections.js';
+import {
+  connectionRepository,
+  credentialKey,
+  paymentCredential,
+} from './connections/connections.js';
 import { assistRepository } from './assist.js';
 import {
   authorRepository,
@@ -217,9 +221,19 @@ export interface UnitOfWorkDeps {
   assistProviderLabel?: string | null;
   /** Newsletter markup; absent in suites that render no mail: then `ctx.emailRenderer` refuses. */
   emailRenderer?: import('@mycel/core').EmailRenderer | undefined;
-  /** The payment provider (ADR 005 rule 3); absent means no donation can be started. */
-  paymentProvider?: import('@mycel/core').PaymentProvider | null | undefined;
+  /**
+   * The payment provider (ADR 005 rule 3); absent means no donation can be started. One provider
+   * for every site (the fake one), or one per transaction built from the site's own key, read
+   * from its active `mollie` connection only when a call needs it.
+   */
+  paymentProvider?: import('@mycel/core').PaymentProvider | PaymentProviderFor | null | undefined;
 }
+
+/** Builds a site's payment provider; `apiKey` reads its connection's key in this transaction. */
+export type PaymentProviderFor = (site: {
+  tenantId: string;
+  apiKey: () => Promise<string | null>;
+}) => import('@mycel/core').PaymentProvider;
 
 const unconfigured = (port: string) =>
   new Proxy(
@@ -235,6 +249,18 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
   const connectionKey = deps.connectionCredentialKey
     ? credentialKey(deps.connectionCredentialKey)
     : null;
+  const providerFor = (trx: Kysely<Database>, tenantId: string) => {
+    const p = deps.paymentProvider;
+    if (typeof p !== 'function') return p ?? null;
+    let key: Promise<string | null> | undefined;
+    return p({
+      tenantId,
+      apiKey: () =>
+        (key ??= connectionKey
+          ? paymentCredential(trx, tenantId, connectionKey)
+          : Promise.resolve(null)),
+    });
+  };
   return {
     run(principal, fn) {
       return withTenant(db, principal, (trx) => {
@@ -250,7 +276,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           content: contentRepository(trx, tenantId),
           campaigns: campaignRepository(trx, tenantId),
           payments: paymentRepository(trx, tenantId),
-          paymentProvider: deps.paymentProvider ?? null,
+          paymentProvider: providerFor(trx, tenantId),
           bulkPlans: bulkPlanRepository(trx, tenantId),
           presence: presenceRepository(trx, tenantId),
           navigation: navigationRepository(trx, tenantId),

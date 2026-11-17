@@ -13,6 +13,7 @@ const app = createApp({
     uow: runtime.uow,
     access: (id) => runtime.identity.tenantAccess(id),
   },
+  payments: { signer: runtime.signer, uow: runtime.uow },
   authenticate: (h) => runtime.authenticateApiKey(h),
   platform: runtime.platformApi,
   contentRead: {

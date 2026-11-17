@@ -19,7 +19,7 @@ import { buildRegistry, useCases } from '../use-cases.js';
 import { PARTICIPATION_REQUESTED } from '../forms/events.js';
 import type { ProviderOutcome } from '../money/ports.js';
 
-const RETURN = 'https://probe.example/donation/{token}';
+const RETURN = 'http://localhost:5173/probe/donation/{token}';
 
 async function setup() {
   const clock = new FakeClock();

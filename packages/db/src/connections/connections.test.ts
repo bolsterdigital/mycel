@@ -396,4 +396,56 @@ describe.skipIf(skip)('managed connection storage', () => {
       failure: 'erasure',
     });
   });
+
+  // MY-252 PR 3: the payment adapter gets the key of the site's own active `mollie` connection,
+  // read in the transaction that needs it, and nothing for another site or a paused connection.
+  it('hands the payment adapter only this site’s active Mollie key', async () => {
+    const asked: string[] = [];
+    const keys = createUnitOfWork(appDb, {
+      clock,
+      ids: uuidv7Ids,
+      signer: new FakeSigner(),
+      inputHasher: new FakeInputHasher(),
+      dns: new FakeDns({}),
+      platform: memoryPlatform,
+      connectionCredentialKey: key,
+      paymentProvider: ({ tenantId, apiKey }) => ({
+        id: 'probe',
+        createCheckout: async () => {
+          throw new Error('unused');
+        },
+        fetchPayment: async () => {
+          asked.push(`${tenantId === a ? 'a' : 'b'}:${(await apiKey()) ?? 'none'}`);
+          return null;
+        },
+      }),
+    });
+    const ask = (tenantId: string) =>
+      keys.run(systemPrincipal(tenantId, 'test'), (ctx) => ctx.paymentProvider!.fetchPayment('x'));
+    const pa = systemPrincipal(a, 'test');
+    const created = await invoker.run(useCases.createConnection, pa, {
+      ...input,
+      provider: 'mollie',
+      consentScopes: [],
+      destination: null,
+    });
+    const keyed = await invoker.run(useCases.replaceConnectionCredential, pa, {
+      id: created.id,
+      baseVersion: created.version,
+      secret: `test_${'x'.repeat(30)}`,
+    });
+    await ask(a);
+    const active = await invoker.run(useCases.resumeConnection, pa, {
+      id: created.id,
+      baseVersion: keyed.version,
+    });
+    await ask(a);
+    await ask(b);
+    await invoker.run(useCases.pauseConnection, pa, {
+      id: created.id,
+      baseVersion: active.version,
+    });
+    await ask(a);
+    expect(asked).toEqual(['a:none', `a:test_${'x'.repeat(30)}`, 'b:none', 'a:none']);
+  });
 });

@@ -1,0 +1,38 @@
+{
+  "resource": "payment",
+  "id": "tr_7UhSN1zuXS",
+  "mode": "test",
+  "createdAt": "2026-11-17T21:00:00+00:00",
+  "amount": {
+    "value": "25.00",
+    "currency": "EUR"
+  },
+  "description": "Gift to Probe",
+  "method": null,
+  "metadata": {
+    "mycel_payment": "0194c2a0-0000-7000-8000-000000000001"
+  },
+  "status": "expired",
+  "isCancelable": false,
+  "expiresAt": "2026-11-17T21:15:00+00:00",
+  "locale": "nl_NL",
+  "profileId": "pfl_QkEhN94Ba",
+  "sequenceType": "oneoff",
+  "redirectUrl": "https://probe.example/donation/TOKEN",
+  "webhookUrl": "https://api.example/hooks/payments/TOKEN",
+  "_links": {
+    "self": {
+      "href": "https://api.mollie.com/v2/payments/tr_7UhSN1zuXS",
+      "type": "application/hal+json"
+    },
+    "dashboard": {
+      "href": "https://www.mollie.com/dashboard/org_12345678/payments/tr_7UhSN1zuXS",
+      "type": "text/html"
+    },
+    "documentation": {
+      "href": "https://docs.mollie.com/reference/create-payment",
+      "type": "text/html"
+    }
+  },
+  "expiredAt": "2026-11-17T21:15:00+00:00"
+}

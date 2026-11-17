@@ -23,7 +23,7 @@ import { anonymousPrincipal } from '../principal.js';
 
 import { RECONCILE_AFTER_MS, checkPayment, dueDonations } from './service.js';
 
-const RETURN = 'https://probe.example/donation/{token}';
+const RETURN = 'http://localhost:5173/probe/donation/{token}';
 
 async function setup(provider: FakePaymentProvider | null = new FakePaymentProvider()) {
   const clock = new FakeClock();
@@ -126,7 +126,7 @@ describe('a donation form', () => {
     });
     expect(result.checkoutUrl).toBe(`https://pay.example/checkout/fake_${payment!.id}`);
     expect(provider!.requests[0]!.returnUrl).toBe(
-      `https://probe.example/donation/${encodeURIComponent(result.token!)}`
+      `http://localhost:5173/probe/donation/${encodeURIComponent(result.token!)}`
     );
   });
 

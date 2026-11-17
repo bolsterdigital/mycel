@@ -1,4 +1,5 @@
 import { createMailchimpCallbackApp, type MailchimpCallbackDeps } from './mailchimp/callback.js';
+import { createPaymentWebhookApp, type PaymentWebhookDeps } from './payments/webhook.js';
 // HTTP front (ADR 001, ADR 009). Every registered use case is `POST /v1/<name>` with a JSON body
 // validated by the use case's own schema; a flat query is also `GET /v1/<name>?field=...` with a
 // weak ETag (`etag` in `http-shape.ts`). Errors are Problem Details (`problem.ts`) and the OpenAPI 3.1
@@ -61,6 +62,8 @@ import { problem } from './problem.js';
 
 export interface AppDeps {
   mailchimp?: MailchimpCallbackDeps;
+  /** A payment provider's webhook (MY-252 PR 3); without it `/hooks/payments/*` is a 404. */
+  payments?: PaymentWebhookDeps;
   invoker: Invoker;
   authenticate(authorization: string | undefined): Promise<Principal | null>;
   /** The platform API (TODO #16); absent without PLATFORM_API_TOKEN, and `/platform/*` is a 404. */
@@ -122,6 +125,7 @@ export function createApp({
   observability,
   wellKnown,
   mailchimp,
+  payments,
   trustProxy = false,
 }: AppDeps): Hono {
   const app = new Hono();
@@ -209,6 +213,7 @@ export function createApp({
     );
   if (contentRead) app.route('/v1/sites', createContentReadApp(contentRead));
   if (mailchimp) app.route('/hooks/mailchimp', createMailchimpCallbackApp(mailchimp));
+  if (payments) app.route('/hooks/payments', createPaymentWebhookApp(payments));
 
   const principalOf = async (c: Context) => {
     const principal = await authenticate(c.req.header('authorization'));

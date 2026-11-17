@@ -27,7 +27,7 @@ describe('donations.reconcile', () => {
         currency: 'EUR',
         description: 'Donation',
         locale: 'nl',
-        returnUrl: 'https://probe.example/donation/{token}',
+        returnUrl: 'http://localhost:5173/probe/donation/{token}',
       });
     const fresh = await give();
     const tenants = async () => [TENANT];

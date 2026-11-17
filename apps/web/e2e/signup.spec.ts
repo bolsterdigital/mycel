@@ -34,6 +34,7 @@ import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { campaignCardFixture } from './lib/blocks/campaigns';
 import { exerciseRestrictedArticle } from './lib/published/restricted';
 import { exerciseDonation } from './lib/forms/donation';
+import { exerciseMollieConnection } from './lib/forms/mollie';
 import { exerciseFundraiser } from './lib/forms/fundraiser';
 
 /**
@@ -762,6 +763,13 @@ test.describe('in English', () => {
 test('a donation: an amount, the test provider, thanks or failure, Donations and the person', async ({
   page,
 }, testInfo) => exerciseDonation(page, testInfo.project.name));
+
+// MY-252 PR 3: the site's Mollie key under Connections (lib/forms/mollie.ts).
+test.describe('a Mollie key', () => {
+  test.use({ viewport: NARROW, locale: 'nl-NL' });
+  test('stored, live, hidden, and gone on disconnect', ({ page }) =>
+    exerciseMollieConnection(page));
+});
 
 // ADR 033 rule 8: a fundraiser from the campaigns screen, a paid gift, and the money on card and list.
 test('a fundraiser: start with a goal in euros, open, give, count the money on a card', async ({

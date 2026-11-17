@@ -54,7 +54,7 @@ async function observe(uow: UnitOfWork, provider: FakePaymentProvider, tenantId:
     currency: 'EUR',
     description: 'Donation',
     locale: 'nl',
-    returnUrl: 'https://probe.example/donation/{token}',
+    returnUrl: 'http://localhost:5173/probe/donation/{token}',
   });
   const { donation } = await invoker.run(useCases.getDonation, admin, { paymentId });
   provider.settle(donation.providerRef, 'refunded');
