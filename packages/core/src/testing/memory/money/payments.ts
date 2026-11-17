@@ -2,15 +2,15 @@
 // fake provider is the other side of a payment for tests and for a trial installation: a test
 // settles a payment by its reference and the next `donation.check` finds it.
 
-import type { LedgerEntry, Payment } from '../../money/model.js';
+import type { LedgerEntry, Payment } from '../../../money/model.js';
 import type {
   CheckoutRequest,
   PaymentProvider,
   PaymentRepository,
   ProviderOutcome,
   ProviderPayment,
-} from '../../money/ports.js';
-import type { TenantStore } from './store.js';
+} from '../../../money/ports.js';
+import type { TenantStore } from '../store.js';
 
 export function memoryPayments(s: TenantStore): PaymentRepository {
   const rows = s.payments;

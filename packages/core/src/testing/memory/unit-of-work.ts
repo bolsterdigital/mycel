@@ -34,7 +34,7 @@ import { memoryBulkPlans, memoryContent, memoryPresence, memorySite } from './co
 import { memoryErasures } from './erasures/repository.js';
 import { memoryPersonErasures } from './erasures/people.js';
 import { memoryCampaigns } from './campaigns.js';
-import { memoryPayments } from './money.js';
+import { memoryPayments } from './money/payments.js';
 import type { PaymentProvider } from '../../money/ports.js';
 import {
   FakeClock,
