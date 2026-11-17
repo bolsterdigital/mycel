@@ -21,6 +21,7 @@ import { expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker, asOwner } from './lib/invoker';
 import { NARROW, TEXT_SIZES, focusObscuredProblems, layoutGate, setTextSize } from './lib/layout';
 import { forwarded, login } from './lib/login';
+import { exerciseSupporterGrants } from './lib/access/grants';
 import { ADMIN_LOCALES, ADMIN_ROUTES, type GateRoute, PUBLIC_ROUTES } from './routes';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { testTenant } from '@mycel/db/testing';
@@ -1435,7 +1436,7 @@ test.describe('admin-shell', () => {
 // a healthy page needs no interruption. A separate context contains the deliberate spin.
 // The supporter list and one supporter's page (MY-251): who signed up and what they did, for a
 // reader of `supporters:read` only. The list, its filter and its search are plain GET and the
-// page is read-only, so both projects walk the same pages.
+// page's one change, a grant, is a plain form post, so both projects walk the same pages.
 test.describe('supporters', () => {
   // One editor per admin language: an operator keeps the language of their first sign-in.
   const editor = (locale: string) => `supporters-editor-${locale}@probe.test`;
@@ -1448,8 +1449,11 @@ test.describe('supporters', () => {
     // The page of one supporter: a second, unconfirmed signup and a withdrawal after it.
     ['broer@elders.example', 4, { list: 'gate-extra', confirmed: false }],
     ['broer@elders.example', 5, { list: 'gate-other' }, 'newsletter.unsubscribed'],
+    // Their own supporter for the grant test, whose events would move the timeline above.
+    ['gunst@elders.example', 6, { list: 'gate-grant' }],
   ] as const;
   let broerId = '';
+  let gunstId = '';
 
   test.beforeAll(async () => {
     const principal = systemPrincipal(await tenantId(), 'e2e');
@@ -1487,6 +1491,7 @@ test.describe('supporters', () => {
         );
       }
       broerId = (await invoker.run(useCases.getSupporter, principal, { email: fixtures[2][0] })).id;
+      gunstId = (await invoker.run(useCases.getSupporter, principal, { email: fixtures[5][0] })).id;
     });
   });
 
@@ -1576,6 +1581,8 @@ test.describe('supporters', () => {
         await expect(lists).toHaveCount(1);
         await expect(lists).toContainText('gate-extra');
         await expect(lists.locator('.ui-badge')).toHaveText(words.pending);
+        // Giving access is an administrator's: an editor reads and sees no action.
+        await expect(page.locator('#supporter-access button')).toHaveCount(0);
         if (isA11y()) {
           await expectNoAxeViolations(page, { label: `supporter page, ${locale}` });
           for (const text of TEXT_SIZES) {
@@ -1594,6 +1601,9 @@ test.describe('supporters', () => {
         expect((await page.goto('/admin/probe/supporters/broer'))?.status()).toBe(404);
       });
     });
+
+  test('an administrator gives access to a tier and takes it back', ({ page }) =>
+    exerciseSupporterGrants(page, gunstId, fixtures[5][0]));
 
   test('an author has no Supporters entry and the list refuses them', async ({ page }) => {
     await login(page, '/admin/probe/beheer', author);
