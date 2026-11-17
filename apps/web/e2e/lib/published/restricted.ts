@@ -6,12 +6,13 @@
 // those a shared cache would act on. The core matrix is access/projection.test.ts. The spec
 // brings the sign-in (it owns the mail spool); the fixtures are made here.
 
-import { expect, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { systemPrincipal, useCases } from '@mycel/core';
 import { requireApi } from '../api';
 import { expectNoAxeViolations } from '../axe';
 import { tenantId, withInvoker } from '../invoker';
+import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from '../layout';
 
 const SITE = 'http://probe.localhost:4173';
 const PUBLIC_CACHE = 'public, max-age=60, stale-while-revalidate=600';
@@ -136,6 +137,16 @@ export async function exerciseRestrictedArticle(
   await page.goto(url);
   await expect(gate.getByRole('heading', { name: 'Log in om verder te lezen' })).toBeVisible();
   await expectNoAxeViolations(page);
+  // The gate at 320 CSS px, also with the largest text: the whole label, nothing cut or overflowing.
+  const wide = page.viewportSize()!;
+  await page.setViewportSize(NARROW);
+  for (const size of TEXT_SIZES) {
+    await setTextSize(page, size);
+    await layoutGate(page, `reader gate at 320px / ${size}`, 'main');
+  }
+  await gate.screenshot({ path: test.info().outputPath('reader-gate-320-200.png') });
+  await setTextSize(page, '16px');
+  await page.setViewportSize(wide);
 
   // The gate leads to the sign-in page and back to the article; without a grant the reader
   // gets the same teaser, as theirs alone: no validator, no shared cache.
