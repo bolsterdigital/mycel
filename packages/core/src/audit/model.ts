@@ -57,6 +57,10 @@ export function auditActor(actor: Actor): { kind: AuditActorKind; id: string | n
       return { kind: 'system', id: actor.job };
     case 'anonymous':
       return { kind: 'anonymous', id: null };
+    // A reader is a visitor to the audit: who reads a site is not who-did-what on it, and the
+    // log holds no id of a person who only reads (ADR 019 rule 7).
+    case 'reader':
+      return { kind: 'anonymous', id: null };
   }
 }
 

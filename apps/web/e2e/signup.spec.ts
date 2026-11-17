@@ -18,6 +18,7 @@ import {
 } from './lib/layout';
 import {
   BLOCK_DEFINITIONS as DEFS,
+  SIGNIN_MIN_FILL_SECONDS,
   capabilitiesFor,
   systemPrincipal,
   UseCaseError,
@@ -1037,6 +1038,173 @@ test('an administrator sets how long submissions are kept; an editor cannot', as
 // Every hero, CTA and form variant and width between prose (actionBlocks in lib/layout), measured
 // against the page's own rails. Here because a form block is this flow's way in; the page stays
 // in probe like the text and media pages do.
+// Reader sign-in (ADR 016 rule 1): the flow on the site's own hostname, where the cookie lives.
+const READER = 'http://probe.localhost:4173/reader';
+const SIGNED_IN = 'Je bent op dit apparaat ingelogd.';
+/** The sign-in form waits two seconds between render and post (core readers/model.ts). */
+const pastSigninFillTime = () =>
+  new Promise((resolve) => setTimeout(resolve, SIGNIN_MIN_FILL_SECONDS * 1000 + 300));
+
+test('a reader signs in with a magic link: form, mail, one button, a session on this site, sign-out', async ({
+  page,
+  request,
+  context,
+}, testInfo) => {
+  // The project in the address: both projects may start in the same millisecond.
+  const email = `e2e-reader-${testInfo.project.name}-${Date.now()}@example.org`;
+  const opened = await page.goto(READER);
+  expect(opened?.headers()['cache-control']).toBe('no-store');
+  expect(opened?.headers()['x-robots-tag']).toBe('noindex');
+  await expect(page.getByRole('heading', { level: 1, name: 'Inloggen' })).toBeVisible();
+  await expectFormScripts(page);
+  await expectNoAxeViolations(page);
+  await page.getByLabel('E-mailadres').fill(email);
+  await pastSigninFillTime();
+  await page.getByRole('button', { name: 'Stuur mij een inloglink' }).click();
+  await expect(page).toHaveURL(`${READER}/signin/sent`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Kijk in je mail' })).toBeVisible();
+  await expectNoAxeViolations(page);
+
+  const mail = await waitForMail(email);
+  const link = /https?:\/\/\S+\/reader\/signin\?token=\S+/.exec(mail.text)![0];
+  expect(link.startsWith(`${READER}/signin?token=`)).toBe(true);
+  const token = new URL(link).searchParams.get('token')!;
+  // Asking proves nothing, and neither does a scanner that opens the link: no supporter, no
+  // cookie, nothing stored on the way.
+  const scanned = await request.get(link);
+  expect(scanned.status()).toBe(200);
+  expect(scanned.headers()['cache-control']).toBe('no-store');
+  expect(scanned.headers()['referrer-policy']).toBe('strict-origin');
+  expect(scanned.headers()['set-cookie']).toBeUndefined();
+  expect(await supporter(request, email)).toBeNull();
+  const post = (origin: string) =>
+    request.post(`${READER}/signin`, {
+      headers: {
+        origin,
+        accept: 'text/html',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      data: `token=${encodeURIComponent(token)}`,
+      maxRedirects: 0,
+    });
+  expect((await post('https://evil.example')).status()).toBe(403);
+
+  // The person opens the link and presses the one button: a 303 to the tokenless reader page.
+  await page.goto(link);
+  await expectNoAxeViolations(page);
+  await page.getByRole('button', { name: 'Inloggen' }).click();
+  await expect(page).toHaveURL(READER);
+  await expect(page.getByText(SIGNED_IN)).toBeVisible();
+  await expectNoAxeViolations(page);
+  expect(await supporter(request, email)).toMatchObject({ lists: [], pendingLists: [] });
+
+  // Host-only, HttpOnly, Lax, twelve hours, and no address in its value.
+  const cookie = (await context.cookies()).find((c) => c.name === 'mycel_reader')!;
+  expect(cookie).toMatchObject({
+    domain: 'probe.localhost',
+    path: '/',
+    httpOnly: true,
+    sameSite: 'Lax',
+    secure: false,
+  });
+  const hours = (cookie.expires - Date.now() / 1000) / 3600;
+  expect(hours).toBeGreaterThan(11.9);
+  expect(hours).toBeLessThanOrEqual(12);
+  const payload = Buffer.from(cookie.value.split('.')[0]!, 'base64url').toString('utf8');
+  expect(Object.keys(JSON.parse(payload)).sort()).toEqual(['exp', 'iat', 'sid', 'tid', 'typ']);
+
+  // The link worked once.
+  const replay = await post('http://probe.localhost:4173');
+  expect(replay.status()).toBe(303);
+  expect(replay.headers()['location']).toBe('/reader/signin/invalid');
+  expect(replay.headers()['set-cookie']).toBeUndefined();
+
+  // A reader of this site is no operator and no reader of another site, even when the value is
+  // sent where the browser would never send it.
+  const admin = await request.get('/admin/probe', {
+    headers: { cookie: `mycel_session=${cookie.value}` },
+  });
+  expect(await admin.text()).toContain('start=1');
+  const slug = `reader-other-${testInfo.project.name}`;
+  await asOwner((owner) =>
+    testTenant(owner, slug, {
+      name: 'Other',
+      locales: ['nl'],
+      platformDomain: process.env['PLATFORM_DOMAIN']!,
+      reuse: true,
+    })
+  );
+  const elsewhere = await request.get(`http://${slug}.localhost:4173/reader`, {
+    headers: { cookie: `mycel_reader=${cookie.value}` },
+  });
+  expect(elsewhere.status()).toBe(200);
+  expect(await elsewhere.text()).not.toContain(SIGNED_IN);
+  const here = () => request.get(READER, { headers: { cookie: `mycel_reader=${cookie.value}` } });
+  expect(await (await here()).text()).toContain(SIGNED_IN);
+
+  // Sign-out ends the session, also for a copy of the cookie kept elsewhere.
+  await page.getByRole('button', { name: 'Uitloggen' }).click();
+  await expect(page).toHaveURL(READER);
+  await expect(page.getByLabel('E-mailadres')).toBeVisible();
+  expect((await context.cookies()).some((c) => c.name === 'mycel_reader')).toBe(false);
+  expect(await (await here()).text()).not.toContain(SIGNED_IN);
+});
+
+test('five sign-in requests for one address give one answer and one mail, a bot the same answer and none', async ({
+  page,
+  request,
+}, testInfo) => {
+  const run = `${testInfo.project.name}-${Date.now()}`;
+  const email = `e2e-reader-bomb-${run}@example.org`;
+  const bot = `e2e-reader-bot-${run}@example.org`;
+  const html = await (await request.get(READER)).text();
+  const started = /name="_started"[^>]*value="([^"]*)"/.exec(html)![1]!;
+  await pastSigninFillTime();
+  const ask = (fields: Record<string, string>) =>
+    request.post(`${READER}?/request`, {
+      headers: {
+        origin: 'http://probe.localhost:4173',
+        accept: 'text/html',
+        'content-type': 'application/x-www-form-urlencoded',
+        // Each from its own address, so the stricter no-proof bucket is not what stops a post.
+        'x-forwarded-for': freshIp(),
+      },
+      data: new URLSearchParams(fields).toString(),
+      maxRedirects: 0,
+    });
+  const answers = [];
+  for (let i = 0; i < 5; i++) answers.push(await ask({ _started: started, website: '', email }));
+  // No honeypot field, a filled honeypot and no timing token: not our form.
+  answers.push(await ask({ _started: started, email: bot }));
+  answers.push(await ask({ _started: started, website: 'x', email: bot }));
+  answers.push(await ask({ website: '', email: bot }));
+  for (const res of answers) {
+    expect(res.status()).toBe(303);
+    expect(res.headers()['location']).toBe('/reader/signin/sent');
+  }
+  // Only a value that is no address at all gets the form back, which says nothing of anyone.
+  const malformed = await ask({ _started: started, website: '', email: 'not-an-address' });
+  expect(malformed.status()).toBe(400);
+
+  await waitForMail(email);
+  // The worker drains the outbox every few seconds: give a second mail the time to show up.
+  await new Promise((r) => setTimeout(r, 4000));
+  expect(mailsTo(email)).toBe(1);
+  expect(mailsTo(bot)).toBe(0);
+
+  // A link that is no link lands on the one failure page, with a way back to the form.
+  await page.goto(`${READER}/signin?token=forged`);
+  await page.getByRole('button', { name: 'Inloggen' }).click();
+  await expect(page).toHaveURL(`${READER}/signin/invalid`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Deze link werkt niet' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Nieuwe link aanvragen' })).toHaveAttribute(
+    'href',
+    '/reader'
+  );
+  await expectNoAxeViolations(page);
+  expect((await request.get(`${READER}/signin/whatever`)).status()).toBe(404);
+});
+
 test.describe('hero, CTA and form keep their rails', () => {
   test.beforeAll(async ({ request }) => {
     onlyA11y('composition measurements run in a11y');

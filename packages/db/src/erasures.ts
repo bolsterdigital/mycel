@@ -500,6 +500,12 @@ async function eraseRows(
     )
     select count(*)::text as deleted from gone`.execute(trx);
   changed += Number(participations.rows[0]?.deleted ?? 0);
+  // A reader session of an erased supporter ends here, before its clock runs out (ADR 016 rule 1).
+  count(
+    await sql`delete from reader_sessions where supporter_id = any(${supporterIds}::uuid[])`.execute(
+      trx
+    )
+  );
   if (!addresses.size) return changed;
 
   // Copies that carry an address anywhere, also inside free text: only rows whose JSON holds an
@@ -517,6 +523,14 @@ async function eraseRows(
     if (!proven(row.props, row.props) && !spared(row.props, row.props['submissionId']))
       outbox.push(row);
   const eventIds = outbox.map((e) => e.id);
+  // A pending sign-in link is a copy of the address (0069). Its outbox event carries the link's
+  // id and no address, so the mail intent and the reconcile job of that event go by that id.
+  const endedAddresses = [...addresses].filter(ended);
+  const links = await sql<{ id: string }>`
+    delete from reader_signin_links where email = any(${endedAddresses}::text[])
+    returning id`.execute(trx);
+  changed += links.rows.length;
+  for (const link of links.rows) eventIds.push(link.id);
   count(
     await sql`delete from mail_sends where event_id::text = any(${eventIds}::text[])`.execute(trx)
   );

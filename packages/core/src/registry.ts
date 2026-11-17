@@ -111,6 +111,11 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   'mailing.opt_in.confirm',
   'mailing.opt_in.get',
   'media.get',
+  // Reader sign-in (ADR 016 rule 1): asking for a link, using it once, and reading whether a
+  // cookie still names a standing session. The tenant is the site's, never the payload's.
+  'reader.session.get',
+  'reader.signin.complete',
+  'reader.signin.request',
   'site.brand.get',
   'site.chrome.get',
   // ADR 036 rule 8: published, public targets only; nothing personalised.
@@ -120,6 +125,12 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   'site.general.get',
   'site.theme.get',
 ]);
+
+/**
+ * What a signed-in reader reaches beside the visitor's list: ending their own session. Closed the
+ * same way, so a reader cookie opens no use case someone forgot to think about.
+ */
+export const READER_USE_CASES: ReadonlySet<string> = new Set(['reader.signout']);
 
 /**
  * The commands that write no audit row (ADR 029 rule 3), closed like `ANONYMOUS_USE_CASES`: a new
@@ -155,6 +166,12 @@ export class UseCaseRegistry {
   /** Authorization check shared by every front, so no front can forget it. */
   authorize(useCase: UseCase, principal: Principal): boolean {
     if (principal.actor.kind === 'anonymous' && !ANONYMOUS_USE_CASES.has(useCase.name))
+      return false;
+    if (
+      principal.actor.kind === 'reader' &&
+      !ANONYMOUS_USE_CASES.has(useCase.name) &&
+      !READER_USE_CASES.has(useCase.name)
+    )
       return false;
     if (useCase.actors && !useCase.actors.includes(principal.actor.kind)) return false;
     return requiredCapabilities(useCase).every((c) => can(principal, c));

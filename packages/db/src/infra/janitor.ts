@@ -1,5 +1,6 @@
 // Janitor (ADR 011 rule 2): the one cross-tenant delete in the system, expired rate-limit windows
-// (and since TODO #20b the platform's login-limit windows, since ADR 029 expired presence rows).
+// (and since TODO #20b the platform's login-limit windows, since ADR 029 expired presence rows,
+// since 0069 expired reader sign-in links and sessions).
 // Runs as `mycel_janitor` (migration 0006) for the duration of one transaction, like the outbox
 // drain runs as `mycel_worker`. It is the handler of the hourly `rate_limits.sweep` job (TODO #15,
 // packages/api/src/jobs.ts). Rejected: deleting from inside `form.submit` as mycel_app, which
@@ -16,9 +17,17 @@ const KEEP = '1 day';
 const PRESENCE_KEEP = '10 minutes';
 
 /**
+ * A sign-in link or a reader session that ended an hour ago (0069, whose janitor policies reach
+ * no younger row): the link row is the flow's one copy of an address and is of no use after its
+ * fifteen minutes.
+ */
+const READER_KEEP = '1 hour';
+
+/**
  * Delete rate-limit windows older than a day, across tenants, and the login-limit windows of the
  * same age (`login_attempts`, 0018, whose janitor policies reach no younger window), and the
- * presence rows nobody reads any more (`content_presence`, 0038); returns how many rows went.
+ * presence rows nobody reads any more (`content_presence`, 0038), and the expired sign-in links
+ * and reader sessions (0069); returns how many rows went.
  */
 export async function sweepRateLimits(operatorDb: Kysely<Database>): Promise<number> {
   return asRole(operatorDb, 'mycel_janitor', async (trx) => {
@@ -30,9 +39,16 @@ export async function sweepRateLimits(operatorDb: Kysely<Database>): Promise<num
       ), presence as (
         delete from content_presence
         where last_seen_at < now() - ${PRESENCE_KEEP}::interval returning 1
+      ), links as (
+        delete from reader_signin_links
+        where expires_at < now() - ${READER_KEEP}::interval returning 1
+      ), sessions as (
+        delete from reader_sessions
+        where expires_at < now() - ${READER_KEEP}::interval returning 1
       )
       select (select count(*) from gone) + (select count(*) from logins)
-        + (select count(*) from presence) as n`.execute(trx);
+        + (select count(*) from presence) + (select count(*) from links)
+        + (select count(*) from sessions) as n`.execute(trx);
     return Number(rows[0]?.n ?? 0);
   });
 }

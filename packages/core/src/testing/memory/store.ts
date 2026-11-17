@@ -110,6 +110,9 @@ export interface TenantStore {
   projections: Map<string, SupporterProjection>;
   /** Keyed by intent key. */
   mailSends: Map<string, MailSend>;
+  /** `reader_signin_links` and `reader_sessions` (0069), keyed by id. */
+  signinLinks: Map<string, import('../../readers/model.js').SigninLink>;
+  readerSessions: Map<string, import('../../readers/model.js').ReaderSession>;
   /** Keyed by operator id. */
   members: Map<string, { capabilities: Capability[]; createdAt: Date; attentionSeenAt?: Date }>;
   apiKeys: Map<string, StoredApiKey>;
@@ -198,6 +201,8 @@ const emptyTenant = (): TenantStore => ({
   events: new Map(),
   projections: new Map(),
   mailSends: new Map(),
+  signinLinks: new Map(),
+  readerSessions: new Map(),
   members: new Map(),
   apiKeys: new Map(),
   hostnames: new Map(),

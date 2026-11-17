@@ -49,6 +49,8 @@ const MODULES = [
   'mailing',
   'media',
   'ops',
+  // ADR 016 rule 1: a reader's own sign-in and session, on the site they read.
+  'reader',
   'site',
   'supporter',
   'tenant',
@@ -84,6 +86,9 @@ const VERBS = [
   ...['open', 'archive'],
   // A key, a hostname, a visitor's entry points, a theme report.
   ...['revoke', 'verify', 'upload', 'submit', 'confirm', 'check'],
+  // A reader's sign-in: `request` (above) asks for the link, `complete` uses it, `signout` ends
+  // the session it made.
+  ...['complete', 'signout'],
 ];
 
 function checkVocabulary(name: string, fail: (rule: string) => void): void {

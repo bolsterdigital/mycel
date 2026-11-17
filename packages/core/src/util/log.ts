@@ -16,7 +16,7 @@ export const noopLogger: Logger = {
 };
 
 /**
- * `operator:<id>`, `api-key:<id>`, `agent:<keyId>`, `system:<job>` or `anonymous`: ids only. An
+ * `operator:<id>`, `api-key:<id>`, `agent:<keyId>`, `system:<job>`, `anonymous` or `reader`: ids only. An
  * actor object never goes into a log (brief #17a decision 3): an anonymous one may carry an
  * `ipHash`, and an object typed `Actor` may hold more keys at run time than its type says.
  */
@@ -32,6 +32,8 @@ export function actorRef(actor: Actor): string {
       return `system:${actor.job}`;
     case 'anonymous':
       return 'anonymous';
+    case 'reader':
+      return 'reader';
   }
 }
 

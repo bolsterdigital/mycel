@@ -244,10 +244,24 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
     Object.assign(p, { email: tomb, lists: [], pendingLists: [], grants: [] });
     changed++;
   }
+  // A reader session of an erased supporter ends here, before its clock runs out.
+  for (const [id, session] of s.readerSessions)
+    if (ids.has(session.supporterId)) {
+      s.readerSessions.delete(id);
+      changed++;
+    }
   // Mail intents and their reconcile jobs hang off the outbox event that carried the address;
   // find them before the scrub below takes the address out of that event.
   const tenantOutbox = store.outbox.filter((e) => e.tenantId === tenantId);
   const eventIds = new Set<string>();
+  // A pending sign-in link is a copy of the address. Its outbox event carries the link's id
+  // and no address, so the mail intent and reconcile job of that event go by that id.
+  for (const [id, link] of s.signinLinks)
+    if (ended(link.email)) {
+      s.signinLinks.delete(id);
+      changed++;
+      eventIds.add(id);
+    }
   for (const e of tenantOutbox)
     if (carries(e.props) && !proven(e.props, e.props) && !spared(e.props, e.props['submissionId']))
       eventIds.add(e.id);

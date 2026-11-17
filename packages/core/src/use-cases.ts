@@ -154,6 +154,12 @@ import { UseCaseRegistry, type UseCase } from './registry.js';
 import { changeSupporterEmail, getSupporter } from './supporters/service.js';
 import { createAccessGrant, revokeAccessGrant } from './supporters/access.js';
 import {
+  completeSignin,
+  getReaderSession,
+  requestSignin,
+  signoutReader,
+} from './readers/service.js';
+import {
   createAccessTier,
   getAccessTier,
   listAccessTiers,
@@ -319,6 +325,10 @@ export const useCases = {
   updateAccessTier,
   getAccessTier,
   listAccessTiers,
+  requestSignin,
+  completeSignin,
+  getReaderSession,
+  signoutReader,
   erasePeople,
   listMembers,
   listMemberNames,

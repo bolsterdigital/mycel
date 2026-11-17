@@ -81,6 +81,12 @@ export const Actor = z.discriminatedUnion('kind', [
     channel: z.enum(['web']),
     ipHash: z.string().optional(),
   }),
+  // A signed-in reader (ADR 016 rule 1): the session row it names says which supporter this is,
+  // and a use case reads that row and the live projection each time (ADR 019 rule 5). No
+  // supporter id and no address here, so a stored or logged actor identifies nobody once the
+  // session row is gone. Only the web front builds one, from the reader cookie on the tenant's
+  // own hostname; an API key or an agent never becomes a reader.
+  z.object({ kind: z.literal('reader'), sessionId: z.string().guid() }),
 ]);
 export type Actor = z.infer<typeof Actor>;
 
@@ -113,6 +119,8 @@ export function storedActor(actor: Actor): Actor {
       return actor.ipHash === undefined
         ? { kind: 'anonymous', channel: actor.channel }
         : { kind: 'anonymous', channel: actor.channel, ipHash: actor.ipHash };
+    case 'reader':
+      return { kind: 'reader', sessionId: actor.sessionId };
   }
 }
 
@@ -228,5 +236,24 @@ export function anonymousPrincipal(
         ? { kind: 'anonymous', channel: 'web' }
         : { kind: 'anonymous', channel: 'web', ipHash },
     capabilities,
+  };
+}
+
+/** Everything a reader session may carry: reading, and nothing that writes or manages. */
+export const READER_CAPABILITIES: readonly Capability[] = ['content:read', 'media:read'];
+
+/**
+ * A signed-in reader on the site of the current request. The capabilities are fixed here, not
+ * passed in: a cookie never grants more than reading, whatever the front would like to give it.
+ * `reader.session.get` decides whether the session stands before the front builds this.
+ */
+export function readerPrincipal(tenant: TenantRef, sessionId: string): Principal {
+  const access = typeof tenant === 'string' ? DEFAULT_ACCESS : tenant;
+  return {
+    tenantId: typeof tenant === 'string' ? tenant : tenant.id,
+    entitlements: access.entitlements,
+    tenantStatus: access.status,
+    actor: { kind: 'reader', sessionId },
+    capabilities: [...READER_CAPABILITIES],
   };
 }

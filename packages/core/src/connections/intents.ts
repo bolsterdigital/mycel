@@ -134,7 +134,12 @@ export async function planConnectionIntent(
   authority?: { actor: ConnectionIntent['actor']; retainBlocked: true }
 ): Promise<ConnectionIntent> {
   const input = requestSchema.parse(raw);
-  if (!can(ctx.principal, 'connections:configure') || ctx.principal.actor.kind === 'anonymous')
+  const actor = ctx.principal.actor;
+  if (
+    !can(ctx.principal, 'connections:configure') ||
+    actor.kind === 'anonymous' ||
+    actor.kind === 'reader'
+  )
     throw new UseCaseError('forbidden', 'connection planning is not authorized');
   const old = await ctx.connectionIntents.byBusiness(input.connectionId, input.businessId);
   if (old) {
@@ -144,7 +149,6 @@ export async function planConnectionIntent(
   }
   const c = await ctx.connections.get(input.connectionId);
   if (!c) throw notFound('connection');
-  const actor = ctx.principal.actor;
   const now = ctx.clock.now();
   const row: ConnectionIntent = {
     ...input,
@@ -304,7 +308,8 @@ export const testConnection = defineUseCase({
     if (!c) throw notFound('connection');
 
     const actor = ctx.principal.actor;
-    if (actor.kind === 'anonymous') throw new UseCaseError('forbidden', 'authentication required');
+    if (actor.kind === 'anonymous' || actor.kind === 'reader')
+      throw new UseCaseError('forbidden', 'authentication required');
     const at = ctx.clock.now();
     const businessId = ctx.ids.next();
     const row: ConnectionIntent = {
