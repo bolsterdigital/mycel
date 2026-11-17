@@ -12,7 +12,7 @@ import { exercisePeopleGrid } from './lib/people/grid';
 import { exercisePublicPeople } from './lib/people/public';
 import { exercisePublishedRepresentations } from './lib/published/representations';
 import { exerciseFeeds } from './lib/published/feeds';
-import { exerciseShareCards } from './lib/published/share-cards';
+import { exerciseShareCards, shareCardOf } from './lib/published/share-cards';
 import { exerciseOldAddresses } from './lib/published/old-addresses';
 import { exercisePublicSearch } from './lib/published/search';
 import { openPublication, closePublication } from './lib/publication';
@@ -1846,16 +1846,14 @@ test.describe('site-settings', () => {
       await page.getByRole('button', { name: 'Save image' }).click();
       await savedOk(page);
     };
+    const cardBefore = await shareCardOf(page.request, `/${slug}/home`);
     await page.goto(`/admin/${slug}/site?section=brand`);
     await choose(filename);
     expect((await images()).value.defaultImageId).toBe(mediaId);
     await expect(page.locator('#site-defaultImageId [data-picker-name]')).toHaveText(filename);
     await expectNoAxeViolations(page);
-    await page.goto(`/${slug}/home`);
-    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
-      'content',
-      new RegExp(`/media/${mediaId}/`)
-    );
+    // The default image is the photo on the home page's card: the worker draws a new one.
+    expect(await shareCardOf(page.request, `/${slug}/home`)).not.toBe(cardBefore);
     await page.goto(`/admin/${slug}/site?section=brand`);
     await choose('No image');
     expect((await images()).value.defaultImageId).toBeNull();
