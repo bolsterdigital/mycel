@@ -326,7 +326,36 @@ describe('documentFrom(valuesOf(doc))', () => {
     });
   });
 
-  it('keeps the access when the form has no access fields (a site without readers)', () => {
+  it('reads the chosen tiers where the form showed them, and only for a tier item', () => {
+    const a = '01900000-0000-7000-8000-0000000000a1';
+    const b = '01900000-0000-7000-8000-0000000000a2';
+    const tiered = ContentDocument.parse({
+      ...article,
+      access: { level: 'tier', tierIds: [a], teaser: 'lead' },
+    });
+    expect(valuesOf(tiered).tierIds).toEqual([a]);
+    const shown: FormValues = { ...valuesOf(tiered), tiersShown: '1' };
+    expect(documentFrom(tiered, { ...shown, tierIds: [a, b] }, '2026-11-17').access).toEqual({
+      level: 'tier',
+      tierIds: [a, b],
+      teaser: 'lead',
+    });
+    // None ticked is no `tierIds`: core refuses that for a tier item by name.
+    expect(documentFrom(tiered, { ...shown, tierIds: [] }, '2026-11-17').access).toEqual({
+      level: 'tier',
+      teaser: 'lead',
+    });
+    // Another level drops the tiers; a form without the boxes keeps the stored ones.
+    expect(
+      documentFrom(tiered, { ...shown, level: 'members', tierIds: [a] }, '2026-11-17').access
+    ).toEqual({ level: 'members', teaser: 'lead' });
+    expect(documentFrom(tiered, { ...valuesOf(tiered), tierIds: [] }, '2026-11-17').access).toEqual(
+      tiered.access
+    );
+    expect(valuesFromForm(new FormData()).tierIds).toEqual([]);
+  });
+
+  it('keeps the access when the form has no access fields', () => {
     const v = valuesOf(article);
     for (const key of ['level', 'teaser', 'teaserBlocks']) delete v[key];
     v['title.nl'] = 'Nieuwe titel';

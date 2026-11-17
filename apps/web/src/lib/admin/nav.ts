@@ -16,6 +16,7 @@ import type { IconName } from './ui/icons.js';
 export type NavCapability =
   | 'content:read'
   | 'content:write'
+  | 'content:publish'
   | 'media:read'
   | 'connections:read'
   | 'supporters:read'
@@ -64,6 +65,12 @@ export const MANAGE: NavSection = {
       label: 'admin.forms.title',
       needs: 'content:write',
       hint: 'admin.forms.intro',
+    },
+    {
+      path: 'access',
+      label: 'admin.nav.tiers',
+      needs: 'content:publish',
+      hint: 'admin.manage.hint.tiers',
     },
     {
       path: 'supporters',

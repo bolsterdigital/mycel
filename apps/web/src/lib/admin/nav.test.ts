@@ -25,6 +25,7 @@ describe('admin navigation data (#114)', () => {
       'Team',
       'Domains',
       'Forms',
+      'Reader access',
       'Supporters',
       'Connections',
       'API access',

@@ -188,6 +188,35 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.people.filter': 'Filteren',
   'admin.people.clear': 'Filters wissen',
   'admin.people.empty': 'Geen mensen of organisaties gevonden',
+  'admin.tiers.title': 'Toegangsniveaus',
+  'admin.tiers.intro':
+    'Een niveau is een groep lezers. Een item kan voor de lezers van een of meer niveaus zijn; alle anderen zien de teaser.',
+  'admin.tiers.empty': 'Nog geen toegangsniveaus',
+  'admin.tiers.new': 'Nieuw toegangsniveau',
+  'admin.tiers.edit': 'Toegangsniveau bewerken',
+  'admin.tiers.save': 'Opslaan',
+  'admin.tiers.saved': 'Opgeslagen.',
+  'admin.tiers.conflict':
+    'Dit niveau is gewijzigd of het adres is al in gebruik. Je invoer is bewaard. Herlaad voordat je opnieuw probeert.',
+  'admin.tiers.name': 'Naam',
+  'admin.tiers.name.hint': 'Lezers zien deze naam op hun accountpagina.',
+  'admin.tiers.description': 'Beschrijving',
+  'admin.tiers.description.hint': 'Optioneel: voor wie dit niveau is.',
+  'admin.tiers.slug': 'Korte naam',
+  'admin.tiers.slug.hint':
+    'Kleine letters, cijfers en streepjes. Leeg gelaten volgt hij de naam. Daarna niet meer te wijzigen.',
+  'admin.tiers.kind': 'Soort',
+  'admin.tiers.kind.hint':
+    'Daarna niet meer te wijzigen. Betaalde lidmaatschappen komen later; tot dan geef je lezers bij beide soorten zelf toegang.',
+  'admin.tiers.kind.free': 'Gratis',
+  'admin.tiers.kind.paid': 'Betaald',
+  'admin.tiers.order': 'Volgorde',
+  'admin.nav.tiers': 'Leestoegang',
+  'admin.manage.hint.tiers': 'Groepen lezers waarvoor besloten items kunnen zijn.',
+  'admin.content.field.tiers': 'Toegangsniveaus',
+  'admin.content.field.tiers.hint':
+    'Telt alleen als het item voor lezers van een toegangsniveau is.',
+  'admin.content.tiers.manage': 'Toegangsniveaus beheren',
   'admin.people.emptyGroups': 'Nog geen groepen',
   'admin.supporters.title': 'Supporters',
   'admin.supporters.intro': 'Wie zich inschreef of tekende, met de lijsten waarop iemand staat.',
@@ -1678,7 +1707,7 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Aantal blokken dat iedereen ziet (alleen bij "de eerste blokken")',
   'admin.content.level.public': 'Iedereen',
   'admin.content.level.members': 'Lezers met een account',
-  'admin.content.level.tier': 'Lezers van een betaald niveau',
+  'admin.content.level.tier': 'Lezers van een toegangsniveau',
   'admin.content.teaser.lead': 'Alleen de intro',
   'admin.content.teaser.marker': 'Alles boven het betaalmuurblok',
   'admin.content.teaser.blocks': 'De eerste blokken',
@@ -1960,7 +1989,7 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Dit item heeft een betaalmuurblok, en dat werkt alleen met "Alles boven het betaalmuurblok". Kies die teaser.',
   'admin.content.error.teaserTooLong':
     'Er zijn meer blokken voor iedereen zichtbaar dan het item heeft.',
-  'admin.content.error.tier': 'Een betaald niveau vraagt een niveau; dat is er nog niet.',
+  'admin.content.error.tier': 'Kies minstens één toegangsniveau voor dit item.',
   'admin.content.publication.title': 'Publicatie',
   'admin.content.publication.locale': 'Taal {locale}',
   'admin.locale.switch': 'Taal van de inhoud',
@@ -1979,7 +2008,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.publication.ready': 'Klaar om te publiceren.',
   'admin.content.publication.issues': 'Wat publiceren in deze taal nog tegenhoudt:',
   'admin.content.publication.restricted':
-    'Bezoekers zonder account zien dit item niet: voor hen geeft het adres "niet gevonden". Lezerstoegang komt later.',
+    'Dit item is besloten: bezoekers zonder toegang zien de teaser en een uitnodiging om in te loggen.',
   'admin.content.publication.readOnly':
     'Publiceren en inplannen vragen de bevoegdheid content:publish; die heb je hier niet.',
   'admin.content.publication.publish': 'Publiceren ({locale})',

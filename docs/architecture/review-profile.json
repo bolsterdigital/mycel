@@ -194,6 +194,7 @@
         "apps/web/src/routes/(admin)/**",
         "apps/web/src/lib/server/content/content-admin*",
         "apps/web/src/lib/server/people/**",
+        "apps/web/src/lib/server/access/**",
         "apps/web/src/lib/server/navigation/**",
         "apps/web/src/lib/server/content/content-list*",
         "apps/web/src/lib/server/content/content-bulk*",

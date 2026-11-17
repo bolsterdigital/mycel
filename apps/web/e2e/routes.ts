@@ -39,6 +39,8 @@ export const ADMIN_ROUTES: GateRoute[] = [
   })),
   { path: '/admin/probe/site?section=api', within: 'main', folds: true },
   { path: '/admin/probe/forms', within: 'main' },
+  { path: '/admin/probe/access', within: 'main' },
+  { path: '/admin/probe/access/new', within: 'main' },
   // Supporters: the list as the seed left it, and its filter bar with a list and a search on.
   { path: '/admin/probe/supporters', within: 'main' },
   { path: '/admin/probe/supporters?list=newsletter&status=pending&q=a', within: 'main' },

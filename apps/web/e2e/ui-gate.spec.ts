@@ -1055,6 +1055,7 @@ test.describe('admin-shell', () => {
       'Team',
       'Domains',
       'Forms',
+      'Reader access',
       'Supporters',
       'Connections',
       'API access',
