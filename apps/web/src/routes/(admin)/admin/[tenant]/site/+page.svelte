@@ -18,6 +18,7 @@
     CAPTION_FONTS,
     DROP_CAPS,
     FONT_PAIRS,
+    MAX_READER_ACTIVITY_DAYS,
     MAX_SUBMISSION_RETENTION_MONTHS,
     MIN_SUBMISSION_RETENTION_MONTHS,
     THEME_MODES,
@@ -106,6 +107,14 @@
     (_, i) => MIN_SUBMISSION_RETENTION_MONTHS + i
   );
   const months = (n: number) => plural(t, 'admin.site.retention.month', n);
+  // The terms on offer for sign-in events; a term set through the API stays selectable.
+  const READER_DAYS = [0, 7, 30, 90, 180, MAX_READER_ACTIVITY_DAYS];
+  const readerDays = (n: number) =>
+    n === 0 ? t('admin.site.retention.readers.none') : plural(t, 'admin.site.retention.day', n);
+  const readerDayOptions = (current: number) =>
+    [...new Set([...READER_DAYS, current])]
+      .sort((a, b) => a - b)
+      .map((n) => ({ value: String(n), label: readerDays(n) }));
   const brandSaved = (kind: 'logo' | 'font') =>
     form && 'saved' in form && form.saved === 'brand' && 'kind' in form && form.kind === kind
       ? t('admin.site.saved')
@@ -237,6 +246,7 @@
         title={t('admin.site.retention.title')}
         description={fill(t('admin.site.retention.current'), {
           months: months(retention.value.submissionMonths),
+          days: readerDays(retention.value.readerActivityDays),
         })}
         action={action('retention')}
         submit={t('admin.site.retention.save')}
@@ -260,6 +270,17 @@
             ? value('submissionMonths', String(retention.value.submissionMonths))
             : String(retention.value.submissionMonths)}
           options={RETENTION_MONTHS.map((n) => ({ value: String(n), label: months(n) }))}
+        />
+        <Select
+          id="site-retention-readers"
+          name="readerActivityDays"
+          label={t('admin.site.retention.readers')}
+          locale={data.locale}
+          hint={t('admin.site.retention.readers.hint')}
+          value={form?.action === 'retention'
+            ? value('readerActivityDays', String(retention.value.readerActivityDays))
+            : String(retention.value.readerActivityDays)}
+          options={readerDayOptions(retention.value.readerActivityDays)}
         />
       </SettingsSection>
     {/if}

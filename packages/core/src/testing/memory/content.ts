@@ -18,6 +18,7 @@ import type {
 } from '../../content/ports.js';
 import { PRESENCE_READ_LIMIT } from '../../content/presence/model.js';
 import type { TransactionContext } from '../../ports.js';
+import { SiteRetention } from '../../ops/retention.js';
 import { paged, type TenantStore } from './store.js';
 import { memoryBrandProcessor } from './media.js';
 
@@ -355,7 +356,7 @@ export function memorySite(
       retention: async () => structuredClone(s.siteRetention),
       updateRetention: async (baseVersion, value) => {
         if (s.siteRetention.version !== baseVersion) return null;
-        s.siteRetention = { version: baseVersion + 1, value: structuredClone(value) };
+        s.siteRetention = { version: baseVersion + 1, value: SiteRetention.parse(value) };
         return s.siteRetention.version;
       },
     },

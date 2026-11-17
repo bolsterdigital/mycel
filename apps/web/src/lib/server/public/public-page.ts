@@ -333,7 +333,10 @@ export async function loadPublicItem(
   return { ...page, etag };
 }
 
-/** The prompt of a cut item in this locale; the sign-in page returns to the item's own path. */
+/**
+ * The prompt of a cut item in this locale. The sign-in page returns to the item's own path; a
+ * reader without the tier is led to their account, where the access they do hold is listed.
+ */
 function gateOf(site: Site, item: PublishedItem, locale: string): PublicGate {
   const t = ui(locale);
   const { prompt } = item.gate!;
@@ -342,7 +345,11 @@ function gateOf(site: Site, item: PublishedItem, locale: string): PublicGate {
       prompt,
       title: t('reader.gate.tier.title'),
       body: t('reader.gate.tier.body'),
-      action: null,
+      action: {
+        href: sitePath(site, READER_PATH),
+        path: READER_PATH,
+        label: t('reader.gate.tier.action'),
+      },
     };
   const back = contentPath(item, locale, site.tenant.defaultLocale);
   const path = `${READER_PATH}?return=${encodeURIComponent(back)}`;

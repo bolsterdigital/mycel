@@ -1142,11 +1142,12 @@ export const en = {
   'admin.audit.op.site.navigation.unpublish': 'Navigation taken offline',
   'admin.audit.op.site.general.update': 'General settings changed',
   'admin.audit.op.site.image.update': 'Default image changed',
-  'admin.audit.op.site.retention.update': 'Retention of form submissions changed',
+  'admin.audit.op.site.retention.update': 'Retention terms changed',
   'admin.audit.op.site.theme.update': 'House style changed',
   'admin.audit.op.reader.signin.request': 'Sign-in link requested',
   'admin.audit.op.reader.signin.complete': 'Sign-in link used',
   'admin.audit.op.reader.signout': 'Reader signed out',
+  'admin.audit.op.reader.subscription.withdraw': 'Reader unsubscribed from a newsletter',
   'admin.audit.op.supporter.access_grant.create': 'Access granted to supporter',
   'admin.audit.op.supporter.access_grant.revoke': 'Access of supporter revoked',
   'admin.audit.op.supporter.email.update': 'Supporter e-mail address changed',
@@ -1298,7 +1299,29 @@ export const en = {
   'reader.invalid.body':
     'The sign-in link is not valid, has expired or was already used. You can ask for a new one.',
   'reader.invalid.again': 'Ask for a new link',
-  'reader.signedIn.body': 'You are signed in on this device.',
+  'reader.account.title': 'My account',
+  'reader.account.lastSeen': 'Last signed in',
+  'reader.account.access': 'Access',
+  'reader.account.access.none':
+    'You have no access to pieces for a particular group of readers. Pieces for signed-in readers are open to you.',
+  'reader.account.access.open': 'active, no end date',
+  'reader.account.access.until': 'active until {date}',
+  'reader.account.access.ended': 'ended on {date}',
+  'reader.account.access.change':
+    'You cannot change or cancel your access on this page. Please contact the site for that.',
+  'reader.account.newsletters': 'Newsletters',
+  'reader.account.newsletters.none': 'You are not subscribed to a newsletter of this site.',
+  'reader.account.newsletters.pending': '{list} (not confirmed yet)',
+  'reader.account.newsletters.withdraw': 'Unsubscribe from {list}',
+  'reader.account.newsletters.withdrawn': 'You are unsubscribed from {list}.',
+  'reader.account.privacy': 'What we keep',
+  'reader.account.retention.other':
+    'We keep your sign-ins for {n} days; after that only when you last signed in. We do not keep track of what you read.',
+  'reader.account.retention.one':
+    'We keep your sign-ins for {n} day; after that only when you last signed in. We do not keep track of what you read.',
+  'reader.account.retention.none':
+    'We keep only when you last signed in. We do not keep track of what you read.',
+  'reader.account.session': 'You are signed in on this device until {date}.',
   'reader.signout.submit': 'Sign out',
   'unsubscribe.pending.title': 'Unsubscribe from the newsletter',
   'unsubscribe.pending.body':
@@ -1321,6 +1344,7 @@ export const en = {
   'reader.gate.tier.title': 'Your access does not cover this',
   'reader.gate.tier.body':
     'You are signed in, but the rest is for readers with a different kind of access.',
+  'reader.gate.tier.action': 'See your access',
   'confirm.pending.title': 'Confirm your subscription',
   'confirm.pending.body':
     'One more step: confirm with the button below. Did you not sign up? Then you need not do anything.',
@@ -2758,14 +2782,21 @@ export const en = {
   'admin.site.ai.no-training': 'Read and answer, no training',
   'admin.site.ai.search-only': 'Search engines only',
   'admin.site.ai.save': 'Save AI choice',
-  'admin.site.retention.title': 'Keeping submissions',
-  'admin.site.retention.current': 'This site keeps form submissions for {months}.',
-  'admin.site.retention.months': 'Retention term',
+  'admin.site.retention.title': 'Retention terms',
+  'admin.site.retention.current':
+    'This site keeps form submissions for {months}. Of readers’ sign-ins: {days}.',
+  'admin.site.retention.months': 'Form submissions',
   'admin.site.retention.hint':
     'A shorter term deletes older submissions at the next daily run; they cannot be brought back.',
   'admin.site.retention.month.one': '{n} month',
   'admin.site.retention.month.other': '{n} months',
-  'admin.site.retention.save': 'Save term',
+  'admin.site.retention.readers': 'Readers’ sign-ins',
+  'admin.site.retention.readers.hint':
+    'After this only the last sign-in is kept. A shorter term deletes older sign-ins at the next daily run.',
+  'admin.site.retention.readers.none': 'only the last sign-in',
+  'admin.site.retention.day.one': '{n} day',
+  'admin.site.retention.day.other': '{n} days',
+  'admin.site.retention.save': 'Save terms',
   'admin.content.state.short.live': 'Published',
   'admin.content.state.short.changed': 'Published · unpublished changes',
   'admin.content.state.short.pinned': 'Scheduled',

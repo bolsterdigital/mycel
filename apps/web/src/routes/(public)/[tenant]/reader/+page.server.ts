@@ -1,6 +1,7 @@
-// The reader page of a site (ADR 016 rule 1): a visitor asks for a sign-in link here, a signed-in
-// reader sees that they are and can sign out. Native forms, no JavaScript needed (ADR 009); the
-// proof-of-work script only adds a solution when it runs.
+// The reader page of a site (ADR 016 rule 1): a visitor asks for a sign-in link here; a signed-in
+// reader sees their own account (address, access per tier, newsletters, last sign-in, what the
+// site keeps), leaves a newsletter and signs out (reader-account.ts). Native forms, no JavaScript
+// needed (ADR 009); the proof-of-work script only adds a solution when it runs.
 //
 // The request form is a public form that causes mail, so it carries the house defence
 // (`formulieren-en-mail`): a honeypot, a signed minimum fill time, ALTCHA, limits per client and
@@ -11,8 +12,8 @@
 //
 // The tenant is the site of the request (the hostname), the client hash comes from the
 // connection; nothing in the posted body can choose either (ADR 002 rule 3).
-// Rejected: an inline message on the same page for "sent" (a refresh would post again), and
-// showing the reader's address here (the session names no address; self-service is a later page).
+// Rejected: an inline message on the same page for "sent" or "withdrawn" (a refresh would post
+// again; both redirect).
 
 import { fail, redirect } from '@sveltejs/kit';
 import {
@@ -21,6 +22,7 @@ import {
   issueStartedToken,
   safeReturnPath,
   useCases,
+  type Principal,
 } from '@mycel/core';
 import { ui } from '../../../../i18n/index.js';
 import { refusalOf } from '#lib/server/http/refuse.js';
@@ -34,6 +36,7 @@ import {
   signinOutcomePath,
 } from '#lib/server/public/reader.js';
 import { runtime } from '#lib/server/runtime.js';
+import { readerAccountView } from '#lib/server/public/reader-account.js';
 import { requireSite, sitePath, type Site } from '#lib/server/site.js';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -63,26 +66,49 @@ function copy(site: Site, request: Request, locals: App.Locals) {
     t,
     labels: {
       title: t('reader.title'),
+      accountTitle: t('reader.account.title'),
+      lastSeen: t('reader.account.lastSeen'),
+      access: t('reader.account.access'),
+      accessNone: t('reader.account.access.none'),
+      accessChange: t('reader.account.access.change'),
+      newsletters: t('reader.account.newsletters'),
+      newslettersNone: t('reader.account.newsletters.none'),
+      withdrawn: t('reader.account.newsletters.withdrawn'),
+      privacy: t('reader.account.privacy'),
       intro: t('reader.signin.intro'),
       email: t('reader.signin.email'),
       submit: t('reader.signin.submit'),
       honeypot: t('form.honeypot.label'),
-      signedIn: t('reader.signedIn.body'),
       signout: t('reader.signout.submit'),
       suspended: t('site.suspended.body'),
     },
   };
 }
 
+/** The account of the reader, or null when their session ended between the check and the read. */
+async function accountOf(site: Site, reader: Principal, locale: string, url: URL) {
+  try {
+    return await readerAccountView(site, reader, locale, url.searchParams.get('withdrawn'));
+  } catch (e) {
+    if (refusalOf(e).code === 'not_found') return null;
+    throw e;
+  }
+}
+
 export const load: PageServerLoad = async ({ url, request, locals, cookies, setHeaders }) => {
   setHeaders(READER_HEADERS);
   const site = requireSite(locals);
-  const { labels } = copy(site, request, locals);
-  const reader = await readerOfRequest(cookies, site);
+  const { labels, locale } = copy(site, request, locals);
+  let reader = await readerOfRequest(cookies, site);
+  const account = reader ? await accountOf(site, reader, locale, url) : null;
+  if (reader && !account) {
+    clearReaderCookie(cookies, site);
+    reader = null;
+  }
   const suspended = site.access.status === 'suspended';
   return {
     labels,
-    signedIn: !!reader,
+    account,
     signoutAction: `${sitePath(site, READER_PATH)}?/signout`,
     // A suspended site stays readable but changes nothing (ADR 015 rule 7): no form to post.
     form:
@@ -128,6 +154,23 @@ export const actions: Actions = {
     }
     setHeaders(READER_HEADERS);
     redirect(303, signinOutcomePath(site, 'sent'));
+  },
+
+  withdraw: async ({ request, locals, cookies, setHeaders }) => {
+    const site = requireSite(locals);
+    const reader = await readerOfRequest(cookies, site);
+    const list = text(await request.formData(), 'list');
+    // A post without a standing session, or for a list too long to be one, changes nothing.
+    if (reader && list && list.length <= 200)
+      try {
+        await runtime().invoker.run(useCases.withdrawReaderSubscription, reader, { list });
+      } catch (e) {
+        const { code } = refusalOf(e);
+        if (code !== 'not_found' && code !== 'suspended') throw e;
+      }
+    setHeaders(READER_HEADERS);
+    const query = reader && list ? `?${new URLSearchParams({ withdrawn: list })}` : '';
+    redirect(303, `${sitePath(site, READER_PATH)}${query}`);
   },
 
   signout: async ({ locals, cookies, setHeaders }) => {

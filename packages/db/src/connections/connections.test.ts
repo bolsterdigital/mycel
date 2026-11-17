@@ -237,6 +237,7 @@ describe.skipIf(skip)('managed connection storage', () => {
         lists: ['newsletter:main'],
         pendingLists: [],
         grants: [],
+        lastSeenAt: null,
         firstSeen: at,
         lastActivity: at,
         appliedThrough: { at, id: 'fixture' },

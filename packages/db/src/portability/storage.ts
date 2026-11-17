@@ -323,6 +323,11 @@ export const STORAGE = {
         subject: 'supporter',
         route: { kind: 'apply', does: 'empties the standing access grants' },
       },
+      {
+        field: 'last_seen_at',
+        subject: 'supporter',
+        route: { kind: 'apply', does: 'clears the last sign-in of a reader' },
+      },
     ],
     retention: SUPPORTER_KEPT,
   },
@@ -387,7 +392,11 @@ export const STORAGE = {
         route: { kind: 'apply', does: 'empties the payload' },
       },
     ],
-    retention: SUPPORTER_KEPT,
+    retention: {
+      kind: 'term',
+      term: "a reader's sign-in events: the days the tenant set (90 unless it chose otherwise, 0 keeps none), once supporters.last_seen_at holds them (ADR 019 rule 7); every other event stays until the supporter is erased",
+      by: 'retention.apply',
+    },
   },
   people: {
     category: 'people',

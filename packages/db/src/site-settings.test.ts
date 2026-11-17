@@ -153,9 +153,9 @@ describe.skipIf(skip)('site settings conformance', () => {
     const principal = systemPrincipal(a, 'test');
     expect(await invoker.run(useCases.getSiteRetention, principal, {})).toEqual({
       version: 0,
-      value: { submissionMonths: 24 },
+      value: { submissionMonths: 24, readerActivityDays: 90 },
     });
-    const retention = { submissionMonths: 6 };
+    const retention = { submissionMonths: 6, readerActivityDays: 0 };
     expect(
       await invoker.run(useCases.updateSiteRetention, principal, { baseVersion: 0, retention })
     ).toEqual({ version: 1, value: retention });
@@ -168,7 +168,7 @@ describe.skipIf(skip)('site settings conformance', () => {
     );
     expect(await invoker.run(useCases.getSiteRetention, systemPrincipal(b, 'test'), {})).toEqual({
       version: 0,
-      value: { submissionMonths: 24 },
+      value: { submissionMonths: 24, readerActivityDays: 90 },
     });
     await owner.transaction().execute(async (trx) => {
       await enterTenant(trx, a);
@@ -180,7 +180,7 @@ describe.skipIf(skip)('site settings conformance', () => {
     });
     expect(await invoker.run(useCases.getSiteRetention, principal, {})).toEqual({
       version: 1,
-      value: { submissionMonths: 24 },
+      value: { submissionMonths: 24, readerActivityDays: 90 },
     });
   });
   it('isolates brand bytes and versions under the same forced RLS row', async () => {

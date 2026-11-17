@@ -217,6 +217,7 @@ async function engine() {
       lists: ['newsletter:main'],
       pendingLists: [],
       grants: [],
+      lastSeenAt: null,
       firstSeen: clock.now().toISOString(),
       lastActivity: clock.now().toISOString(),
       appliedThrough: { at: clock.now().toISOString(), id: 'fixture' },

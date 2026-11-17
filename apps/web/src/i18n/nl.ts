@@ -1157,11 +1157,12 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.site.navigation.unpublish': 'Navigatie offline gehaald',
   'admin.audit.op.site.general.update': 'Algemene instellingen gewijzigd',
   'admin.audit.op.site.image.update': 'Standaardbeeld gewijzigd',
-  'admin.audit.op.site.retention.update': 'Bewaartermijn van inzendingen gewijzigd',
+  'admin.audit.op.site.retention.update': 'Bewaartermijnen gewijzigd',
   'admin.audit.op.site.theme.update': 'Huisstijl gewijzigd',
   'admin.audit.op.reader.signin.request': 'Inloglink aangevraagd',
   'admin.audit.op.reader.signin.complete': 'Inloglink gebruikt',
   'admin.audit.op.reader.signout': 'Lezer uitgelogd',
+  'admin.audit.op.reader.subscription.withdraw': 'Lezer afgemeld voor een nieuwsbrief',
   'admin.audit.op.supporter.access_grant.create': 'Toegang aan supporter gegeven',
   'admin.audit.op.supporter.access_grant.revoke': 'Toegang van supporter ingetrokken',
   'admin.audit.op.supporter.email.update': 'E-mailadres van supporter gewijzigd',
@@ -1313,7 +1314,30 @@ export const nl: Partial<Record<UiKey, string>> = {
   'reader.invalid.body':
     'De inloglink is ongeldig, verlopen of al gebruikt. Je kunt een nieuwe aanvragen.',
   'reader.invalid.again': 'Nieuwe link aanvragen',
-  'reader.signedIn.body': 'Je bent op dit apparaat ingelogd.',
+  'reader.account.title': 'Mijn account',
+  'reader.account.lastSeen': 'Laatst ingelogd',
+  'reader.account.access': 'Toegang',
+  'reader.account.access.none':
+    'Je hebt geen toegang tot stukken voor een bepaalde groep lezers. Stukken voor ingelogde lezers kun je lezen.',
+  'reader.account.access.open': 'actief, zonder einddatum',
+  'reader.account.access.until': 'actief tot {date}',
+  'reader.account.access.ended': 'verlopen op {date}',
+  'reader.account.access.change':
+    'Je toegang wijzigen of opzeggen kan niet via deze pagina. Neem daarvoor contact op met de site.',
+  'reader.account.newsletters': 'Nieuwsbrieven',
+  'reader.account.newsletters.none':
+    'Je staat niet ingeschreven voor een nieuwsbrief van deze site.',
+  'reader.account.newsletters.pending': '{list} (nog niet bevestigd)',
+  'reader.account.newsletters.withdraw': 'Afmelden voor {list}',
+  'reader.account.newsletters.withdrawn': 'Je bent afgemeld voor {list}.',
+  'reader.account.privacy': 'Wat we bewaren',
+  'reader.account.retention.other':
+    'We bewaren je inlogmomenten {n} dagen; daarna alleen wanneer je voor het laatst inlogde. Wat je leest houden we niet bij.',
+  'reader.account.retention.one':
+    'We bewaren je inlogmomenten {n} dag; daarna alleen wanneer je voor het laatst inlogde. Wat je leest houden we niet bij.',
+  'reader.account.retention.none':
+    'We bewaren alleen wanneer je voor het laatst inlogde. Wat je leest houden we niet bij.',
+  'reader.account.session': 'Je bent op dit apparaat ingelogd tot {date}.',
   'reader.signout.submit': 'Uitloggen',
   'unsubscribe.pending.title': 'Afmelden voor de nieuwsbrief',
   'unsubscribe.pending.body':
@@ -1336,6 +1360,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'reader.gate.tier.title': 'Je toegang geldt niet voor dit stuk',
   'reader.gate.tier.body':
     'Je bent ingelogd, maar de rest is voor lezers met een andere soort toegang.',
+  'reader.gate.tier.action': 'Bekijk je toegang',
   'confirm.pending.title': 'Bevestig je inschrijving',
   'confirm.pending.body':
     'Nog één stap: bevestig met de knop hieronder. Heb je je niet aangemeld? Dan hoef je niets te doen.',
@@ -2784,14 +2809,21 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.ai.no-training': 'Lezen en antwoorden, niet trainen',
   'admin.site.ai.search-only': 'Alleen zoekmachines',
   'admin.site.ai.save': 'AI-keuze opslaan',
-  'admin.site.retention.title': 'Inzendingen bewaren',
-  'admin.site.retention.current': 'Deze site bewaart formulierinzendingen {months}.',
-  'admin.site.retention.months': 'Bewaartermijn',
+  'admin.site.retention.title': 'Bewaartermijnen',
+  'admin.site.retention.current':
+    'Formulierinzendingen bewaart deze site {months}. Van inlogmomenten van lezers: {days}.',
+  'admin.site.retention.months': 'Formulierinzendingen',
   'admin.site.retention.hint':
     'Een kortere termijn verwijdert oudere inzendingen bij de volgende dagelijkse run; ze zijn daarna niet terug te halen.',
   'admin.site.retention.month.one': '{n} maand',
   'admin.site.retention.month.other': '{n} maanden',
-  'admin.site.retention.save': 'Termijn opslaan',
+  'admin.site.retention.readers': 'Inlogmomenten van lezers',
+  'admin.site.retention.readers.hint':
+    'Daarna blijft alleen de laatste inlog bewaard. Een kortere termijn verwijdert oudere inlogmomenten bij de volgende dagelijkse run.',
+  'admin.site.retention.readers.none': 'alleen de laatste inlog',
+  'admin.site.retention.day.one': '{n} dag',
+  'admin.site.retention.day.other': '{n} dagen',
+  'admin.site.retention.save': 'Termijnen opslaan',
   'admin.content.state.short.live': 'Gepubliceerd',
   'admin.content.state.short.changed': 'Gepubliceerd · ongepubliceerde wijzigingen',
   'admin.content.state.short.pinned': 'Ingepland',

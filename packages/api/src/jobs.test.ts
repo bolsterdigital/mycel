@@ -385,6 +385,7 @@ describe('connection intent job composition', () => {
         lists: ['newsletter'],
         pendingLists: [],
         grants: [],
+        lastSeenAt: null,
         firstSeen: at,
         lastActivity: at,
         appliedThrough: { at, id: 'fixture' },

@@ -49,10 +49,16 @@ The request form follows the public form checklist ([forms.md](forms.md)): a hon
 
 A refused attempt never starts the address's 24 hours. Signing in needs no newsletter consent and writes none: `reader.signed_in` touches no list.
 
+## The reader page
+
+`/reader` on the site's own hostname is the sign-in form for a visitor and the account of a signed-in reader. `reader.account.get` (actor `reader` only) returns what the session's supporter holds on this site: the address, every grant with its tier name, kind, `until` and whether it stands now (an expired one stays listed as ended), the confirmed and pending newsletter lists, `lastSeenAt`, the session's end and the site's `readerActivityDays`. No grant reason, no supporter id. `reader.subscription.withdraw` (actor `reader` only) takes the reader off one list, confirmed or pending, with the same `newsletter.unsubscribed` event as the unsubscribe link (`via: reader`); a list they are not on answers `not_subscribed`. Neither takes a supporter or a tenant in its input, and both answer `not_found` once the session no longer stands, so a cookie can only ever reach its own supporter on its own site. Both sit in the registry's closed `READER_USE_CASES` list; an API key or an agent never becomes a reader.
+
+The page sends `no-store` like the rest of the flow and works without JavaScript: one form per newsletter with one button, a sign-out button. Changing, pausing or cancelling a membership is not offered until the ledger offers it (ADR 005); the page states the access and says so. A reader without the tier an article asks for gets a link to this page in the article's prompt.
+
 ## Recovery, retention and erasure
 
 - **Provider time-out.** The sign-in mail goes through the `mail_sends` intent and `mail.reconcile` like every transactional mail. An attempt without an outcome is `unknown` and is not resent. By the time the reconcile job looks, the link has usually expired, the source gives no message and the job ends; such an intent stays visible as unresolved. The person can ask again after the address's 24 hours.
-- **Retention.** The hourly `rate_limits.sweep` deletes links and sessions that ended more than an hour ago, as `mycel_janitor`, whose policies reach no younger row. `reader.signed_in` events stay in the supporter log; compacting them after `readers.activity_retention_days` (ADR 019 rule 7) is not built yet.
+- **Retention.** The hourly `rate_limits.sweep` deletes links and sessions that ended more than an hour ago, as `mycel_janitor`, whose policies reach no younger row. `reader.signed_in` events stay in the supporter log for the tenant's `readerActivityDays` (`site.retention.update`, default 90, 0 to 365); the daily `retention.apply` then deletes them once the projection's `lastSeenAt` holds them (ADR 019 rule 7, [jobs.md](jobs.md#retention)). Content views are never logged per reader.
 - **Erasure.** `apply` deletes the pending links of an erased address with the mail intents and reconcile jobs of their events (found by the link id), and the sessions of an erased supporter. An erased address gets no new link: coming back after an erasure is an explicit signup through a form ([ADR 032](../adr/032-erasure-and-explicit-readmission.md)).
 - **Export and import.** Neither table travels ([export.md](export.md#what-does-not-travel)): links and sessions belong to this installation's hostname and signing secret, so readers sign in again after a move. The supporters and their `reader.signed_in` events travel with the log.
 

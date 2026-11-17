@@ -190,7 +190,10 @@ export const actions: Actions = {
     try {
       const result = await runtime().invoker.run(useCases.updateSiteRetention, principal, {
         baseVersion: baseVersion(data),
-        retention: { submissionMonths: Number(text(data, 'submissionMonths')) },
+        retention: {
+          submissionMonths: Number(text(data, 'submissionMonths')),
+          readerActivityDays: Number(text(data, 'readerActivityDays')),
+        },
       });
       return { saved: 'retention', version: result.version };
     } catch (e) {

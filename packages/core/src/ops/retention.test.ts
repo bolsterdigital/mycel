@@ -41,7 +41,16 @@ describe('retentionCutoffs', () => {
       outboxBefore: at('2026-10-11T12:00:00.000Z'),
       submissionsBefore: at('2024-11-10T12:00:00.000Z'),
       admissionsThrough: new Date(now.getTime() - ADMISSION_WINDOW_MS),
+      readerActivityBefore: at('2026-08-12T12:00:00.000Z'),
     });
+  });
+  it('keeps sign-in events for the days the tenant set, and none at 0', () => {
+    expect(
+      retentionCutoffs(now, { submissionMonths: 24, readerActivityDays: 30 }).readerActivityBefore
+    ).toEqual(at('2026-10-11T12:00:00.000Z'));
+    expect(
+      retentionCutoffs(now, { submissionMonths: 24, readerActivityDays: 0 }).readerActivityBefore
+    ).toEqual(now);
   });
   it('moves only the submission term with the tenant setting', () => {
     const lower = retentionCutoffs(now, { submissionMonths: 6 });
@@ -54,6 +63,12 @@ describe('site retention setting', () => {
   it('offers one to twenty-four whole months and nothing else', () => {
     for (const submissionMonths of [1, 12, 24])
       expect(SiteRetention.safeParse({ submissionMonths }).success).toBe(true);
+    // A stored document from before reader activity had a term reads as the default.
+    expect(SiteRetention.parse({ submissionMonths: 12 }).readerActivityDays).toBe(90);
+    for (const readerActivityDays of [0, 90, 365])
+      expect(SiteRetention.safeParse({ submissionMonths: 1, readerActivityDays }).success).toBe(
+        true
+      );
     for (const value of [
       { submissionMonths: 0 },
       { submissionMonths: 25 },
@@ -61,6 +76,9 @@ describe('site retention setting', () => {
       { submissionMonths: null },
       {},
       { submissionMonths: 12, forever: true },
+      { submissionMonths: 12, readerActivityDays: -1 },
+      { submissionMonths: 12, readerActivityDays: 366 },
+      { submissionMonths: 12, readerActivityDays: 1.5 },
     ])
       expect(SiteRetention.safeParse(value).success).toBe(false);
   });
@@ -70,14 +88,14 @@ describe('site retention setting', () => {
     const admin = adminOf(TENANT);
     expect(await invoker.run(useCases.getSiteRetention, admin, {})).toEqual({
       version: 0,
-      value: { submissionMonths: 24 },
+      value: { submissionMonths: 24, readerActivityDays: 90 },
     });
     expect(
       await invoker.run(useCases.updateSiteRetention, admin, {
         baseVersion: 0,
         retention: { submissionMonths: 6 },
       })
-    ).toEqual({ version: 1, value: { submissionMonths: 6 } });
+    ).toEqual({ version: 1, value: { submissionMonths: 6, readerActivityDays: 90 } });
     await expect(
       invoker.run(useCases.updateSiteRetention, admin, {
         baseVersion: 0,

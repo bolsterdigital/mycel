@@ -463,6 +463,7 @@ describe.skipIf(skip)('mailing conformance', () => {
         outboxBefore: far,
         submissionsBefore: new Date(0),
         admissionsThrough: new Date(0),
+        readerActivityBefore: new Date(0),
       })
     ).toMatchObject({ outbox: 1, mailIntents: 1, submissions: 0 });
     expect(await status()).toEqual(['expired']);

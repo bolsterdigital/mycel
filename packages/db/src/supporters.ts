@@ -32,6 +32,7 @@ export function supporterRepository(trx: Trx, tenantId: string, ids: Ids): Suppo
       const grant = AccessGrant.safeParse(g);
       return grant.success ? [grant.data] : [];
     }),
+    lastSeenAt: row.last_seen_at === null ? null : new Date(row.last_seen_at).toISOString(),
     appliedThrough: {
       at: new Date(row.applied_through_at).toISOString(),
       id: row.applied_through_id,
@@ -107,6 +108,7 @@ export function supporterRepository(trx: Trx, tenantId: string, ids: Ids): Suppo
         lists: p.lists,
         pending_lists: p.pendingLists,
         grants: JSON.stringify(p.grants),
+        last_seen_at: p.lastSeenAt ?? null,
         applied_through_at: p.appliedThrough.at,
         applied_through_id: p.appliedThrough.id,
         updated_at: new Date(),

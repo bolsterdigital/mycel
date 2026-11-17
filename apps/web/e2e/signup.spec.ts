@@ -1119,27 +1119,28 @@ test('an administrator sets how long submissions are kept; an editor cannot', as
       }
   });
   await setMonths(24);
-  const section = page.getByRole('region', { name: 'Inzendingen bewaren' });
+  const section = page.getByRole('region', { name: 'Bewaartermijnen' });
   try {
     await login(page, `/admin/${slug}/site`, admin);
-    await expect(
-      page.getByRole('heading', { level: 2, name: 'Inzendingen bewaren' })
-    ).toBeVisible();
-    await expect(section).toContainText('Deze site bewaart formulierinzendingen 24 maanden.');
+    await expect(page.getByRole('heading', { level: 2, name: 'Bewaartermijnen' })).toBeVisible();
+    await expect(section).toContainText('Formulierinzendingen bewaart deze site 24 maanden.');
+    await expect(section).toContainText('Van inlogmomenten van lezers: 90 dagen.');
     await expect(section).toContainText('bij de volgende dagelijkse run');
     await expectNoAxeViolations(page);
 
-    await page.getByLabel('Bewaartermijn').selectOption('6');
-    await section.getByRole('button', { name: 'Termijn opslaan' }).click();
+    await page.getByLabel('Formulierinzendingen').selectOption('6');
+    await page.getByLabel('Inlogmomenten van lezers').selectOption('0');
+    await section.getByRole('button', { name: 'Termijnen opslaan' }).click();
     await expect(section).toContainText('Instellingen opgeslagen.');
-    await expect(section).toContainText('Deze site bewaart formulierinzendingen 6 maanden.');
-    expect((await stored()).value.submissionMonths).toBe(6);
+    await expect(section).toContainText('Formulierinzendingen bewaart deze site 6 maanden.');
+    await expect(section).toContainText('Van inlogmomenten van lezers: alleen de laatste inlog.');
+    expect((await stored()).value).toEqual({ submissionMonths: 6, readerActivityDays: 0 });
 
     // Another save after this page loaded: the form's version is stale, nothing is written.
     await page.goto(`/admin/${slug}/site`);
     await setMonths(12);
-    await page.getByLabel('Bewaartermijn').selectOption('1');
-    await section.getByRole('button', { name: 'Termijn opslaan' }).click();
+    await page.getByLabel('Formulierinzendingen').selectOption('1');
+    await section.getByRole('button', { name: 'Termijnen opslaan' }).click();
     await expect(page.getByText('Deze instellingen zijn elders gewijzigd')).toBeVisible();
     expect((await stored()).value.submissionMonths).toBe(12);
     await expectNoAxeViolations(page);
@@ -1166,7 +1167,7 @@ test('an administrator sets how long submissions are kept; an editor cannot', as
 // in probe like the text and media pages do.
 // Reader sign-in (ADR 016 rule 1): the flow on the site's own hostname, where the cookie lives.
 const READER = 'http://probe.localhost:4173/reader';
-const SIGNED_IN = 'Je bent op dit apparaat ingelogd.';
+const SIGNED_IN = 'Mijn account';
 /** The sign-in form waits two seconds between render and post (core readers/model.ts). */
 const pastSigninFillTime = () =>
   new Promise((resolve) => setTimeout(resolve, SIGNIN_MIN_FILL_SECONDS * 1000 + 300));

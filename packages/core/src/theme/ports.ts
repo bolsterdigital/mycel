@@ -6,7 +6,7 @@
 import type { z } from 'zod';
 import type { BrandAsset, BrandKind } from './assets.js';
 import type { Theme } from './contrast.js';
-import type { SiteRetention } from '../ops/retention.js';
+import type { SiteRetention, SiteRetentionInput } from '../ops/retention.js';
 import type { SiteChrome, SiteGeneral, SiteImages } from './settings.js';
 
 export interface SiteSettingsRepository {
@@ -19,7 +19,7 @@ export interface SiteSettingsRepository {
   images(): Promise<{ version: number; value: SiteImages }>;
   updateImages(baseVersion: number, value: SiteImages): Promise<number | null>;
   retention(): Promise<{ version: number; value: SiteRetention }>;
-  updateRetention(baseVersion: number, value: SiteRetention): Promise<number | null>;
+  updateRetention(baseVersion: number, value: SiteRetentionInput): Promise<number | null>;
 }
 
 export interface BrandProcessor {
