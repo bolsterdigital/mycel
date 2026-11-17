@@ -116,6 +116,8 @@ export const TABLES = {
   outbox: 'operational',
   jobs: 'operational',
   mail_sends: 'operational',
+  // What was sent, as it was sent (0070, ADR 018 rule 4): the tenant's newsletter archive.
+  mail_editions: 'export',
   // A pending sign-in link and a reader session (0069) belong to this installation's hostname
   // and signing secret: an import starts without them and readers sign in again.
   reader_signin_links: 'operational',
@@ -175,6 +177,7 @@ export const EXPORT_ORDER: readonly ExportTable[] = [
   'site_navigation_refs',
   'campaigns',
   'campaign_participations',
+  'mail_editions',
   'tenant_memberships',
   'audit_log',
   'erasures',

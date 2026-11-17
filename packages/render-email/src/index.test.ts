@@ -39,6 +39,20 @@ describe('render-email', () => {
     }
   });
 
+  it('puts the unsubscribe link in the footer of a mail that goes to a list, and only there', () => {
+    const href = 'https://unsubscribe.invalid/recipient';
+    const { html, text } = renderEmail({
+      ...fixture.header.en,
+      unsubscribe: { label: 'Unsubscribe from this newsletter', href },
+    });
+    expect(html).toContain(`<a href="${href}"`);
+    expect(html).toContain('>Unsubscribe from this newsletter</a>');
+    expect(text.trimEnd().endsWith(`Unsubscribe from this newsletter: ${href}`)).toBe(true);
+    const plain = renderEmail(fixture.header.en);
+    expect(plain.html).not.toContain('nsubscribe');
+    expect(plain.text).not.toContain('nsubscribe');
+  });
+
   it('keeps every style inline and every link absolute', () => {
     for (const { email } of [...fixture.examples, { email: fixture.header.nl }]) {
       const { html } = renderEmail(email);

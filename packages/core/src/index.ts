@@ -105,6 +105,8 @@ export * from './mailing/send-attempts.js';
 export * from './mailing/service.js';
 export * from './mailing/email.js';
 export * from './mailing/unsubscribe.js';
+export * from './mailing/edition.js';
+export * from './mailing/edition-delivery.js';
 export * from './operators/model.js';
 export * from './operators/ports.js';
 export * from './operators/service.js';

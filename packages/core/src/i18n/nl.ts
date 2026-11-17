@@ -87,6 +87,8 @@ export const nl: Partial<Messages> = {
   'mail.email.viewInBrowser': 'Bekijk deze e-mail in je browser',
   'mail.email.footer': 'Je ontvangt deze e-mail van {site}.',
   'mail.email.footnotes': 'Noten',
+  'mail.email.unsubscribe': 'Afmelden voor deze nieuwsbrief',
+  'mail.edition.test.subject': '[Test] {subject}',
   'mail.email.credit.photo': 'Foto: {name}',
   'mail.email.credit.illustration': 'Illustratie: {name}',
   'mail.email.credit.other': 'Beeld: {name}',

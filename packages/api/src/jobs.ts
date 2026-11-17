@@ -21,6 +21,9 @@ import {
   renderShareCards,
   purgeMedia,
   reconcileMail,
+  deliverEdition,
+  type EditionMailDeps,
+  intentOf,
   reverifyHostname,
   sweepMediaOrphans,
   systemPrincipal,
@@ -69,6 +72,9 @@ import {
  */
 export const JOB_POOLS: readonly JobPool[] = [
   { name: 'bulk', types: ['tenant.export', 'media.orphans', 'content.share-cards'] },
+  // A newsletter run talks to the mail provider for up to three minutes (ADR 010 rule 9): in
+  // the default pool it would hold up a scheduled publication, behind an export it would wait.
+  { name: 'newsletter', types: ['mailing.edition.deliver'] },
 ];
 
 /** Platform jobs the worker plans for itself (brief #15 decision 6). */
@@ -265,11 +271,11 @@ export function mailReconcileJob({
       throw new Error(`mail.reconcile ${key}: event ${eventId} belongs to another tenant`);
     const source = Object.hasOwn(mail.sources, subscriber) ? mail.sources[subscriber] : undefined;
     if (!source) throw new Error(`mail.reconcile ${key}: no mail source for ${subscriber}`);
-    if (`${subscriber}:${event.id}` !== key)
+    if (!intentOf(key, subscriber, event.id))
       throw new Error(`mail.reconcile ${key}: key does not match subscriber and event`);
-    const message = await source(event);
+    const message = await source(event, key);
     if (!message) return {};
-    return reconcileMail({ ...mail, uow }, event, subscriber, message);
+    return reconcileMail({ ...mail, uow }, event, subscriber, message, key);
   };
 }
 
@@ -285,6 +291,7 @@ export function jobHandlers({
   assist,
   exports,
   connections,
+  editions,
 }: {
   uow: UnitOfWork;
   operatorDb: ReturnType<typeof createDb>;
@@ -304,6 +311,8 @@ export function jobHandlers({
   connections?: Pick<ConnectionDispatchDeps, 'sources' | 'transport'> & {
     mailchimpSync?: (tenantId: string, intentId: string) => Promise<boolean>;
   };
+  /** Newsletter delivery; without it the job fails, which suites that send no edition allow. */
+  editions?: EditionMailDeps | undefined;
 }): JobHandlers {
   const exportConfig = (): ExportJobConfig => {
     if (!exports) throw new Error('the export jobs are not configured in this worker');
@@ -382,6 +391,15 @@ export function jobHandlers({
       readEvent: (id) => readOutboxEvent(operatorDb, id),
       ...mail,
     }),
+    // Not a `tenantJob`: `deliverEdition` opens its own units of work, a few per recipient like
+    // any mail (`sendOnce`), as mycel_app under the job's tenant. It answers a suspension itself.
+    'mailing.edition.deliver': async (job) => {
+      if (job.tenantId === null)
+        throw new Error('mailing.edition.deliver is a tenant job but has no tenant');
+      if (!editions) throw new Error('newsletter delivery is not configured in this worker');
+      const { editionId } = parseJobPayload('mailing.edition.deliver', job.payload);
+      return deliverEdition(editions, job.tenantId, editionId);
+    },
     // Not a `tenantJob`: `exportTenant` reads as mycel_app in its own repeatable-read transaction
     // on the operator connection, and the run outlives any one unit of work. Runs whatever the
     // tenant's status (ADR 015 rule 7: leaving is never gated).

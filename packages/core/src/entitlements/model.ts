@@ -30,6 +30,7 @@ export type FeatureSwitch = (typeof FEATURE_SWITCHES)[number];
 export const LIMITS = [
   'supporters.max',
   'mail.monthly_max',
+  'mail.bulk_per_minute',
   'media.storage_max_bytes',
   'operators.max',
   'custom_domains.max',
@@ -54,6 +55,7 @@ export const Entitlements = z
     blocks: z.record(z.string(), Switch),
     'supporters.max': Limit,
     'mail.monthly_max': Limit,
+    'mail.bulk_per_minute': Limit,
     'media.storage_max_bytes': Limit,
     'operators.max': Limit,
     'custom_domains.max': Limit,
@@ -82,6 +84,8 @@ export const DEFAULT_ENTITLEMENTS: Entitlements = Object.freeze({
   blocks: Object.freeze({}) as Record<string, boolean>,
   'supporters.max': 100_000,
   'mail.monthly_max': 1_000_000,
+  // Newsletter throughput (ADR 010 rule 8): bulk messages a tenant's editions start per minute.
+  'mail.bulk_per_minute': 120,
   'media.storage_max_bytes': 50 * 1024 ** 3,
   'operators.max': 50,
   'custom_domains.max': 20,

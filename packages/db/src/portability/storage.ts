@@ -824,12 +824,38 @@ export const STORAGE = {
         subject: 'supporter',
         route: { kind: 'apply', does: 'deletes the intents of an erased event' },
       },
+      {
+        field: 'key',
+        subject: 'supporter',
+        route: {
+          kind: 'apply',
+          does: 'deletes the edition intents that name an erased supporter id in their key',
+        },
+      },
     ],
     retention: {
       kind: 'term',
-      term: 'goes with its outbox event, which is the only way an erasure finds the intent',
+      term: 'goes with its outbox event; an erasure finds an intent by that event, or an edition intent by the supporter id in its key',
       by: 'retention.apply',
     },
+  },
+  mail_editions: {
+    category: 'mail',
+    owner: 'tenant',
+    copies: [
+      KEPT(
+        'subject',
+        'anyone',
+        'the subject as it was sent; an edition is immutable (ADR 018 rule 4)'
+      ),
+      KEPT('html', 'anyone', 'the mail as it was sent; an edition is immutable (ADR 018 rule 4)'),
+      KEPT(
+        'text',
+        'anyone',
+        'the text part as it was sent; an edition is immutable (ADR 018 rule 4)'
+      ),
+    ],
+    retention: SITE_KEPT,
   },
   reader_signin_links: {
     category: 'access',

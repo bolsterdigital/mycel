@@ -76,6 +76,7 @@ const IMPORT_RULE = {
   people: 'as-exported',
   campaigns: 'as-exported',
   campaign_participations: 'as-exported',
+  mail_editions: 'as-exported',
   person_groups: 'as-exported',
   person_group_members: 'as-exported',
   sections: 'as-exported',

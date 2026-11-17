@@ -84,6 +84,8 @@ export const en = {
   'mail.email.viewInBrowser': 'View this e-mail in your browser',
   'mail.email.footer': 'You receive this e-mail from {site}.',
   'mail.email.footnotes': 'Notes',
+  'mail.email.unsubscribe': 'Unsubscribe from this newsletter',
+  'mail.edition.test.subject': '[Test] {subject}',
   'mail.email.credit.photo': 'Photo: {name}',
   'mail.email.credit.illustration': 'Illustration: {name}',
   'mail.email.credit.other': 'Image: {name}',

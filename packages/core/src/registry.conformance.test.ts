@@ -110,6 +110,7 @@ describe('a use case that consumes a limit checks it (ADR 015)', () => {
       'assist.section.suggest',
       'assist.translation.suggest',
       'form.submit',
+      'mailing.edition.send',
       'media.upload',
       'tenant.hostname.add',
       'tenant.member.invite',

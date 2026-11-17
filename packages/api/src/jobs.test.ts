@@ -27,6 +27,8 @@ import {
   DEFAULT_ACCESS,
   supporterIngestSubscriber,
   monthsBefore,
+  EDITION_SUBSCRIBER,
+  editionMailSource,
 } from '@mycel/core';
 import {
   FakeClock,
@@ -343,6 +345,85 @@ describe('job handlers', () => {
     uow.store.setAccess(TENANT, { status: 'active' });
     expect(await handlers['content.publish']!(planned)).toEqual({});
     expect(await nl()).toMatchObject({ status: 'published', publishedRevisionId: revision.id });
+  });
+
+  // The worker's side of `mailing.edition.send`: the planned job reaches the provider through
+  // the registry's handler, and the reconcile job of one recipient's intent finds its message by
+  // the supporter id in the key.
+  it('delivers a sent edition through its job and reconciles one recipient by the intent key', async () => {
+    uow.store.setAccess(TENANT, { status: 'active' });
+    const invoker = new Invoker(buildRegistry(), uow);
+    const admin = systemPrincipal(TENANT, 'test');
+    const at = clock.now().toISOString();
+    await uow.run(admin, (ctx) =>
+      ctx.supporters.saveProjection({
+        id: uuidv7(),
+        email: 'ada@example.org',
+        lists: ['newsletter'],
+        pendingLists: [],
+        grants: [],
+        firstSeen: at,
+        lastActivity: at,
+        appliedThrough: { at, id: 'fixture' },
+      })
+    );
+    const { item, revision } = await invoker.run(useCases.createItem, admin, {
+      slug: 'edition',
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Nieuws' },
+        blocks: [],
+        delivery: { email: { listId: 'newsletter', subject: { nl: 'Het nieuws' } } },
+      },
+    });
+    await invoker.run(useCases.publishItem, admin, {
+      itemId: item.id,
+      revisionId: revision.id,
+      locale: 'nl',
+    });
+    const { editionId } = await invoker.run(useCases.sendEdition, admin, {
+      itemId: item.id,
+      locales: ['nl'],
+      site: { name: 'Probe', url: 'http://localhost:5173/probe', defaultLocale: 'nl' },
+    });
+    const planned = uow.store.jobs.find((j) => j.type === 'mailing.edition.deliver')!;
+    await expect(handlers['mailing.edition.deliver']!(planned)).rejects.toThrow(/not configured/);
+
+    const mailer = new MemoryMailer();
+    const editions = {
+      mailer,
+      signer: uow.signer,
+      clock,
+      tenants: new MemoryTenants([probeTenant(TENANT)]),
+      uow,
+      from: { email: 'noreply@example.org' },
+      platform: memoryPlatform,
+      access: (id: string) => identity.tenantAccess(id),
+    };
+    const h = jobHandlers({
+      uow,
+      operatorDb,
+      identity,
+      editions,
+      mail: {
+        mailer,
+        clock,
+        sources: { [EDITION_SUBSCRIBER]: editionMailSource(editions) },
+        readEvent: async (id) => uow.store.outbox.find((e) => e.id === id) ?? null,
+      },
+    });
+    expect(await h['mailing.edition.deliver']!(planned)).toEqual({});
+    expect(mailer.sent).toMatchObject([
+      { to: { email: 'ada@example.org' }, subject: 'Het nieuws', stream: 'bulk' },
+    ]);
+
+    const reconcile = uow.store.jobs.find((j) => j.type === 'mail.reconcile' && !j.doneAt)!;
+    expect(reconcile.payload).toMatchObject({ subscriber: EDITION_SUBSCRIBER, eventId: editionId });
+    clock.advance(RECONCILE_LAG_MS + 60_000);
+    expect(await h['mail.reconcile']!(reconcile)).toEqual({});
+    expect(mailer.sent).toHaveLength(1);
   });
 });
 

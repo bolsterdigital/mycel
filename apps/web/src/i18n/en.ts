@@ -1126,6 +1126,8 @@ export const en = {
   'admin.audit.op.form.submit': 'Form sent',
   'admin.audit.op.mailing.opt_in.confirm': 'Subscription confirmed',
   'admin.audit.op.mailing.opt_out.confirm': 'Unsubscribed',
+  'admin.audit.op.mailing.edition.test': 'Newsletter test sent',
+  'admin.audit.op.mailing.edition.send': 'Newsletter sent',
   'admin.audit.op.media.restore': 'File restored',
   'admin.audit.op.media.bulk.delete': 'Files moved to the trash',
   'admin.audit.op.media.delete': 'File deleted',

@@ -46,6 +46,7 @@ import {
   normalizeEmail,
   eraseOutboxProps,
   ERASED_DOMAIN,
+  EDITION_SUBSCRIBER,
   ERASURE_EXPIRES_EXPORTS,
   ERASURE_EXPORT_ERROR,
   ERASURE_KEEPS_INTENT_STATES,
@@ -506,6 +507,15 @@ async function eraseRows(
     await sql`delete from reader_sessions where supporter_id = any(${supporterIds}::uuid[])`.execute(
       trx
     )
+  );
+  // An edition's intent hangs off the edition's event, which carries no address, so the event
+  // route below never finds it: it names its recipient by supporter id in the key and holds a
+  // hash of the address (`correlation`). It goes by that id.
+  count(
+    await sql`
+      delete from mail_sends
+      where subscriber = ${EDITION_SUBSCRIBER}
+        and split_part(key, ':', 2) = any(${supporterIds}::text[])`.execute(trx)
   );
   if (!addresses.size) return changed;
 

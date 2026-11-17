@@ -120,6 +120,32 @@ export interface EmailDocument {
     headingFont: 'sans' | 'serif';
   };
   copy: { viewInBrowser: string; footer: string; footnotes: string };
+  /**
+   * The unsubscribe link of the footer, on a mail that goes to a list (ADR 010 rule 8); absent
+   * on a rendering that is not one. `href` may be `UNSUBSCRIBE_PLACEHOLDER`.
+   */
+  unsubscribe?: EmailAction;
+}
+
+/**
+ * Stands where a recipient's own unsubscribe link goes. An edition is rendered once and is the
+ * same for everyone (ADR 018 rule 4); the delivery puts each recipient's signed link here, in
+ * the HTML and in the text part. A valid address without a character HTML escapes, so every
+ * renderer passes it through unchanged. `.invalid` never resolves (RFC 2606).
+ */
+export const UNSUBSCRIBE_PLACEHOLDER = 'https://unsubscribe.invalid/recipient';
+
+/** A rendered mail with `url` where the placeholder stood; the HTML gets it escaped. */
+export function withUnsubscribeUrl(mail: RenderedEmail, url: string): RenderedEmail {
+  const escaped = url
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  return {
+    html: mail.html.replaceAll(UNSUBSCRIBE_PLACEHOLDER, escaped),
+    text: mail.text.replaceAll(UNSUBSCRIBE_PLACEHOLDER, url),
+  };
 }
 
 /** The rendered mail; the port's answer. */
@@ -189,6 +215,8 @@ export async function emailDocument(
     doc: ContentDocument;
     locale: string;
     site: EmailSite;
+    /** Where the footer's unsubscribe link points; without it the mail has none. */
+    unsubscribe?: string;
   }
 ): Promise<EmailDocument> {
   const { item, doc, locale, site } = input;
@@ -279,6 +307,9 @@ export async function emailDocument(
       footer: copy('mail.email.footer', { site: site.name }),
       footnotes: copy('mail.email.footnotes'),
     },
+    ...(input.unsubscribe
+      ? { unsubscribe: { label: copy('mail.email.unsubscribe'), href: input.unsubscribe } }
+      : {}),
   };
 
   async function emailBlocks(b: Block): Promise<EmailBlock[]> {

@@ -232,7 +232,11 @@ function renderHtml(email: EmailDocument): string {
     ),
     hero,
     blocks,
-    `<tr><td style="padding:20px ${GUTTER}px;font-size:14px;${outer}">${esc(email.copy.footer)} ${link(email.site.url, esc(email.site.url.replace(/^https?:\/\//, '')), `color:${theme.surface.foreground};`)}</td></tr>`,
+    `<tr><td style="padding:20px ${GUTTER}px;font-size:14px;${outer}">${esc(email.copy.footer)} ${link(email.site.url, esc(email.site.url.replace(/^https?:\/\//, '')), `color:${theme.surface.foreground};`)}${
+      email.unsubscribe
+        ? `<br>${link(email.unsubscribe.href, esc(email.unsubscribe.label), `color:${theme.surface.foreground};`)}`
+        : ''
+    }</td></tr>`,
     '</table>',
     '</td></tr></table>',
     '</body></html>',
@@ -340,7 +344,9 @@ function renderText(email: EmailDocument): string {
     email.lead ?? '',
     email.hero ? image(email.hero) : '',
     ...email.blocks.map(blockText),
-    `--\n${email.copy.footer}\n${email.site.url}`,
+    `--\n${email.copy.footer}\n${email.site.url}${
+      email.unsubscribe ? `\n${email.unsubscribe.label}: ${email.unsubscribe.href}` : ''
+    }`,
   ]
     .filter(Boolean)
     .join('\n\n')}\n`;

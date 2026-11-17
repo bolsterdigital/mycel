@@ -42,6 +42,7 @@ import {
 } from './index.js';
 import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 import { seedCampaign } from './portability/campaigns.fixture.js';
+import { seedEdition } from './portability/editions.fixture.js';
 import { seedSupporter } from './supporters/rls.fixture.js';
 import { seedNavigation } from './portability/navigation.fixture.js';
 
@@ -333,6 +334,7 @@ describe.skipIf(skip)('row level security conformance', () => {
     });
     const { email, event } = await seedSupporter(invoker, uow, admin, { formId, run });
     await seedCampaign(invoker, operatorDb, admin, email);
+    await seedEdition(invoker, uow, admin);
     await seedNavigation(invoker, admin);
     // Ingest released that signup's admission seat (0010); a reservation without a signup keeps
     // one in `supporter_admissions`. Reserved directly, not through a second signup: that signup's
