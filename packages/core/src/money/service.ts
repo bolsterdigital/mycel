@@ -249,6 +249,10 @@ export const createDonation = defineUseCase({
       ctx.log.warn('donation.create.provider-failed', { provider: provider.id });
       throw new UseCaseError('conflict', 'the payment provider did not open a checkout; retry');
     }
+    // The address lock before the row that names the supporter: an erasure that runs beside this
+    // either sees the payment or makes the supporter unknown here, never neither.
+    const supporter = input.supporterId ? await lockSupporter(ctx, input.supporterId) : null;
+    if (input.supporterId && !supporter) throw notFound('supporter');
     const created = Payment.parse({
       id,
       kind: 'donation',
@@ -261,7 +265,7 @@ export const createDonation = defineUseCase({
       providerRef: opened.ref,
       providerStatus: opened.raw,
       checkoutUrl: null,
-      supporterId: input.supporterId ?? null,
+      supporterId: supporter?.id ?? null,
       createdAt: at,
       updatedAt: at,
       paidAt: null,
@@ -282,7 +286,6 @@ export const createDonation = defineUseCase({
       })
     );
     // Usually one step to `open`; a provider that settles at once (or refuses) is walked there.
-    const supporter = created.supporterId ? await lockSupporter(ctx, created.supporterId) : null;
     const payment = await reconcile(ctx, created, opened, 'checkout', supporter);
     return { paymentId: id, status: payment.status, checkoutUrl: payment.checkoutUrl, token };
   },
