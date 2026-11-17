@@ -106,7 +106,7 @@
         {@const last = when(s.lastActivity)}
         <tr
           ><th scope="row" data-label={t('admin.supporters.email')} class="supporters-email"
-            >{s.email}</th
+            ><a href="{base}/{s.id}">{s.email}</a></th
           >
           <td data-label={t('admin.supporters.lists')}
             >{#if s.lists.length || s.pendingLists.length}<ul class="supporters-lists">
