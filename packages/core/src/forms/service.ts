@@ -211,6 +211,8 @@ export const submitForm = defineUseCase({
       ]);
     // An accepted donation opens its checkout after the submission is stored (the payment names
     // it), in this transaction: a provider that does not answer rolls the submission back too.
+    // A fundraiser's form gives the payment its campaign, decided under the share lock below.
+    let fundraiserId: string | undefined;
     const accept = async (): Promise<SubmitResult> => {
       if (!gift) return { status: 'accepted', submissionId };
       const { checkoutUrl, token } = await startDonation(ctx, {
@@ -220,6 +222,7 @@ export const submitForm = defineUseCase({
         locale: input.locale,
         returnUrl: input.returnUrl!,
         submissionId,
+        campaignId: fundraiserId,
       });
       return { status: 'accepted', submissionId, checkoutUrl, token };
     };
@@ -271,7 +274,12 @@ export const submitForm = defineUseCase({
     // the order ingest and erasure take them in. A campaign that closed since the early check
     // throws here and so also rolls back the rate limit hits above; the campaign state is public,
     // so a probe learns nothing.
-    const campaign = await participationFor(ctx, form, input.locale, now);
+    const bound = await participationFor(ctx, form, input.locale, now);
+    // A fundraiser's participation is the paid payment (rule 8, amendment 2026-11-17): no
+    // signature to confirm, so no confirmation mail, participation row or supporter seat here; the
+    // gift takes the path of any donation and names the campaign.
+    if (bound?.kind === 'fundraiser') fundraiserId = bound.id;
+    const campaign = bound?.kind === 'fundraiser' ? null : bound;
     if (campaign) submission.evaluation!.campaignId = campaign.id;
     const joins = consent && JOINING_KINDS.includes(form.kind);
 

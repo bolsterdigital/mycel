@@ -389,6 +389,7 @@ export type TextRest =
         kind: CampaignKind;
         phase: CampaignPhase;
         participants: number | null;
+        raised: { amount: number; currency: string } | null;
         target: number | null;
       } | null;
       reason: CampaignCardReason | null;
@@ -568,6 +569,7 @@ export function textRestOf(
             kind: card.kind,
             phase: card.phase,
             participants: card.counter?.participants ?? null,
+            raised: card.counter?.raised ?? null,
             target: card.counter?.target ?? null,
           }
         : null,

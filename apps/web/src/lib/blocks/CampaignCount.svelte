@@ -1,22 +1,24 @@
 <!-- Where a campaign stands in numbers (ADR 033 rule 8): what it counts, the count, and against a
      public goal a native <progress> named by that line. Only aggregates; nothing when the site
-     hides the counter. The bar never runs past full, the number does ("620 of 500"). -->
+     hides the counter. The bar never runs past full, the number does ("620 of 500"). A fundraiser
+     counts money, so count and goal read as amounts ("€ 1.250 of € 5.000"). -->
 <script lang="ts">
+  import { countFigures } from '../campaign-count.js';
   import type { RenderCampaign, RenderModel } from './model.js';
 
   let { campaign, model, id }: { campaign: RenderCampaign; model: RenderModel; id: string } =
     $props();
 
   const copy = $derived(model.copy.campaign);
-  const number = $derived(new Intl.NumberFormat(model.locale));
   const counter = $derived(campaign.counter);
+  const figures = $derived(counter && countFigures(counter, counter.target, model.locale));
   const figure = $derived(
-    counter
-      ? counter.target === null
-        ? number.format(counter.participants)
+    figures
+      ? figures.target === null
+        ? figures.count
         : copy.ofTarget
-            .replace('{n}', () => number.format(counter.participants))
-            .replace('{target}', () => number.format(counter.target!))
+            .replace('{n}', () => figures.count)
+            .replace('{target}', () => figures.target!)
       : ''
   );
 </script>
@@ -29,7 +31,7 @@
   {#if counter.target !== null}
     <progress
       max={counter.target}
-      value={Math.min(counter.participants, counter.target)}
+      value={Math.min(figures!.value, counter.target)}
       aria-labelledby="{id}-count">{figure}</progress
     >
   {/if}

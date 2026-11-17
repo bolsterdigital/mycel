@@ -110,6 +110,11 @@ export const Payment = z.object({
    * submission is gone (erasure, retention).
    */
   submissionId: z.string().guid().nullable(),
+  /**
+   * The fundraiser this gift was given to (0075, ADR 033 rule 8): its counter sums the paid ones.
+   * Null for a gift outside a campaign. Names no person, so an erasure leaves it.
+   */
+  campaignId: z.string().guid().nullable(),
   createdAt: Timestamp,
   updatedAt: Timestamp,
   paidAt: Timestamp.nullable(),

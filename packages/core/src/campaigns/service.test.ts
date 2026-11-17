@@ -38,7 +38,7 @@ function setup() {
         document: doc(type, slug) as never,
       })
     ).item;
-  const form = (kind: 'petition' | 'signup' | 'contact' = 'petition', p = admin) =>
+  const form = (kind: 'petition' | 'signup' | 'donation' | 'contact' = 'petition', p = admin) =>
     invoker.run(useCases.createForm, p, { kind });
   const campaign = async (slug = 'teken', kind: 'petition' | 'signup' = 'petition') => {
     const landing = await page(slug);
@@ -290,8 +290,8 @@ describe('a campaign (ADR 033)', () => {
     expect(refused.issues[0]?.params).toEqual({ kind: 'petition', formKind: 'contact' });
   });
 
-  it('refuses to open without a form, and a fundraiser before ADR 005', async () => {
-    const { invoker, admin, page } = setup();
+  it('refuses to open without a form, and binds a fundraiser to a donation form only', async () => {
+    const { invoker, admin, page, form } = setup();
     const noForm = await invoker.run(useCases.createCampaign, admin, {
       kind: 'signup',
       landingItemId: (await page('zonder')).id,
@@ -304,18 +304,27 @@ describe('a campaign (ADR 033)', () => {
       'conflict',
       'campaign.form.required'
     );
+    await expectCode(
+      invoker.run(useCases.createCampaign, admin, {
+        kind: 'fundraiser',
+        landingItemId: (await page('geld')).id,
+        formId: (await form('petition')).id,
+      }),
+      'invalid_input',
+      'campaign.form.kind-mismatch'
+    );
     const fund = await invoker.run(useCases.createCampaign, admin, {
       kind: 'fundraiser',
-      landingItemId: (await page('geld')).id,
+      landingItemId: (await page('geven')).id,
+      formId: (await form('donation')).id,
+      goal: { target: 500_000, milestones: [] },
     });
-    await expectCode(
-      invoker.run(useCases.openCampaign, admin, {
-        campaignId: fund.id,
-        baseUpdatedAt: fund.updatedAt,
-      }),
-      'conflict',
-      'campaign.kind.not-available'
-    );
+    expect(fund).toMatchObject({ participants: 0, raised: { amount: 0, currency: 'EUR' } });
+    const opened = await invoker.run(useCases.openCampaign, admin, {
+      campaignId: fund.id,
+      baseUpdatedAt: fund.updatedAt,
+    });
+    expect(opened.participation.state).toBe('open');
   });
 
   it('lets content:write edit everything but the window and the state (rule 10)', async () => {

@@ -6,26 +6,31 @@
 // and whose result the script brings up to date.
 import type { TextRest } from '../server/content/content-blocks.js';
 import { fill, type UiKey } from '../../i18n/index.js';
+import { countFigures } from '../campaign-count.js';
 
 type Translate = (key: UiKey) => string;
 
-function kindLabel(view: TextRest, t: Translate): string | undefined {
+function kindLabel(view: TextRest, t: Translate, locale: string): string | undefined {
   const option = (name: string) => t(`admin.block.option.${name}` as UiKey);
   if (view.kind === 'callout') return option(view.variant);
   if (view.kind === 'video') return option(view.provider);
   if (view.kind === 'paywall') return t('admin.block.paywall.boundary');
   if (view.kind === 'campaign') {
     if (!view.campaign) return t(`admin.block.campaign.reason.${view.reason ?? 'unknown'}`);
-    const { kind, phase, participants, target } = view.campaign;
+    const { kind, phase, participants, raised, target } = view.campaign;
     const state = t(`admin.campaign.state.${phase === 'upcoming' ? 'draft' : phase}`);
-    const count =
-      participants === null
-        ? []
-        : [
-            target === null
-              ? String(participants)
-              : fill(t('admin.campaign.count.ofTarget'), { count: participants, target }),
-          ];
+    const figures =
+      participants === null ? null : countFigures({ participants, raised }, target, locale);
+    const count = !figures
+      ? []
+      : [
+          figures.target === null
+            ? figures.count
+            : fill(t('admin.campaign.count.ofTarget'), {
+                count: figures.count,
+                target: figures.target,
+              }),
+        ];
     return [t(`admin.campaign.kind.${kind}`), state, ...count].join(' · ');
   }
   if (view.kind !== 'form') return undefined;
@@ -37,7 +42,9 @@ function kindLabel(view: TextRest, t: Translate): string | undefined {
 export function restWords(
   view: TextRest,
   restricted: boolean,
-  t: Translate
+  t: Translate,
+  /** The screen's language, for the numbers and amounts of a campaign card. */
+  locale = 'en'
 ): { kindLabel: string | undefined; noteLabel: string | undefined; liveLabel?: string } {
   const note =
     view.kind !== 'paywall'
@@ -46,7 +53,7 @@ export function restWords(
         ? undefined
         : t('admin.block.paywall.public');
   return {
-    kindLabel: kindLabel(view, t),
+    kindLabel: kindLabel(view, t, locale),
     noteLabel: note,
     // A card is a reference that is read when the page is (ADR 033 rule 4): say so at rest.
     ...(view.kind === 'campaign' ? { liveLabel: t('admin.block.campaign.live') } : {}),

@@ -6,13 +6,13 @@
   import { pickAny } from '@mycel/core';
   import { Badge, Button, OverviewPage, Table } from '#lib/admin/ui/index.js';
   import { fill, ui } from '../../../../../i18n/index.js';
+  import { countFigures } from '#lib/campaign-count.js';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();
   const t = $derived(ui(data.locale));
   const base = $derived(`/admin/${data.tenant.slug}`);
   const title = $derived(t('admin.campaign.title'));
-  const number = (n: number) => n.toLocaleString(data.locale);
   const tone = { draft: 'neutral', open: 'success', closed: 'warning' } as const;
 </script>
 
@@ -64,6 +64,7 @@
   >
     {#snippet rows()}
       {#each data.campaigns as c (c.id)}
+        {@const figures = countFigures(c, c.goal?.target ?? null, data.locale)}
         <tr>
           <td data-label={t('admin.campaign.column.title')}>
             {#if c.landing}<a href="{base}/content/{c.landingItemId}"
@@ -85,12 +86,12 @@
               : t('admin.campaign.page.draft')}
           </td>
           <td class="numeric" data-label={t('admin.campaign.column.count')}>
-            {c.goal
-              ? fill(t('admin.campaign.count.ofTarget'), {
-                  count: number(c.participants),
-                  target: number(c.goal.target),
-                })
-              : number(c.participants)}
+            {figures.target === null
+              ? figures.count
+              : fill(t('admin.campaign.count.ofTarget'), {
+                  count: figures.count,
+                  target: figures.target,
+                })}
           </td>
         </tr>
       {/each}

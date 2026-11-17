@@ -200,7 +200,7 @@ const fixtures: ResolveSource = {
       phase: 'open',
       opensAt: null,
       closesAt: null,
-      counter: { participants: 1234, target: 5000 },
+      counter: { participants: 1234, raised: null, target: 5000 },
       formId: EXAMPLE_IDS.form,
     };
   },
