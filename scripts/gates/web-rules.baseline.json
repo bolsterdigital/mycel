@@ -16,7 +16,7 @@
     "apps/web/src/routes/(admin)/admin/[tenant]/content/+page.svelte": 1,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.svelte": 6,
     "apps/web/src/routes/(admin)/admin/[tenant]/site/+page.svelte": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/status/+page.svelte": 2
+    "apps/web/src/routes/(admin)/admin/[tenant]/status/+page.svelte": 1
   },
   "viewport-height": {},
   "public-box-shadow": {},
@@ -25,5 +25,8 @@
   },
   "admin-route-script-tag": {},
   "admin-raw-html": {},
-  "admin-route-raw-html": {}
+  "admin-route-raw-html": {},
+  "plural-by-hand": {},
+  "plural-by-hand-lib": {},
+  "physical-css": {}
 }

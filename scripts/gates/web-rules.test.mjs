@@ -10,6 +10,9 @@
 // mount it later, where Trusted Types refuse a copied script tag and a plain string.
 // And a catalog key that is written out or built from a closed union is proven by the type, so
 // `as UiKey` is left for a key that comes from data (a block's field name, a server's table).
+// And a counted phrase picks its form through `plural` (the language's CLDR rules), never with a
+// `.one` key chosen by `n === 1`; and the stylesheets use logical properties, so a site in a
+// right-to-left language (`dir` from its locale) mirrors without a second stylesheet.
 // Run by `npm run lint:infra`, offline.
 // Rejected: one-home.test.mjs (it allows no copy at all, and these have dozens until the sweep),
 // and one total per rule (a removed copy and a new one elsewhere cancel out silently).
@@ -82,6 +85,21 @@ export const RULES = {
   'viewport-height': [
     'a height in static vh (use dvh, or svh for a minimum that must not jump)',
     /(?<![\w-])\d+(?:\.\d+)?vh\b/g,
+    WEB,
+  ],
+  'plural-by-hand': [
+    'a plural form chosen by hand in a route (use plural from i18n)',
+    /\.(?:one|many)['"`]|\?\s*['"]one['"]/g,
+    ROUTES,
+  ],
+  'plural-by-hand-lib': [
+    'a plural form chosen by hand in a component (use plural from i18n)',
+    /\.(?:one|many)['"`]|\?\s*['"]one['"]/g,
+    `${WEB}lib/`,
+  ],
+  'physical-css': [
+    'a physical left or right in a stylesheet (use the logical property: inline-start, inline-end)',
+    /\b(?:margin|padding|border)-(?:left|right)\b|\b(?:float|clear|text-align)\s*:\s*(?:left|right)\b|(?<![\w-])(?:left|right)\s*:\s*-?[\d.]+[a-z%]*\s*;/g,
     WEB,
   ],
   'public-box-shadow': [
@@ -180,6 +198,16 @@ test('each rule sees its copy, within its scope, and not in comments or tests', 
       { path: `${ROUTES}b/+page.server.ts`, text: "// e instanceof UseCaseError ?? 'en'" },
       { path: `${ROUTES}b/x.test.ts`, text: 'e instanceof UseCaseError' },
       { path: `${WEB}lib/k.ts`, text: 't(`a.${b}` as UiKey); t(c as const)' },
+      {
+        path: `${ROUTES}c/+page.svelte`,
+        text: "t(n === 1 ? 'a.count.one' : 'a.count.many'); plural(t, 'a.count', n)",
+      },
+      { path: `${WEB}lib/p.ts`, text: "t(`${key}.${n === 1 ? 'one' : 'other'}`)" },
+      {
+        path: `${WEB}lib/y.css`,
+        text: '.a { float: left; margin-left: 1rem; left: -10px; inset-inline-start: 0; }\n.b { padding-inline: 0; }',
+      },
+      { path: `${WEB}lib/z.ts`, text: 'view.posAtCoords({ left: event.clientX, top: 0 });' },
       { path: 'packages/core/src/x.ts', text: "e instanceof UseCaseError; x ?? 'en'" },
     ]),
     {
@@ -196,6 +224,9 @@ test('each rule sees its copy, within its scope, and not in comments or tests', 
       'ui-key-cast': { [`${WEB}lib/k.ts`]: 1 },
       'viewport-height': { [`${WEB}lib/x.css`]: 2 },
       'public-box-shadow': { [`${WEB}lib/theme/base.css`]: 1 },
+      'plural-by-hand': { [`${ROUTES}c/+page.svelte`]: 2 },
+      'plural-by-hand-lib': { [`${WEB}lib/p.ts`]: 1 },
+      'physical-css': { [`${WEB}lib/y.css`]: 3 },
     }
   );
 });

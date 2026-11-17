@@ -11,7 +11,7 @@
   import AdminScript from '#lib/admin/trusted/AdminScript.svelte';
   import AttentionList from '#lib/admin/attention/AttentionList.svelte';
   import { Button, Notice, PageHeader, Section, StatusLine } from '#lib/admin/ui/index.js';
-  import { fill, refusalCopy, ui } from '../../../../../i18n/index.js';
+  import { plural, refusalCopy, ui } from '../../../../../i18n/index.js';
   import { AttentionSource } from '@mycel/core';
   import type { PageProps } from './$types';
 
@@ -30,8 +30,7 @@
       }))
       .filter((s) => s.items.length)
   );
-  const count = (n: number) =>
-    fill(t(n === 1 ? 'admin.attention.count.one' : 'admin.attention.count.many'), { count: n });
+  const count = (n: number) => plural(t, 'admin.attention.count', n);
 </script>
 
 <svelte:head>
@@ -62,9 +61,7 @@
       <form class="ui-attention-read" method="post" action="?/seen" data-attention-seen>
         <input type="hidden" name="at" value={data.shownAt} />
         <p>
-          {fill(t(unread === 1 ? 'admin.attention.unread.one' : 'admin.attention.unread.many'), {
-            count: unread,
-          })}
+          {plural(t, 'admin.attention.unread', unread)}
         </p>
         <Button variant="secondary">{t('admin.attention.markRead')}</Button>
       </form>

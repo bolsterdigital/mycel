@@ -15,7 +15,7 @@
 // signup form has no reason to take more than adapter-node's default did. Actual bytes are
 // counted as well as Content-Length, including chunked bodies and other media actions.
 //
-// It also sets <html lang> per response from the locale the route negotiated (ADR 007). `init`
+// It also sets <html lang> and its `dir` per response from the locale the route negotiated (ADR 007). `init`
 // creates the composition root before the first request so the universal `reroute` hook finds it.
 //
 // Every request runs in a log context (TODO #17a): a request id (a valid incoming `X-Request-Id`
@@ -53,6 +53,7 @@ import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit/hooks'
 import {
   API_CATALOG_LINK,
   readSession,
+  textDirection,
   WELL_KNOWN_API_CATALOG,
   WELL_KNOWN_SECURITY_TXT,
 } from '@mycel/core';
@@ -153,7 +154,11 @@ const route: Handle = async ({ event, resolve }) => {
       { ...event, request },
       {
         transformPageChunk: ({ html }) =>
-          withItalicPreload(html.replace('%lang%', langOf(event.locals))),
+          withItalicPreload(
+            html
+              .replace('%lang%', langOf(event.locals))
+              .replace('%dir%', textDirection(langOf(event.locals)))
+          ),
       }
     );
 

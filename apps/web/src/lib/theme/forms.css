@@ -101,7 +101,7 @@ button {
 /* Honeypot: out of sight and out of the tab order, still in the DOM for naive bots. */
 .hp {
   position: absolute;
-  left: -10000px;
+  inset-inline-start: -10000px;
   width: 1px;
   height: 1px;
   overflow: hidden;

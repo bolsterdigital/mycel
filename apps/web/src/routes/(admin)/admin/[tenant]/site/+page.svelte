@@ -41,7 +41,7 @@
   } from '#lib/admin/ui/index.js';
   import ApiAccess from '#lib/admin/ApiAccess.svelte';
   import UsageList from '#lib/admin/UsageList.svelte';
-  import { fill, ui, type UiKey, refusalCopy } from '../../../../../i18n/index.js';
+  import { fill, plural, ui, type UiKey, refusalCopy } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -105,10 +105,7 @@
     { length: MAX_SUBMISSION_RETENTION_MONTHS - MIN_SUBMISSION_RETENTION_MONTHS + 1 },
     (_, i) => MIN_SUBMISSION_RETENTION_MONTHS + i
   );
-  const months = (n: number) =>
-    n === 1
-      ? t('admin.site.retention.month.one')
-      : fill(t('admin.site.retention.month.other'), { n });
+  const months = (n: number) => plural(t, 'admin.site.retention.month', n);
   const brandSaved = (kind: 'logo' | 'font') =>
     form && 'saved' in form && form.saved === 'brand' && 'kind' in form && form.kind === kind
       ? t('admin.site.saved')
