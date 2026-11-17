@@ -32,6 +32,7 @@ import { HmacSigner } from '@mycel/api';
 import { testTenant } from '@mycel/db/testing';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { campaignCardFixture } from './lib/blocks/campaigns';
+import { exerciseRestrictedArticle } from './lib/published/restricted';
 
 /**
  * A form page ships proof of work, plus conditional display only when its definition needs it.
@@ -1273,6 +1274,23 @@ test('a reader signs in with a magic link: form, mail, one button, a session on 
   await expect(page.getByLabel('E-mailadres')).toBeVisible();
   expect((await context.cookies()).some((c) => c.name === 'mycel_reader')).toBe(false);
   expect(await (await here()).text()).not.toContain(SIGNED_IN);
+});
+
+// ADR 016 rule 3: the journalism flow's reader step. The article is read as a visitor, as a
+// reader without the tier, with a grant, and after the grant ended (lib/published/restricted.ts).
+test('a restricted article: teaser and gate for a visitor, the whole for a reader with a grant, until it ends', async ({
+  page,
+  request,
+}, testInfo) => {
+  const email = `e2e-besloten-${testInfo.project.name}-${Date.now()}@example.org`;
+  await exerciseRestrictedArticle(page, request, email, async (address) => {
+    await page.getByLabel('E-mailadres').fill(address);
+    await pastSigninFillTime();
+    await page.getByRole('button', { name: 'Stuur mij een inloglink' }).click();
+    const mail = await waitForMail(address);
+    await page.goto(/https?:\/\/\S+\/reader\/signin\?token=\S+/.exec(mail.text)![0]);
+    await page.getByRole('button', { name: 'Inloggen' }).click();
+  });
 });
 
 test('five sign-in requests for one address give one answer and one mail, a bot the same answer and none', async ({

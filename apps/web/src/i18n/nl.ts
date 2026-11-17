@@ -1326,6 +1326,15 @@ export const nl: Partial<Record<UiKey, string>> = {
   'unsubscribe.invalid.title': 'Deze link werkt niet',
   'unsubscribe.invalid.body':
     'De afmeldlink is ongeldig of verlopen. Gebruik de link in een recentere mail, of neem contact op met de afzender.',
+  'reader.gate.signin.title': 'Log in om verder te lezen',
+  'reader.gate.signin.members':
+    'De rest is voor lezers die zijn ingelogd. Inloggen gaat met je e-mailadres, zonder wachtwoord.',
+  'reader.gate.signin.tier':
+    'De rest is voor lezers met toegang. Log in met het e-mailadres waarop je toegang staat; een wachtwoord is niet nodig.',
+  'reader.gate.signin.action': 'Inloggen',
+  'reader.gate.tier.title': 'Je toegang geldt niet voor dit stuk',
+  'reader.gate.tier.body':
+    'Je bent ingelogd, maar de rest is voor lezers met een andere soort toegang.',
   'confirm.pending.title': 'Bevestig je inschrijving',
   'confirm.pending.body':
     'Nog één stap: bevestig met de knop hieronder. Heb je je niet aangemeld? Dan hoef je niets te doen.',

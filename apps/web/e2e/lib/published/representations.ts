@@ -152,7 +152,8 @@ export async function exercisePublishedRepresentations(page: Page) {
   expect(entry(before, `/articles/${slugs.members}`)).toBeDefined();
   expect(before).not.toContain(`Geheim ${id}`);
   expect(before).not.toContain('Voor leden.');
-  expect((await page.request.get(`/probe/articles/${slugs.members}`)).status()).toBe(404);
+  // Its page is the teaser: the address the sitemap names answers.
+  expect((await page.request.get(`/probe/articles/${slugs.members}`)).status()).toBe(200);
   expect(before).toContain('/people/e2e-auteur');
   const lastmod = entry(before, `/${slugs.draft}`)!.match(/<lastmod>([^<]+)</)![1];
   await withInvoker((invoker) =>

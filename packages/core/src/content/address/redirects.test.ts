@@ -122,7 +122,7 @@ describe('old addresses', () => {
     expect(await olds(item.id)).toEqual(['over-ons']);
   });
 
-  it('forwards nothing to an item that went offline, is restricted or in the trash', async () => {
+  it('forwards nothing to an item that went offline, and to a restricted item as to any other', async () => {
     const item = await create('over-ons');
     await publish(item.id, 'nl');
     await rename(item.id, 'wie-we-zijn');
@@ -145,7 +145,8 @@ describe('old addresses', () => {
       revisionId: saved.revision.id,
       locale: 'nl',
     });
-    await expect(resolve('over-ons')).rejects.toMatchObject({ code: 'not_found' });
+    // Its address serves the teaser, so the old one may point there.
+    await expect(resolve('over-ons')).resolves.toEqual({ type: 'page', slug: 'wie-we-zijn' });
   });
 
   it('is tenant-bound and open to an anonymous reader', async () => {

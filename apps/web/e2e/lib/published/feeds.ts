@@ -2,7 +2,8 @@
 // person, `?format=md` on a page's own address and `/llms.txt`, as a feed reader, an agent and
 // a crawler read them. The adapter-rules scenario (`feed-rule.ts`) covers which rows a feed lists;
 // this proves the routes: content types, nosniff, locale from the URL, escaping, the same 404 as
-// HTML, and that a restricted, noindex or canonical-elsewhere item is in none of them.
+// HTML, and that a restricted, noindex or canonical-elsewhere item is in no feed and not in
+// llms.txt.
 import { expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { systemPrincipal, useCases, type Invoker, type Principal } from '@mycel/core';
@@ -117,7 +118,7 @@ export async function exerciseFeeds(page: Page) {
   }
 
   // (b) `?format=md`: the HTML's read as Markdown, with the canonical as a Link header; the same
-  // 404 for a restricted article and for a locale that was never published.
+  // 404 for a locale that was never published.
   const md = await page.request.get(`/probe/articles/${slugs.open}?format=md`);
   expect(md.status()).toBe(200);
   expect(md.headers()['content-type']).toBe('text/markdown; charset=utf-8');
@@ -125,12 +126,16 @@ export async function exerciseFeeds(page: Page) {
   const text = await md.text();
   expect(text.split('\n')[0]).toBe(`# Zout & \\<b\\>suiker\\</b\\> ${id}`);
   expect(text).toContain(`Samenvatting ${slugs.open}.`);
-  for (const path of [`/articles/${slugs.members}`, `/en/articles/${slugs.members}`]) {
-    const res = await page.request.get(`/probe${path}?format=md`);
-    expect(res.status(), path).toBe(404);
-    expect(res.headers()['cache-control'], path).toBe('no-store');
-    expect(await res.text(), path).not.toContain('Geheim');
-  }
+  // A restricted article is its teaser here as in HTML: title and lead, varying on the cookie
+  // (the whole flow is lib/published/restricted.ts).
+  const teaser = await page.request.get(`/probe/articles/${slugs.members}?format=md`);
+  expect(teaser.status()).toBe(200);
+  expect(teaser.headers()['vary']?.toLowerCase()).toContain('cookie');
+  expect((await teaser.text()).split('\n')[0]).toBe(`# Geheim ${id}`);
+  const unpublished = await page.request.get(`/probe/en/articles/${slugs.members}?format=md`);
+  expect(unpublished.status()).toBe(404);
+  expect(unpublished.headers()['cache-control']).toBe('no-store');
+  expect(await unpublished.text()).not.toContain('Geheim');
 
   // (c) llms.txt links each public article's Markdown, per locale, and nothing left out above.
   const llms = await read('/probe/llms.txt', 'text/markdown');

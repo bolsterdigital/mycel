@@ -4,8 +4,20 @@
 // document head and the cache need: the canonical URL, one `hreflang` per published locale plus
 // `x-default`, a description, the Open Graph title and share image (#66), the editor's
 // `noindex` and explicit canonical, and a strong ETag. The public pages ship no client-side JavaScript
-// at all, and nothing here reads a cookie or Accept-Language: the response is a function of the
-// URL, which is what makes it cacheable in a shared cache (ADR 018 rule 8).
+// at all, and for a public item nothing here reads a cookie or Accept-Language: the response is a
+// function of the URL, which is what makes it cacheable in a shared cache (ADR 018 rule 8).
+//
+// A restricted item is read as a visitor first, which gives its teaser and a `gate` (ADR 016
+// rule 3: the core cut the body before anything here saw it). Only then, and only when the
+// request carries a reader cookie, is the item read again as that reader, who gets the whole
+// item or the same teaser. So the cookie is never read for a public item, and the references,
+// forms, media and collection cards of every page stay those of a visitor: a reader's access
+// opens one item's body and nothing around it. A response for which the cookie was read is
+// `personal`: no ETag, and the route sends it `private, no-store`. A teaser's ETag says
+// `teaser`, and every answer of a restricted item varies on the cookie.
+// Rejected: resolving the reader for every page (a session read per public request, and public
+// pages would stop being a function of the URL), and deciding from the cookie's presence alone
+// (the core decides from the session row and the live grants, on every read).
 //
 // The ETag is `"<revision>:<locale>:<theme>:<digest>"`. Revision, locale and theme are the brief's
 // key; the digest covers what the page shows besides the revision (resolved links and images,
@@ -43,6 +55,7 @@ import {
   type PublishedItem,
   type TenantInfo,
 } from '@mycel/core';
+import type { Cookies } from '@sveltejs/kit';
 import type { RenderIntro, RenderModel } from '../../blocks/model.js';
 import { hasForm } from './has-form.js';
 import {
@@ -57,6 +70,7 @@ import { runtime } from '../runtime.js';
 import { articleData, eventData } from '../../public/structured-data.js';
 import { personPath } from '../../public/person-path.js';
 import { ui } from '../../../i18n/index.js';
+import { READER_COOKIE, READER_PATH, readerOfRequest } from './reader.js';
 import { ogLocales } from './share-locale.js';
 import { sitePath, siteTenant, siteUrls, type Site } from '../site.js';
 import { siteBrand, siteChrome, siteNavigation, siteTheme } from './theme.js';
@@ -82,6 +96,19 @@ export interface PublicHead {
   image: { src: string; width: number; height: number; type: string; alt: string | null } | null;
 }
 
+/**
+ * What stands where the body of a restricted item was left out: why, and for a visitor the way
+ * to the sign-in page, which comes back to this address. A signed-in reader without the tier
+ * gets no action: there is nothing they can do here until self-service exists.
+ */
+export interface PublicGate {
+  prompt: NonNullable<PublishedItem['gate']>['prompt'];
+  title: string;
+  body: string;
+  /** `href` is the link on this site's pages; `path` the same address from the site's root. */
+  action: { href: string; path: string; label: string } | null;
+}
+
 export interface PublicItem {
   tenant: TenantInfo;
   item: PublishedItem;
@@ -95,7 +122,13 @@ export interface PublicItem {
   structured: ReturnType<typeof articleData> | ReturnType<typeof eventData>;
   /** The zone between the content and the footer, or null. */
   prefooter: PublicZone | null;
-  /** Strong, or null for an item with a form; see the comment at the top. */
+  /** Set when the body was left out for this request; the page shows it after the teaser. */
+  gate: PublicGate | null;
+  /** The item is restricted: every answer at this address varies on the cookie. */
+  restricted: boolean;
+  /** The reader cookie was read for this answer: never for a shared cache, never a 304. */
+  personal: boolean;
+  /** Strong, or null for an item with a form or a personal answer; see the comment at the top. */
   etag: string | null;
 }
 
@@ -111,17 +144,27 @@ export async function loadPublicItem(
   route: Pick<ContentRoute, 'type' | 'slug'>,
   locale: string,
   /** The archive page of an overview (`?p=`); 1 without one. */
-  archivePage = 1
+  archivePage = 1,
+  /** The request's cookies, for a restricted item; without them everyone is a visitor. */
+  cookies?: Cookies
 ): Promise<PublicItem> {
   const { invoker, uow } = runtime();
   const { tenant } = site;
   const reader = anonymousPrincipal(siteTenant(site), ['content:read', 'forms:read', 'media:read']);
-  let item: PublishedItem;
-  try {
-    item = await invoker.run(useCases.getPublished, reader, { ...route, locale });
-  } catch (e) {
-    if (e instanceof UseCaseError && e.code === 'not_found') refuse(404);
-    throw e;
+  const read = async (as: Principal): Promise<PublishedItem> => {
+    try {
+      return await invoker.run(useCases.getPublished, as, { ...route, locale });
+    } catch (e) {
+      if (e instanceof UseCaseError && e.code === 'not_found') refuse(404);
+      throw e;
+    }
+  };
+  let item = await read(reader);
+  const restricted = item.access !== 'public';
+  const personal = restricted && cookies?.get(READER_COOKIE) !== undefined;
+  if (personal) {
+    const signedIn = await readerOfRequest(cookies!, site);
+    if (signedIn) item = await read(signedIn);
   }
   const source = runtimeSource({ invoker, uow, reader, defaultLocale: tenant.defaultLocale });
   const { timeZone } = (await invoker.run(useCases.getSiteGeneral, reader, {})).value;
@@ -237,8 +280,23 @@ export async function loadPublicItem(
           path: contentPath(item, locale, tenant.defaultLocale),
           timeZone,
         });
-  const page = { tenant, item, locale, model, intro, dropCap, head, structured, prefooter };
-  if (hasForm(model) || (prefooter && hasForm(prefooter.model))) return { ...page, etag: null };
+  const gate = item.gate ? gateOf(site, item, locale) : null;
+  const page = {
+    tenant,
+    item,
+    locale,
+    model,
+    intro,
+    dropCap,
+    head,
+    structured,
+    prefooter,
+    gate,
+    restricted,
+    personal,
+  };
+  if (personal || hasForm(model) || (prefooter && hasForm(prefooter.model)))
+    return { ...page, etag: null };
   const chrome = await siteChrome(site);
   const brand = await siteBrand(site);
   // The resolved menus, not only their revision (ADR 036 rule 11): a republished target title or
@@ -257,12 +315,39 @@ export async function loadPublicItem(
         navigation,
         brand,
         prefooter,
+        gate,
       })
     )
     .digest('base64url')
     .slice(0, 16);
-  const etag = `"${item.revisionId}:${locale}:${theme.hash}:${digest}"`;
+  // A teaser is another representation of the revision than the item: its own key.
+  const etag = `"${item.revisionId}:${locale}${gate ? ':teaser' : ''}:${theme.hash}:${digest}"`;
   return { ...page, etag };
+}
+
+/** The prompt of a cut item in this locale; the sign-in page returns to the item's own path. */
+function gateOf(site: Site, item: PublishedItem, locale: string): PublicGate {
+  const t = ui(locale);
+  const { prompt } = item.gate!;
+  if (prompt === 'tier')
+    return {
+      prompt,
+      title: t('reader.gate.tier.title'),
+      body: t('reader.gate.tier.body'),
+      action: null,
+    };
+  const back = contentPath(item, locale, site.tenant.defaultLocale);
+  const path = `${READER_PATH}?return=${encodeURIComponent(back)}`;
+  return {
+    prompt,
+    title: t('reader.gate.signin.title'),
+    body: t(item.access === 'tier' ? 'reader.gate.signin.tier' : 'reader.gate.signin.members'),
+    action: {
+      href: sitePath(site, path),
+      path,
+      label: t('reader.gate.signin.action'),
+    },
+  };
 }
 
 /**

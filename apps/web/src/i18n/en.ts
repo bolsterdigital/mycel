@@ -1310,6 +1310,15 @@ export const en = {
   'unsubscribe.invalid.title': 'This link does not work',
   'unsubscribe.invalid.body':
     'The unsubscribe link is invalid or has expired. Use the link in a more recent mail, or contact the sender.',
+  'reader.gate.signin.title': 'Sign in to read on',
+  'reader.gate.signin.members':
+    'The rest is for readers who are signed in. Signing in takes an e-mail address, no password.',
+  'reader.gate.signin.tier':
+    'The rest is for readers with access. Sign in with the e-mail address your access is on; no password needed.',
+  'reader.gate.signin.action': 'Sign in',
+  'reader.gate.tier.title': 'Your access does not cover this',
+  'reader.gate.tier.body':
+    'You are signed in, but the rest is for readers with a different kind of access.',
   'confirm.pending.title': 'Confirm your subscription',
   'confirm.pending.body':
     'One more step: confirm with the button below. Did you not sign up? Then you need not do anything.',

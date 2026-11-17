@@ -1,6 +1,7 @@
 <!-- A public page or article, or its thank-you page: the document header (`Intro`: title, the
      only h1 per ADR 004 rule 3, lead and hero image, in the order of the edit screen), then the
-     blocks from the resolved model (lib/blocks); a failed form post comes back as `form`. An
+     blocks from the resolved model (lib/blocks); a failed form post comes back as `form`. A
+     restricted item whose body was left out ends with the reader gate where the body would be. An
      article on a site with a drop cap carries `data-drop-cap`, which base.css reads (no style
      attribute under the CSP). The head carries the canonical URL, one alternate per published locale and
      the Open Graph tags with the share image (#66). -->
@@ -9,6 +10,7 @@
   import StructuredData from '#lib/components/public/StructuredData.svelte';
   import Intro from '#lib/blocks/Intro.svelte';
   import Prefooter from '#lib/components/public/Prefooter.svelte';
+  import ReaderGate from '#lib/components/public/ReaderGate.svelte';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -81,6 +83,7 @@
       </div>
     {/if}
     <Blocks model={data.model} formState={form ?? null} eagerFirstImage={!data.intro.hero} />
+    {#if data.gate}<ReaderGate gate={data.gate} />{/if}
   </main>
   {#if data.prefooter}<Prefooter zone={data.prefooter} formState={form ?? null} />{/if}
 {/if}

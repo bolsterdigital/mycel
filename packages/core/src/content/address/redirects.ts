@@ -5,9 +5,10 @@
 //
 // The forward is to the item, not to a stored path: the target is what the item is published as
 // at the moment of the request, in the locale the old URL asked for. It answers only when that
-// locale is published and public, the same test as `content.published.get`, so an old address
-// reveals no more than the new one would. Rejected: forwarding to an unpublished or restricted
-// item and letting the target answer 404, which would leak its new slug through `Location`.
+// locale is published, the same test as `content.published.get`, so an old address reveals no
+// more than the new one would; a restricted item has a public address too, where its teaser is.
+// Rejected: forwarding to an unpublished item and letting the target answer 404, which would
+// leak its new slug through `Location`.
 
 import { z } from 'zod';
 import { notFound } from '../../errors.js';
@@ -25,7 +26,7 @@ export const resolveRedirect = defineUseCase({
   name: 'content.redirect.resolve',
   kind: 'query',
   description:
-    'Where an old address of a page or article goes now: the type and current slug of the item it forwards to, when that item is published and public in the given locale; otherwise not found.',
+    'Where an old address of a page or article goes now: the type and current slug of the item it forwards to, when that item is published in the given locale; otherwise not found.',
   requires: 'content:read',
   input: z.object({ type: ContentType, slug: Slug, locale: Locale }),
   output: z.object({ type: ContentType, slug: Slug }),
@@ -38,7 +39,7 @@ export const resolveRedirect = defineUseCase({
     const state = item.publication.find((s) => s.locale === locale);
     if (!state || statusOf(state) !== 'published') throw missing();
     const revision = await ctx.content.revision(item.id, state.publishedRevisionId!);
-    if (!revision || revision.document.access.level !== 'public') throw missing();
+    if (!revision) throw missing();
     return { type: item.type, slug: item.slug };
   },
 });

@@ -346,7 +346,7 @@ describe('content items', () => {
       ).rejects.toMatchObject({ code: 'forbidden' });
     });
 
-    it('never serves a restricted item, and finds an article only as an article', async () => {
+    it('serves a restricted item without its body, and finds an article only as an article', async () => {
       const restricted = {
         ...pageDoc(),
         access: { level: 'members' as const, teaser: { blocks: 0 } },
@@ -357,11 +357,10 @@ describe('content items', () => {
         revisionId: r.revision.id,
         locale: 'nl',
       });
+      // The projections themselves are access/projection.test.ts.
       await expect(
         invoker.run(useCases.getPublished, visitor(), { type: 'page', slug: 'members' })
-      ).rejects.toMatchObject({
-        code: 'not_found',
-      });
+      ).resolves.toMatchObject({ access: 'members', gate: { prompt: 'signin' }, blocks: [] });
 
       const author = await invoker.run(useCases.createPerson, admin, {
         slug: 'sam',

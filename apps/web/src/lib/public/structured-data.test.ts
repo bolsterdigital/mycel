@@ -63,8 +63,11 @@ it('describes an article as a NewsArticle with its access and section, and escap
   expect(encoded).not.toContain('</script>');
   expect(encoded).not.toContain('<');
   expect(JSON.parse(encoded)).toEqual(value);
+  expect(value).not.toHaveProperty('hasPart');
+  // A restricted article says so and names the reader gate as the part that is not free.
   expect(articleData({ ...item, access: 'members' }, url, 'nl', 'nl', (p) => p)).toMatchObject({
     isAccessibleForFree: false,
+    hasPart: { '@type': 'WebPageElement', isAccessibleForFree: false, cssSelector: '.reader-gate' },
   });
   expect(articleData({ ...item, type: 'page' }, url, 'nl', 'nl', (p) => p)).toBeNull();
 });
