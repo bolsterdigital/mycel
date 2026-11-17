@@ -241,7 +241,7 @@
   "packages/core/src/content/header/hero-conversion.ts": 1,
   "packages/core/src/content/media-references.test.ts": 1,
   "packages/core/src/content/model.ts": 6,
-  "packages/core/src/content/public.ts": 5,
+  "packages/core/src/content/public.ts": 4,
   "packages/core/src/content/rich-text.ts": 2,
   "packages/core/src/content/service.ts": 2,
   "packages/core/src/entitlements/entitlements.test.ts": 1,

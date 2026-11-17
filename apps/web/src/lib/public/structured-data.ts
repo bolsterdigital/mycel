@@ -86,7 +86,10 @@ export function articleData(
   if (item.type !== 'article') return null;
   // NewsArticle: free access follows the served revision's level, the section is its public
   // name. Only fields the projection already releases; never a body fragment, so a restricted
-  // article (once readers sign in) adds no text here. `dateModified` is the published revision's save.
+  // article adds no text here. A restricted one says so and names the part that is not free
+  // (ADR 016 rule 5): the reader gate, which stands where that part is for everyone who is not
+  // let in, a crawler included, so what a search engine is told is what it gets.
+  // `dateModified` is the published revision's save.
   return {
     '@context': 'https://schema.org',
     '@type': 'NewsArticle',
@@ -96,6 +99,15 @@ export function articleData(
     dateModified: item.updatedAt,
     inLanguage: locale,
     isAccessibleForFree: item.access === 'public',
+    ...(item.access === 'public'
+      ? {}
+      : {
+          hasPart: {
+            '@type': 'WebPageElement',
+            isAccessibleForFree: false,
+            cssSelector: '.reader-gate',
+          },
+        }),
     ...(item.section ? { articleSection: item.section.name } : {}),
     author: (item.authors ?? []).map((person) => ({
       '@type': 'Person',

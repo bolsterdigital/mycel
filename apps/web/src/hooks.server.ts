@@ -201,7 +201,8 @@ const route: Handle = async ({ event, resolve }) => {
       event.locals.site = decision.site;
       event.locals.tenant = decision.site.tenant;
       setContext({ tenantId: decision.site.tenant.id });
-      if (wantsMarkdown(event.request, event.url)) return markdownResponse(decision.site, path);
+      if (wantsMarkdown(event.request, event.url))
+        return markdownResponse(decision.site, path, event.cookies);
       return render();
     case 'redirect':
       return new Response(null, { status: 301, headers: { location: decision.location } });
@@ -217,7 +218,11 @@ const route: Handle = async ({ event, resolve }) => {
       event.locals.tenant = tenant;
       setContext({ tenantId: tenant.id });
       if (wantsMarkdown(event.request, event.url))
-        return markdownResponse(event.locals.site, path.slice(decision.slug.length + 1));
+        return markdownResponse(
+          event.locals.site,
+          path.slice(decision.slug.length + 1),
+          event.cookies
+        );
       return render();
     }
     case 'root':

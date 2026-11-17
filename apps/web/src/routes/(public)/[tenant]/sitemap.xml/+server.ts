@@ -2,9 +2,8 @@
 // (`content.published.list`, the publication pointers, never a draft), plus the public people.
 // A `noindex` locale is left out, and so is one whose canonical is another address (that address
 // is the one to index). A restricted item is listed with its address only: the list
-// carries no text, and its body stays behind the access rule (ADR 018; the public route answers
-// 404 until readers sign in). `lastmod` is the save of the published revision, so a later draft does not move
-// it. The alternates of a URL are the ones its page names in its own head (`public-page.ts`):
+// carries no text, and its body stays behind the access rule (ADR 018; its page serves the
+// teaser). `lastmod` is the save of the published revision, so a later draft does not move it. The alternates of a URL are the ones its page names in its own head (`public-page.ts`):
 // every published locale plus `x-default`, so the head and the sitemap agree.
 //
 // Size: one response holds at most SEGMENT list rows. A site with more gets a sitemap index at

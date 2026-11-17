@@ -5,10 +5,11 @@
 //     same validators, so a revalidation costs no body (the page has rendered, but the bytes
 //     are not sent);
 //   - a 404 gets `no-store` unless the route said otherwise: an item that is unpublished or
-//     restricted now may be public later, and a shared cache must not keep the 404 meanwhile;
-//   - a `no-store` response carries no validator. SvelteKit adds an ETag of its own to a page
-//     the route gave none, and a form page (#30A) must never be revalidated into a 304 that
-//     keeps an old timing token, not even by `If-None-Match: *`.
+//     in the trash now may be public later, and a shared cache must not keep the 404 meanwhile;
+//   - a `no-store` response carries no validator, `private, no-store` included. SvelteKit adds
+//     an ETag of its own to a page the route gave none, and a form page (#30A) must never be
+//     revalidated into a 304 that keeps an old timing token, not even by `If-None-Match: *`; a
+//     reader's page (ADR 018 rule 8) must never become a 304 at all.
 //
 // The routes set ETag and Cache-Control themselves (they know the revision); this is only the
 // conditional half, which a SvelteKit `load` cannot express. SvelteKit's own `respond` already
@@ -27,12 +28,29 @@ export const NO_STORE = 'no-store';
 /** What only this signed-in person or signed link may see; no cache may keep it either. */
 export const PRIVATE_NO_STORE = 'private, no-store';
 
+/**
+ * The caching headers of a content item's answer, for the HTML and the Markdown alike. A
+ * personal answer is the reader's alone; a restricted item's public teaser is cacheable, but
+ * every answer at a restricted address varies on the cookie, so a cache never hands the teaser
+ * to a reader or a reader's page to a visitor.
+ */
+export function itemCacheHeaders(view: {
+  restricted: boolean;
+  personal: boolean;
+  etag: string | null;
+}): Record<string, string> {
+  const vary: Record<string, string> = view.restricted ? { vary: 'Cookie' } : {};
+  if (view.personal) return { 'cache-control': PRIVATE_NO_STORE, ...vary };
+  if (view.etag) return { etag: view.etag, 'cache-control': PUBLIC_CACHE, ...vary };
+  return { 'cache-control': NO_STORE, ...vary };
+}
+
 export function conditional(request: Request, response: Response): Response {
   if (response.status === 404 && !response.headers.has('cache-control')) {
     response.headers.set('cache-control', NO_STORE);
     return response;
   }
-  if (response.headers.get('cache-control') === NO_STORE) {
+  if (/(^|,)\s*no-store\s*(,|$)/i.test(response.headers.get('cache-control') ?? '')) {
     response.headers.delete('etag');
     return response;
   }
