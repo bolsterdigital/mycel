@@ -1,0 +1,32 @@
+name: Dependency audit
+
+# The whole dependency tree, development dependencies included, against known advisories. The
+# merge gate (job `security` in verify.yml) audits runtime dependencies only since 2026-11-17: an
+# advisory without a fix in build or test tooling held every merge while nothing that ships was
+# affected. This run is where that tooling stays in view: weekly, and red when a high or critical
+# advisory is open, which notifies the owner and blocks nothing. Rejected: a non-blocking step in
+# verify.yml (a red mark on every pull request that nobody can act on teaches people to ignore
+# the job) and no audit of the tooling at all (it runs with the repository's code on every
+# developer machine and in CI).
+
+on:
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: npm audit of the whole tree (high and critical)
+        run: npm audit --audit-level=high
