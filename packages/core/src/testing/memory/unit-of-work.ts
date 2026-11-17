@@ -68,6 +68,8 @@ export interface MemoryDeps {
   store?: MemoryStore;
   log?: Logger;
   clock?: Clock;
+  /** Ascending by default; a case about order may hand out ids that run the other way. */
+  ids?: Ids;
   signer?: Signer;
   dns?: DnsResolver;
   platform?: PlatformConfig;
@@ -91,7 +93,7 @@ export const memoryEmailRenderer: EmailRenderer = {
 export class MemoryUnitOfWork implements UnitOfWork {
   readonly store: MemoryStore;
   readonly clock: Clock;
-  readonly ids: Ids = new SequentialIds();
+  readonly ids: Ids;
   readonly signer: Signer;
   readonly dns: DnsResolver;
   readonly platform: PlatformConfig;
@@ -110,6 +112,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
     this.log = deps.log ?? noopLogger;
     this.store = deps.store ?? new MemoryStore();
     this.clock = deps.clock ?? new FakeClock();
+    this.ids = deps.ids ?? new SequentialIds();
     this.signer = deps.signer ?? new FakeSigner();
     this.dns = deps.dns ?? new FakeDns();
     this.platform = deps.platform ?? memoryPlatform;

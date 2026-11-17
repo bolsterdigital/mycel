@@ -36,12 +36,9 @@ export function memoryPayments(s: TenantStore): PaymentRepository {
     async appendLedger(entry) {
       s.ledgerEntries.push(structuredClone(entry));
     },
+    // The order of appending, as `seq` in 0072: not `at` or the id, which tie within one walk.
     ledger: async (paymentId) =>
-      structuredClone(
-        s.ledgerEntries
-          .filter((e: LedgerEntry) => e.paymentId === paymentId)
-          .sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id))
-      ),
+      structuredClone(s.ledgerEntries.filter((e: LedgerEntry) => e.paymentId === paymentId)),
   };
 }
 

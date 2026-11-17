@@ -61,7 +61,7 @@ export interface PaymentRepository {
   list(filter: PaymentFilter, offset: number, limit: number): Promise<Payment[]>;
   /** Append-only: an entry is never changed or removed. */
   appendLedger(entry: LedgerEntry): Promise<void>;
-  /** Oldest first. */
+  /** In the order the entries were appended; one walk writes several with the same `at`. */
   ledger(paymentId: string): Promise<LedgerEntry[]>;
 }
 

@@ -414,6 +414,7 @@ export interface Database {
     id: string;
     tenant_id: string;
     payment_id: string;
+    seq: number;
     from_status: string | null;
     to_status: string;
     cause: string;

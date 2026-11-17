@@ -12,9 +12,16 @@
 -- the row: the amount and its history stay for the organisation's books, with nobody attached
 -- (ADR 019 rule 8). The erasure role gets exactly that column.
 --
+-- A ledger entry carries `seq`, its place in its payment's history (1, 2, ...), given at insert
+-- under the payment's lock: one walk writes several entries with the same `at`, and a uuidv7 is
+-- random within a millisecond, so neither orders them. `seq` is plain data, so an export carries
+-- it and an import keeps the order as it is.
+--
 -- Rejected: one `status` enum type (a later status is then a type migration under load), the
--- ledger as jsonb on the payment (an update would rewrite history), and a foreign key from a
--- ledger entry's actor to operators (an actor is copied into history at rest, ADR 035 rule 4).
+-- ledger as jsonb on the payment (an update would rewrite history), a foreign key from a
+-- ledger entry's actor to operators (an actor is copied into history at rest, ADR 035 rule 4),
+-- and an identity column for the order (one sequence for every tenant, which an import can
+-- neither carry nor renumber without reordering a payment's history against the sequence).
 create table payments (
   id               uuid primary key,
   tenant_id        uuid not null references tenants(id),
@@ -57,6 +64,7 @@ create table ledger_entries (
   id               uuid primary key,
   tenant_id        uuid not null references tenants(id),
   payment_id       uuid not null,
+  seq              integer not null check (seq > 0),
   from_status      text,
   to_status        text not null,
   cause            text not null check (cause in
@@ -66,9 +74,10 @@ create table ledger_entries (
   currency         text not null check (currency ~ '^[A-Z]{3}$'),
   at               timestamptz not null,
   actor            jsonb not null check (jsonb_typeof(actor) = 'object'),
-  foreign key (tenant_id, payment_id) references payments (tenant_id, id)
+  foreign key (tenant_id, payment_id) references payments (tenant_id, id),
+  -- Two writers that miss the payment's lock collide here instead of sharing a place.
+  unique (tenant_id, payment_id, seq)
 );
-create index ledger_entries_payment on ledger_entries (tenant_id, payment_id, at, id);
 alter table ledger_entries enable row level security;
 alter table ledger_entries force row level security;
 create policy tenant_isolation on ledger_entries to mycel_app

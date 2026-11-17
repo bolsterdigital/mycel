@@ -1,8 +1,9 @@
 // Payments and their ledger over Postgres (0072). The application role cannot update or delete a
-// ledger entry, so `appendLedger` is the only write there is. `save` writes exactly what a step
+// ledger entry, so `appendLedger` is the only write there is; it numbers the entry after the
+// last of its payment (`seq`), and `ledger` reads in that order, which is the order of writing. `save` writes exactly what a step
 // of the state machine changes; amount, currency, provider and reference are fixed at insert.
 // Rejected: `save` as an upsert (a payment that vanished must not come back as a new row).
-import type { Kysely, Selectable } from 'kysely';
+import { sql, type Kysely, type Selectable } from 'kysely';
 import { LedgerEntry, Payment, type PaymentRepository } from '@mycel/core';
 import type { Database } from '../infra/schema.js';
 import { toIso } from '../infra/dates.js';
@@ -90,6 +91,10 @@ export function paymentRepository(trx: Kysely<Database>, tenantId: string): Paym
           id: e.id,
           tenant_id: tenantId,
           payment_id: e.paymentId,
+          // The caller holds the payment's lock (or inserted it in this transaction), so the
+          // next place is free; the unique key refuses a second writer that did not.
+          seq: sql<number>`(select coalesce(max(seq), 0) + 1 from ledger_entries
+                            where tenant_id = ${tenantId} and payment_id = ${e.paymentId})`,
           from_status: e.from,
           to_status: e.to,
           cause: e.cause,
@@ -106,8 +111,7 @@ export function paymentRepository(trx: Kysely<Database>, tenantId: string): Paym
         .selectFrom('ledger_entries')
         .selectAll()
         .where('payment_id', '=', paymentId)
-        .orderBy('at')
-        .orderBy('id')
+        .orderBy('seq')
         .execute();
       return found.map((row) =>
         LedgerEntry.parse({

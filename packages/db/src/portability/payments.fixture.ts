@@ -18,16 +18,16 @@ export async function seedPayment(operatorDb: Kysely<Database>, admin: Principal
       select ${id}, ${admin.tenantId}, 'donation', 'paid', 2500, 'EUR', 'Donation', 'nl', 'fake',
              ${`fake_${id}`}, 'paid', id, now(), now(), now()
       from supporters where email = ${email}`.execute(trx);
-    for (const [from, to] of [
-      [null, 'created'],
-      ['created', 'open'],
-      ['open', 'paid'],
+    for (const [seq, from, to] of [
+      [1, null, 'created'],
+      [2, 'created', 'open'],
+      [3, 'open', 'paid'],
     ] as const)
       await sql`insert into ledger_entries
-        (id, tenant_id, payment_id, from_status, to_status, cause, provider_status, amount,
+        (id, tenant_id, payment_id, seq, from_status, to_status, cause, provider_status, amount,
          currency, at, actor)
-        values (${uuidv7()}, ${admin.tenantId}, ${id}, ${from}, ${to}, 'checkout', ${to}, 2500,
-                'EUR', now(), ${JSON.stringify({ kind: 'system', job: 'fixture' })}::jsonb)`.execute(
+        values (${uuidv7()}, ${admin.tenantId}, ${id}, ${seq}, ${from}, ${to}, 'checkout', ${to},
+                2500, 'EUR', now(), ${JSON.stringify({ kind: 'system', job: 'fixture' })}::jsonb)`.execute(
         trx
       );
   });

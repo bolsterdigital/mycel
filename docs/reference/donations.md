@@ -4,12 +4,12 @@ How Mycel records money (ADR 005). This page describes what is built: one-off do
 
 ## What is stored
 
-| Table            | Holds                                                                                                                             | Changes                                                                                                |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `payments`       | One row per attempt: amount in minor units, ISO currency, our status, the provider's reference and its own status word, supporter | The use cases move `status`, `provider_status`, `checkout_url`, `paid_at`; the rest is fixed at insert |
-| `ledger_entries` | One row per change of status: from, to, cause, the provider's word, amount, moment and the stored actor                           | Append-only: the application role may insert and select, nothing else                                  |
+| Table            | Holds                                                                                                                                               | Changes                                                                                                |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `payments`       | One row per attempt: amount in minor units, ISO currency, our status, the provider's reference and its own status word, supporter                   | The use cases move `status`, `provider_status`, `checkout_url`, `paid_at`; the rest is fixed at insert |
+| `ledger_entries` | One row per change of status: its place in the payment's history (`seq`), from, to, cause, the provider's word, amount, moment and the stored actor | Append-only: the application role may insert and select, nothing else                                  |
 
-Both sit behind forced row-level security on `tenant_id` (migration 0072). A payment names its supporter by id and holds no address. Amounts are integers; one payment moves between 100 and 5 000 000 minor units. One currency is accepted (`EUR`) until a tenant chooses its own; the code travels with every row and event.
+Both sit behind forced row-level security on `tenant_id` (migration 0072). A ledger reads in `seq` order, the order of writing: one walk writes several entries with the same moment, so neither the moment nor the id orders them. A payment names its supporter by id and holds no address. Amounts are integers; one payment moves between 100 and 5 000 000 minor units. One currency is accepted (`EUR`) until a tenant chooses its own; the code travels with every row and event.
 
 ## The state machine
 
