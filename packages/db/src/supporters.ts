@@ -4,8 +4,10 @@
 import { sql, type Kysely, type Selectable } from 'kysely';
 import {
   AccessGrant,
+  ERASED_DOMAIN,
   type Ids,
   SupporterEvent,
+  type SupporterFilter,
   type SupporterProjection,
   type SupporterRepository,
 } from '@mycel/core';
@@ -118,6 +120,41 @@ export function supporterRepository(trx: Trx, tenantId: string, ids: Ids): Suppo
         .where(sql<boolean>`lists @> array[${list}]::text[]`)
         .executeTakeFirstOrThrow();
       return Number(row.n);
+    },
+    // The rules of core `supporters/listing.ts` in SQL; adapter-rules holds the two together.
+    // `starts_with` takes the term as a value, so a `%` or `_` in it is a character, not a
+    // pattern. The row comparison reads `(last_activity, id) < (edge, id)`: newest first, then
+    // the higher id, as `compareSupporters` orders.
+    async page(filter: SupporterFilter, { after, limit }) {
+      const { list, status, q } = filter;
+      let matches = trx
+        .selectFrom('supporters')
+        .where(
+          sql<boolean>`not right(email, ${ERASED_DOMAIN.length + 1}) = ${'@' + ERASED_DOMAIN}`
+        );
+      if (q) matches = matches.where(sql<boolean>`starts_with(email, ${q})`);
+      if (list) {
+        const confirmed = sql<boolean>`lists @> array[${list}]::text[]`;
+        const pending = sql<boolean>`pending_lists @> array[${list}]::text[]`;
+        matches = matches.where(
+          status === 'confirmed'
+            ? confirmed
+            : status === 'pending'
+              ? pending
+              : sql<boolean>`(${confirmed} or ${pending})`
+        );
+      }
+      const total = await matches.select(sql<string>`count(*)`.as('n')).executeTakeFirstOrThrow();
+      let rows = matches
+        .selectAll()
+        .orderBy('last_activity', 'desc')
+        .orderBy('id', 'desc')
+        .limit(limit);
+      if (after)
+        rows = rows.where(
+          sql<boolean>`(last_activity, id) < (${after.lastActivity}::timestamptz, ${after.id}::uuid)`
+        );
+      return { rows: (await rows.execute()).map(toProjection), total: Number(total.n) };
     },
     async saveProjection(p) {
       const values = {

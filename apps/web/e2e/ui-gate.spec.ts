@@ -12,7 +12,9 @@ import {
   systemPrincipal,
   useCases,
   Invoker,
+  SupporterEvent,
   capabilitiesFor,
+  ingest,
 } from '@mycel/core';
 import { type Page, expect, test } from '@playwright/test';
 import { expectNoAxeViolations } from './lib/axe';
@@ -1053,6 +1055,7 @@ test.describe('admin-shell', () => {
       'Team',
       'Domains',
       'Forms',
+      'Supporters',
       'Connections',
       'API access',
       'AI assistance',
@@ -1429,6 +1432,108 @@ test.describe('admin-shell', () => {
 
 // Failure evidence is part of the browser gate: a stalled renderer must yield a stack while
 // a healthy page needs no interruption. A separate context contains the deliberate spin.
+// The supporter list (MY-251): who signed up, for a reader of `supporters:read` only. The list,
+// its filter and its search are plain GET, so both projects walk the same page.
+test.describe('supporters', () => {
+  // One editor per admin language: an operator keeps the language of their first sign-in.
+  const editor = (locale: string) => `supporters-editor-${locale}@probe.test`;
+  const author = 'supporters-author@probe.test';
+  // Fixed event ids and moments: a second run on the same database ingests nothing twice.
+  const fixtures = [
+    ['zus-een@lijst.example', 1, { list: 'gate-list' }],
+    ['zus-twee@lijst.example', 2, { list: 'gate-list', confirmed: false }],
+    ['broer@elders.example', 3, { list: 'gate-other' }],
+  ] as const;
+
+  test.beforeAll(async () => {
+    const principal = systemPrincipal(await tenantId(), 'e2e');
+    await withInvoker(async (invoker, uow) => {
+      for (const [email, role] of [
+        [editor('en'), 'editor'],
+        [editor('nl'), 'editor'],
+        [author, 'author'],
+      ] as const)
+        try {
+          await invoker.run(useCases.inviteMember, principal, {
+            email,
+            capabilities: capabilitiesFor(role),
+          });
+        } catch (e) {
+          if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
+        }
+      for (const [email, minute, props] of fixtures) {
+        const id = `ui-gate-supporter-${minute}`;
+        await uow.run(principal, (ctx) =>
+          ingest(
+            ctx,
+            SupporterEvent.parse({
+              schema: 'wings.supporter-event.v1',
+              id,
+              type: 'newsletter.subscribed',
+              email,
+              occurred_at: new Date(Date.UTC(2026, 10, 3, 9, minute)).toISOString(),
+              source: 'e2e',
+              source_site: 'urn:mycel:e2e',
+              source_ref: id,
+              props,
+            })
+          )
+        );
+      }
+    });
+  });
+
+  for (const [locale, words] of [
+    ['en', { filter: 'Filter', list: 'List', find: 'Find by start of the address' }],
+    ['nl', { filter: 'Filteren', list: 'Lijst', find: 'Zoeken op begin van het adres' }],
+  ] as const)
+    test.describe(`list, ${locale}`, () => {
+      test.use({ locale, viewport: NARROW });
+      test('an editor filters and searches the list at 320 CSS px', async ({ page }) => {
+        await login(page, '/admin/probe/beheer', editor(locale), { 'accept-language': locale });
+        await page.getByRole('main').getByRole('link', { name: 'Supporters', exact: true }).click();
+        await expect(page.getByRole('heading', { level: 1, name: 'Supporters' })).toBeVisible();
+        const rows = page.locator('#supporters tbody tr');
+        await page.getByLabel(words.list, { exact: true }).selectOption('gate-list');
+        await page.getByRole('button', { name: words.filter, exact: true }).click();
+        await expect(rows.locator('th')).toHaveText([
+          'zus-twee@lijst.example',
+          'zus-een@lijst.example',
+        ]);
+        // The unconfirmed signup says so in words, on its own list only.
+        await expect(rows.nth(0).locator('.ui-badge')).toHaveCount(1);
+        await expect(rows.nth(1).locator('.ui-badge')).toHaveCount(0);
+        await expect(page.getByRole('status')).toContainText('2');
+        await page.getByLabel(words.find, { exact: true }).fill('ZUS-E');
+        await page.getByRole('button', { name: words.filter, exact: true }).click();
+        await expect(rows.locator('th')).toHaveText(['zus-een@lijst.example']);
+        expect(new URL(page.url()).searchParams.get('list')).toBe('gate-list');
+        if (isA11y()) {
+          await expectNoAxeViolations(page, { label: `supporters, ${locale}` });
+          for (const text of TEXT_SIZES) {
+            await setTextSize(page, text);
+            await layoutGate(page, `supporters, ${locale} at ${text}`, 'main');
+          }
+          await page.screenshot({
+            path: test.info().outputPath(`supporters-${locale}-320-text200.png`),
+            fullPage: true,
+          });
+          await setTextSize(page, '100%');
+        }
+        // A search that is no start of an address finds nobody, and says so.
+        await page.goto('/admin/probe/supporters?q=lijst.example');
+        await expect(rows).toHaveCount(0);
+      });
+    });
+
+  test('an author has no Supporters entry and the list refuses them', async ({ page }) => {
+    await login(page, '/admin/probe/beheer', author);
+    await expect(page.getByRole('link', { name: 'Supporters', exact: true })).toHaveCount(0);
+    expect((await page.goto('/admin/probe/supporters'))?.status()).toBe(403);
+    await expect(page.getByText('lijst.example')).toHaveCount(0);
+  });
+});
+
 test('failure evidence interrupts a spinning renderer and records only locations', async ({
   browser,
 }) => {

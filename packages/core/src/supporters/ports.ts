@@ -1,4 +1,5 @@
 import type { SupporterEvent } from './events.js';
+import type { SupporterFilter, SupporterPage, SupporterPosition } from './listing.js';
 import type { SupporterProjection } from './model.js';
 
 export interface SupporterRepository {
@@ -25,6 +26,14 @@ export interface SupporterRepository {
     page: { after: string | null; limit: number }
   ): Promise<SupporterProjection[]>;
   countMembers(list: string): Promise<number>;
+  /**
+   * The supporters a filter matches (`listing.ts`), newest activity first, after the position
+   * `after`, at most `limit`, with the count of every match. An erased supporter matches nothing.
+   */
+  page(
+    filter: SupporterFilter,
+    page: { after: SupporterPosition | null; limit: number }
+  ): Promise<SupporterPage>;
 }
 
 /** How long a reservation without a projection holds its seat (`SupporterAdmissions`). */

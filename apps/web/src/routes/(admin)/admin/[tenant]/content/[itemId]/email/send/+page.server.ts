@@ -43,6 +43,11 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     blocked: send.ok ? null : NEWSLETTER_OUTCOMES[send.reason],
     listLabel: send.ok ? (lists.find((l) => l.id === send.list)?.label ?? send.list) : '',
     edit: `/admin/${tenant.slug}/content/${item.id}?${new URLSearchParams({ locale: work })}`,
+    // Who the count is, for a reader of `supporters:read` (MY-251): the list with this filter.
+    recipientsHref:
+      send.ok && can(principal, 'supporters:read')
+        ? `/admin/${tenant.slug}/supporters?${new URLSearchParams({ list: send.list, status: 'confirmed' })}`
+        : null,
   };
 };
 
