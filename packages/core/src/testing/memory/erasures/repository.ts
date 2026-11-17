@@ -240,8 +240,8 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
   for (const p of s.projections.values()) {
     if (live.has(p.id) || !(ids.has(p.id) || ended(p.email))) continue;
     const tomb = tombstoneEmail(p.id);
-    if (p.email === tomb && !p.lists.length && !p.pendingLists.length) continue;
-    Object.assign(p, { email: tomb, lists: [], pendingLists: [] });
+    if (p.email === tomb && !p.lists.length && !p.pendingLists.length && !p.grants.length) continue;
+    Object.assign(p, { email: tomb, lists: [], pendingLists: [], grants: [] });
     changed++;
   }
   // Mail intents and their reconcile jobs hang off the outbox event that carried the address;

@@ -440,9 +440,9 @@ function accessIssues(doc: DocumentShape): { path: (string | number)[]; message:
 /**
  * What stops `locale` of this document from being published (ADR 018 rule 9): the locale must be
  * one of the document's, every required visible field must have a value in it (no fallback), and a
- * restricted article with the default teaser needs its lead; authors are optional (ADR 012). Tier
- * access fails closed until #19 can verify tier ids. References are checked separately, against
- * the tenant's data.
+ * restricted article with the default teaser needs its lead; authors are optional (ADR 012).
+ * References, an article's tiers among them, are checked separately, against the tenant's data
+ * (`referenceIssues`).
  */
 export function readinessIssues(
   doc: ContentDocument,
@@ -463,8 +463,6 @@ export function readinessIssues(
   }
   for (const path of doc.machineTranslation?.[locale] ?? [])
     issues.push({ path, message: 'content.publish.machine-translation-unreviewed' });
-  if (doc.access.level === 'tier')
-    issues.push({ path: 'access.tierIds', message: 'content.publish.tier-unverifiable' });
   return issues;
 }
 

@@ -384,6 +384,7 @@ describe('connection intent job composition', () => {
         email: 'fixture@example.org',
         lists: ['newsletter'],
         pendingLists: [],
+        grants: [],
         firstSeen: at,
         lastActivity: at,
         appliedThrough: { at, id: 'fixture' },

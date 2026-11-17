@@ -15,6 +15,7 @@ import { checkLegacyPeopleImport, seedGroupedPerson } from './legacy-people.fixt
 import { seedCampaign } from './campaigns.fixture.js';
 import { checkProfilesCarried, seedEvent } from './events.fixture.js';
 import { seedNavigation } from './navigation.fixture.js';
+import { checkAccessCarried, seedAccess } from './access.fixture.js';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
@@ -264,6 +265,7 @@ describe.skipIf(skip)('tenant export and import', () => {
     await seedCampaign(invoker, operatorDb, admin, email);
     await seedNavigation(invoker, admin);
     await seedEvent(invoker, admin);
+    await seedAccess(invoker, admin, email);
   }
   const files = async (dir: string) =>
     Object.fromEntries(
@@ -725,6 +727,7 @@ describe.skipIf(skip)('tenant export and import', () => {
         expect(revisions).toContain('INTERNAL-EXPORT-NAME');
         expect(revisions).toContain('Internal export name');
         await checkProfilesCarried(join(scratch.dir, 'a-again', 'tables'));
+        await checkAccessCarried(join(scratch.dir, 'a-again', 'tables'));
         // Memberships name the new pending operator here (operators/erasure.conformance.test.ts).
         for (const table of EXPORT_ORDER)
           if (!['tenant_hostnames', 'audit_log', 'tenant_memberships'].includes(table))

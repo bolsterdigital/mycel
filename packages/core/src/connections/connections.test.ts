@@ -216,6 +216,7 @@ async function engine() {
       email: 'reader@example.org',
       lists: ['newsletter:main'],
       pendingLists: [],
+      grants: [],
       firstSeen: clock.now().toISOString(),
       lastActivity: clock.now().toISOString(),
       appliedThrough: { at: clock.now().toISOString(), id: 'fixture' },

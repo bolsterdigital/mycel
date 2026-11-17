@@ -79,6 +79,7 @@ const IMPORT_RULE = {
   person_groups: 'as-exported',
   person_group_members: 'as-exported',
   sections: 'as-exported',
+  access_tiers: 'as-exported',
   patterns: 'as-exported',
   media: 'as-exported',
   media_usages: 'as-exported',

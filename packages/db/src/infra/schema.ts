@@ -1,7 +1,12 @@
 // Kysely table types, written by hand next to the SQL migrations they mirror. Rejected:
 // kysely-codegen, one more tool and a live database at build time for a handful of tables.
 
-import type { ConnectionIntent, ConnectionAttempt, ConnectionRecord } from '@mycel/core';
+import type {
+  AccessGrant,
+  ConnectionIntent,
+  ConnectionAttempt,
+  ConnectionRecord,
+} from '@mycel/core';
 import type { ColumnType, Generated } from 'kysely';
 
 type Timestamp = ColumnType<Date, Date | string, Date | string>;
@@ -403,6 +408,17 @@ export interface Database {
     created_at: Timestamp;
     updated_at: Timestamp;
   };
+  access_tiers: {
+    id: string;
+    tenant_id: string;
+    slug: string;
+    name: Json<Record<string, string>>;
+    description: Json<Record<string, string>> | null;
+    sort_order: number;
+    kind: 'free' | 'paid';
+    created_at: Timestamp;
+    updated_at: Timestamp;
+  };
   patterns: {
     id: string;
     tenant_id: string;
@@ -475,6 +491,7 @@ export interface Database {
     last_activity: Timestamp;
     lists: string[];
     pending_lists: string[];
+    grants: Json<AccessGrant[]>;
     applied_through_at: Timestamp;
     applied_through_id: string;
     updated_at: Generated<Date>;

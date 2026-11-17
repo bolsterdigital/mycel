@@ -318,6 +318,11 @@ export const STORAGE = {
         subject: 'supporter',
         route: { kind: 'apply', does: 'tombstones the address and empties the lists' },
       },
+      {
+        field: 'grants',
+        subject: 'supporter',
+        route: { kind: 'apply', does: 'empties the standing access grants' },
+      },
     ],
     retention: SUPPORTER_KEPT,
   },
@@ -433,6 +438,15 @@ export const STORAGE = {
     category: 'people',
     owner: 'tenant',
     copies: [PEOPLE('person_id', 'deletes the memberships of the person')],
+    retention: SITE_KEPT,
+  },
+  access_tiers: {
+    category: 'content',
+    owner: 'tenant',
+    copies: [
+      FREE_TEXT('name', ['content.access_tier.update']),
+      FREE_TEXT('description', ['content.access_tier.update']),
+    ],
     retention: SITE_KEPT,
   },
   sections: {

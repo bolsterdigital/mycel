@@ -477,11 +477,11 @@ async function eraseRows(
   count(
     await sql`
       update supporters
-      set email = id::text || ${TOMB}, lists = '{}', pending_lists = '{}', updated_at = now()
+      set email = id::text || ${TOMB}, lists = '{}', pending_lists = '{}',
+          grants = '[]'::jsonb, updated_at = now()
       where id = any(${supporterIds}::uuid[])
-        and not (email = id::text || ${TOMB} and lists = '{}' and pending_lists = '{}')`.execute(
-      trx
-    )
+        and not (email = id::text || ${TOMB} and lists = '{}' and pending_lists = '{}'
+                 and grants = '[]'::jsonb)`.execute(trx)
   );
   // ADR 033 rule 8: an erased supporter's participations go, and the confirmed, non-withdrawn
   // ones join the campaign's anonymous count in the same statement, so the public number never
