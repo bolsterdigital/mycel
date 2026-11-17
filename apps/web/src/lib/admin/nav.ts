@@ -66,7 +66,7 @@ export const MANAGE: NavSection = {
     },
     {
       path: 'access',
-      label: 'admin.tiers.title',
+      label: 'admin.nav.tiers',
       needs: 'content:publish',
       hint: 'admin.manage.hint.tiers',
     },

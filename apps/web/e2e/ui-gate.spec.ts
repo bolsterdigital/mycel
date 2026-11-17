@@ -1053,6 +1053,7 @@ test.describe('admin-shell', () => {
       'Team',
       'Domains',
       'Forms',
+      'Reader access',
       'Connections',
       'API access',
       'AI assistance',

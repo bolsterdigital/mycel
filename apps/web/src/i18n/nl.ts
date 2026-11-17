@@ -211,6 +211,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.tiers.kind.free': 'Gratis',
   'admin.tiers.kind.paid': 'Betaald',
   'admin.tiers.order': 'Volgorde',
+  'admin.nav.tiers': 'Leestoegang',
   'admin.manage.hint.tiers': 'Groepen lezers waarvoor besloten items kunnen zijn.',
   'admin.content.field.tiers': 'Toegangsniveaus',
   'admin.content.field.tiers.hint':

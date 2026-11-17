@@ -212,6 +212,7 @@ export const en = {
   'admin.tiers.kind.free': 'Free',
   'admin.tiers.kind.paid': 'Paid',
   'admin.tiers.order': 'Order',
+  'admin.nav.tiers': 'Reader access',
   'admin.manage.hint.tiers': 'Groups of readers that restricted items can be for.',
   'admin.content.field.tiers': 'Access tiers',
   'admin.content.field.tiers.hint': 'Counts only when the item is for readers of an access tier.',
