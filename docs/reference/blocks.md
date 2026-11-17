@@ -312,15 +312,16 @@ Examples: `overview-articles-cards` (The newest articles of one section, one pin
 
 A rich-text field is a `textarea` with a Markdown subset that reads back into exactly the stored document (`apps/web/src/lib/editor/markdown.ts`):
 
-| Write                                                                         | For                                                                   |
-| ----------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `## `, `### `, `#### ` at the start of a line                                 | a heading at relative level 1, 2 or 3 (h2 to h4 at the top of a page) |
-| `**bold**`, `_italic_`, `` `code` ``                                          | marks; they switch on and off, so they may start or end inside a word |
-| `- ` or `1. ` at the start of a line, indented by the marker’s width to nest  | a bullet or numbered list, three levels deep at most                  |
-| a blank line                                                                  | a new paragraph                                                       |
-| `\` at the end of a line, or `<br>`                                           | a line break inside a paragraph                                       |
-| `[text](https://…)`, `[text](/path)`, `[text](mailto:…)`, `[text](item:<id>)` | a link; `item:` links to a page or article of the site by id          |
-| `[text][^1]` and a line `[^1]: note` at the end                               | a footnote on that text                                               |
-| `\` before `*`, `_`, `` ` ``, `[` or `]`; `&#n;` with a character code        | the character itself                                                  |
+| Write                                                                         | For                                                                                         |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `## `, `### `, `#### ` at the start of a line                                 | a heading at relative level 1, 2 or 3 (h2 to h4 at the top of a page)                       |
+| `**bold**`, `_italic_`, `` `code` ``                                          | marks; they switch on and off, so they may start or end inside a word                       |
+| `- ` or `1. ` at the start of a line, indented by the marker’s width to nest  | a bullet or numbered list, three levels deep at most                                        |
+| a blank line                                                                  | a new paragraph                                                                             |
+| `\` at the end of a line, or `<br>`                                           | a line break inside a paragraph                                                             |
+| `[text](https://…)`, `[text](/path)`, `[text](mailto:…)`, `[text](item:<id>)` | a link; `item:` links to a page or article of the site by id                                |
+| `[text][^1]` and a line `[^1]: note` at the end                               | a footnote on that text                                                                     |
+| `[text]{lang=fr}`                                                             | a passage in another language than the page (a language code such as `en`, `de` or `pt-BR`) |
+| `\` before `*`, `_`, `` ` ``, `[` or `]`; `&#n;` with a character code        | the character itself                                                                        |
 
 A single newline inside a paragraph is a space, as in Markdown. Text that is unchanged in the form keeps its stored JSON exactly.

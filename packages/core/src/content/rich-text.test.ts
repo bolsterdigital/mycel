@@ -31,7 +31,8 @@ describe('rich text (ADR 020 rule 2)', () => {
             text('item', [
               { type: 'link', attrs: { itemId: '01900000-0000-7000-8000-000000000001' } },
             ]),
-            text('1', [{ type: 'footnote_reference', attrs: { text: 'Source: annual report.' } }])
+            text('1', [{ type: 'footnote_reference', attrs: { text: 'Source: annual report.' } }]),
+            text('raison d’être', [{ type: 'lang', attrs: { lang: 'fr' } }, { type: 'italic' }])
           ),
           h(2, 'Detail'),
           {
@@ -55,6 +56,11 @@ describe('rich text (ADR 020 rule 2)', () => {
     ['an image node', doc({ type: 'image', attrs: { src: 'x.png' } })],
     ['raw html', doc({ type: 'html', html: '<b>x</b>' })],
     ['an unknown mark', doc(p(text('x', [{ type: 'underline' }])))],
+    [
+      'a language tag outside the locale subset',
+      doc(p(text('x', [{ type: 'lang', attrs: { lang: 'fr-fr' } }]))),
+    ],
+    ['a language mark without a tag', doc(p(text('x', [{ type: 'lang', attrs: {} }])))],
     ['an unknown attribute', doc({ type: 'paragraph', attrs: { align: 'center' } })],
     ['a stored h1 (level 0) or h5 (level 4)', doc(h(0, 'x'), h(4, 'y'))],
     [

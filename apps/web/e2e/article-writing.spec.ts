@@ -870,6 +870,7 @@ test.describe('article-writing', () => {
         await expect(page.locator('.writing-actions').first()).toBeVisible();
         await setTextSize(page, '200%');
         await layoutGate(page, `writer actions ${locale}`, '.writing-actions');
+        await layoutGate(page, `formatting bar ${locale}`, '.format-bar');
         const screenshot = test.info().outputPath(`integrated-editor-${locale}-320-200.png`);
         await page.screenshot({ path: screenshot, fullPage: true });
         await test.info().attach(`integrated-editor-${locale}-320-200`, {
@@ -1678,7 +1679,9 @@ test.describe('article-writing', () => {
     const bar = page.getByRole('toolbar', { name: 'Tekstopmaak' });
     const tool = (name: string) => bar.getByRole('button', { name, exact: true });
     const style = bar.getByRole('combobox', { name: 'Tekstsoort' });
+    const language = bar.getByRole('combobox', { name: 'Taal van de selectie' });
     await expect(tool('Link')).toBeDisabled();
+    await expect(language).toBeDisabled();
     await expect(tool('Ongedaan maken')).toBeDisabled();
     await writing.locator('p').first().selectText();
     await tool('Vet').click();
@@ -1724,6 +1727,9 @@ test.describe('article-writing', () => {
     await page.keyboard.press('ArrowRight');
     await expect(tool('Cursief')).toBeFocused();
     await expect(bar.locator(':scope > .format-tip')).toHaveText(/^Cursief \((Ctrl\+|⌘)I\)$/);
+    await writing.locator('p').first().selectText();
+    await language.selectOption({ label: 'Frans' });
+    await expect(writing.locator('[lang="fr"]')).toHaveText('Oude tekst');
     await page.screenshot({ path: test.info().outputPath('formatting-bar-1280.png') });
     await expect(tool('Ongedaan maken')).toBeEnabled();
     await expectNoAxeViolations(page);
@@ -1736,6 +1742,7 @@ test.describe('article-writing', () => {
     expect(first.content[0].marks.map((m: { type: string }) => m.type).sort()).toEqual([
       'bold',
       'italic',
+      'lang',
     ]);
     expect(heading).toMatchObject({ type: 'heading', attrs: { level: 1 } });
     expect(list.type).toBe('bullet_list');

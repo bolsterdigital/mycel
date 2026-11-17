@@ -1089,8 +1089,9 @@
     "lang-attribute": {
       "category": "internationalisation",
       "level": "required",
-      "status": "open",
-      "gap": "rich text has no mark for a passage in another language"
+      "status": "covered",
+      "file": "apps/web/src/lib/blocks/blocks.conformance.test.ts",
+      "note": "<html lang> per response; rich text has a lang mark that renders lang and dir on the passage in HTML and e-mail, chosen in the formatting bar or written as [text]{lang=fr} in the block form"
     },
     "translate-attribute": {
       "category": "internationalisation",

@@ -12,7 +12,8 @@
 //   the marker's width, one blank line between blocks, a lone `\` for an empty paragraph;
 // - marks are toggles, not nesting: `**` bold, `_` italic, `` ` `` code (escapes still apply
 //   inside); `[text](url)` or `[text](item:<id>)` a link, `[text][^1]` a footnote whose note is
-//   the line `[^1]: note` at the end;
+//   the line `[^1]: note` at the end, `[text]{lang=fr}` a passage in another language (the
+//   attribute form of Pandoc and markdown-it-attrs);
 // - a line break is `\` at the end of a line (or `<br>` where no line follows); a single newline
 //   is a space, as in Markdown;
 // - `\` escapes punctuation, `&#n;` writes any character (control characters, a leading space).
@@ -31,7 +32,7 @@ type Node = {
   marks?: Mark[];
 };
 
-const MARK_ORDER: Mark['type'][] = ['bold', 'italic', 'code', 'link', 'footnote_reference'];
+const MARK_ORDER: Mark['type'][] = ['bold', 'italic', 'code', 'lang', 'link', 'footnote_reference'];
 const TOGGLES: Record<string, Mark['type']> = { '**': 'bold', _: 'italic', '`': 'code' };
 
 const sameMark = (a: Mark, b: Mark) => JSON.stringify(a) === JSON.stringify(b);
@@ -112,8 +113,9 @@ function escapeLineStart(line: string): string {
   return line;
 }
 
-type Span = Extract<Mark, { type: 'link' | 'footnote_reference' }>;
-const isSpan = (m: Mark): m is Span => m.type === 'link' || m.type === 'footnote_reference';
+type Span = Extract<Mark, { type: 'lang' | 'link' | 'footnote_reference' }>;
+const isSpan = (m: Mark): m is Span =>
+  m.type === 'lang' || m.type === 'link' || m.type === 'footnote_reference';
 
 /** Inline nodes as text lines (a hard break followed by more starts a new line). */
 function serializeInline(nodes: readonly Inline[], notes: string[]): string[] {
@@ -130,6 +132,8 @@ function serializeInline(nodes: readonly Inline[], notes: string[]): string[] {
       const target =
         span.attrs.itemId !== undefined ? `item:${span.attrs.itemId}` : span.attrs.href!;
       emit(`](${target.replace(/[\\)]/g, '\\$&')})`);
+    } else if (span.type === 'lang') {
+      emit(`]{lang=${span.attrs.lang}}`);
     } else {
       notes.push(span.attrs.text);
       emit(`][^${notes.length}]`);
@@ -275,6 +279,8 @@ function listMarker(text: string): { kind: string; start: number; width: number 
   return { kind: m[3]!, start: Number(m[2]), width: m[2]!.length + 2 };
 }
 
+const LANG = ']{lang=';
+
 /** Reads the inline syntax of one paragraph or heading (its lines joined by `\n`). */
 function parseInline(source: string, firstLine: number, notes: Map<string, string>): Inline[] {
   const nodes: Inline[] = [];
@@ -327,7 +333,11 @@ function parseInline(source: string, firstLine: number, notes: Map<string, strin
       flush();
       open.push({ at: nodes.length, line, state: [...state] });
       i += 1;
-    } else if (c === ']' && open.length && (source[i + 1] === '(' || rest.startsWith('][^'))) {
+    } else if (
+      c === ']' &&
+      open.length &&
+      (source[i + 1] === '(' || rest.startsWith('][^') || rest.startsWith(LANG))
+    ) {
       flush();
       const span = open.pop()!;
       if (source[i + 1] === '(') {
@@ -345,6 +355,12 @@ function parseInline(source: string, firstLine: number, notes: Map<string, strin
           : { href: target };
         addMark(span.at, { type: 'link', attrs } as Mark);
         i = j + 1;
+      } else if (rest.startsWith(LANG)) {
+        // The tag is checked by the schema with the rest of the document.
+        const end = source.indexOf('}', i + LANG.length);
+        if (end < 0) throw new ParseError({ line, message: 'editor.markdown.invalid' });
+        addMark(span.at, { type: 'lang', attrs: { lang: source.slice(i + LANG.length, end) } });
+        i = end + 1;
       } else {
         const end = source.indexOf(']', i + 3);
         const id = end < 0 ? '' : source.slice(i + 3, end);

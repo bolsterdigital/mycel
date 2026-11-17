@@ -5,14 +5,21 @@
      (WCAG 2.5.3 "symbolic text characters", APG toolbar). A deliberate exception to the rule
      that every action shows its label; that rule keeps holding for document actions.
      The text style is a native select: it names the current style, works on touch and needs no
-     popup of ours. The buttons are one tab stop with arrow keys between them.
+     popup of ours. So is the language of a passage (WCAG 3.1.2), at the end of the bar: a
+     choice from twenty languages by name, which a button and a popup would only rebuild. The buttons are one tab stop with arrow keys between them.
      Rejected: word buttons (six of them filled 172 px of a 320 px screen and hid the state) and
      a selection bar alone (nothing to start a list or a heading from an empty line). -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { Icon, type IconName } from '#lib/admin/ui/index.js';
   import { ui } from '../../i18n/index.js';
-  import { isMac, shortcut, type Formatting, type TextStyle } from './formatting.svelte.js';
+  import {
+    isMac,
+    passageLanguages,
+    shortcut,
+    type Formatting,
+    type TextStyle,
+  } from './formatting.svelte.js';
 
   let {
     formatting,
@@ -122,6 +129,8 @@
     { value: 3, label: t('admin.editor.style.minorHeading') },
   ]);
 
+  const languages = $derived(passageLanguages(locale, now.lang));
+
   // One tab stop for the buttons (APG toolbar): the one last used, or the first that is enabled.
   let current = $state('bold');
   const stop = $derived.by(() => {
@@ -230,6 +239,18 @@
       {/each}
     </div>
   {/each}
+  <select
+    class="format-style format-lang"
+    disabled={disabled || !now.canLang}
+    aria-label={t('admin.editor.lang')}
+    value={now.lang}
+    onchange={(event) => formatting.setLang(event.currentTarget.value)}
+  >
+    <option value="">{t('admin.editor.lang.same')}</option>
+    {#each languages as language (language.tag)}
+      <option value={language.tag}>{language.name}</option>
+    {/each}
+  </select>
   <span bind:this={tip} class="format-tip" aria-hidden="true" hidden></span>
 </div>
 
@@ -287,7 +308,14 @@
     border-radius: var(--radius);
     cursor: pointer;
   }
-  .format-style:hover {
+  .format-lang {
+    font-weight: 400;
+  }
+  .format-lang:disabled {
+    color: var(--color-border-strong);
+    cursor: default;
+  }
+  .format-style:hover:not(:disabled) {
     background-color: var(--status-neutral-bg);
   }
   .format-tool {

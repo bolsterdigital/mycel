@@ -35,6 +35,7 @@ const italic: Mark = { type: 'italic' };
 const code: Mark = { type: 'code' };
 const link = (href: string): Mark => ({ type: 'link', attrs: { href } });
 const note = (text: string): Mark => ({ type: 'footnote_reference', attrs: { text } });
+const lang = (tag: string): Mark => ({ type: 'lang', attrs: { lang: tag } });
 
 describe('rich text as Markdown', () => {
   const examples = Object.values(BLOCK_DEFINITIONS).flatMap((d) =>
@@ -109,6 +110,7 @@ describe('rich text as Markdown', () => {
       )
     );
     roundTrip(doc(p(t('code met ** en _', code))));
+    roundTrip(doc(p(t('a', lang('fr'), link('/x')), t('b', lang('fr')), t('c', lang('ar'), bold))));
     roundTrip(doc(p(t('x', note(' begint met spatie \\ en &#9; \n'))), p(t('y', note('[^2]: ]')))));
     roundTrip(
       doc(
@@ -137,6 +139,18 @@ describe('rich text as Markdown', () => {
       }),
     });
     expect(fromMarkdown('[sic] en [open')).toEqual({ ok: true, doc: doc(p(t('[sic] en [open'))) });
+  });
+
+  it('writes a passage in another language as an attribute span', () => {
+    const md = roundTrip(doc(p(t('Een '), t('raison d’être', lang('fr'), italic), t('.'))));
+    expect(md).toBe('Een [_raison d’être]{lang=fr}_.');
+    expect(fromMarkdown('[Bom dia]{lang=pt-BR}')).toEqual({
+      ok: true,
+      doc: doc(p(t('Bom dia', lang('pt-BR')))),
+    });
+    // Not a tag of the locale subset, or never closed: refused, not stored as text.
+    for (const md of ['[x]{lang=fr-fr}', '[x]{lang=}', '[x]{lang=fr'])
+      expect(fromMarkdown(md).ok, md).toBe(false);
   });
 
   it('refuses what it cannot read, with the line', () => {
@@ -207,6 +221,7 @@ function generate(random: () => number) {
           : { type: 'link', attrs: { itemId: '01900000-0000-7000-8000-00000000c001' } }
       );
     if (random() < 0.15) out.push(note(text()));
+    if (random() < 0.15) out.push(lang(pick(['fr', 'ar', 'pt-BR'])));
     return out.sort(() => random() - 0.5);
   };
   const inline = () =>

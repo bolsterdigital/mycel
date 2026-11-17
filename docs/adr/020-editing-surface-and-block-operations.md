@@ -12,6 +12,7 @@
 - **Rule 6 refined**: 2026-11-07 by [ADR 027](027-block-operations-rebase-and-entity-base.md). A block operation on an older base is applied to the newest revision when its target and the place it uses did not change; otherwise the conflict names what did.
 
 - **Rules 1 and 4 refined**: 2026-11-09. Blocks may carry an optional localized `name` in their envelope. It is revisioned editorial metadata, never block identity or public content. Empty locale values remove that locale's name. Editors preserve other locales and use a shared deterministic fallback for unnamed blocks. Moves, duplication, splitting, normalization and editor conversions preserve names according to the revisioned operation contract; normalization refuses conflicting names rather than silently dropping them. Authorized editorial reads and tenant portability retain names; public representations omit them.
+- **Rule 2 refined**: 2026-11-17. A sixth mark, `lang`, marks a passage written in another language than the text around it (WCAG 3.1.2). Its one attribute is a language tag of the same subset as a content locale. Renderers put `lang` and the tag's writing direction on the passage; Markdown that carries no HTML keeps only the words. The block forms write it as `[text]{lang=fr}`, and the editor reads it back only from a span with both `lang` and `dir`, so pasted Word markup does not mark ordinary text.
 
 ## Context
 

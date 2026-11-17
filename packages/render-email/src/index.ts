@@ -1,6 +1,6 @@
 // The first `EmailRenderer` (ADR 004 rule 2, ADR 010 rule 6): an item's mail model as table HTML
 // with inline styles and a plain-text part. Pure: no I/O, no framework, no dependency beyond the
-// core's types. What a block becomes is the core's decision (`emailDocument`); this file only
+// core's types and its pure `textDirection`. What a block becomes is the core's decision (`emailDocument`); this file only
 // decides markup.
 //
 // Mail clients are not browsers: Outlook for Windows renders with Word, Gmail strips `<style>`
@@ -23,6 +23,7 @@ import type {
   RenderedEmail,
   RichTextDoc,
 } from '@mycel/core';
+import { textDirection } from '@mycel/core';
 
 const SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 const SERIF = "Georgia,'Times New Roman',Times,serif";
@@ -96,6 +97,8 @@ function renderHtml(email: EmailDocument): string {
           } else if (m.type === 'footnote_reference') {
             notes.push(m.attrs.text);
             out += `<sup>${notes.length}</sup>`;
+          } else if (m.type === 'lang') {
+            out = `<span lang="${esc(m.attrs.lang)}" dir="${textDirection(m.attrs.lang)}">${out}</span>`;
           }
         }
         return out;
@@ -208,7 +211,7 @@ function renderHtml(email: EmailDocument): string {
   const outer = `background-color:${theme.surface.background};color:${theme.surface.foreground};`;
   return [
     '<!doctype html>',
-    `<html lang="${esc(email.locale)}">`,
+    `<html lang="${esc(email.locale)}" dir="${textDirection(email.locale)}">`,
     '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light">',
     `<title>${esc(email.subject)}</title></head>`,
     `<body style="margin:0;padding:0;${outer}">`,

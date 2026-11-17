@@ -559,7 +559,7 @@
   <details class="ui-fold markdown-help" id={help}>
     <summary>{t('admin.block.markdown.title')}</summary>
     <ul>
-      {#each ['headings', 'marks', 'lists', 'breaks', 'links', 'notes', 'escape'] as k (k)}
+      {#each ['headings', 'marks', 'lists', 'breaks', 'links', 'notes', 'lang', 'escape'] as k (k)}
         <li>{t(`admin.block.markdown.${k}` as UiKey)}</li>
       {/each}
     </ul>

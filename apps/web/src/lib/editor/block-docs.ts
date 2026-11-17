@@ -94,6 +94,7 @@ export function blockReference(): string {
     '| `\\` at the end of a line, or `<br>` | a line break inside a paragraph |',
     '| `[text](https://…)`, `[text](/path)`, `[text](mailto:…)`, `[text](item:<id>)` | a link; `item:` links to a page or article of the site by id |',
     '| `[text][^1]` and a line `[^1]: note` at the end | a footnote on that text |',
+    '| `[text]{lang=fr}` | a passage in another language than the page (a language code such as `en`, `de` or `pt-BR`) |',
     '| `\\` before `*`, `_`, `` ` ``, `[` or `]`; `&#n;` with a character code | the character itself |',
     '',
     'A single newline inside a paragraph is a space, as in Markdown. Text that is unchanged in the form keeps its stored JSON exactly.',

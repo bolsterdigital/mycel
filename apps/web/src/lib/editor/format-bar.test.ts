@@ -34,6 +34,7 @@ describe('FormatBar', () => {
     ])
       expect(out).toContain(`aria-label="${name}"`);
     expect(out).toContain('aria-label="Tekstsoort"');
+    expect(out).toContain('aria-label="Taal van de selectie"');
     expect(bar('en')).toContain('aria-label="Bulleted list"');
   });
 
@@ -43,6 +44,15 @@ describe('FormatBar', () => {
     for (const name of ['Link', 'Undo', 'Redo'])
       expect(out).toMatch(new RegExp(`<button[^>]*aria-label="${name}"[^>]*disabled`));
     expect(out).not.toMatch(/<button[^>]*aria-label="Bold"[^>]*disabled/);
+  });
+
+  it('names the languages of a passage in the language of the admin, disabled without a selection', () => {
+    const out = bar('nl');
+    expect(out).toMatch(/<select[^>]*disabled[^>]*aria-label="Taal van de selectie"/);
+    expect(out).toMatch(/<option value=""[^>]*>Zelfde taal<\/option>/);
+    expect(out).toMatch(/<option value="fy">Fries<\/option>/);
+    expect(out).toMatch(/<option value="en">Engels<\/option>/);
+    expect(bar('en')).toMatch(/<option value="de">German<\/option>/);
   });
 
   it('has one tab stop among the buttons', () => {

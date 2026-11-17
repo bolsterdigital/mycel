@@ -13,8 +13,11 @@
 // `inert` is the same walk for a block at rest on the edit screen (MY-110 C1): no link that leaves
 // the unsaved form and no heading in the admin's outline, each marked `data-*` instead so the
 // screen can style it. Rejected: a second walker in the admin, which a new mark would miss.
+//
+// A language mark becomes a `span` with `lang` and `dir` around everything else, in every mode:
+// the public page, the writing sheet (TipTap reads it back from there) and the inert preview.
 
-import type { Mark, RichTextDoc } from '@mycel/core';
+import { textDirection, type Mark, type RichTextDoc } from '@mycel/core';
 import { headingTag } from './headings.js';
 
 const ESCAPES: Record<string, string> = {
@@ -88,8 +91,12 @@ export function richTextHtml(doc: RichTextDoc, ctx: RichTextContext): string {
             note = ctx.inert
               ? `<sup>${n}</sup>`
               : `<sup><a href="#fn-${id}" id="fnref-${id}">${n}</a></sup>`;
-          } else if (!(m.type in TAG)) throw new Error(`unknown mark ${(m as Mark).type}`);
+          } else if (m.type !== 'lang' && !(m.type in TAG))
+            throw new Error(`unknown mark ${(m as Mark).type}`);
         }
+        // Outermost, so the link and the emphasis inside are in that language too.
+        const lang = marks.find((m) => m.type === 'lang');
+        if (lang) out = langSpan(lang.attrs.lang, out);
         return out + note;
       })
       .join('');
@@ -133,3 +140,10 @@ export function richTextHtml(doc: RichTextDoc, ctx: RichTextContext): string {
 }
 
 const TAG = { code: 'code', italic: 'em', bold: 'strong' } as const;
+
+/**
+ * A passage in another language: `lang` and its own `dir`, always both, so an English quote in
+ * a right-to-left page reads left to right and an Arabic one in a Dutch page the other way.
+ */
+export const langSpan = (lang: string, html: string): string =>
+  `<span lang="${escape(lang)}" dir="${textDirection(lang)}">${html}</span>`;
