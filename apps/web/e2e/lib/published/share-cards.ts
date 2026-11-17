@@ -4,7 +4,7 @@
 // an own share image is used exactly, with its own alt; and every content page links the site's
 // feeds in its language. The core suite (`share-card.test.ts`) proves pruning, the theme walk and
 // tenant isolation; this proves the routes and the real renderer behind the worker.
-import { expect, type Page } from '@playwright/test';
+import { expect, type APIRequestContext, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { systemPrincipal, useCases } from '@mycel/core';
 import { callApi } from '../api';
@@ -18,6 +18,30 @@ const article = (title: string, over: Record<string, unknown> = {}) => ({
   blocks: [],
   ...over,
 });
+
+const CARD = /\/_share\/[0-9a-f-]{36}\/[a-z-]+\/[0-9a-f]{24}\.png$/i;
+
+/**
+ * The generated card a page's head names, once the worker has drawn it. The job runs after a
+ * publication and after a change to the theme, the logo or the default image, and until then the
+ * head shows the inherited image; the head is in the page's ETag, so a test that compares heads
+ * or validators of a fresh publication waits here first. Rejected: asserting the inherited image
+ * right after the change, which is a race with the worker.
+ */
+export async function shareCardOf(request: APIRequestContext, path: string): Promise<string> {
+  let image = '';
+  await expect
+    .poll(
+      async () => {
+        const html = await (await request.get(path)).text();
+        image = /<meta property="og:image" content="([^"]*)"/.exec(html)?.[1] ?? '';
+        return image;
+      },
+      { timeout: 20_000, message: `share card of ${path}` }
+    )
+    .toMatch(CARD);
+  return image;
+}
 
 export async function exerciseShareCards(page: Page) {
   const id = randomUUID().slice(0, 8);
@@ -71,10 +95,7 @@ export async function exerciseShareCards(page: Page) {
   };
 
   // (a) The worker draws the card after publication; until then the head shows no card.
-  const card = (path: string) =>
-    expect
-      .poll(async () => (await head(path)).image, { timeout: 20_000, message: path })
-      .toMatch(/\/_share\/[0-9a-f-]{36}\/(nl|en)\/[0-9a-f]{24}\.png$/);
+  const card = (path: string) => shareCardOf(page.request, path);
   await card(`/probe/articles/${carded}`);
   const nl = await head(`/probe/articles/${carded}`);
   expect(nl).toMatchObject({
