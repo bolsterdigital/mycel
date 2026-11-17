@@ -437,6 +437,39 @@ export const STORAGE = {
     ],
     retention: SUPPORTER_KEPT,
   },
+  payments: {
+    category: 'supporters',
+    owner: 'tenant',
+    copies: [
+      {
+        field: 'supporter_id',
+        subject: 'supporter',
+        route: {
+          kind: 'apply',
+          does: 'clears the supporter id; the amount, status and ledger stay with nobody attached',
+        },
+      },
+      {
+        field: 'description',
+        subject: 'anyone',
+        route: {
+          kind: 'excluded',
+          reason:
+            'the line the site gives a payment for the provider and the statement, fixed at creation; the use case forbids an address or a name in it and no supporter field is copied into it',
+        },
+      },
+    ],
+    retention: {
+      kind: 'kept',
+      why: 'the organisation’s record of what it received (ADR 005 rule 1); bookkeeping law sets the term, not Mycel',
+    },
+  },
+  ledger_entries: {
+    category: 'supporters',
+    owner: 'tenant',
+    copies: [ACTOR],
+    retention: { kind: 'kept', why: 'append-only history of a payment (ADR 005 rule 1)' },
+  },
   person_groups: {
     category: 'people',
     owner: 'tenant',

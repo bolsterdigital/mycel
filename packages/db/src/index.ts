@@ -12,6 +12,7 @@ import { mailchimpReceipts } from './connections/mailchimp-receipts.js';
 
 import { personGroupRepository } from './people/groups.js';
 import { campaignRepository } from './campaigns/repository.js';
+import { paymentRepository } from './money/repository.js';
 import { bulkPlanRepository } from './content-bulk.js';
 import { presenceRepository } from './presence/content-presence.js';
 
@@ -216,6 +217,8 @@ export interface UnitOfWorkDeps {
   assistProviderLabel?: string | null;
   /** Newsletter markup; absent in suites that render no mail: then `ctx.emailRenderer` refuses. */
   emailRenderer?: import('@mycel/core').EmailRenderer | undefined;
+  /** The payment provider (ADR 005 rule 3); absent means no donation can be started. */
+  paymentProvider?: import('@mycel/core').PaymentProvider | null | undefined;
 }
 
 const unconfigured = (port: string) =>
@@ -246,6 +249,8 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           events: outboxEventBus(trx),
           content: contentRepository(trx, tenantId),
           campaigns: campaignRepository(trx, tenantId),
+          payments: paymentRepository(trx, tenantId),
+          paymentProvider: deps.paymentProvider ?? null,
           bulkPlans: bulkPlanRepository(trx, tenantId),
           presence: presenceRepository(trx, tenantId),
           navigation: navigationRepository(trx, tenantId),

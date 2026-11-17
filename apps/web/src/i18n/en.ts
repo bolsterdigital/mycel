@@ -1133,6 +1133,8 @@ export const en = {
   'admin.audit.op.campaign.open': 'Campaign opened for participation',
   'admin.audit.op.campaign.close': 'Campaign closed for participation',
   'admin.audit.op.campaign.archive': 'Campaign archived',
+  'admin.audit.op.donation.create': 'Donation started',
+  'admin.audit.op.donation.check': 'Donation status checked with the payment provider',
   'admin.audit.op.campaign.participation.withdraw': 'Campaign participation withdrawn',
   'admin.audit.op.campaign.landing.create': 'Campaign started with its page and form',
   'admin.campaign.title': 'Campaigns',

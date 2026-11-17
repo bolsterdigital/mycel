@@ -20,9 +20,7 @@ const MODEL = 'packages/core/src/entitlements/model.ts';
 const NOT_A_READER = new Set([MODEL, 'packages/core/src/entitlements/service.ts']);
 
 /** `key: why it has no reader yet`. Remove a line in the PR that starts enforcing the key. */
-export const PLANNED = {
-  'donations.enabled': 'donations (ADR 005) are phase 4',
-};
+export const PLANNED = {};
 
 /** The switch and limit names declared in `FEATURE_SWITCHES` and `LIMITS`. */
 export function declaredKeys(model) {

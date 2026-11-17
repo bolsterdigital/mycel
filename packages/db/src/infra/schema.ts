@@ -396,6 +396,38 @@ export interface Database {
     confirmed_at: Timestamp;
     withdrawn_at: Timestamp | null;
   };
+  payments: {
+    id: string;
+    tenant_id: string;
+    kind: string;
+    status: string;
+    amount: number;
+    currency: string;
+    description: string;
+    locale: string;
+    provider: string;
+    provider_ref: string;
+    provider_status: string;
+    checkout_url: string | null;
+    supporter_id: string | null;
+    created_at: Timestamp;
+    updated_at: Timestamp;
+    paid_at: Timestamp | null;
+  };
+  ledger_entries: {
+    id: string;
+    tenant_id: string;
+    payment_id: string;
+    seq: number;
+    from_status: string | null;
+    to_status: string;
+    cause: string;
+    provider_status: string;
+    amount: number;
+    currency: string;
+    at: Timestamp;
+    actor: Json<unknown>;
+  };
   person_group_members: {
     tenant_id: string;
     group_id: string;

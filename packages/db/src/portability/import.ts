@@ -76,6 +76,8 @@ const IMPORT_RULE = {
   people: 'as-exported',
   campaigns: 'as-exported',
   campaign_participations: 'as-exported',
+  payments: 'as-exported',
+  ledger_entries: 'as-exported',
   mail_editions: 'as-exported',
   person_groups: 'as-exported',
   person_group_members: 'as-exported',
@@ -190,6 +192,7 @@ export const ACTOR_FIELDS: Partial<Record<ExportTable, readonly (readonly string
   form_feed_settings: [['actor']],
   media: [['created_by']],
   erasures: [['actor']],
+  ledger_entries: [['actor']],
   person_erasures: [['actor']],
 };
 

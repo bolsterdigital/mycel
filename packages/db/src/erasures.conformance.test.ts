@@ -846,6 +846,7 @@ describe.skipIf(skip)('erasure conformance', () => {
       'media.erasure_apply',
       'outbox.erasure_apply',
       'patterns.erasure_apply',
+      'payments.erasure_apply',
       'people.erasure_apply',
       'person_erasures.erasure_apply',
       'person_group_members.erasure_apply',
