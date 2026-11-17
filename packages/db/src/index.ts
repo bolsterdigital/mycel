@@ -51,6 +51,7 @@ import {
   accessTierRepository,
 } from './content.js';
 import { erasureRepository } from './erasures.js';
+import { readerSessionRepository, signinLinkRepository } from './supporters/readers.js';
 import { personErasureRepository } from './people/erasures.js';
 import { tenantExportRepository } from './portability/tenant-exports.js';
 import { hostnameRepository } from './hostnames.js';
@@ -271,6 +272,8 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           personGroups: personGroupRepository(trx, tenantId),
           sections: sectionRepository(trx, tenantId),
           accessTiers: accessTierRepository(trx, tenantId),
+          signinLinks: signinLinkRepository(trx, tenantId),
+          readerSessions: readerSessionRepository(trx, tenantId),
           patterns: patternRepository(trx, tenantId),
           formMail: formMailRepository(trx, tenantId),
           formFeeds: formFeedRepository(trx, tenantId),

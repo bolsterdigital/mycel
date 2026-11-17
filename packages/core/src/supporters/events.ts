@@ -27,6 +27,9 @@ export const SupporterEventType = z.enum([
   // the log is append-only, so a grant is never edited away.
   'access.granted',
   'access.revoked',
+  // A reader proved the address with a magic link (ADR 016 rule 1). Kept for the tenant's
+  // retention window and then compacted (ADR 019 rule 7).
+  'reader.signed_in',
 ]);
 export type SupporterEventType = z.infer<typeof SupporterEventType>;
 

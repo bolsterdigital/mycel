@@ -822,6 +822,41 @@ export const STORAGE = {
       by: 'retention.apply',
     },
   },
+  reader_signin_links: {
+    category: 'access',
+    owner: 'tenant',
+    copies: [
+      {
+        field: 'email',
+        subject: 'supporter',
+        route: {
+          kind: 'apply',
+          does: 'deletes the pending sign-in links of an erased address, with their mail intents',
+        },
+      },
+    ],
+    retention: {
+      kind: 'term',
+      term: 'an hour after the link expires, which is 15 minutes after the request',
+      by: 'rate_limits.sweep',
+    },
+  },
+  reader_sessions: {
+    category: 'access',
+    owner: 'tenant',
+    copies: [
+      {
+        field: 'supporter_id',
+        subject: 'supporter',
+        route: { kind: 'apply', does: 'deletes the reader sessions of an erased supporter' },
+      },
+    ],
+    retention: {
+      kind: 'term',
+      term: 'an hour after the session ends, which is 12 hours after the sign-in',
+      by: 'rate_limits.sweep',
+    },
+  },
   rate_limits: {
     category: 'access',
     owner: 'tenant',

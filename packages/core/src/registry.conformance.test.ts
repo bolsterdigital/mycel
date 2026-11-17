@@ -10,6 +10,7 @@ import {
   Capability,
   offeredCapabilities,
   PLANNED_CAPABILITIES,
+  readerPrincipal,
   systemPrincipal,
   type Principal,
 } from './principal.js';
@@ -554,6 +555,13 @@ describe('every command leaves exactly one audit row (TODO #17b)', () => {
       actor: { kind: 'operator', operatorId: 'op-conformance' },
       capabilities,
     });
+  // A use case closed to operators (a reader's own sign-in) runs as the actor it admits.
+  const callerOf = (useCase: UseCase): Principal => {
+    if (!useCase.actors || useCase.actors.includes('operator')) return operator(Capability.options);
+    if (useCase.actors.includes('anonymous'))
+      return anonymousPrincipal(TENANT, [...Capability.options]);
+    return readerPrincipal(TENANT, '01900000-0000-7000-8000-00000000cccc');
+  };
   const noAddress = (rows: unknown[]) =>
     expect(JSON.stringify(rows), 'an audit column holds an address').not.toContain('@');
 
@@ -588,12 +596,10 @@ describe('every command leaves exactly one audit row (TODO #17b)', () => {
     '%s run with its example: one row, ok exactly when it succeeded',
     async (_n, useCase) => {
       const { invoker, rows } = await setup();
-      const outcome = await invoker
-        .run(useCase, operator(Capability.options), useCase.examples[0].input)
-        .then(
-          () => 'ok',
-          (e: unknown) => (e instanceof UseCaseError ? e.code : 'error')
-        );
+      const outcome = await invoker.run(useCase, callerOf(useCase), useCase.examples[0].input).then(
+        () => 'ok',
+        (e: unknown) => (e instanceof UseCaseError ? e.code : 'error')
+      );
       if (outcome === 'ok') succeeded.push(useCase.name);
       expect(outcome).not.toBe('forbidden');
       expect(rows().map((r) => [r.operation, r.result])).toEqual([[useCase.name, outcome]]);

@@ -93,7 +93,20 @@ describe.each(useCases.map((u) => [u.name, u] as const))('HTTP conformance: %s',
         );
     });
 
+  // A use case for a visitor or a reader only (a reader's own sign-in) has no caller over HTTP:
+  // a key or an operator is refused before the input is read, whatever capabilities it holds.
+  const closedToKeys =
+    !!useCase.actors && !useCase.actors.includes('operator') && !useCase.actors.includes('api-key');
+
   it('400 Problem Details with issues for a schema violation and for a non-JSON body', async () => {
+    if (closedToKeys) {
+      await expectProblem(
+        await post(useCase, SCHEMA_VIOLATION, exactly(useCase)),
+        403,
+        'forbidden'
+      );
+      return;
+    }
     for (const body of [SCHEMA_VIOLATION, '{not json']) {
       const problem = await expectProblem(
         await post(useCase, body, exactly(useCase)),
@@ -106,6 +119,10 @@ describe.each(useCases.map((u) => [u.name, u] as const))('HTTP conformance: %s',
 
   it('accepts examples[0] with exactly the required capability', async () => {
     const res = await post(useCase, example, exactly(useCase));
+    if (closedToKeys) {
+      await expectProblem(res, 403, 'forbidden');
+      return;
+    }
     // The example's data need not exist in an empty tenant: 404 and 409 are fine, rejection is not.
     expect([200, 404, 409]).toContain(res.status);
   });

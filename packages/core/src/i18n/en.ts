@@ -74,6 +74,13 @@ export const en = {
   'mail.confirm.participation.button': 'Confirm participation',
   'mail.confirm.fallback': 'Does the button not work? Copy this link into your browser:',
   'mail.confirm.ignore': 'Did not sign up yourself? Then you can ignore this e-mail.',
+  'mail.signin.subject': 'Your sign-in link for {tenant}',
+  'mail.signin.heading': 'Sign in to {tenant}',
+  'mail.signin.intro':
+    'You asked to sign in to {tenant}. Use the link below to sign in on this device.',
+  'mail.signin.button': 'Sign in',
+  'mail.signin.expires': 'The link works once and for 15 minutes.',
+  'mail.signin.ignore': 'Did not ask for this? Then you can ignore this e-mail.',
   'mail.email.viewInBrowser': 'View this e-mail in your browser',
   'mail.email.footer': 'You receive this e-mail from {site}.',
   'mail.email.footnotes': 'Notes',

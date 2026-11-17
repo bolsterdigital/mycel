@@ -97,7 +97,8 @@ export const updateFormFeeds = defineUseCase({
         throw new UseCaseError('invalid_input', 'an unconnected feed must be disabled');
     }
     const a = ctx.principal.actor;
-    if (a.kind === 'anonymous') throw new UseCaseError('forbidden', 'authentication required');
+    if (a.kind === 'anonymous' || a.kind === 'reader')
+      throw new UseCaseError('forbidden', 'authentication required');
     const actor =
       a.kind === 'operator'
         ? { kind: 'operator' as const, id: a.operatorId }

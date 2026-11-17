@@ -42,6 +42,7 @@ import {
 } from './index.js';
 import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 import { seedCampaign } from './portability/campaigns.fixture.js';
+import { seedSupporter } from './supporters/rls.fixture.js';
 import { seedNavigation } from './portability/navigation.fixture.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -330,31 +331,7 @@ describe.skipIf(skip)('row level security conformance', () => {
       intendedType: 'page',
       blocks: [],
     });
-    const email = `rls-${run}@example.org`;
-    const submitted = await invoker.run(useCases.submitForm, admin, {
-      formId,
-      values: { email, consent: true },
-      locale: 'nl',
-    });
-    if (submitted.status !== 'accepted') throw new Error(`fixture signup ${submitted.status}`);
-    const event = {
-      id: uuidv7(),
-      type: 'newsletter.subscribed',
-      tenantId,
-      occurredAt: new Date(),
-      actor: { kind: 'system' as const, job: 'rls-test' },
-      props: {
-        email,
-        list: 'newsletter',
-        formId,
-        submissionId: submitted.submissionId,
-        locale: 'nl',
-        pageUrl: null,
-        consentTextVersion: 'v1',
-        confirmed: false,
-      },
-    };
-    await supporterIngestSubscriber(uow).handle(event);
+    const { email, event } = await seedSupporter(invoker, uow, admin, { formId, run });
     await seedCampaign(invoker, operatorDb, admin, email);
     await seedNavigation(invoker, admin);
     // Ingest released that signup's admission seat (0010); a reservation without a signup keeps

@@ -419,6 +419,25 @@ export interface Database {
     created_at: Timestamp;
     updated_at: Timestamp;
   };
+  reader_signin_links: {
+    id: string;
+    tenant_id: string;
+    email: string;
+    token_hash: string;
+    locale: string;
+    return_path: string | null;
+    created_at: Timestamp;
+    expires_at: Timestamp;
+    consumed_at: Timestamp | null;
+  };
+  reader_sessions: {
+    id: string;
+    tenant_id: string;
+    supporter_id: string;
+    created_at: Timestamp;
+    expires_at: Timestamp;
+    revoked_at: Timestamp | null;
+  };
   patterns: {
     id: string;
     tenant_id: string;

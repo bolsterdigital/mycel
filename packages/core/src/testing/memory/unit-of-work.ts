@@ -54,7 +54,12 @@ import {
   memoryOperators,
 } from './operators.js';
 import { MemoryStore, entityRepository, paged, sluggedRepository, tenantLock } from './store.js';
-import { memoryAdmissions, memorySupporters } from './supporters.js';
+import {
+  memoryAdmissions,
+  memoryReaderSessions,
+  memorySigninLinks,
+  memorySupporters,
+} from './supporters.js';
 import { memoryExports, memoryHostnames, memoryUsage } from './tenants.js';
 
 export interface MemoryDeps {
@@ -187,6 +192,8 @@ export class MemoryUnitOfWork implements UnitOfWork {
         supporters: memorySupporters(s, ids),
         admissions: memoryAdmissions(s, tenantId, clock),
         mailSends: memoryMailSends(s),
+        signinLinks: memorySigninLinks(s),
+        readerSessions: memoryReaderSessions(s),
         operators: memoryOperators(store.operators),
         members: memoryMembers(s, store.operators, memberLock.lock),
         attentionReads: memoryAttentionReads(s),

@@ -33,14 +33,15 @@ Two tables change on the way:
 
 ## What does not travel
 
-| Not exported                                                    | Why                                                                                                                                         |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `outbox`, `jobs`, `mail_sends`, `rate_limits`, `login_attempts` | Work in progress and counters of this installation, not the site's data; the new one starts its own.                                        |
-| `erasure_backups`                                               | Which of this installation's snapshots hold a registration; an import starts unsecured.                                                     |
-| `tenant_exports`                                                | Earlier archives of this site (below); an archive in an archive would grow with every export.                                               |
-| `operators`, `operator_erasures`                                | Accounts of people who log in here and this installation's register of erased ones; a membership carries the address and source id instead. |
-| The `tenants` row                                               | It is in the manifest; import creates the tenant through the platform path, with its audit row.                                             |
-| `api_keys`                                                      | Credentials of this installation. A hash that travels works here; create new keys after an import.                                          |
+| Not exported                                                    | Why                                                                                                                                          |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `outbox`, `jobs`, `mail_sends`, `rate_limits`, `login_attempts` | Work in progress and counters of this installation, not the site's data; the new one starts its own.                                         |
+| `reader_signin_links`, `reader_sessions`                        | Pending sign-in links and reader sessions ([readers.md](readers.md)) hang on this installation's hostname and secret; readers sign in again. |
+| `erasure_backups`                                               | Which of this installation's snapshots hold a registration; an import starts unsecured.                                                      |
+| `tenant_exports`                                                | Earlier archives of this site (below); an archive in an archive would grow with every export.                                                |
+| `operators`, `operator_erasures`                                | Accounts of people who log in here and this installation's register of erased ones; a membership carries the address and source id instead.  |
+| The `tenants` row                                               | It is in the manifest; import creates the tenant through the platform path, with its audit row.                                              |
+| `api_keys`                                                      | Credentials of this installation. A hash that travels works here; create new keys after an import.                                           |
 
 ## Import
 

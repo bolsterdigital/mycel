@@ -77,6 +77,13 @@ export const nl: Partial<Messages> = {
   'mail.confirm.participation.button': 'Deelname bevestigen',
   'mail.confirm.fallback': 'Werkt de knop niet? Kopieer deze link naar je browser:',
   'mail.confirm.ignore': 'Heb je je niet zelf ingeschreven? Dan kun je deze mail negeren.',
+  'mail.signin.subject': 'Je inloglink voor {tenant}',
+  'mail.signin.heading': 'Inloggen bij {tenant}',
+  'mail.signin.intro':
+    'Je hebt gevraagd om in te loggen bij {tenant}. Gebruik de link hieronder om op dit apparaat in te loggen.',
+  'mail.signin.button': 'Inloggen',
+  'mail.signin.expires': 'De link werkt één keer en 15 minuten lang.',
+  'mail.signin.ignore': 'Heb je hier niet om gevraagd? Dan kun je deze mail negeren.',
   'mail.email.viewInBrowser': 'Bekijk deze e-mail in je browser',
   'mail.email.footer': 'Je ontvangt deze e-mail van {site}.',
   'mail.email.footnotes': 'Noten',

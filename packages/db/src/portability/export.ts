@@ -116,6 +116,10 @@ export const TABLES = {
   outbox: 'operational',
   jobs: 'operational',
   mail_sends: 'operational',
+  // A pending sign-in link and a reader session (0069) belong to this installation's hostname
+  // and signing secret: an import starts without them and readers sign in again.
+  reader_signin_links: 'operational',
+  reader_sessions: 'operational',
   rate_limits: 'operational',
   login_attempts: 'operational',
   // Which of this installation's restic snapshots hold a registration (0021): another
