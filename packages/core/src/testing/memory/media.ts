@@ -4,9 +4,26 @@
 import { compareMedia, mediaMissingAlt, type MediaFilter } from '../../media/listing.js';
 import type { MediaRecord } from '../../media/model.js';
 import type { BlobStore, ImageProbe, ImageProcessor, MediaRepository } from '../../media/ports.js';
+import type { BrandProcessor } from '../../theme/ports.js';
 import type { Clock } from '../../ports.js';
 import { FakeClock } from './fakes.js';
 import type { StoredMedia, TenantStore } from './store.js';
+
+/**
+ * A `BrandProcessor` that accepts any logo as a 1x1 WebP and returns it unchanged as an icon:
+ * the core's rules need the shape, real conversion is `@mycel/media-sharp`'s contract test.
+ */
+export const memoryBrandProcessor: BrandProcessor = {
+  logo: async (bytes) => ({
+    bytes,
+    contentType: 'image/webp' as const,
+    width: 1,
+    height: 1,
+    licence: null,
+  }),
+  font: async () => {},
+  icon: async (logo) => logo,
+};
 
 /**
  * A `BlobStore` in a Map, shared by every tenant like a bucket. `modifiedAt` comes from the clock
