@@ -370,3 +370,15 @@ test('a job with only a step timeout has no timeout', () => {
   ].join('\n');
   assert.deepEqual(withoutTimeout(text), ['bare']);
 });
+
+test('the merge gate audits runtime dependencies and the weekly run audits the whole tree', () => {
+  // Owner decision 2026-11-17: tooling advisories report, they do not block. Without the weekly
+  // run the narrowed gate would leave the development tree unaudited.
+  const security = jobsOf(verifyWorkflow()).security;
+  assert.match(security, /^        run: npm audit --omit=dev --audit-level=high$/m);
+  const weekly = workflows().find((w) => w.path === 'dependency-audit.yml')?.text;
+  assert.ok(weekly, 'dependency-audit.yml exists');
+  assert.match(weekly, /^  schedule:\n    - cron: /m);
+  assert.match(weekly, /^        run: npm audit --audit-level=high$/m);
+  assert.doesNotMatch(weekly, /--omit|continue-on-error/);
+});

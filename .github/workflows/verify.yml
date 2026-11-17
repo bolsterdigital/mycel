@@ -328,9 +328,15 @@ jobs:
           test '${{ needs.image.result }}' = success
           test '${{ needs.compose.result }}' = success
 
-  # Known advisories in the whole dependency tree and secrets in the whole history (TODO #20c
-  # decision 8). A red `npm audit` without a fix is a stop to discuss, never an --omit or an
-  # exception list. Gitleaks as a pinned container, not gitleaks-action, which needs a licence for
+  # Known advisories in what ships and secrets in the whole history (TODO #20c decision 8). The
+  # audit blocks on runtime dependencies only (owner decision, 2026-11-17): GHSA-fc5q-39xc-vjpf
+  # (picomatch, no patched version) sat in vite, tinyglobby and svelte-check, build and test
+  # tooling that is in no image, and held every merge. The whole tree, development dependencies
+  # included, is audited weekly in dependency-audit.yml, which reports and does not block. A red
+  # runtime audit without a fix is still a stop to discuss, never an exception list. Rejected:
+  # waiting for upstream (an advisory in tooling stops all work for as long as a third party
+  # takes) and an allowlist of advisory ids (it rots, and it also hides the id in the runtime
+  # tree). Gitleaks as a pinned container, not gitleaks-action, which needs a licence for
   # organisation repositories; .gitleaks.toml excepts only the CI placeholders.
   security:
     needs: reuse
@@ -346,8 +352,8 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: npm audit (high and critical)
-        run: npm audit --audit-level=high
+      - name: npm audit of runtime dependencies (high and critical)
+        run: npm audit --omit=dev --audit-level=high
 
       - name: gitleaks over the full history
         run: |

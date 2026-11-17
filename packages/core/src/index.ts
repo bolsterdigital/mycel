@@ -88,6 +88,7 @@ export * from './supporters/model.js';
 export * from './supporters/ports.js';
 export * from './supporters/service.js';
 export * from './supporters/listing.js';
+export * from './supporters/timeline.js';
 export * from './supporters/erasure.js';
 export * from './supporters/erase.js';
 export * from './supporters/access.js';

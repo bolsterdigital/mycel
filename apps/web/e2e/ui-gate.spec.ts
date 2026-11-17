@@ -1433,8 +1433,9 @@ test.describe('admin-shell', () => {
 
 // Failure evidence is part of the browser gate: a stalled renderer must yield a stack while
 // a healthy page needs no interruption. A separate context contains the deliberate spin.
-// The supporter list (MY-251): who signed up, for a reader of `supporters:read` only. The list,
-// its filter and its search are plain GET, so both projects walk the same page.
+// The supporter list and one supporter's page (MY-251): who signed up and what they did, for a
+// reader of `supporters:read` only. The list, its filter and its search are plain GET and the
+// page is read-only, so both projects walk the same pages.
 test.describe('supporters', () => {
   // One editor per admin language: an operator keeps the language of their first sign-in.
   const editor = (locale: string) => `supporters-editor-${locale}@probe.test`;
@@ -1444,7 +1445,11 @@ test.describe('supporters', () => {
     ['zus-een@lijst.example', 1, { list: 'gate-list' }],
     ['zus-twee@lijst.example', 2, { list: 'gate-list', confirmed: false }],
     ['broer@elders.example', 3, { list: 'gate-other' }],
+    // The page of one supporter: a second, unconfirmed signup and a withdrawal after it.
+    ['broer@elders.example', 4, { list: 'gate-extra', confirmed: false }],
+    ['broer@elders.example', 5, { list: 'gate-other' }, 'newsletter.unsubscribed'],
   ] as const;
+  let broerId = '';
 
   test.beforeAll(async () => {
     const principal = systemPrincipal(await tenantId(), 'e2e');
@@ -1462,7 +1467,7 @@ test.describe('supporters', () => {
         } catch (e) {
           if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
         }
-      for (const [email, minute, props] of fixtures) {
+      for (const [email, minute, props, type = 'newsletter.subscribed'] of fixtures) {
         const id = `ui-gate-supporter-${minute}`;
         await uow.run(principal, (ctx) =>
           ingest(
@@ -1470,7 +1475,7 @@ test.describe('supporters', () => {
             SupporterEvent.parse({
               schema: 'wings.supporter-event.v1',
               id,
-              type: 'newsletter.subscribed',
+              type,
               email,
               occurred_at: new Date(Date.UTC(2026, 10, 3, 9, minute)).toISOString(),
               source: 'e2e',
@@ -1481,6 +1486,7 @@ test.describe('supporters', () => {
           )
         );
       }
+      broerId = (await invoker.run(useCases.getSupporter, principal, { email: fixtures[2][0] })).id;
     });
   });
 
@@ -1527,11 +1533,75 @@ test.describe('supporters', () => {
       });
     });
 
+  for (const [locale, words] of [
+    [
+      'en',
+      {
+        pending: 'Awaiting confirmation',
+        timeline: [
+          'Unsubscribed from gate-other',
+          'Signed up for gate-extra, not yet confirmed',
+          'Signed up for gate-other',
+        ],
+      },
+    ],
+    [
+      'nl',
+      {
+        pending: 'Wacht op bevestiging',
+        timeline: [
+          'Meldde zich af voor gate-other',
+          'Schreef zich in voor gate-extra, nog niet bevestigd',
+          'Schreef zich in voor gate-other',
+        ],
+      },
+    ],
+  ] as const)
+    test.describe(`page, ${locale}`, () => {
+      test.use({ locale, viewport: NARROW });
+      test('an editor opens one supporter from the list at 320 CSS px', async ({ page }) => {
+        await login(page, '/admin/probe/supporters?q=broer', editor(locale), {
+          'accept-language': locale,
+        });
+        await page.getByRole('link', { name: 'broer@elders.example', exact: true }).click();
+        await expect(
+          page.getByRole('heading', { level: 1, name: 'broer@elders.example' })
+        ).toBeVisible();
+        expect(new URL(page.url()).pathname).toBe(`/admin/probe/supporters/${broerId}`);
+        // Newest first, in words; the withdrawn list is gone and the open signup says so.
+        await expect(page.locator('#supporter-timeline-table tbody td:first-child')).toHaveText(
+          words.timeline
+        );
+        const lists = page.locator('#supporter-lists-table tbody tr');
+        await expect(lists).toHaveCount(1);
+        await expect(lists).toContainText('gate-extra');
+        await expect(lists.locator('.ui-badge')).toHaveText(words.pending);
+        if (isA11y()) {
+          await expectNoAxeViolations(page, { label: `supporter page, ${locale}` });
+          for (const text of TEXT_SIZES) {
+            await setTextSize(page, text);
+            await layoutGate(page, `supporter page, ${locale} at ${text}`, 'main');
+          }
+          await page.screenshot({
+            path: test.info().outputPath(`supporter-page-${locale}-320-text200.png`),
+            fullPage: true,
+          });
+          await setTextSize(page, '100%');
+        }
+        // An id that is no supporter of this site is not found.
+        const unknown = '01930000-0000-7000-8000-0000000000ff';
+        expect((await page.goto(`/admin/probe/supporters/${unknown}`))?.status()).toBe(404);
+        expect((await page.goto('/admin/probe/supporters/broer'))?.status()).toBe(404);
+      });
+    });
+
   test('an author has no Supporters entry and the list refuses them', async ({ page }) => {
     await login(page, '/admin/probe/beheer', author);
     await expect(page.getByRole('link', { name: 'Supporters', exact: true })).toHaveCount(0);
     expect((await page.goto('/admin/probe/supporters'))?.status()).toBe(403);
     await expect(page.getByText('lijst.example')).toHaveCount(0);
+    expect((await page.goto(`/admin/probe/supporters/${broerId}`))?.status()).toBe(403);
+    await expect(page.getByText('elders.example')).toHaveCount(0);
   });
 });
 
