@@ -71,6 +71,7 @@
         "apps/web/src/lib/server/public/share-card.ts",
         "apps/web/src/lib/server/media.ts",
         "apps/web/src/lib/server/content/preview.ts",
+        "apps/web/src/lib/server/mail/email-preview.ts",
         "apps/web/src/routes/(preview)/**",
         "apps/web/src/lib/server/admin/export-download*",
         "apps/web/src/lib/server/admin/assist-settings*",
