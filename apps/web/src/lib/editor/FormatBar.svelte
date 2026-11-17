@@ -339,11 +339,10 @@
     font-size: var(--step--1);
     font-weight: 600;
   }
+  /* Over the border too: the select is the 44 px target, not the box inside the ring. */
   .format-lang > select {
     position: absolute;
-    inset: 0;
-    inline-size: 100%;
-    block-size: 100%;
+    inset: calc(-1 * var(--border-width));
     font: inherit;
     opacity: 0;
     cursor: pointer;
