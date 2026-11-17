@@ -9,8 +9,8 @@
 
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { EXAMPLE_PNG, systemPrincipal, useCases } from '@mycel/core';
-import { requireApi } from '../api';
+import { systemPrincipal, useCases } from '@mycel/core';
+import { callApi, requireApi } from '../api';
 import { expectNoAxeViolations } from '../axe';
 import { tenantId, withInvoker } from '../invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from '../layout';
@@ -25,18 +25,18 @@ const text = (t: string) => ({
   content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }],
 });
 
-async function fixtures(id: string) {
+async function fixtures(request: APIRequestContext, id: string) {
+  // Over the API: its unit of work has the image processor, the e2e invoker has none.
+  const photo = await callApi<{ id: string }>(request, 'media.upload', {
+    ...useCases.uploadMedia.examples[0]!.input,
+    filename: `besloten-${id}.png`,
+    access: 'restricted',
+  });
   const principal = systemPrincipal(await tenantId(), 'e2e');
   return withInvoker(async (invoker) => {
     const tier = await invoker.run(useCases.createAccessTier, principal, {
       slug: `e2e-tier-${id}`,
       name: { nl: 'Donateurs', en: 'Donors' },
-    });
-    const photo = await invoker.run(useCases.uploadMedia, principal, {
-      filename: `besloten-${id}.png`,
-      contentType: 'image/png',
-      bytes: EXAMPLE_PNG,
-      access: 'restricted',
     });
     const author = await invoker.run(useCases.createPerson, principal, {
       slug: `e2e-auteur-${id}`,
@@ -112,7 +112,7 @@ export async function exerciseRestrictedArticle(
   /** Fills in the sign-in form the page is on and follows the mailed link to its one button. */
   signIn: (email: string) => Promise<void>
 ) {
-  const { tierId, slug, itemId, photoId } = await fixtures(randomUUID().slice(0, 8));
+  const { tierId, slug, itemId, photoId } = await fixtures(request, randomUUID().slice(0, 8));
   const path = `/articles/${slug}`;
   const url = `${SITE}${path}`;
   const gate = page.locator('.reader-gate');
