@@ -15,6 +15,8 @@
 // with different routes), and prose in docs alone (nothing fails when a migration adds a table).
 
 import type { Database } from '../infra/schema.js';
+import { ACCESS_STORAGE } from './storage-access.js';
+import { ASSIST_STORAGE } from './storage-assist.js';
 import { NAVIGATION_STORAGE } from './storage-navigation.js';
 
 export { OFF_TABLE_STORAGE } from './storage-off-table.js';
@@ -628,44 +630,7 @@ export const STORAGE = {
     ],
     retention: { kind: 'kept', why: 'durable plan and undo evidence (ADR 028)' },
   },
-  assist_settings: {
-    category: 'assist',
-    owner: 'tenant',
-    copies: [
-      {
-        field: 'consented_by',
-        subject: 'operator',
-        route: {
-          kind: 'excluded',
-          reason: 'who consented to a provider is the evidence of that consent (ADR 021)',
-        },
-      },
-    ],
-    retention: SITE_KEPT,
-  },
-  assist_suggestions: {
-    category: 'assist',
-    owner: 'tenant',
-    copies: [
-      {
-        field: 'value',
-        subject: 'anyone',
-        route: { kind: 'expires', why: 'a suggestion is a short-lived copy of editor text' },
-      },
-      {
-        field: 'requested_by',
-        subject: 'operator',
-        route: { kind: 'expires', why: 'goes with the suggestion' },
-      },
-    ],
-    retention: { kind: 'term', term: '30 days (ASSIST_RETENTION_DAYS)', by: 'assist.retention' },
-  },
-  assist_usage: {
-    category: 'assist',
-    owner: 'tenant',
-    copies: IDS_ONLY,
-    retention: { kind: 'term', term: 'earlier months', by: 'assist.retention' },
-  },
+  ...ASSIST_STORAGE,
   content_item_locales: {
     category: 'content',
     owner: 'tenant',
@@ -891,65 +856,7 @@ export const STORAGE = {
     ],
     retention: SITE_KEPT,
   },
-  reader_signin_links: {
-    category: 'access',
-    owner: 'tenant',
-    copies: [
-      {
-        field: 'email',
-        subject: 'supporter',
-        route: {
-          kind: 'apply',
-          does: 'deletes the pending sign-in links of an erased address, with their mail intents',
-        },
-      },
-    ],
-    retention: {
-      kind: 'term',
-      term: 'an hour after the link expires, which is 15 minutes after the request',
-      by: 'rate_limits.sweep',
-    },
-  },
-  reader_sessions: {
-    category: 'access',
-    owner: 'tenant',
-    copies: [
-      {
-        field: 'supporter_id',
-        subject: 'supporter',
-        route: { kind: 'apply', does: 'deletes the reader sessions of an erased supporter' },
-      },
-    ],
-    retention: {
-      kind: 'term',
-      term: 'an hour after the session ends, which is 12 hours after the sign-in',
-      by: 'rate_limits.sweep',
-    },
-  },
-  rate_limits: {
-    category: 'access',
-    owner: 'tenant',
-    copies: [
-      {
-        field: 'key',
-        subject: 'supporter',
-        route: { kind: 'expires', why: 'a keyed digest that lives a day at most (ADR 019 rule 8)' },
-      },
-    ],
-    retention: { kind: 'term', term: '1 day', by: 'rate_limits.sweep' },
-  },
-  login_attempts: {
-    category: 'access',
-    owner: 'installation',
-    copies: [
-      {
-        field: 'key',
-        subject: 'visitor',
-        route: { kind: 'expires', why: 'a login window key that lives a day at most' },
-      },
-    ],
-    retention: { kind: 'term', term: '1 day', by: 'rate_limits.sweep' },
-  },
+  ...ACCESS_STORAGE,
   erasure_backups: {
     category: 'erasure',
     owner: 'installation',
