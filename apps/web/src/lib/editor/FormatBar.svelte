@@ -6,7 +6,11 @@
      that every action shows its label; that rule keeps holding for document actions.
      The text style is a native select: it names the current style, works on touch and needs no
      popup of ours. So is the language of a passage (WCAG 3.1.2), at the end of the bar: a
-     choice from twenty languages by name, which a button and a popup would only rebuild. The buttons are one tab stop with arrow keys between them.
+     choice from twenty languages by name, which a button and a popup would only rebuild. Closed,
+     it looks like a tool: the languages glyph, plus the code of a chosen language, with the
+     native select laid transparently over it. A select is as wide as its longest option, and
+     that name was what pushed the bar past one row in the 690 px article column on wider fonts.
+     The buttons are one tab stop with arrow keys between them.
      Rejected: word buttons (six of them filled 172 px of a 320 px screen and hid the state) and
      a selection bar alone (nothing to start a list or a heading from an empty line). -->
 <script lang="ts">
@@ -130,6 +134,7 @@
   ]);
 
   const languages = $derived(passageLanguages(locale, now.lang));
+  const langName = $derived(languages.find((language) => language.tag === now.lang)?.name);
 
   // One tab stop for the buttons (APG toolbar): the one last used, or the first that is enabled.
   let current = $state('bold');
@@ -168,9 +173,10 @@
   // placed by script and kept inside the bar: a tip per button, centred by CSS, ran past the
   // edge of a narrow screen. Hidden from assistive technology, which has the name already.
   function showTip(event: Event) {
-    const tool = event.target instanceof Element ? event.target.closest('button') : null;
+    const tool =
+      event.target instanceof Element ? event.target.closest<HTMLElement>('[data-tip]') : null;
     if (!tool?.dataset.tip) return hideTip();
-    if (event.type === 'focusin' && !tool.matches(':focus-visible')) return;
+    if (event.type === 'focusin' && !tool.matches(':focus-visible, :has(:focus-visible)')) return;
     tip.textContent = tool.dataset.tip;
     tip.hidden = false;
     const box = bar.getBoundingClientRect();
@@ -239,18 +245,25 @@
       {/each}
     </div>
   {/each}
-  <select
-    class="format-style format-lang"
-    disabled={disabled || !now.canLang}
-    aria-label={t('admin.editor.lang')}
-    value={now.lang}
-    onchange={(event) => formatting.setLang(event.currentTarget.value)}
+  <span
+    class="format-lang"
+    class:chosen={!!now.lang}
+    data-tip={now.lang ? `${t('admin.editor.lang')}: ${langName}` : t('admin.editor.lang')}
   >
-    <option value="">{t('admin.editor.lang.same')}</option>
-    {#each languages as language (language.tag)}
-      <option value={language.tag}>{language.name}</option>
-    {/each}
-  </select>
+    <Icon name="languages" />
+    {#if now.lang}<span class="format-lang-code" aria-hidden="true">{now.lang}</span>{/if}
+    <select
+      disabled={disabled || !now.canLang}
+      aria-label={t('admin.editor.lang')}
+      value={now.lang}
+      onchange={(event) => formatting.setLang(event.currentTarget.value)}
+    >
+      <option value="">{t('admin.editor.lang.same')}</option>
+      {#each languages as language (language.tag)}
+        <option value={language.tag}>{language.name}</option>
+      {/each}
+    </select>
+  </span>
   <span bind:this={tip} class="format-tip" aria-hidden="true" hidden></span>
 </div>
 
@@ -308,11 +321,45 @@
     border-radius: var(--radius);
     cursor: pointer;
   }
+  /* Sized by the glyph and the code, never by the longest language name in the select. */
   .format-lang {
-    font-weight: 400;
+    position: relative;
+    display: inline-flex;
+    gap: var(--space-0);
+    align-items: center;
+    justify-content: center;
+    min-inline-size: var(--tap);
+    min-block-size: var(--tap);
+    padding-inline: var(--space-1);
+    color: var(--color-surface-fg);
+    border: var(--border-width) solid transparent;
+    border-radius: var(--radius);
   }
-  .format-lang:disabled {
+  .format-lang-code {
+    font-size: var(--step--1);
+    font-weight: 600;
+  }
+  .format-lang > select {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    font: inherit;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .format-lang:hover:not(:has(select:disabled)) {
+    background: var(--status-neutral-bg);
+  }
+  .format-lang.chosen {
+    color: var(--color-selected-fg);
+    background: var(--color-selected-bg);
+    border-color: currentColor;
+  }
+  .format-lang:has(select:disabled) {
     color: var(--color-border-strong);
+  }
+  .format-lang > select:disabled {
     cursor: default;
   }
   .format-style:hover:not(:disabled) {
@@ -346,7 +393,8 @@
     cursor: default;
   }
   .format-tool:focus-visible,
-  .format-style:focus-visible {
+  .format-style:focus-visible,
+  .format-lang:has(select:focus-visible) {
     outline: 3px solid var(--color-focus);
     outline-offset: -3px;
   }
@@ -366,7 +414,8 @@
     display: none;
   }
   @media (forced-colors: active) {
-    .format-tool[aria-pressed='true'] {
+    .format-tool[aria-pressed='true'],
+    .format-lang.chosen {
       color: HighlightText;
       background: Highlight;
     }

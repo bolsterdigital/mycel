@@ -9,7 +9,7 @@ import { type APIRequestContext, type Page, expect } from '@playwright/test';
 import { test } from './lib/evidence/page';
 import { expectNoAxeViolations, headingOrderProblems } from './lib/axe';
 import { asOwner, finishJobs, stuckJob, tenantId, withInvoker } from './lib/invoker';
-import { NARROW, layoutGate, setTextSize } from './lib/layout';
+import { NARROW, expectOneRow, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
 import { closePublication, openPublication } from './lib/publication';
 import { isA11y, onlyA11y } from './lib/project';
@@ -1730,7 +1730,7 @@ test.describe('article-writing', () => {
     await writing.locator('p').first().selectText();
     await language.selectOption({ label: 'Frans' });
     await expect(writing.locator('[lang="fr"]')).toHaveText('Oude tekst');
-    await page.screenshot({ path: test.info().outputPath('formatting-bar-1280.png') });
+    await expectOneRow(page, '.format-bar', 'formatting-bar-1280');
     await expect(tool('Ongedaan maken')).toBeEnabled();
     await expectNoAxeViolations(page);
     await page.getByRole('button', { name: 'Opslaan', exact: true }).click();

@@ -3,7 +3,7 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 import { callApi } from './api';
 import { login } from './login';
 import { editorReady, reloadsEditor } from './editor';
-import { layoutGate, NARROW, setTextSize } from './layout';
+import { expectOneRow, layoutGate, NARROW, setTextSize } from './layout';
 import { expectNoAxeViolations } from './axe';
 
 export async function exerciseBlockMove(
@@ -46,6 +46,8 @@ export async function exerciseBlockMove(
   });
   await login(page, `/admin/probe/content/${item.id}`);
   await editorReady(page);
+  // The drop below aims just above the first paragraph, under the sticky formatting bar.
+  if (type === 'article') await expectOneRow(page, '.format-bar');
   await expect(page.locator('#item-edit')).toHaveAttribute('data-block-move', '');
   const grip = () => page.locator('[data-block-card="block-one"] [data-block-move]');
   // The title is outside every card and must still save with an action from inside the writer.
