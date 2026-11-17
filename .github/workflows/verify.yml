@@ -205,19 +205,19 @@ jobs:
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      # Each project runs in four shards (Playwright splits by file, in order, on test count). The
+      # Each project runs in six shards (Playwright splits by file, in order, on test count). The
       # a11y project reached the 12-minute step limit four times with every test green: on three
-      # shards the first one carried the six editor specs, 916 s of test time over two workers
-      # against 403 s and 336 s for the others, a step of 620 to 634 s. On four the heaviest step
-      # measured 495 s. More shards do not lower that: a spec file is one serial unit and
-      # public-site.spec.ts alone takes 350 to 420 s, so six shards measured 520 s. The next
-      # lever is that file, not the count. Rejected: a higher step limit (the next spec crosses
-      # it again) and more workers per runner (more load on the class of e2e hangs under load).
-      # The split follows the file order, so the last shard is small; that is the price of no
-      # hand-kept file list.
+      # shards the first one carried the six editor specs, a step of 620 to 634 s. Four shards
+      # put content-blocks, media and public-site on one runner, where two saturated workers slow
+      # each other: 495 s on one run, 697 s on the next. On six, public-site.spec.ts runs alone
+      # and the heaviest step measured 520 s. That file is the floor: a spec is one serial unit
+      # and this one takes 350 to 420 s plus setup, so the next lever is the file, not the
+      # count. Rejected: a higher step limit (the next spec crosses it again), more workers per
+      # runner (the slowdown above) and a shard count per project (a second matrix shape to
+      # save three short jobs). The split follows the file order, so some shards are small.
       matrix:
         project: [no-js, a11y]
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     services:
       postgres:
         image: postgres:16.15-alpine
@@ -285,7 +285,7 @@ jobs:
           npm run migrate -w @mycel/db
           npm run build
           # List emits each completed test and duration immediately, even if a later test hangs.
-          npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/4 --reporter=list
+          npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/6 --reporter=list
 
       - name: Keep downloaded packages for the cache
         if: steps.browser-debs.outputs.cache-hit != 'true'
