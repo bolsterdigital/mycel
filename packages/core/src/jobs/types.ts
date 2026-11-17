@@ -38,6 +38,13 @@ export const JobPayloads = {
     .object({ key: z.string().min(1), subscriber: z.string().min(1), eventId: z.string().guid() })
     .strict(),
   /**
+   * Tenant job: hand the next recipients of one edition to the provider, at most the tenant's
+   * bulk throughput per minute, and plan itself again until the list is done
+   * (`deliverEdition`). Key `mailing.edition.deliver:<editionId>`. The id only: recipients are
+   * read from the supporter projection at each run (ADR 019 rule 5).
+   */
+  'mailing.edition.deliver': z.object({ editionId: z.string().guid() }).strict(),
+  /**
    * Tenant job: publish exactly the pinned revision of one locale (ADR 018 rule 1, #8a). Key
    * `content.publish:<itemId>:<locale>:<scheduleId>`, so a reschedule or a second locale never
    * collides with an open job of an older plan; the handler ignores such a job as stale.

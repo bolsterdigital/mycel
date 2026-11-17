@@ -16,6 +16,15 @@ export interface SupporterRepository {
   getProjectionById(id: string): Promise<SupporterProjection | null>;
   /** Only the projector writes here (ADR 003 rule 3). */
   saveProjection(projection: SupporterProjection): Promise<void>;
+  /**
+   * Supporters with confirmed consent for `list` (ADR 010 rule 5), by id ascending, after the id
+   * `after`, at most `limit`: the page a bulk send works through. Pending members are not in it.
+   */
+  members(
+    list: string,
+    page: { after: string | null; limit: number }
+  ): Promise<SupporterProjection[]>;
+  countMembers(list: string): Promise<number>;
 }
 
 /** How long a reservation without a projection holds its seat (`SupporterAdmissions`). */

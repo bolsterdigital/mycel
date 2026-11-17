@@ -1,7 +1,7 @@
 // Kysely implementation of the supporter log and projection ports, under the tenant's RLS
 // context.
 
-import { type Kysely, type Selectable } from 'kysely';
+import { sql, type Kysely, type Selectable } from 'kysely';
 import {
   AccessGrant,
   type Ids,
@@ -98,6 +98,25 @@ export function supporterRepository(trx: Trx, tenantId: string, ids: Ids): Suppo
         .where('id', '=', id)
         .executeTakeFirst();
       return row ? toProjection(row) : null;
+    },
+    // `lists @> array[list]`: confirmed members only; pending ones are in `pending_lists`.
+    async members(list, { after, limit }) {
+      let query = trx
+        .selectFrom('supporters')
+        .selectAll()
+        .where(sql<boolean>`lists @> array[${list}]::text[]`)
+        .orderBy('id')
+        .limit(limit);
+      if (after) query = query.where('id', '>', after);
+      return (await query.execute()).map(toProjection);
+    },
+    async countMembers(list) {
+      const row = await trx
+        .selectFrom('supporters')
+        .select(sql<string>`count(*)`.as('n'))
+        .where(sql<boolean>`lists @> array[${list}]::text[]`)
+        .executeTakeFirstOrThrow();
+      return Number(row.n);
     },
     async saveProjection(p) {
       const values = {

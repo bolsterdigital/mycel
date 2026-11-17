@@ -1,6 +1,11 @@
 // `mail_sends` in memory: the intent rows that make a delivery at-most-once (ADR 019 rule 6).
 
-import type { MailDayCount, MailSend, MailSendsRepository } from '../../mailing/ports.js';
+import type {
+  MailDayCount,
+  MailEditionsRepository,
+  MailSend,
+  MailSendsRepository,
+} from '../../mailing/ports.js';
 import { dayIn } from '../../ops/model.js';
 import type { TenantStore } from './store.js';
 
@@ -84,6 +89,35 @@ export function memoryMailSends(s: TenantStore): MailSendsRepository {
           add(m.attemptedAt, 'unknown');
       }
       return [...days.values()].sort((a, b) => a.day.localeCompare(b.day));
+    },
+    attemptedSince: async (subscriber, since) =>
+      [...s.mailSends.values()].filter(
+        (m) => m.subscriber === subscriber && m.attemptedAt !== null && m.attemptedAt >= since
+      ).length,
+  };
+}
+
+/** `mail_editions` in memory: insert once, then only the two delivery fields move. */
+export function memoryMailEditions(s: TenantStore): MailEditionsRepository {
+  return {
+    async insert(edition) {
+      if (s.mailEditions.has(edition.id)) throw new Error('edition exists');
+      s.mailEditions.set(
+        edition.id,
+        structuredClone({ ...edition, deliveredThrough: null, completedAt: null })
+      );
+    },
+    get: async (id) => {
+      const row = s.mailEditions.get(id);
+      return row ? structuredClone(row) : null;
+    },
+    async advance(id, supporterId) {
+      const row = s.mailEditions.get(id);
+      if (row) row.deliveredThrough = supporterId;
+    },
+    async complete(id, at) {
+      const row = s.mailEditions.get(id);
+      if (row && !row.completedAt) row.completedAt = new Date(at);
     },
   };
 }

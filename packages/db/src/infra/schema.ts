@@ -530,6 +530,21 @@ export interface Database {
     correlation: string | null;
     created_at: Generated<Date>;
   };
+  mail_editions: {
+    tenant_id: string;
+    id: string;
+    locale: string;
+    item_id: string;
+    revision_id: string;
+    list: string;
+    subject: string;
+    html: string;
+    text: string;
+    recipients: number;
+    sent_at: Timestamp;
+    delivered_through: string | null;
+    completed_at: Timestamp | null;
+  };
   operators: {
     id: string;
     issuer: string | null;

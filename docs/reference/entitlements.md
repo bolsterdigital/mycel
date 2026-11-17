@@ -10,11 +10,11 @@ What one tenant may use, as data on the tenant: a flat document of feature switc
 
 `Entitlements` (`model.ts`) is one strict Zod object with three kinds of key:
 
-| Kind             | Keys                                                                                                                                                                 |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| switch           | `mailing.enabled`, `donations.enabled`, `custom_domain`, `api_keys`, `remove_branding`, `ai.assist` (`FEATURE_SWITCHES`)                                             |
-| block types      | `blocks`: `{ <type>: boolean }`; a type is on unless the document says `false`                                                                                       |
-| limit (`LIMITS`) | `supporters.max`, `mail.monthly_max`, `media.storage_max_bytes`, `operators.max`, `custom_domains.max`, `ai.monthly_max`, `ai.pending_max`, `ai.operator_hourly_max` |
+| Kind             | Keys                                                                                                                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| switch           | `mailing.enabled`, `donations.enabled`, `custom_domain`, `api_keys`, `remove_branding`, `ai.assist` (`FEATURE_SWITCHES`)                                                                     |
+| block types      | `blocks`: `{ <type>: boolean }`; a type is on unless the document says `false`                                                                                                               |
+| limit (`LIMITS`) | `supporters.max`, `mail.monthly_max`, `mail.bulk_per_minute`, `media.storage_max_bytes`, `operators.max`, `custom_domains.max`, `ai.monthly_max`, `ai.pending_max`, `ai.operator_hourly_max` |
 
 A limit is a non-negative integer. `LimitName` is the Zod enum of `LIMITS`; `FeatureName` is a switch or `blocks.<type>`.
 
@@ -72,7 +72,8 @@ Two queries, both `tenant:admin`: `tenant.usage.get` returns `{ used, max }` per
 | Constant                  | Value     | Where                                     | Why                                                            |
 | ------------------------- | --------- | ----------------------------------------- | -------------------------------------------------------------- |
 | `supporters.max`          | 100 000   | `packages/core/src/entitlements/model.ts` | default; generous enough that a self-hoster never meets it     |
-| `mail.monthly_max`        | 1 000 000 | `packages/core/src/entitlements/model.ts` | default; shown by `tenant.usage.get`, not yet enforced         |
+| `mail.monthly_max`        | 1 000 000 | `packages/core/src/entitlements/model.ts` | default; form mail and `mailing.edition.send` refuse past it   |
+| `mail.bulk_per_minute`    | 120       | `packages/core/src/entitlements/model.ts` | default; newsletter messages a tenant starts per minute        |
 | `media.storage_max_bytes` | 50 GiB    | `packages/core/src/entitlements/model.ts` | default; originals plus every variant                          |
 | `operators.max`           | 50        | `packages/core/src/entitlements/model.ts` | default; members plus pending invitations                      |
 | `custom_domains.max`      | 20        | `packages/core/src/entitlements/model.ts` | default                                                        |

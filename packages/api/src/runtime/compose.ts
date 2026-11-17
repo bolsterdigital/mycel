@@ -18,6 +18,11 @@ import {
   SIGNIN_MAIL_SUBSCRIBER,
   signinMailSource,
   signinMailSubscriber,
+  editionMailSource,
+  editionTestMailSource,
+  editionTestMailSubscriber,
+  EDITION_SUBSCRIBER,
+  EDITION_TEST_SUBSCRIBER,
   confirmationMailSource,
   confirmationMailSubscriber,
   siteUrl,
@@ -328,12 +333,15 @@ export function createRuntime(
     formMailSubscriber(formMail),
     formFeedSubscriber(uow),
     signinMailSubscriber(confirmation),
+    editionTestMailSubscriber(confirmation),
   ];
   // What `mail.reconcile` rebuilds a message with, per mail subscriber above.
   const mailSources = {
     [CONFIRMATION_SUBSCRIBER]: confirmationMailSource(confirmation),
     [FORM_MAIL_SUBSCRIBER]: formMailSource(formMail),
     [SIGNIN_MAIL_SUBSCRIBER]: signinMailSource(confirmation),
+    [EDITION_SUBSCRIBER]: editionMailSource(confirmation),
+    [EDITION_TEST_SUBSCRIBER]: editionTestMailSource(confirmation),
   };
   const stops: (() => Promise<void>)[] = [];
   // On the authentication login: each platform function enters mycel_platform itself (0010).
@@ -434,6 +442,7 @@ export function createRuntime(
         operatorDb,
         identity,
         mail,
+        editions: confirmation,
         retentionDays: config.JOBS_RETENTION_DAYS,
         auditRetentionDays: config.AUDIT_RETENTION_DAYS,
         errors,

@@ -16,7 +16,7 @@ Verified on 2026-10-22 against the OpenAPI schema (`https://www.scaleway.com/en/
 
 ## The intent row and its states
 
-Every message has a row in `mail_sends` (migrations 0006, 0013) keyed by `<subscriber>:<event id>`, holding timestamps, the provider id and a `correlation`, never an address. A row goes with its outbox event, 30 days after the event was processed and never while its `mail.reconcile` job is open ([jobs.md](jobs.md) § Retention); a form mail whose row and event are both gone reads as `expired` in `form.delivery.get`, not as pending. The state is derived; there is no status column:
+Every message has a row in `mail_sends` (migrations 0006, 0013) keyed by `<subscriber>:<event id>` (a newsletter: `mailing.edition:<supporter id>:<edition id>`, [below](#newsletter-editions)), holding timestamps, the provider id and a `correlation`, never an address. A row goes with its outbox event, 30 days after the event was processed and never while its `mail.reconcile` job is open ([jobs.md](jobs.md) § Retention); a form mail whose row and event are both gone reads as `expired` in `form.delivery.get`, not as pending. The state is derived; there is no status column:
 
 | State     | Condition                                                                                                                     |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -82,3 +82,36 @@ Archiving processed outbox rows (ADR 011 rule 5) must keep events younger than `
 ## Configured form mail
 
 Form notifications and designated transactional receipts use the same `sendOnce` and `mail.reconcile` protocol under subscriber `forms.mail`. Each accepted submission pins one event id per action-version/recipient; the source reads immutable resolved copy from that event and rechecks current activation, recipient approval, tenant access and the saved submission binding. Opt-in confirmation can use pinned form-specific copy, with the mandatory platform confirmation link retained. Template changes never resend old submissions. Configuration, quotas, capability boundaries and status/replay operations are documented in [forms](forms.md#private-mail-templates-and-actions).
+
+## Newsletter editions
+
+An article with `delivery.email` goes out as a newsletter through three use cases (`packages/core/src/mailing/edition.ts`; ADR 010 rules 6 to 9, ADR 018 rule 4):
+
+| Use case               | Needs          | Does                                                                                                           |
+| ---------------------- | -------------- | -------------------------------------------------------------------------------------------------------------- |
+| `mailing.edition.get`  | `content:read` | the mail a send would make of one published locale, with the list and its confirmed subscribers; sends nothing |
+| `mailing.edition.test` | `mailing:send` | that mail to the operator's own address, marked `[Test]`; no edition, no list                                  |
+| `mailing.edition.send` | `mailing:send` | stores the edition and plans its delivery                                                                      |
+
+All three refuse (`conflict`) a locale that is not published, an article whose published revision names no list, and restricted content (ADR 016). `send` also refuses past `mail.monthly_max`. Writing or publishing content never sends: the registry conformance holds `mailing:send` to these two commands.
+
+**The edition.** `mail_editions` (migration 0070) holds one row per locale of a send: the revision published in that locale at that moment and the subject, HTML and text rendered from it, once, through the `EmailRenderer`. The application role may insert a row and move `delivered_through` and `completed_at`; it cannot update or delete anything else, so a correction of the article never changes what was sent, and sending again is a new edition. The rows hold no address and no supporter id; the audit row of the command and the actor of the outbox event `mailing.edition.sent` say who sent it. The edition travels in a tenant export.
+
+**One mail, each recipient's own link.** The stored mail carries `UNSUBSCRIBE_PLACEHOLDER` where the unsubscribe link goes. At delivery each recipient gets their signed link there, in the HTML and the text part, and `List-Unsubscribe` with `List-Unsubscribe-Post` in the headers (`unsubscribeLink`, RFC 8058). A recipient gets the locale they signed up in when the edition has it, else the site's default locale, else the edition's first; the signup locale is read from the supporter's own log.
+
+**Delivery.** `send` publishes one outbox event whose id is the edition's and plans the tenant job `mailing.edition.deliver` (`packages/core/src/mailing/edition-delivery.ts`). Each run reads the next confirmed members of the list in id order after `delivered_through`, hands each to `sendOnce` under the key `mailing.edition:<supporter id>:<edition id>` on the `bulk` stream, records its place and plans itself a minute later until the list is done. So:
+
+- only confirmed members get a message, read when their turn comes (ADR 019 rule 5): someone who unsubscribed or was erased before that gets nothing, and the claim checks the erasure register once more;
+- a job that runs twice, or two workers on one job, send nothing twice: the intent row decides, as for every mail above, and an attempt without an outcome is reconciled by `mail.reconcile`, which rebuilds the message from the edition and the supporter id in the key;
+- a tenant starts at most `mail.bulk_per_minute` newsletter attempts per minute, counted over all its editions (`attemptedSince`);
+- bulk never delays transactional mail (ADR 010 rule 9): the outbox carries one event per edition, not one per recipient, and the job runs in the `newsletter` pool ([jobs.md](jobs.md));
+- a suspended tenant, or one without `mailing.enabled`, sends nothing and is looked at again in a day.
+
+An erasure deletes the erased supporter's edition intents by the id in their key (`applyErasures`); the other intents go with the edition's outbox event under the retention above.
+
+| Constant                | Value | Where                                           | Why                                                                 |
+| ----------------------- | ----- | ----------------------------------------------- | ------------------------------------------------------------------- |
+| `mail.bulk_per_minute`  | 120   | `packages/core/src/entitlements/model.ts`       | default newsletter throughput per tenant; an entitlement per tenant |
+| `EDITION_RUN_BUDGET_MS` | 3 min | `packages/core/src/mailing/edition-delivery.ts` | one run stops sending well inside the job's five-minute lease       |
+
+Not built yet, and needed before a first send from a production site: bounce and complaint webhooks into suppression, and the sending-domain check with warm-up (ADR 010 rule 8).
