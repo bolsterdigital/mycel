@@ -1313,6 +1313,15 @@ export const nl: Partial<Record<UiKey, string>> = {
   'reader.invalid.again': 'Nieuwe link aanvragen',
   'reader.signedIn.body': 'Je bent op dit apparaat ingelogd.',
   'reader.signout.submit': 'Uitloggen',
+  'reader.gate.signin.title': 'Log in om verder te lezen',
+  'reader.gate.signin.members':
+    'De rest is voor lezers die zijn ingelogd. Inloggen gaat met je e-mailadres, zonder wachtwoord.',
+  'reader.gate.signin.tier':
+    'De rest is voor lezers met toegang. Log in met het e-mailadres waarop je toegang staat; een wachtwoord is niet nodig.',
+  'reader.gate.signin.action': 'Inloggen',
+  'reader.gate.tier.title': 'Je toegang geldt niet voor dit stuk',
+  'reader.gate.tier.body':
+    'Je bent ingelogd, maar de rest is voor lezers met een andere soort toegang.',
   'confirm.pending.title': 'Bevestig je inschrijving',
   'confirm.pending.body':
     'Nog één stap: bevestig met de knop hieronder. Heb je je niet aangemeld? Dan hoef je niets te doen.',

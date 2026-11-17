@@ -27,6 +27,11 @@ export interface MarkdownOptions {
   siteRoot: string;
   /** The item's lead, a paragraph under the title (the HTML shows it in the intro). */
   lead?: string | null;
+  /**
+   * Set when the body of a restricted item was left out: the notice that ends the document, with
+   * the absolute address of the sign-in page when there is one.
+   */
+  gate?: { title: string; body: string; action: { label: string; url: string } | null } | null;
 }
 
 type Inline = { type: 'text'; text: string; marks?: Mark[] } | { type: 'hard_break' };
@@ -113,6 +118,11 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
   for (const b of model.blocks) {
     const part = blockMarkdown(b);
     if (part) out.push(part);
+  }
+  if (options.gate) {
+    const { title, body, action } = options.gate;
+    out.push(`${'#'.repeat(BLOCK_DEPTH)} ${md(title)}`, md(body));
+    if (action) out.push(`[${md(action.label)}](<${action.url}>)`);
   }
   return `${out.join('\n\n')}\n`;
 

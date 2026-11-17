@@ -6,16 +6,21 @@
 // The tenant comes from the path, looked up by slug in the tenant directory; the route builds
 // that site's anonymous visitor (`content:read`, with the site's entitlements and status, as the
 // web front does) and runs `content.published.get`, the one projection every representation
-// derives from. No Authorization header is read: a key of tenant A opens nothing more of tenant
-// B, and nothing less of anyone, than an anonymous request does.
+// derives from. No Authorization header and no cookie is read: a key of tenant A opens nothing
+// more of tenant B, and nothing less of anyone, than an anonymous request does.
+//
+// So a restricted item is here what a visitor gets (ADR 016 rule 3): title, lead and teaser, with
+// `gate` naming the prompt. This route has no reader: the reader's credential is a cookie on the
+// site's own hostname (ADR 014), which this host never sees, and a key is not a reader.
 //
 // Caching matches the HTML of the site (brief § 9): `public` with a strong ETag of revision,
 // locale and a digest of the body (authors' names and the section live outside the revision),
-// and a 304 on If-None-Match. Unknown tenant, unknown item, unpublished locale and restricted
-// item are one indistinguishable 404, `no-store`, so a later publication is not hidden behind a
-// cached miss. Rejected: an API key per reader (public content needs none, and a key in an app
-// leaks), and the use-case route `GET /v1/content.published.get` with its `private` cache
-// (it answers per caller, this route per URL).
+// and a 304 on If-None-Match; a teaser's tag says `teaser`, so it is never taken for the item.
+// Unknown tenant, unknown item and unpublished locale are one indistinguishable 404, `no-store`,
+// so a later publication is not hidden behind a cached miss. Rejected: an API key per reader
+// (a key in an app leaks, and it would be a second reader identity beside the session), and the
+// use-case route `GET /v1/content.published.get` with its `private` cache (it answers per
+// caller, this route per URL).
 
 import { Hono } from 'hono';
 import {
@@ -67,7 +72,7 @@ export function createContentReadApp({ invoker, tenants, access }: ContentReadDe
         ...(locale === undefined ? {} : { locale }),
       });
       body = JSON.stringify(item);
-      key = `${item.revisionId}:${item.locale}`;
+      key = `${item.revisionId}:${item.locale}${item.gate ? ':teaser' : ''}`;
       noindex = item.seo.noindex;
     } catch (e) {
       if (e instanceof UseCaseError && e.code === 'not_found') return missing();

@@ -2,8 +2,9 @@
 // representation derives from, the HTML of a site, the JSON read route (ADR 012 rule 7) and
 // later Markdown and feeds (#9). It reads only an explicitly published revision and returns one
 // published locale of it: the other translations in the same revision snapshot, published or
-// not, never leave the core (ADR 018 rule 9, ADR 020 rule 8). Restricted items are not served
-// here at all; #19 brings the teaser.
+// not, never leave the core (ADR 018 rule 9, ADR 020 rule 8). A restricted item is served whole
+// to a reader with access and as its teaser to everyone else (access/projection.ts): the body is
+// cut from the document before anything below reads it, and `gate` says that it was.
 //
 // The locale is chosen by the caller (the HTML route from its path, the read route from
 // `?locale=`), never negotiated from Accept-Language, so a response depends on its URL only and
@@ -23,6 +24,7 @@ import { notFound } from '../errors.js';
 import { ARTICLE_HEADERS } from './model.js';
 import { Locale } from '../i18n/locale.js';
 import { defineUseCase } from '../registry.js';
+import { AccessGate, accessProjection } from './access/projection.js';
 import { Block, blockLocalized, projectBlock } from './blocks.js';
 import { ContentType, LocalDateTime, Slug, type ContentDocument } from './model.js';
 import { EffectiveView, effectiveOf } from './header/effective.js';
@@ -92,8 +94,13 @@ export const PublishedItem = z.object({
     /** An explicit canonical URL; null: the item's own address in this locale. */
     canonical: z.string().url().nullable(),
   }),
-  /** The access level of the served revision: public until reader access serves the teaser. */
+  /** The access level of the served revision. */
   access: z.enum(['public', 'members', 'tier']),
+  /**
+   * Null: this is the whole item. Otherwise the body behind the teaser boundary, the corrections
+   * and an event's details were left out for this caller, and `prompt` says what would open them.
+   */
+  gate: AccessGate.nullable(),
   /** The introduction in this locale, on pages and articles. */
   lead: z.string().nullable(),
   /** Images and short texts after inheritance (#86), so no reader derives them on its own. */
@@ -154,7 +161,7 @@ export const getPublished = defineUseCase({
   name: 'content.published.get',
   kind: 'query',
   description:
-    'Get the published version of a public page or article in one published locale (the default when none is asked).',
+    'Get the published version of a page or article in one published locale (the default when none is asked). A restricted item comes whole only to a signed-in reader with access; every other caller gets its title, lead and teaser, with `gate` naming the prompt.',
   requires: 'content:read',
   input: z.object({ type: ContentType, slug: Slug, locale: Locale.optional() }),
   output: PublishedItem,
@@ -173,8 +180,8 @@ export const getPublished = defineUseCase({
     const state = live.find((s) => s.locale === chosen)!;
     const revision = await ctx.content.revision(item.id, state.publishedRevisionId!);
     if (!revision) throw missing();
-    const doc = revision.document;
-    if (doc.access.level !== 'public') throw missing();
+    // The one access decision (ADR 016 rule 3): everything below reads `doc`, never the revision.
+    const { document: doc, gate } = await accessProjection(ctx, revision.document);
     const effective = effectiveOf(doc, chosen, (await ctx.siteSettings.images()).value);
     const base = {
       id: item.id,
@@ -198,6 +205,7 @@ export const getPublished = defineUseCase({
         canonical: doc.seo.canonical ?? null,
       },
       access: doc.access.level,
+      gate,
       lead: doc.lead?.[chosen] ?? null,
       effective,
       ...(doc.prefooter === false ? { prefooter: false as const } : {}),

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { NO_STORE, PUBLIC_CACHE, conditional } from './http-cache.js';
+import {
+  NO_STORE,
+  PRIVATE_NO_STORE,
+  PUBLIC_CACHE,
+  conditional,
+  itemCacheHeaders,
+} from './http-cache.js';
 
 const ETAG = '"rev:nl:theme:digest"';
 const page = (headers: Record<string, string> = {}, status = 200) =>
@@ -31,6 +37,21 @@ describe('conditional', () => {
     expect(res.headers.get('etag')).toBeNull();
   });
 
+  it('never revalidates a reader\u2019s page: private, no-store loses its validator too', () => {
+    for (const cache of [PRIVATE_NO_STORE, 'no-store, private', 'No-Store']) {
+      const res = conditional(
+        get({ 'if-none-match': ETAG }),
+        page({ 'cache-control': cache, vary: 'Cookie' })
+      );
+      expect([res.status, res.headers.get('etag')]).toEqual([200, null]);
+    }
+    // A directive that merely contains the word is not it.
+    expect(
+      conditional(get({ 'if-none-match': ETAG }), page({ 'cache-control': 'x-no-store-ish' }))
+        .status
+    ).toBe(304);
+  });
+
   it('leaves everything else alone', () => {
     expect(conditional(get(), page()).status).toBe(200);
     expect(conditional(get({ 'if-none-match': '"other"' }), page()).status).toBe(200);
@@ -46,5 +67,33 @@ describe('conditional', () => {
     expect(missing.headers.get('cache-control')).toBe(NO_STORE);
     const own = new Response('x', { status: 404, headers: { 'cache-control': 'max-age=5' } });
     expect(conditional(get(), own).headers.get('cache-control')).toBe('max-age=5');
+  });
+});
+
+describe('itemCacheHeaders', () => {
+  const open = { restricted: false, personal: false, etag: ETAG };
+
+  it('keeps a public item a function of its URL', () => {
+    expect(itemCacheHeaders(open)).toEqual({ etag: ETAG, 'cache-control': PUBLIC_CACHE });
+    expect(itemCacheHeaders({ ...open, etag: null })).toEqual({ 'cache-control': NO_STORE });
+  });
+
+  it('lets a cache keep a teaser, but never without the cookie in its key', () => {
+    expect(itemCacheHeaders({ ...open, restricted: true })).toEqual({
+      etag: ETAG,
+      'cache-control': PUBLIC_CACHE,
+      vary: 'Cookie',
+    });
+    expect(itemCacheHeaders({ restricted: true, personal: false, etag: null })).toEqual({
+      'cache-control': NO_STORE,
+      vary: 'Cookie',
+    });
+  });
+
+  it('gives a personal answer to nobody else and no validator, whatever tag came along', () => {
+    expect(itemCacheHeaders({ restricted: true, personal: true, etag: ETAG })).toEqual({
+      'cache-control': PRIVATE_NO_STORE,
+      vary: 'Cookie',
+    });
   });
 });

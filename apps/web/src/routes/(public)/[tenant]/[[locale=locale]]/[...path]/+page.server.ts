@@ -10,7 +10,8 @@
 // Caching (§ 9): a published item is `public` with a strong ETag (hooks.server.ts answers the
 // 304), except an item with a form, which is `no-store` without a validator so every visitor
 // gets a fresh timing token (public-page.ts); a form post's answer and the thank-you page are
-// `no-store`. No cookie is read or set.
+// `no-store`. A public item reads no cookie. A restricted item reads the reader cookie, varies
+// on it, and answers a request that carries one `private, no-store` (`itemCacheHeaders`).
 
 import { fail, isHttpError, redirect } from '@sveltejs/kit';
 import {
@@ -24,7 +25,7 @@ import { currentContext } from '@mycel/observability';
 import { ui } from '../../../../../i18n/index.js';
 import { localeOf, parseContentPath, thanksPath } from '#lib/server/public/content-route.js';
 import { failureFor } from '#lib/server/public/form-post.js';
-import { NO_STORE, PUBLIC_CACHE } from '#lib/server/http/http-cache.js';
+import { NO_STORE, itemCacheHeaders } from '#lib/server/http/http-cache.js';
 import { forwardOldAddress } from '#lib/server/public/old-address.js';
 import { loadPublicItem } from '#lib/server/public/public-page.js';
 import { runtime } from '#lib/server/runtime.js';
@@ -52,16 +53,27 @@ function pageOf(url: URL): number {
   return Number(p);
 }
 
-export const load: PageServerLoad = async ({ params, locals, request, setHeaders, url }) => {
+export const load: PageServerLoad = async ({
+  params,
+  locals,
+  request,
+  setHeaders,
+  url,
+  cookies,
+}) => {
   const { site, route, locale } = target(locals, params);
-  const view = await loadPublicItem(site, route, locale, route.thanks ? 1 : pageOf(url)).catch(
-    async (e: unknown) => {
-      // Nothing published here: an old address of an item forwards to it.
-      if (isHttpError(e, 404) && !route.thanks)
-        await forwardOldAddress(site, route, locale, url, setHeaders);
-      throw e;
-    }
-  );
+  const view = await loadPublicItem(
+    site,
+    route,
+    locale,
+    route.thanks ? 1 : pageOf(url),
+    cookies
+  ).catch(async (e: unknown) => {
+    // Nothing published here: an old address of an item forwards to it.
+    if (isHttpError(e, 404) && !route.thanks)
+      await forwardOldAddress(site, route, locale, url, setHeaders);
+    throw e;
+  });
   locals.lang = locale;
   const t = ui(locale);
 
@@ -86,15 +98,12 @@ export const load: PageServerLoad = async ({ params, locals, request, setHeaders
 
   // A failed post re-renders the page with the visitor's answers: never for a shared cache.
   const read = request.method === 'GET' || request.method === 'HEAD';
-  setHeaders(
-    read && view.etag
-      ? { etag: view.etag, 'cache-control': PUBLIC_CACHE }
-      : { 'cache-control': NO_STORE }
-  );
+  setHeaders(itemCacheHeaders(read ? view : { ...view, etag: null }));
   return {
     view: 'item' as const,
     model: view.model,
     prefooter: view.prefooter,
+    gate: view.gate,
     intro: view.intro,
     dropCap: view.dropCap,
     head: view.head,

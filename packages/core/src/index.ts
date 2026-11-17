@@ -92,6 +92,7 @@ export * from './supporters/erase.js';
 export * from './supporters/access.js';
 export * from './content/access/model.js';
 export * from './content/access/service.js';
+export * from './content/access/projection.js';
 export * from './supporters/email-key.js';
 export * from './readers/model.js';
 export * from './readers/ports.js';

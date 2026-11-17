@@ -1,6 +1,7 @@
 // The public read route (brief #8c § 10, ADR 012 rule 7) with two tenants: a published item is
 // readable only under its own tenant's slug, the ETag follows revision and locale, a matching
-// If-None-Match is a 304, and unknown, unpublished and restricted are the same `no-store` 404.
+// If-None-Match is a 304, unknown and unpublished are the same `no-store` 404, and a restricted
+// item is its teaser.
 // No Authorization header is needed, and a valid key of tenant A opens nothing of tenant B.
 import { describe, expect, it } from 'vitest';
 import { Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
@@ -101,14 +102,9 @@ describe('GET /v1/sites/{tenant}/content/{type}/{slug}', () => {
     expect(changed.headers.get('etag')).toMatch(new RegExp(`^"${next.revision.id}:nl:`));
   });
 
-  it('is one no-store 404 for an unpublished locale, a draft and a restricted item', async () => {
+  it('is one no-store 404 for an unpublished locale, a draft and a missing item', async () => {
     const { invoker, publish, read } = await setup();
     await publish(A, 'about', doc('Over ons'));
-    await publish(
-      A,
-      'members',
-      doc('Leden', { access: { level: 'members', teaser: { blocks: 0 } } })
-    );
     await invoker.run(useCases.createItem, systemPrincipal(A, 'test'), {
       slug: 'draft',
       document: doc('Concept') as never,
@@ -116,7 +112,6 @@ describe('GET /v1/sites/{tenant}/content/{type}/{slug}', () => {
     const misses = [
       await read('probe/content/page/about?locale=en'),
       await read('probe/content/page/draft'),
-      await read('probe/content/page/members'),
       await read('probe/content/page/nothing'),
     ];
     const bodies = await Promise.all(misses.map((r) => r.json()));
@@ -125,8 +120,41 @@ describe('GET /v1/sites/{tenant}/content/{type}/{slug}', () => {
       expect(r.headers.get('cache-control')).toBe('no-store');
       expect(r.headers.get('content-type')).toBe('application/problem+json');
     }
-    // Nothing tells a restricted item apart from a missing one.
+    // Nothing tells a draft apart from a missing item.
     expect(new Set(bodies.map((b) => JSON.stringify(b))).size).toBe(1);
+  });
+
+  it('serves a restricted item as its teaser, whatever credentials come along', async () => {
+    const { publish, read } = await setup();
+    await publish(
+      A,
+      'members',
+      doc('Leden', {
+        lead: { nl: 'Voor leden.', en: 'For members.' },
+        access: { level: 'members', teaser: 'lead' },
+        blocks: [
+          { type: 'heading', version: 1, props: { text: { nl: 'SENTINEL-BODY', en: 'Hidden' } } },
+        ],
+      })
+    );
+    // A bearer token and a reader cookie are not read: this route knows no reader.
+    for (const headers of [
+      {},
+      { authorization: 'Bearer mk_anything', cookie: 'mycel_reader=anything' },
+    ]) {
+      const res = await read('probe/content/page/members', headers);
+      const text = await res.text();
+      expect(res.status).toBe(200);
+      expect(JSON.parse(text)).toMatchObject({
+        title: 'Leden',
+        lead: 'Voor leden.',
+        blocks: [],
+        access: 'members',
+        gate: { prompt: 'signin' },
+      });
+      expect(text).not.toContain('SENTINEL-BODY');
+      expect(res.headers.get('etag')).toMatch(/:nl:teaser:/);
+    }
   });
 
   it('serves an article with its public metadata', async () => {
