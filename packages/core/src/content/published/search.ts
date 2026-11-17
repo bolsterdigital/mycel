@@ -1,4 +1,4 @@
-// Site search for visitors: what a site publishes for everyone, found by words.
+// Site search: what a site publishes, found by words, as far as the one who asks may read it.
 //
 // One text rule, here, for every adapter. `searchTokens` folds text to tokens (NFKD, combining
 // marks dropped, lower case, split on everything that is no letter or digit); a document gives a
@@ -7,11 +7,21 @@
 // applies `matchesSearch` to the published revisions, Postgres stores the same tokens as config-free
 // `tsvector`s and asks a prefix `tsquery`, so both give the same rows in the same order.
 //
-// Access is decided twice. `searchEntry` gives no entry for a revision that is restricted or
-// `noindex`, so neither adapter can find one; the use case then reads each hit's published revision
-// again and drops it unless it is public and indexable. Title, lead and excerpt come from that
-// revision, never from an index: the index holds tokens, no readable text. Restricted items are
-// left out whole, title included; reader results follow reader access (ADR 016).
+// Access is decided twice (ADR 016 rule 3). `searchEntry` gives a restricted revision two token
+// sets: those of its teaser document (title, lead and the blocks before the boundary, what the
+// item's own address shows everyone) and all of them, with the revision's level and tiers. An
+// adapter matches the whole text only where `searchOpens` says the asking reader stands in one of
+// those tiers now, and the teaser tokens everywhere else; a `noindex` revision or a zone has no
+// entry. The use case then reads each hit's published revision again, decides with `hasAccess`,
+// and takes title and excerpt from the whole document or from its teaser document, dropping a hit
+// that the teaser alone does not carry. The index holds tokens, no readable text, so no excerpt
+// can come from a body the reader may not read. A restricted hit is marked `restricted`; its link
+// is the item's own, which shows the teaser and the prompt.
+//
+// Rejected for restricted items: leaving them out whole (a reader cannot find what they signed in
+// for, and a visitor could not find the teaser the site publishes for them), and one token set
+// filtered after the query (a page of ten could turn into none, and the count of hits would say
+// what words a body holds).
 //
 // Order: hits whose title carries every token first, then newest publication, then item id. A
 // page is a number, capped at `MAX_SEARCH_PAGE`: a visitor reads the first pages, and a cursor
@@ -28,8 +38,10 @@
 import { z } from 'zod';
 import { Locale } from '../../i18n/locale.js';
 import { defineUseCase } from '../../registry.js';
+import { grantStands, hasAccess } from '../access/model.js';
+import { readerAccess, teaserDocument } from '../access/projection.js';
 import { allBlocks, blockLocalized } from '../blocks.js';
-import { ContentType, Slug, type ContentDocument } from '../model.js';
+import { ContentType, Slug, type Access, type ContentDocument } from '../model.js';
 import type { PublishedHit } from '../ports.js';
 import '../ports.js';
 
@@ -94,34 +106,81 @@ export function searchTexts(
   return { title: (doc.title[locale] ?? '').replace(/\s+/g, ' ').trim(), body };
 }
 
-/** The distinct tokens of one locale of a document: those of its title, and all of them. */
+/**
+ * The distinct tokens of one locale of a revision: those of its title, all of them, and for a
+ * restricted revision those of its teaser document, with the access the revision asks for.
+ */
 export interface SearchEntry {
   title: string[];
   all: string[];
+  /** What a visitor without access may match on; null for a public revision. */
+  teaser: string[] | null;
+  access: { level: Access['level']; tierIds: string[] };
 }
 
 /**
- * What the index holds for one locale of a revision; null when that revision is not for
- * everyone or asks not to be listed, so no adapter has anything to find it by.
+ * Who asks, as the index can test it: the tiers a reader holds a standing grant on now (computed
+ * at the read, ADR 019 rule 4). Null for a visitor and for everyone who is no reader.
  */
-export function searchEntry(doc: ContentDocument, locale: string): SearchEntry | null {
-  // A zone has no address of its own to find.
-  if (doc.access.level !== 'public' || doc.seo.noindex) return null;
-  if (doc.type === 'page' && doc.profile === 'zone') return null;
+export interface SearchReader {
+  tierIds: readonly string[];
+}
+
+function tokenSets(doc: ContentDocument, locale: string): { title: string[]; all: string[] } {
   const texts = searchTexts(doc, locale);
   const title = [...new Set(searchTokens(texts.title))];
   return { title, all: [...new Set([...title, ...texts.body.flatMap(searchTokens)])] };
 }
 
+/**
+ * What the index holds for one locale of a revision; null when it asks not to be listed, so no
+ * adapter has anything to find it by. The teaser tokens come from `teaserDocument`, the document a
+ * visitor is served at the item's address, so search finds nothing that address does not show.
+ */
+export function searchEntry(doc: ContentDocument, locale: string): SearchEntry | null {
+  // A zone has no address of its own to find.
+  if (doc.seo.noindex) return null;
+  if (doc.type === 'page' && doc.profile === 'zone') return null;
+  const { level, tierIds = [] } = doc.access;
+  const teaser = level === 'public' ? null : tokenSets(teaserDocument(doc), locale).all;
+  return { ...tokenSets(doc, locale), teaser, access: { level, tierIds: [...tierIds] } };
+}
+
+/**
+ * Whether a reader may match the whole text of an entry: `hasAccess` over the tiers that stand
+ * now. The Postgres adapter states the same rule in SQL; the adapter rules compare the two.
+ */
+export function searchOpens(access: SearchEntry['access'], reader: SearchReader | null): boolean {
+  if (access.level === 'public') return true;
+  if (!reader) return false;
+  if (access.level === 'members') return true;
+  return access.level === 'tier' && access.tierIds.some((id) => reader.tierIds.includes(id));
+}
+
+/** The tiers a reader's standing grants open at `now`, for `SearchReader`. */
+export function searchReaderOf(
+  reader: { grants: readonly { tierId: string; until: string | null }[] } | null,
+  now: Date
+): SearchReader | null {
+  return (
+    reader && { tierIds: reader.grants.filter((g) => grantStands(g, now)).map((g) => g.tierId) }
+  );
+}
+
 const carries = (have: readonly string[], tokens: readonly string[]) =>
   tokens.every((t) => have.some((h) => h.startsWith(t)));
 
-/** Null: no match. Else whether the title alone carries every token, which ranks first. */
+/**
+ * Null: no match. Else whether the title alone carries every token, which ranks first. A reader
+ * the entry does not open matches on its teaser tokens only; the title is part of every teaser.
+ */
 export function matchesSearch(
   entry: SearchEntry,
-  tokens: readonly string[]
+  tokens: readonly string[],
+  reader: SearchReader | null = null
 ): { inTitle: boolean } | null {
-  if (!tokens.length || !carries(entry.all, tokens)) return null;
+  const have = searchOpens(entry.access, reader) ? entry.all : (entry.teaser ?? []);
+  if (!tokens.length || !carries(have, tokens)) return null;
   return { inTitle: carries(entry.title, tokens) };
 }
 
@@ -211,6 +270,11 @@ export const PublishedSearchResult = z.object({
   /** Part of the text around the first match; `match` marks the words that matched. */
   excerpt: z.array(SearchSegment),
   publishedAt: z.string().datetime({ offset: true }),
+  /**
+   * The item is not for everyone: a visitor sees its teaser, a reader with access all of it. The
+   * excerpt is from the teaser unless the asking reader has access.
+   */
+  restricted: z.boolean(),
 });
 export type PublishedSearchResult = z.infer<typeof PublishedSearchResult>;
 
@@ -218,7 +282,7 @@ export const findPublished = defineUseCase({
   name: 'content.published.find',
   kind: 'query',
   description:
-    'Search the published pages and articles everyone may read, in one locale: every word of the question must start a word of the title or text.',
+    'Search the published pages and articles in one locale: every word of the question must start a word of the title or text. A restricted item is found by its title and teaser, and by its whole text only for a signed-in reader with access; it is marked restricted.',
   requires: 'content:read',
   input: z.object({
     q: z.string().max(MAX_SEARCH_QUERY),
@@ -235,8 +299,12 @@ export const findPublished = defineUseCase({
   async handler(ctx, { q, locale, page, limit }) {
     const tokens = queryTokens(q);
     if (!tokens.length) return { items: [], next: null };
+    // The reader of this request, read now from the session row and the live projection; null for
+    // a visitor and for every other actor, an operator included (they search as a visitor here).
+    const reader = await readerAccess(ctx);
+    const now = ctx.clock.now();
     const hits = await ctx.content.searchPublished(
-      { tokens, locale },
+      { tokens, locale, reader: searchReaderOf(reader, now) },
       (page - 1) * limit,
       limit + 1
     );
@@ -244,8 +312,12 @@ export const findPublished = defineUseCase({
     for (const hit of hits.slice(0, limit)) {
       // The second access decision: the revision the pointer names, read again.
       const revision = await ctx.content.revision(hit.itemId, hit.revisionId);
-      if (!revision || !searchEntry(revision.document, locale)) continue;
-      const texts = searchTexts(revision.document, locale);
+      const doc = revision?.document;
+      const entry = doc && searchEntry(doc, locale);
+      if (!doc || !entry) continue;
+      const open = hasAccess(reader, doc, now);
+      if (!open && !matchesSearch(entry, tokens, null)) continue;
+      const texts = searchTexts(open ? doc : teaserDocument(doc), locale);
       items.push({
         id: hit.itemId,
         type: hit.type,
@@ -254,6 +326,7 @@ export const findPublished = defineUseCase({
         title: texts.title,
         excerpt: searchExcerpt(texts.body, tokens),
         publishedAt: hit.publishedAt.toISOString(),
+        restricted: doc.access.level !== 'public',
       });
     }
     return { items, next: hits.length > limit && page < MAX_SEARCH_PAGE ? page + 1 : null };

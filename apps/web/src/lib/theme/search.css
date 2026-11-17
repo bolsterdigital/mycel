@@ -62,7 +62,8 @@
   font-weight: 700;
   text-decoration: underline;
 }
-.search-results time {
+.search-results time,
+.search-results .search-restricted {
   color: var(--color-muted-fg);
 }
 .search-pagination {

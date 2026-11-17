@@ -118,13 +118,13 @@ function memoryPublished(
         )
         .slice(offset, offset + limit);
     },
-    async searchPublished({ tokens, locale }, offset, limit) {
+    async searchPublished({ tokens, locale, reader }, offset, limit) {
       const hits: PublishedHit[] = kept().flatMap((item) => {
         const state = item.publication.find((p) => p.locale === locale && p.publishedRevisionId);
         if (!state) return [];
         const revision = s.revisions.get(state.publishedRevisionId!)!;
         const entry = searchEntry(revision.document, locale);
-        const match = entry && matchesSearch(entry, tokens);
+        const match = entry && matchesSearch(entry, tokens, reader);
         if (!match) return [];
         return [
           {

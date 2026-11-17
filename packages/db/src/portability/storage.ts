@@ -663,6 +663,7 @@ export const STORAGE = {
     copies: [
       FREE_TEXT('title', ['content.item.publish', 'content.item.unpublish']),
       FREE_TEXT('body', ['content.item.publish', 'content.item.unpublish']),
+      FREE_TEXT('teaser', ['content.item.publish', 'content.item.unpublish']),
     ],
     retention: {
       kind: 'kept',

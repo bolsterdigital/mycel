@@ -42,6 +42,9 @@
         {#each data.results as result (result.id)}
           <li>
             <h2><a href={result.href}>{result.title}</a></h2>
+            {#if result.restricted}<p class="search-restricted">
+                {t('block.overview.restricted')}
+              </p>{/if}
             {#if result.excerpt.length}<p>
                 {#each result.excerpt as segment, i (i)}{#if segment.match}<mark
                       >{segment.text}</mark
