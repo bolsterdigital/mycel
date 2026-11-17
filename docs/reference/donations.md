@@ -1,6 +1,6 @@
 # Donations
 
-How Mycel records money (ADR 005). This page describes what is built: one-off donations over an owned ledger, with the payment provider behind a port, a public donation form, a return page and **Donations** in the admin. Recurring giving, mandates, dunning, donor self-service, refunds and memberships are decided in the ADR and not built yet.
+How Mycel records money (ADR 005). This page describes what is built: one-off donations over an owned ledger, with the payment provider behind a port (Mollie per site, or a fake one for trials), a public donation form, a return page, a webhook and **Donations** in the admin. Recurring giving, mandates, dunning, donor self-service, refunds and memberships are decided in the ADR and not built yet.
 
 ## What is stored
 
@@ -33,9 +33,9 @@ A provider reports where a payment stands now, not how it got there. `pathTo` gi
 | `donation.get`    | `donations:read`  | One payment with its ledger, oldest entry first                                                                                     |
 | `donation.list`   | `donations:read`  | Newest first, optionally one status or one supporter; with `supporters:read` also the addresses of the supporters on the page       |
 
-`donation.create` also needs the entitlement `donations.enabled` (ADR 015) and a configured provider. `returnUrl` must contain `{token}`; the provider sends the donor there with the signed token in place, and the page behind it calls `donation.check` with that token. The answer is the status, the amount, the currency, `paidAt` and, while the payment is open, its `checkoutUrl`; never who gave.
+`donation.create` also needs the entitlement `donations.enabled` (ADR 015) and a configured provider. `returnUrl` must contain `{token}` and lie on this site: a hostname of the site (its platform hostname, or a custom one once verified) with the platform's scheme and port, or the platform origin, where the path form of every site lives; anything else is refused with `donation.return-url.foreign`. The token is the donor's only key to their page, so it never goes to another host. the provider sends the donor there with the signed token in place, and the page behind it calls `donation.check` with that token. The answer is the status, the amount, the currency, `paidAt` and, while the payment is open, its `checkoutUrl`; never who gave.
 
-A webhook, the donor's return and a scheduled reconciliation all end in the same check (ADR 005 rule 4; the reconciliation calls `checkPayment` without the registry, see below): what a provider sends is a reason to look, never the answer. The use case takes no status as input, so a caller with the capability cannot mark a payment paid.
+A webhook, the donor's return and a scheduled reconciliation all end in the same check (ADR 005 rule 4; the webhook and the reconciliation call `checkPayment` without the registry, see below): what a provider sends is a reason to look, never the answer. The use case takes no status as input, so a caller with the capability cannot mark a payment paid.
 
 ## The donation form
 
@@ -55,7 +55,19 @@ An erasure (ADR 019 rule 8) clears `supporter_id` and keeps the payment and its 
 
 `PaymentProvider` (`money/ports.ts`) has two methods: `createCheckout` with our payment id as the idempotency key, and `fetchPayment` by reference. Both answer in the state machine's outcomes plus the provider's own word, so the core never reads a provider's vocabulary and compiles without any provider package. The port sits on the transaction context: opening a checkout moves no money and asking for a status is a read. Charging a mandate, when recurring giving is built, is an effect that cannot be taken back and gets an intent row and a key first (ADR 019 rule 6).
 
-`FakePaymentProvider` in `@mycel/core/testing` is the provider for unit tests: `settle(ref, outcome)` plays the donor. The runtime takes `PAYMENT_PROVIDER`: `none` (the default; `donation.create` and a donation form answer `conflict`, "no payment provider is configured") or `fake`, refused in production: `DirectoryPaymentProvider` (`packages/api/src/runtime/fake-payments.ts`) keeps each payment as a JSON file in `PAYMENT_FAKE_DIR`, which web, API and worker share, and its checkout is a page of the site, `[[locale]]/_pay/<ref>`, with the buttons paid, failed and expired. The e2e runner and a trial installation use it. Mollie follows as a per-site connection (brief MY-252 PR 3).
+`FakePaymentProvider` in `@mycel/core/testing` is the provider for unit tests: `settle(ref, outcome)` plays the donor. The runtime takes `PAYMENT_PROVIDER`: `none` (the default; `donation.create` and a donation form answer `conflict`, "no payment provider is configured") or `fake`, refused in production: `DirectoryPaymentProvider` (`packages/api/src/runtime/fake-payments.ts`) keeps each payment as a JSON file in `PAYMENT_FAKE_DIR`, which web, API and worker share, and its checkout is a page of the site, `[[locale]]/_pay/<ref>`, with the buttons paid, failed and expired. The e2e runner and a trial installation use it.
+
+### Mollie
+
+`PAYMENT_PROVIDER=mollie` takes payments through Mollie with each site's own account. The site's API key (`test_…` or `live_…`) is a connection of provider `mollie` under **Connections** in the admin: stored encrypted in `connection_credentials` like every credential (needs `CONNECTION_CREDENTIAL_KEY`), with no destination, forms or scopes, and never readable through a use case. The composition root builds a `MolliePaymentProvider` (`packages/pay-mollie`) per transaction and hands it a function that reads the key of the site's active `mollie` connection only when a call needs it (`paymentCredential` in `packages/db/src/connections/connections.ts`). A site without an active one cannot start a payment: the provider refuses and the form answers `conflict`. Pausing or disconnecting the connection stops new payments; open ones then wait for the next check that finds a key.
+
+The adapter sends our payment id as Mollie's `Idempotency-Key`, the amount as a decimal string, the locale where Mollie knows it, and gives up after five seconds, because a check holds locks while it waits. It reads Mollie's statuses into the state machine's: `open`, `pending` and `authorized` are `open`; `paid` is `paid`, or `charged_back` with any amount charged back, or `refunded` when the whole amount is refunded (a partial refund stays `paid`); `canceled` and `failed` are `failed`; `expired` is `expired`. A status it does not know throws, so nothing moves until it is mapped. Its tests run against recorded answers in `packages/pay-mollie/fixtures`.
+
+### The webhook
+
+With `PUBLIC_API_URL` on https, each Mollie payment gets a webhook URL `/hooks/payments/<capability>` on the API, where the capability is a signed token for exactly that tenant and payment (`paymentWebhookToken`). Mollie posts `id=tr_…`; `receivePaymentWebhook` (`money/webhook.ts`) verifies the capability, compares the posted reference with the payment's, limits a payment to thirty calls a minute and then runs the same `checkPayment` with cause `webhook`, without the registry, as the reconciliation does. A forged or unknown call gets the same 200 as a real one; a provider that does not answer gets a 503, so Mollie calls again. Without `PUBLIC_API_URL` (a local installation Mollie cannot reach) there is no webhook and the donor's return and the reconciliation settle the payment.
+
+The checkout itself needs nothing from the site's Content-Security-Policy: the form posts to the site's own return page (`form-action 'self'`), which sends the visitor on to Mollie with a meta refresh and a link, both navigations that CSP does not restrict.
 
 ## Reconciliation
 

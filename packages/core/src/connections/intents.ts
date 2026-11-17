@@ -306,6 +306,8 @@ export const testConnection = defineUseCase({
   async handler(ctx, { id }) {
     const c = await ctx.connections.get(id);
     if (!c) throw notFound('connection');
+    if (c.provider === 'mollie')
+      throw new UseCaseError('invalid_input', 'a Mollie connection delivers nothing to test');
 
     const actor = ctx.principal.actor;
     if (actor.kind === 'anonymous' || actor.kind === 'reader')

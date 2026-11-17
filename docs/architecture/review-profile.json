@@ -287,6 +287,7 @@
         "packages/api/src/health*",
         "packages/mail-tem/**",
         "packages/assist-openai/**",
+        "packages/pay-mollie/**",
         "packages/blob/**",
         "packages/media-sharp/**",
         "docker/**",

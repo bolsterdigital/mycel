@@ -32,7 +32,7 @@ import { closeTenantWork, requireDatabase, testTenant } from '../testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
-const RETURN = 'https://probe.example/donation/{token}';
+const RETURN = 'http://localhost:5173/probe/donation/{token}';
 
 async function observe(
   uow: UnitOfWork,

@@ -21,6 +21,7 @@
   import { STAND_TONE, lastActivity, standOf } from '#lib/admin/connection-stand.js';
   import { ui, type UiKey, refusalCopy } from '../../../../../i18n/index.js';
   import MailchimpSetup from '#lib/admin/connections/MailchimpSetup.svelte';
+  import MollieSetup from '#lib/admin/connections/MollieSetup.svelte';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -86,6 +87,9 @@
         locale={data.locale}
         account={form && 'account' in form ? (form.account ?? null) : null}
       />
+      {#if !data.connections.some((c) => c.provider === 'mollie' && c.state !== 'disconnected')}
+        <MollieSetup locale={data.locale} owner={data.tenant.name} />
+      {/if}
     {/if}
     {#if list.length && allowed('connections:configure')}{@render create()}{/if}
   {/snippet}

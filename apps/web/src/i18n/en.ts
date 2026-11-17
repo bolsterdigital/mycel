@@ -2525,6 +2525,14 @@ export const en = {
   'admin.export.col.note': 'Note',
   'admin.suspended.export': 'Export your data',
   'admin.connections.provider.mailchimp': 'Mailchimp',
+  'admin.connections.provider.mollie': 'Mollie',
+  'admin.mollie.connect': 'Connect Mollie for donations',
+  'admin.mollie.setupHelp':
+    'Donation forms on this site are paid through this Mollie account. The key is stored encrypted and never shown again; with a test key no money moves.',
+  'admin.mollie.apiKey': 'Mollie API key',
+  'admin.mollie.apiKeyHint':
+    'In the Mollie Dashboard under Developers, API keys: the test key (test_…) or the live key (live_…) of the website profile.',
+  'admin.mollie.save': 'Connect Mollie',
   'admin.mailchimp.replaceKey': 'Replace API key',
   'admin.mailchimp.connect': 'Connect Mailchimp',
   'admin.mailchimp.apiKey': 'Mailchimp API key',

@@ -69,9 +69,14 @@ const Config = z
      * Who takes payments (ADR 005, brief MY-252 PR 2). `none`: donation forms answer that no
      * provider is configured. `fake`: a provider that moves no money, with its own payment screen
      * on the site, keeping its payments in PAYMENT_FAKE_DIR (a trial installation and the e2e
-     * gate); refused in production. Mollie follows as a per-tenant connection, not as env.
+     * gate); refused in production. `mollie`: each site pays through the Mollie account whose
+     * API key it stored as a `mollie` connection (MY-252 PR 3), never a key in env; it needs
+     * CONNECTION_CREDENTIAL_KEY, and PUBLIC_API_URL over https for Mollie's webhook (without
+     * it the hourly reconciliation and the donor's return settle the payment).
      */
-    PAYMENT_PROVIDER: z.enum(['none', 'fake']).default('none'),
+    PAYMENT_PROVIDER: z.enum(['none', 'fake', 'mollie']).default('none'),
+    /** Mollie's API origin; a recorded-answer server in tests only, refused in production. */
+    MOLLIE_API_ORIGIN: z.string().url().optional(),
     PAYMENT_FAKE_DIR: z.string().min(1).optional(),
     ASSIST_PROVIDER: z.enum(['none', 'fake', 'openai-compatible']).default('none'),
     ASSIST_PROVIDER_LABEL: z.string().min(1).optional(),
@@ -216,6 +221,12 @@ const Config = z
   })
   .refine((c) => c.PAYMENT_PROVIDER !== 'fake' || !!c.PAYMENT_FAKE_DIR, {
     message: 'PAYMENT_PROVIDER=fake needs PAYMENT_FAKE_DIR (web, API and worker share it)',
+  })
+  .refine((c) => c.PAYMENT_PROVIDER !== 'mollie' || !!c.CONNECTION_CREDENTIAL_KEY, {
+    message: 'PAYMENT_PROVIDER=mollie needs CONNECTION_CREDENTIAL_KEY (the keys are connections)',
+  })
+  .refine((c) => !(c.NODE_ENV === 'production' && c.MOLLIE_API_ORIGIN), {
+    message: 'MOLLIE_API_ORIGIN is not allowed in production',
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.ASSIST_PROVIDER === 'fake'), {
     message: 'ASSIST_PROVIDER=fake is not allowed in production',

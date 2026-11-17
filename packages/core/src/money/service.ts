@@ -17,6 +17,9 @@
 // Locks: the giver's address first, then the payment, the order an erasure takes them in (it
 // locks the address and then clears `supporter_id` on the payments).
 //
+// The donor is sent back only to a host of this site (`ownsReturnUrl`), and a provider's webhook
+// is one more reason to check (`webhook.ts`).
+//
 // Rejected: recording `created` in a transaction of its own before the provider call (see
 // `ports.ts`: a checkout moves no money), a status in the input of `donation.check` (a caller
 // with the capability could then mark a payment paid), and reading the amount back from the
@@ -272,12 +275,28 @@ export const createDonation = defineUseCase({
         currency: 'EUR',
         description: 'Donation to Probe',
         locale: 'nl',
-        returnUrl: 'https://probe.example/donation/{token}',
+        returnUrl: 'http://localhost:5173/probe/donation/{token}',
       },
     },
   ],
   handler: (ctx, input) => startDonation(ctx, input),
 });
+
+/**
+ * Whether the provider may send the donor to `returnUrl`: a hostname of this site (the platform
+ * one, or a custom one once verified) with the platform's scheme and port, or the platform origin
+ * itself, where the path form of every site lives (ADR 014). The token in it is the donor's only
+ * key to their page, so it must not be handed to another host (note (a) of MY-252 PR 2).
+ */
+async function ownsReturnUrl(ctx: TransactionContext, returnUrl: string): Promise<boolean> {
+  const url = new URL(returnUrl);
+  const platform = new URL(ctx.platform.platformOrigin);
+  if (url.username || url.password || url.protocol !== platform.protocol) return false;
+  if (url.origin === platform.origin) return true;
+  if (url.port !== platform.port) return false;
+  const host = await ctx.hostnames.get(url.hostname);
+  return !!host && (host.kind === 'platform' || host.verifiedAt !== null);
+}
 
 /**
  * What starting a donation needs; `submissionId` only from `form.submit`, which holds the lock of
@@ -317,6 +336,10 @@ export async function startDonation(
   if (!input.returnUrl.includes(RETURN_TOKEN))
     throw new UseCaseError('invalid_input', `returnUrl has no ${RETURN_TOKEN}`, [
       { path: 'returnUrl', message: 'donation.return-url.token-missing' },
+    ]);
+  if (!(await ownsReturnUrl(ctx, input.returnUrl)))
+    throw new UseCaseError('invalid_input', 'returnUrl is not on this site', [
+      { path: 'returnUrl', message: 'donation.return-url.foreign' },
     ]);
   if (input.supporterId && !(await liveSupporter(ctx, input.supporterId)))
     throw notFound('supporter');

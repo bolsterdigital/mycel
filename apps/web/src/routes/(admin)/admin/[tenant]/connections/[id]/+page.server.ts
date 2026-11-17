@@ -65,13 +65,16 @@ export const actions: Actions = {
           externalOwner: text(data, 'externalOwner'),
           maintainer: text(data, 'maintainer'),
           purpose: text(data, 'purpose'),
-          destination: text(data, 'destination'),
-          formIds: data.getAll('formIds').map(String),
-          consentAuthority: text(data, 'confirmationOwner') === 'external' ? 'external' : 'mycel',
-          consentScopes: text(data, 'consentScopes')
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean),
+          // A Mollie connection's form has no delivery fields: it delivers nothing.
+          ...(data.has('destination') && {
+            destination: text(data, 'destination'),
+            formIds: data.getAll('formIds').map(String),
+            consentAuthority: text(data, 'confirmationOwner') === 'external' ? 'external' : 'mycel',
+            consentScopes: text(data, 'consentScopes')
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean),
+          }),
         },
       });
       return { action: 'update', done: 'admin.connections.done.saved' as const };

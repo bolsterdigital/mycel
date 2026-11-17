@@ -2556,6 +2556,14 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.export.col.note': 'Toelichting',
   'admin.suspended.export': 'Exporteer je gegevens',
   'admin.connections.provider.mailchimp': 'Mailchimp',
+  'admin.connections.provider.mollie': 'Mollie',
+  'admin.mollie.connect': 'Mollie koppelen voor giften',
+  'admin.mollie.setupHelp':
+    'Doneerformulieren op deze site worden betaald via dit Mollie-account. De sleutel wordt versleuteld bewaard en nooit meer getoond; met een testsleutel gaat er geen geld over.',
+  'admin.mollie.apiKey': 'Mollie-API-sleutel',
+  'admin.mollie.apiKeyHint':
+    'In het Mollie Dashboard onder Ontwikkelaars, API-sleutels: de testsleutel (test_…) of de livesleutel (live_…) van het websiteprofiel.',
+  'admin.mollie.save': 'Mollie koppelen',
   'admin.mailchimp.replaceKey': 'API-sleutel vervangen',
   'admin.mailchimp.connect': 'Mailchimp verbinden',
   'admin.mailchimp.apiKey': 'Mailchimp-API-sleutel',

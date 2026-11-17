@@ -34,6 +34,7 @@ import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { campaignCardFixture } from './lib/blocks/campaigns';
 import { exerciseRestrictedArticle } from './lib/published/restricted';
 import { exerciseDonation } from './lib/forms/donation';
+import { exerciseMollieConnection } from './lib/forms/mollie';
 
 /**
  * A form page ships proof of work, plus conditional display only when its definition needs it.
@@ -761,6 +762,13 @@ test.describe('in English', () => {
 test('a donation: an amount, the test provider, thanks or failure, Donations and the person', async ({
   page,
 }, testInfo) => exerciseDonation(page, testInfo.project.name));
+
+// MY-252 PR 3: the site's Mollie key under Connections (lib/forms/mollie.ts).
+test.describe('a Mollie key', () => {
+  test.use({ viewport: NARROW, locale: 'nl-NL' });
+  test('stored, live, hidden, and gone on disconnect', ({ page }) =>
+    exerciseMollieConnection(page));
+});
 
 test('an invalid confirmation link explains itself and passes axe', async ({ page, request }) => {
   await page.goto('/probe/confirm?token=forged');

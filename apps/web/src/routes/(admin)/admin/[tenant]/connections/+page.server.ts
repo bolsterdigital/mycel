@@ -4,7 +4,7 @@
 // (connections/[id]). No credential or webhook payload is included in the page load.
 // Rejected: a card per connection with every form in it (up to six forms per card buried the
 // stand) and a separate count query (the latest attempts are already read per connection).
-import { useCases } from '@mycel/core';
+import { MOLLIE_API_KEY, useCases } from '@mycel/core';
 import { redirect } from '@sveltejs/kit';
 import { act, loaded, text } from '#lib/server/admin/admin-actions.js';
 import { runtime } from '#lib/server/runtime.js';
@@ -76,6 +76,42 @@ export const actions: Actions = {
         id: connection.id,
         baseVersion: connection.version,
         secret,
+      });
+      redirect(303, `/admin/${event.params.tenant}/connections/${connection.id}?created=1`);
+    }),
+  // The site's Mollie account for donations (MY-252 PR 3): the key is checked for its form by
+  // core, stored encrypted, and the connection is switched on in the same request.
+  mollie: (event) =>
+    act(event, 'mollie', copy, async (principal, data) => {
+      const run = runtime().invoker;
+      const secret = text(data, 'secret');
+      // Before anything is stored: a refused key must not leave a keyless connection behind.
+      if (!MOLLIE_API_KEY.test(secret))
+        return { action: 'mollie', error: 'admin.connections.error.invalid' as const };
+      const owner = text(data, 'externalOwner');
+      const connection = await run.run(useCases.createConnection, principal, {
+        provider: 'mollie',
+        accountRef: secret.startsWith('live_') ? 'live' : 'test',
+        externalOwner: owner,
+        maintainer: owner,
+        purpose: 'Donations',
+        direction: 'outbound',
+        dataAuthority: 'mycel',
+        consentAuthority: 'mycel',
+        consentScopes: [],
+        formIds: [],
+        destination: null,
+        contractVersion: 'v1',
+        adapterVersion: 'v1',
+      });
+      const keyed = await run.run(useCases.replaceConnectionCredential, principal, {
+        id: connection.id,
+        baseVersion: connection.version,
+        secret,
+      });
+      await run.run(useCases.resumeConnection, principal, {
+        id: connection.id,
+        baseVersion: keyed.version,
       });
       redirect(303, `/admin/${event.params.tenant}/connections/${connection.id}?created=1`);
     }),

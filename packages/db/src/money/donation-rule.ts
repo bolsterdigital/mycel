@@ -22,7 +22,7 @@ interface Provider {
   settle(ref: string, outcome: 'paid' | 'failed' | 'refunded', raw?: string): void;
 }
 
-const RETURN = 'https://probe.example/donation/{token}';
+const RETURN = 'http://localhost:5173/probe/donation/{token}';
 
 /**
  * `donation.create|check|get|list` (ADR 005): a checkout opens the payment, a check walks it to

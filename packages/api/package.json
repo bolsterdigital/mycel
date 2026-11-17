@@ -38,6 +38,7 @@
     "@mycel/media-sharp": "*",
     "@mycel/observability": "*",
     "@mycel/assist-openai": "*",
+    "@mycel/pay-mollie": "*",
     "@mycel/render-email": "*"
   },
   "devDependencies": {

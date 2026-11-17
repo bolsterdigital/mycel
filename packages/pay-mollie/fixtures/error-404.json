@@ -1,0 +1,11 @@
+{
+  "status": 404,
+  "title": "Not Found",
+  "detail": "No payment exists with token tr_unknown1.",
+  "_links": {
+    "documentation": {
+      "href": "https://docs.mollie.com/overview/handling-errors",
+      "type": "text/html"
+    }
+  }
+}

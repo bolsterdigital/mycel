@@ -8,6 +8,7 @@ import {
   credentialServes,
   dropsCredential,
   FROZEN_CONNECTION_STATE,
+  PAYMENT_CONNECTION_PROVIDER,
   type ConnectionRecord,
   type ConnectionRepository,
   type ConnectionChanges,
@@ -84,6 +85,33 @@ export function decryptCredential(
   decipher.setAAD(aad(tenantId, connectionId, version));
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(content), decipher.final()]).toString('utf8');
+}
+
+/**
+ * The key of this tenant's active `mollie` connection, decrypted for the payment adapter only
+ * (ADR 005 rule 3, MY-252 PR 3); null when there is none or it has no credential. The newest
+ * active one wins if a site keeps two. Not on `ConnectionRepository`: no use case may read it.
+ */
+export async function paymentCredential(
+  trx: Kysely<Database>,
+  tenantId: string,
+  key: Buffer
+): Promise<string | null> {
+  const row = await trx
+    .selectFrom('connections as c')
+    .innerJoin('connection_credentials as k', (join) =>
+      join.onRef('k.connection_id', '=', 'c.id').onRef('k.tenant_id', '=', 'c.tenant_id')
+    )
+    .select(['c.id', 'c.credential_version', 'k.ciphertext'])
+    .where('c.tenant_id', '=', tenantId)
+    .where('c.provider', '=', PAYMENT_CONNECTION_PROVIDER)
+    .where('c.state', '=', 'active')
+    .orderBy('c.updated_at', 'desc')
+    .limit(1)
+    .executeTakeFirst();
+  return row
+    ? decryptCredential(row.ciphertext, key, tenantId, row.id, row.credential_version)
+    : null;
 }
 
 function updates(changes: ConnectionChanges): Updateable<Database['connections']> {

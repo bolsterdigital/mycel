@@ -91,6 +91,7 @@ const ALLOWED = {
     'packages/media-sharp',
     'packages/assist-openai',
     'packages/render-email',
+    'packages/pay-mollie',
   ],
   'packages/mcp': ['packages/core', 'packages/api', 'packages/observability'],
   'packages/observability': ['packages/core'],
@@ -100,6 +101,7 @@ const ALLOWED = {
   'packages/media-sharp': ['packages/core'],
   'packages/assist-openai': ['packages/core'],
   'packages/render-email': ['packages/core'],
+  'packages/pay-mollie': ['packages/core'],
   'packages/core': [],
 };
 const ALLOWED_LICENSES = new Set([

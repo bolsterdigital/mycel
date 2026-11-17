@@ -26,6 +26,7 @@ import {
   confirmationMailSource,
   confirmationMailSubscriber,
   siteUrl,
+  paymentWebhookToken,
   supporterIngestSubscriber,
   type BlobStore,
   type Clock,
@@ -89,6 +90,7 @@ import {
   type NewTenant,
   type OpsPage,
   type PlatformActor,
+  type PaymentProviderFor,
 } from '@mycel/db';
 import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
 import { createSharpProcessor, createBrandProcessor } from '@mycel/media-sharp';
@@ -98,6 +100,7 @@ import { createEmailRenderer } from '@mycel/render-email';
 import { createAuthenticator, type Authenticator } from '../auth.js';
 import { createDnsResolver } from './dns.js';
 import { DirectoryPaymentProvider } from './fake-payments.js';
+import { MolliePaymentProvider } from '@mycel/pay-mollie';
 export { FAKE_CHOICES, type FakeChoice } from './fake-payments.js';
 import type { HttpObservability } from '../app.js';
 import { assessWorker, type WorkerReadiness } from '../health.js';
@@ -279,6 +282,24 @@ export function createRuntime(
     config.PAYMENT_PROVIDER === 'fake'
       ? new DirectoryPaymentProvider(config.PAYMENT_FAKE_DIR!)
       : null;
+  // Mollie per site (MY-252 PR 3): the key is the site's connection, read when a call needs it;
+  // the webhook URL carries a capability for one payment and exists only on a public https API.
+  const webhookBase =
+    config.PUBLIC_API_URL && new URL(config.PUBLIC_API_URL).protocol === 'https:'
+      ? `${config.PUBLIC_API_URL.replace(/\/$/, '')}/hooks/payments/`
+      : null;
+  const paymentProvider: PaymentProviderFor | DirectoryPaymentProvider | null =
+    config.PAYMENT_PROVIDER === 'mollie'
+      ? ({ tenantId, apiKey }) =>
+          new MolliePaymentProvider({
+            apiKey,
+            origin: config.MOLLIE_API_ORIGIN,
+            webhookUrl: webhookBase
+              ? async (paymentId) =>
+                  `${webhookBase}${encodeURIComponent(await paymentWebhookToken(signer, tenantId, paymentId))}`
+              : undefined,
+          })
+      : fakePayments;
   const mailchimpRequest = createMailchimpRequester(config.MAILCHIMP_FIXTURE_ORIGIN);
   const uow = createUnitOfWork(appDb, {
     clock,
@@ -286,7 +307,7 @@ export function createRuntime(
     signer,
     dns,
     platform,
-    paymentProvider: fakePayments,
+    paymentProvider,
     media: { blobs, images: createSharpProcessor(), delivery: appDelivery },
     brandProcessor: createBrandProcessor(),
     log,

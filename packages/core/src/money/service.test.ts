@@ -21,7 +21,7 @@ import { exampleId } from '../util/ids.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 
 const TENANT_B = exampleId(0xbbbb);
-const RETURN = 'https://probe.example/donation/{token}';
+const RETURN = 'http://localhost:5173/probe/donation/{token}';
 
 function setup(deps: { provider?: FakePaymentProvider | null } = {}) {
   const clock = new FakeClock();
@@ -86,7 +86,7 @@ describe('a one-off donation (ADR 005)', () => {
       key: started.paymentId,
       amount: 2500,
       currency: 'EUR',
-      returnUrl: `https://probe.example/donation/${encodeURIComponent(started.token)}`,
+      returnUrl: `http://localhost:5173/probe/donation/${encodeURIComponent(started.token)}`,
     });
     const { donation, ledger } = await read(started.paymentId);
     expect(donation).toMatchObject({
@@ -264,7 +264,7 @@ describe('a one-off donation (ADR 005)', () => {
     await expectCode(give({ amount: 5_000_001 }), 'invalid_input');
     await expectCode(give({ amount: 12.5 }), 'invalid_input');
     await expectCode(give({ currency: 'USD' }), 'invalid_input');
-    await expectCode(give({ returnUrl: 'https://probe.example/thanks' }), 'invalid_input');
+    await expectCode(give({ returnUrl: 'http://localhost:5173/probe/thanks' }), 'invalid_input');
     await expectCode(give({ supporterId: exampleId(0x404) }), 'not_found');
   });
 

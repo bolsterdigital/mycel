@@ -5,13 +5,24 @@
 // Rejected: a port method per rule (the adapters would still each decide what it means).
 
 import type { Principal } from '../principal.js';
-import type { ConnectionRecord, ConnectionState } from './ports.js';
+import type { ConnectionProvider, ConnectionRecord, ConnectionState } from './ports.js';
 
-/** The one system job that may decrypt a connection credential: the connection worker. */
+/**
+ * The one system job that may decrypt a connection credential through `ctx.connections`: the
+ * connection worker. The other reader is the payment adapter, which the composition root hands
+ * the active `mollie` connection's key directly (`PAYMENT_CONNECTION_PROVIDER`); no use case and
+ * no principal ever sees that one.
+ */
 export const CREDENTIAL_READER_JOB = 'connections.run';
 
 export const mayReadCredential = (principal: Principal): boolean =>
   principal.actor.kind === 'system' && principal.actor.job === CREDENTIAL_READER_JOB;
+
+/** The connection whose credential the payment adapter uses (ADR 005 rule 3, ADR 024). */
+export const PAYMENT_CONNECTION_PROVIDER = 'mollie' satisfies ConnectionProvider;
+
+/** A Mollie API key: a test or live key. An OAuth access token is another kind of thing. */
+export const MOLLIE_API_KEY = /^(test|live)_[A-Za-z0-9]{20,64}$/;
 
 /** A read serves the stored credential only for an active connection at the asked version. */
 export const credentialServes = (
