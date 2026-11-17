@@ -1141,6 +1141,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.form.mail.replay': 'Aflevercontrole formuliermail aangevraagd',
   'admin.audit.op.form.submit': 'Formulier verstuurd',
   'admin.audit.op.mailing.opt_in.confirm': 'Inschrijving bevestigd',
+  'admin.audit.op.mailing.opt_out.confirm': 'Afgemeld',
   'admin.audit.op.media.restore': 'Bestand hersteld',
   'admin.audit.op.media.bulk.delete': 'Bestanden naar de prullenbak',
   'admin.audit.op.media.delete': 'Bestand verwijderd',
@@ -1313,6 +1314,18 @@ export const nl: Partial<Record<UiKey, string>> = {
   'reader.invalid.again': 'Nieuwe link aanvragen',
   'reader.signedIn.body': 'Je bent op dit apparaat ingelogd.',
   'reader.signout.submit': 'Uitloggen',
+  'unsubscribe.pending.title': 'Afmelden voor de nieuwsbrief',
+  'unsubscribe.pending.body':
+    'Wil je deze nieuwsbrief niet meer ontvangen? Bevestig met de knop hieronder. Je kunt je altijd opnieuw aanmelden.',
+  'unsubscribe.pending.button': 'Afmelden',
+  'unsubscribe.ok.title': 'Je bent afgemeld',
+  'unsubscribe.ok.body': 'Je ontvangt geen mail meer voor deze nieuwsbrief.',
+  'unsubscribe.already.title': 'Al afgemeld',
+  'unsubscribe.already.body':
+    'Je bent al afgemeld voor deze nieuwsbrief. Je hoeft niets meer te doen.',
+  'unsubscribe.invalid.title': 'Deze link werkt niet',
+  'unsubscribe.invalid.body':
+    'De afmeldlink is ongeldig of verlopen. Gebruik de link in een recentere mail, of neem contact op met de afzender.',
   'confirm.pending.title': 'Bevestig je inschrijving',
   'confirm.pending.body':
     'Nog één stap: bevestig met de knop hieronder. Heb je je niet aangemeld? Dan hoef je niets te doen.',

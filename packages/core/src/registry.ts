@@ -110,6 +110,10 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   'form.submit',
   'mailing.opt_in.confirm',
   'mailing.opt_in.get',
+  // The recipient's own unsubscribe link (ADR 010 rule 8): the token names the supporter and
+  // the list, the tenant is the site's; it can only remove a permission.
+  'mailing.opt_out.confirm',
+  'mailing.opt_out.get',
   'media.get',
   // Reader sign-in (ADR 016 rule 1): asking for a link, using it once, and reading whether a
   // cookie still names a standing session. The tenant is the site's, never the payload's.

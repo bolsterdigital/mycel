@@ -19,11 +19,16 @@ import {
 import {
   BLOCK_DEFINITIONS as DEFS,
   SIGNIN_MIN_FILL_SECONDS,
+  SupporterEvent,
+  UNSUBSCRIBE_TTL_MS,
   capabilitiesFor,
+  ingest,
   systemPrincipal,
+  unsubscribeLink,
   UseCaseError,
   useCases,
 } from '@mycel/core';
+import { HmacSigner } from '@mycel/api';
 import { testTenant } from '@mycel/db/testing';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { campaignCardFixture } from './lib/blocks/campaigns';
@@ -593,6 +598,126 @@ test('an invalid confirmation link explains itself and passes axe', async ({ pag
   await page.goto('/probe/confirm/invalid');
   await expect(page.getByRole('heading', { level: 1, name: 'Deze link werkt niet' })).toBeVisible();
   expect((await request.get('/probe/confirm/whatever')).status()).toBe(404);
+});
+
+// ADR 010 rule 8, RFC 8058: the unsubscribe link of a newsletter. The subscriber is
+// written through the supporter module, and the links are signed with the server's own secret,
+// as the bulk send will sign them.
+test('an unsubscribe link reads, one button unsubscribes, a provider one-click does, others are neutral', async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  const email = `e2e-unsub-${Date.now()}@example.org`;
+  const tenant = await tenantId();
+  await withInvoker((_, uow) =>
+    uow.run(systemPrincipal(tenant, 'e2e'), async (ctx) => {
+      for (const [n, list] of ['newsletter', 'events'].entries())
+        await ingest(
+          ctx,
+          SupporterEvent.parse({
+            schema: 'wings.supporter-event.v1',
+            id: `${email}:${list}`,
+            type: 'newsletter.subscribed',
+            email,
+            occurred_at: new Date(Date.now() - 60_000 + n).toISOString(),
+            source: 'e2e',
+            source_site: 'urn:e2e',
+            source_ref: `e2e:${email}:${list}`,
+            props: { list, confirmed: true },
+          })
+        );
+    })
+  );
+  const lists = async () =>
+    (
+      (await (await postUseCase(request, 'supporter.get', { email })).json()) as { lists: string[] }
+    ).lists.sort();
+  const { id: supporterId } = await (await postUseCase(request, 'supporter.get', { email })).json();
+  const link = (list: string, fields: { tenantId?: string; now?: Date } = {}) =>
+    unsubscribeLink(
+      {
+        signer: new HmacSigner(process.env['SIGNING_SECRET']!),
+        clock: { now: () => fields.now ?? new Date() },
+        platform: { platformOrigin: baseURL!, siteUrlMode: 'hostnames' },
+      },
+      {
+        tenant: { id: fields.tenantId ?? tenant, slug: 'probe' },
+        primaryHostname: 'probe.localhost',
+        supporterId,
+        list,
+        locale: 'nl',
+      }
+    );
+  const news = await link('newsletter');
+  expect(news.url.startsWith('http://probe.localhost:4173/unsubscribe?token=')).toBe(true);
+
+  // (a) Opening the link, or the header's address, reads and changes nothing.
+  const scanned = await request.get(news.url);
+  expect(scanned.status()).toBe(200);
+  expect(scanned.headers()['cache-control']).toBe('no-store');
+  expect(scanned.headers()['referrer-policy']).toBe('strict-origin');
+  const opened = await request.get(news.oneClickUrl, { maxRedirects: 0 });
+  expect(opened.status()).toBe(303);
+  expect(opened.headers()['location']).toBe(new URL(news.url).pathname + new URL(news.url).search);
+  // The page's own form keeps the origin check: a post from elsewhere is refused.
+  const forged = await request.post('http://probe.localhost:4173/unsubscribe', {
+    headers: {
+      origin: 'https://evil.example',
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    data: `token=${encodeURIComponent(new URL(news.url).searchParams.get('token')!)}`,
+    maxRedirects: 0,
+  });
+  expect(forged.status()).toBe(403);
+  expect(await lists()).toEqual(['events', 'newsletter']);
+
+  // (b) The person presses the one button, without JavaScript in the no-js project.
+  await page.goto(news.url);
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Afmelden voor de nieuwsbrief' })
+  ).toBeVisible();
+  await expectNoAxeViolations(page);
+  await page.getByRole('button', { name: 'Afmelden' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Je bent afgemeld' })).toBeVisible();
+  await expectNoAxeViolations(page);
+  expect(await lists()).toEqual(['events']);
+  // A second click is an outcome, not a second unsubscribe.
+  await page.goto(news.url);
+  await expect(page.getByRole('heading', { level: 1, name: 'Al afgemeld' })).toBeVisible();
+  await expect(page.getByRole('button')).toHaveCount(0);
+
+  // (c) A mail provider's RFC 8058 POST: no Origin of this site, the token in the address.
+  const events = await link('events');
+  const oneClick = (url: string, data = 'List-Unsubscribe=One-Click') =>
+    request.post(url, {
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      data,
+      maxRedirects: 0,
+    });
+  expect((await oneClick(events.oneClickUrl, 'token=x')).status()).toBe(400);
+  expect(await lists()).toEqual(['events']);
+  expect((await oneClick(events.oneClickUrl)).status()).toBe(204);
+  expect(await lists()).toEqual([]);
+  expect((await oneClick(events.oneClickUrl)).status()).toBe(204);
+
+  // (d) Forged, expired and other-tenant tokens: one neutral page, and the provider gets a 400.
+  const expired = await link('events', { now: new Date(Date.now() - UNSUBSCRIBE_TTL_MS - 60_000) });
+  const foreign = await link('events', { tenantId: '01900000-0000-7000-8000-00000000bbbb' });
+  for (const url of [
+    'http://probe.localhost:4173/unsubscribe?token=forged',
+    expired.url,
+    foreign.url,
+  ]) {
+    await page.goto(url);
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Deze link werkt niet' })
+    ).toBeVisible();
+    await expect(page.getByRole('main')).toContainText('De afmeldlink is ongeldig of verlopen.');
+    await expect(page.getByRole('button')).toHaveCount(0);
+  }
+  await expectNoAxeViolations(page);
+  expect((await oneClick(foreign.oneClickUrl)).status()).toBe(400);
 });
 
 // TODO #20c: the response headers and the CSP of a public page, the nonce mode on a page that
