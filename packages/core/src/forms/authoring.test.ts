@@ -32,6 +32,13 @@ describe('form authoring', () => {
     ).rejects.toMatchObject({ code: 'forbidden' });
     const created = await invoker.run(useCases.createForm, admin, { kind: 'signup' });
     expect(created.fields.map((f) => f.id)).toEqual(['email', 'consent']);
+    // The button says what the visitor does, per kind and in both languages.
+    const label = async (kind: 'signup' | 'contact' | 'petition' | 'rsvp') =>
+      (await invoker.run(useCases.createForm, admin, { kind })).submitLabel;
+    expect(created.submitLabel).toEqual({ en: 'Sign up', nl: 'Aanmelden' });
+    expect(await label('petition')).toEqual({ en: 'Sign the petition', nl: 'Teken de petitie' });
+    expect(await label('rsvp')).toEqual({ en: 'Register', nl: 'Aanmelden' });
+    expect(await label('contact')).toEqual({ en: 'Send', nl: 'Versturen' });
   });
   it('retains ids, conflicts on stale saves and leaves accepted snapshots unchanged', async () => {
     const accepted = await invoker.run(useCases.submitForm, admin, {

@@ -63,7 +63,22 @@ export const createForm = defineUseCase({
       kind,
       list: 'news',
       consentTextVersion: 'v1',
-      submitLabel: Object.fromEntries(['en', 'nl'].map((l) => [l, t(l, 'forms.default.submit')])),
+      // The button names what the visitor does: "Send" on a petition reads like a contact form.
+      submitLabel: Object.fromEntries(
+        ['en', 'nl'].map((l) => [
+          l,
+          t(
+            l,
+            kind === 'petition'
+              ? 'forms.default.petitionSubmit'
+              : kind === 'signup'
+                ? 'forms.default.signupSubmit'
+                : kind === 'rsvp'
+                  ? 'forms.default.rsvpSubmit'
+                  : 'forms.default.submit'
+          ),
+        ])
+      ),
       thankYou: Object.fromEntries(
         ['en', 'nl'].map((l) => [
           l,
