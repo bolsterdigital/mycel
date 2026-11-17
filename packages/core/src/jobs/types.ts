@@ -18,6 +18,12 @@ export const JobPayloads = {
   'hostnames.reverify': z.object({ hostname: z.string().min(1) }).strict(),
   /** Platform job: monthly `events` partitions up to three months ahead (ADR 003). */
   'events.partitions': z.object({}).strict(),
+  /**
+   * Platform job: per tenant, ask the payment provider after every payment left open longer than
+   * a quarter of an hour (ADR 005 rule 4, `dueDonations`); hourly, beside the webhook and the
+   * donor's return. Each payment in its own transaction.
+   */
+  'donations.reconcile': z.object({}).strict(),
   /** Platform job: delete expired rate-limit windows as mycel_janitor (ADR 011 rule 2). */
   'rate_limits.sweep': z.object({}).strict(),
   /** Tenant job from before the trash: remove an asset the trash no longer offers back. */

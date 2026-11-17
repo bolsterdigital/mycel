@@ -288,6 +288,10 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
       s.submissions.delete(id)
     )
       changed++;
+  // As 0074's `on delete set null`: a payment outlives the submission that started it.
+  for (const payment of s.payments.values())
+    if (payment.submissionId && !s.submissions.has(payment.submissionId))
+      payment.submissionId = null;
   // A seat reserved for a signup that was never ingested.
   for (const a of addresses)
     if (

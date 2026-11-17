@@ -23,7 +23,12 @@ import {
 } from '@mycel/core';
 import { currentContext } from '@mycel/observability';
 import { ui } from '../../../../../i18n/index.js';
-import { localeOf, parseContentPath, thanksPath } from '#lib/server/public/content-route.js';
+import {
+  donationPath,
+  localeOf,
+  parseContentPath,
+  thanksPath,
+} from '#lib/server/public/content-route.js';
 import { failureFor } from '#lib/server/public/form-post.js';
 import { NO_STORE, itemCacheHeaders } from '#lib/server/http/http-cache.js';
 import { forwardOldAddress } from '#lib/server/public/old-address.js';
@@ -150,6 +155,7 @@ export const actions: Actions = {
       ['forms:write'],
       rt.signer.hashIp(getClientAddress())
     );
+    const here = contentPath(route, locale, tenant.defaultLocale);
     let result;
     try {
       result = await rt.invoker.run(useCases.submitForm, visitor, {
@@ -158,7 +164,10 @@ export const actions: Actions = {
         values,
         locale,
         // Provenance in the site's canonical address (ADR 014 rule 6), not the request's.
-        pageUrl: await absoluteSiteUrl(site, contentPath(route, locale, tenant.defaultLocale)),
+        pageUrl: await absoluteSiteUrl(site, here),
+        // Only a donation form reads it: where the provider sends the visitor back, in the
+        // page's locale, with the page to try again from (`donation/[token]`).
+        returnUrl: `${await absoluteSiteUrl(site, donationPath(locale, tenant.defaultLocale))}{token}?back=${encodeURIComponent(here)}`,
         // An absent honeypot field is not an empty one: the core refuses a post without it.
         spam: {
           honeypot: data.has('website') ? text(data, 'website') : undefined,
@@ -180,6 +189,18 @@ export const actions: Actions = {
         values,
       });
     }
+
+    // A gift goes to its return page, which sends the visitor on to the provider's checkout
+    // (`?pay=1`): CSP `form-action 'self'` refuses a form post that redirects to another origin,
+    // and a provider's checkout is one. One the provider settled at once shows its outcome.
+    if (result.status === 'accepted' && result.token !== undefined)
+      redirect(
+        303,
+        sitePath(
+          site,
+          `${donationPath(locale, tenant.defaultLocale)}${encodeURIComponent(result.token)}?${new URLSearchParams({ ...(result.checkoutUrl ? { pay: '1' } : {}), back: here })}`
+        )
+      );
 
     // A tripped honeypot and a recipient in cooldown get the same thank-you as a person, so a
     // bot learns nothing, and nobody learns whether an address was just used.

@@ -7,7 +7,7 @@ import { can } from '../principal.js';
 import { notFound, UseCaseError } from '../errors.js';
 import { exampleId } from '../util/ids.js';
 import { hashInput } from '../audit/model.js';
-import { FormDefinition, parseFormDefinition } from './model.js';
+import { FormDefinition, FormKind, JOINING_KINDS, parseFormDefinition } from './model.js';
 import { validMailPredicate } from './mail-model.js';
 import { resolveFormMail } from './mail-templates.js';
 import '../campaigns/ports.js';
@@ -51,12 +51,12 @@ export const createForm = defineUseCase({
   requires: 'content:write',
   consumes: null,
   description:
-    'Create an unplaced form; signup and petition creation also require publishing permission. Never create send actions.',
-  input: z.object({ kind: z.enum(['signup', 'contact', 'petition', 'rsvp']) }).strict(),
+    'Create an unplaced form; signup, petition and donation creation also require publishing permission. A donation form starts with an e-mail field, amounts to choose from and an optional consent. Never create send actions.',
+  input: z.object({ kind: FormKind }).strict(),
   output: FormDefinition,
   examples: [{ input: { kind: 'contact' } }],
   async handler(ctx, { kind }) {
-    if (['signup', 'petition'].includes(kind) && !can(ctx.principal, 'content:publish'))
+    if (JOINING_KINDS.includes(kind) && !can(ctx.principal, 'content:publish'))
       throw new UseCaseError('forbidden', 'publishing permission required');
     const form = parseFormDefinition({
       id: ctx.ids.next(),
@@ -71,11 +71,13 @@ export const createForm = defineUseCase({
             l,
             kind === 'petition'
               ? 'forms.default.petitionSubmit'
-              : kind === 'signup'
-                ? 'forms.default.signupSubmit'
-                : kind === 'rsvp'
-                  ? 'forms.default.rsvpSubmit'
-                  : 'forms.default.submit'
+              : kind === 'donation'
+                ? 'forms.default.donationSubmit'
+                : kind === 'signup'
+                  ? 'forms.default.signupSubmit'
+                  : kind === 'rsvp'
+                    ? 'forms.default.rsvpSubmit'
+                    : 'forms.default.submit'
           ),
         ])
       ),
@@ -87,13 +89,33 @@ export const createForm = defineUseCase({
             // A signature is not a subscription (ADR 033 rule 7), so its thanks says so.
             kind === 'petition'
               ? 'forms.default.petitionThanks'
-              : kind === 'signup'
-                ? 'forms.default.signupThanks'
-                : 'forms.default.thankYou'
+              : kind === 'donation'
+                ? 'forms.default.donationThanks'
+                : kind === 'signup'
+                  ? 'forms.default.signupThanks'
+                  : 'forms.default.thankYou'
           ),
         ])
       ),
       fields: [
+        // The gift first: it is what the visitor came to choose.
+        ...(kind === 'donation'
+          ? [
+              {
+                id: 'amount',
+                name: 'amount',
+                type: 'amount',
+                required: true,
+                min: 1,
+                max: 50_000,
+                presets: [10, 25, 50],
+                custom: true,
+                label: Object.fromEntries(
+                  ['en', 'nl'].map((l) => [l, t(l, 'forms.default.donationAmount')])
+                ),
+              },
+            ]
+          : []),
         {
           id: 'email',
           name: 'email',
@@ -101,7 +123,7 @@ export const createForm = defineUseCase({
           required: true,
           label: Object.fromEntries(['en', 'nl'].map((l) => [l, t(l, 'forms.default.email')])),
         },
-        ...(kind === 'signup' || kind === 'petition'
+        ...(kind === 'signup' || kind === 'petition' || kind === 'donation'
           ? [
               {
                 id: 'consent',

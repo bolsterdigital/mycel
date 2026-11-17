@@ -104,6 +104,12 @@ export const Payment = z.object({
   checkoutUrl: z.string().url().nullable(),
   /** The supporter who gives, when known; null for an anonymous gift and after an erasure. */
   supporterId: z.string().guid().nullable(),
+  /**
+   * The form submission that started the payment (the public donation form, 0074): its address
+   * names the supporter once the payment settles. Null when started otherwise, and once the
+   * submission is gone (erasure, retention).
+   */
+  submissionId: z.string().guid().nullable(),
   createdAt: Timestamp,
   updatedAt: Timestamp,
   paidAt: Timestamp.nullable(),

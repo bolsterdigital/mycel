@@ -71,6 +71,7 @@
         "apps/web/src/lib/server/public/confirm*",
         "apps/web/src/lib/server/public/reader*",
         "apps/web/src/lib/server/public/form-post*",
+        "apps/web/src/lib/server/public/donation-return*",
         "apps/web/src/lib/server/public/has-form*",
         "apps/web/src/lib/server/public/old-address*",
         "apps/web/src/lib/server/public/share-card.ts",
@@ -146,7 +147,8 @@
         "apps/web/src/lib/public/wall-clock.ts",
         "apps/web/src/lib/public/search-path.ts",
         "apps/web/src/lib/public/navigation-href.ts",
-        "apps/web/src/lib/public/language-links.ts"
+        "apps/web/src/lib/public/language-links.ts",
+        "apps/web/src/lib/money.ts"
       ],
       "adrs": ["004", "012", "017", "020"],
       "gates": [

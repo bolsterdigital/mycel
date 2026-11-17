@@ -59,3 +59,11 @@ export function thanksPath(
   const path = contentPath(item, locale, defaultLocale);
   return `${path === '/' ? '' : path}/thanks`;
 }
+
+/**
+ * Where a donor comes back to, without the token: `/donation/`, after the locale prefix of a
+ * non-default locale (`/en/donation/`). The route is `[[locale]]/donation/[token]`.
+ */
+export function donationPath(locale: string, defaultLocale: string): string {
+  return `${locale === defaultLocale ? '' : `/${locale}`}/donation/`;
+}

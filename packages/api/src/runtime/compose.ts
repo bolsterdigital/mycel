@@ -97,6 +97,8 @@ import { OpenAITextModel } from '@mycel/assist-openai';
 import { createEmailRenderer } from '@mycel/render-email';
 import { createAuthenticator, type Authenticator } from '../auth.js';
 import { createDnsResolver } from './dns.js';
+import { DirectoryPaymentProvider } from './fake-payments.js';
+export { FAKE_CHOICES, type FakeChoice } from './fake-payments.js';
 import type { HttpObservability } from '../app.js';
 import { assessWorker, type WorkerReadiness } from '../health.js';
 import type { PlatformDeps } from '../platform.js';
@@ -212,6 +214,8 @@ export interface Runtime {
   mailer: Mailer;
   /** Media files (TODO #10); the web front's delivery route reads variants from here. */
   blobs: BlobStore;
+  /** The fake payment provider's payments, for its screen; null unless PAYMENT_PROVIDER=fake. */
+  fakePayments: DirectoryPaymentProvider | null;
   subscribers: Subscriber[];
   /** Authentication-time lookups (operators, memberships, keys) as mycel_auth. */
   identity: IdentityStore;
@@ -271,6 +275,10 @@ export function createRuntime(
       ? null
       : (config.ASSIST_PROVIDER_LABEL ?? assistModel?.describe().label ?? null);
   const dns = createDnsResolver();
+  const fakePayments =
+    config.PAYMENT_PROVIDER === 'fake'
+      ? new DirectoryPaymentProvider(config.PAYMENT_FAKE_DIR!)
+      : null;
   const mailchimpRequest = createMailchimpRequester(config.MAILCHIMP_FIXTURE_ORIGIN);
   const uow = createUnitOfWork(appDb, {
     clock,
@@ -278,6 +286,7 @@ export function createRuntime(
     signer,
     dns,
     platform,
+    paymentProvider: fakePayments,
     media: { blobs, images: createSharpProcessor(), delivery: appDelivery },
     brandProcessor: createBrandProcessor(),
     log,
@@ -416,6 +425,7 @@ export function createRuntime(
     signer,
     mailer,
     blobs,
+    fakePayments,
     subscribers,
     identity,
     authenticateApiKey: auth.authenticateApiKey,

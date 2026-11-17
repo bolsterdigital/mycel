@@ -167,6 +167,10 @@ export interface RenderForm {
     min?: number;
     max?: number;
     maxLength?: number;
+    /** An amount field's choices, with their label in the page's locale ("€ 25"). */
+    presets?: { value: string; label: string }[];
+    /** With presets: the label of the visitor's own amount, posted as `<name>-other`; absent when not offered. */
+    otherLabel?: string;
   }[];
 }
 

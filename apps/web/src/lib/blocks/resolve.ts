@@ -28,6 +28,7 @@
 
 import { personPath } from '../public/person-path.js';
 import { formatBytes } from '../admin/format.js';
+import { formatEuros } from '../money.js';
 import {
   fieldPattern,
   type FormDefinition,
@@ -968,6 +969,12 @@ function toRenderForm(
       ...('value' in f ? { value: f.value } : {}),
       ...('min' in f ? { min: f.min, max: f.max } : {}),
       ...('maxLength' in f ? { maxLength: f.maxLength } : {}),
+      ...(f.type === 'amount' && f.presets
+        ? {
+            presets: f.presets.map((p) => ({ value: String(p), label: formatEuros(p, locale) })),
+            ...(f.custom !== false ? { otherLabel: translate(locale, 'forms.amount.other') } : {}),
+          }
+        : {}),
     })),
   };
 }

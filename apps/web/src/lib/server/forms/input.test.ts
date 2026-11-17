@@ -1,6 +1,6 @@
 // Native predicate decoding is typed and bounded; locale edits preserve unoffered locales.
 import { describe, it, expect } from 'vitest';
-import { predicate, localizedInput, updateDefinition } from './input.js';
+import { fieldInput, predicate, localizedInput, updateDefinition } from './input.js';
 import { FormDefinition } from '@mycel/core';
 import { conditionalProbeForm } from '@mycel/core/testing';
 const data = (values: Record<string, string>) => {
@@ -9,6 +9,24 @@ const data = (values: Record<string, string>) => {
   return form;
 };
 describe('native form authoring input', () => {
+  it('reads an amount’s presets as typed, with a decimal comma, and drops them when empty', () => {
+    const amount = (presets: string, custom?: string) =>
+      fieldInput(
+        data({
+          type: 'amount',
+          id: 'amount',
+          name: 'amount',
+          'label.nl': 'Bedrag',
+          presets,
+          ...(custom ? { custom } : {}),
+        })
+      );
+    expect(amount('10, 25, 50', 'on')).toMatchObject({ presets: [10, 25, 50], custom: true });
+    expect(amount('5;12,50 20')).toMatchObject({ presets: [5, 12.5, 20], custom: false });
+    expect(amount('')).toMatchObject({ presets: undefined, custom: undefined });
+    // Not a list the core accepts: it refuses the field when the definition is saved.
+    expect(Number.isNaN((amount('10,25,50') as { presets: number[] }).presets[0])).toBe(true);
+  });
   it('retains boolean and numeric comparisons, and refuses ambiguous values', () => {
     const values = {
       'when.mode': 'and',

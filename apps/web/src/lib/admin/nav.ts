@@ -20,6 +20,7 @@ export type NavCapability =
   | 'media:read'
   | 'connections:read'
   | 'supporters:read'
+  | 'donations:read'
   | 'tenant:admin';
 
 /** One screen: where it lives, under which label, for whom. */
@@ -77,6 +78,12 @@ export const MANAGE: NavSection = {
       label: 'admin.supporters.title',
       needs: 'supporters:read',
       hint: 'admin.supporters.hint',
+    },
+    {
+      path: 'donations',
+      label: 'admin.donations.title',
+      needs: 'donations:read',
+      hint: 'admin.donations.hint',
     },
     {
       path: 'connections',

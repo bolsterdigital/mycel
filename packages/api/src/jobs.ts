@@ -30,6 +30,8 @@ import {
   runAssistSuggestion,
   retainAssistSuggestions,
   retentionCutoffs,
+  checkPayment,
+  dueDonations,
   type Clock,
   type DomainEvent,
   type ErrorReporter,
@@ -88,6 +90,7 @@ export const RECURRING_JOBS: readonly RecurringJob[] = [
   { type: 'tenant.export.expire', cadence: 'daily' },
   { type: 'erasures.apply', cadence: 'daily' },
   { type: 'retention.apply', cadence: 'daily' },
+  { type: 'donations.reconcile', cadence: 'hourly' },
 ];
 
 /**
@@ -213,6 +216,38 @@ export function applyAllRetention(
       return (
         gone.outbox + gone.mailIntents + gone.submissions + gone.admissions + gone.readerActivity
       );
+    },
+    errors
+  );
+}
+
+/**
+ * `donations.reconcile` (ADR 005 rule 4): per tenant, the payments left open, then each one
+ * checked in a transaction of its own, so a provider that does not answer about one payment
+ * leaves the others settled. Called without the registry: the ledger entry with cause
+ * `reconcile` is the record, not an audit row per payment per hour. Returns how many it asked
+ * after; a payment the provider could not answer about is tried again next hour.
+ */
+export function reconcileAllDonations(
+  uow: UnitOfWork,
+  tenantIds: () => Promise<string[]>,
+  errors?: ErrorReporter
+): Promise<number> {
+  return forEachTenant(
+    'donations.reconcile',
+    tenantIds,
+    async (id) => {
+      const principal = systemPrincipal(id, 'jobs:donations.reconcile');
+      const due = await uow.run(principal, (ctx) => dueDonations(ctx));
+      let asked = 0;
+      for (const paymentId of due)
+        try {
+          await uow.run(principal, (ctx) => checkPayment(ctx, paymentId, 'reconcile'));
+          asked++;
+        } catch {
+          // `checkPayment` logged which adapter did not answer; next hour asks again.
+        }
+      return asked;
     },
     errors
   );
@@ -373,6 +408,9 @@ export function jobHandlers({
       renderShareCards(ctx)
     ),
     'events.partitions': platformJob('events.partitions', () => createEventPartitions(operatorDb)),
+    'donations.reconcile': platformJob('donations.reconcile', () =>
+      reconcileAllDonations(uow, tenantIds, errors)
+    ),
     'rate_limits.sweep': platformJob('rate_limits.sweep', () => sweepRateLimits(operatorDb)),
     // Deleting files is not publishing: a suspended tenant's purge still runs.
     'media.purge': tenantJob({ uow, identity }, 'media.purge', purgeMedia),

@@ -6,12 +6,12 @@ import { grants } from '../../principal.js';
 import type { ConnectionFailure } from '../../connections/intents.js';
 import { fieldId, predicateMatches, validPredicateReferences } from '../fields.js';
 import { mailValues } from '../mail-templates.js';
-import type { FormDefinition, Submission } from '../model.js';
+import { JOINING_KINDS, type FormDefinition, type Submission } from '../model.js';
 import type { FormFeed, FormFeedState } from './model.js';
 
 export function validFeed(form: FormDefinition, feed: FormFeed) {
   return (
-    ['signup', 'petition'].includes(form.kind) &&
+    JOINING_KINDS.includes(form.kind) &&
     feed.scope === form.list &&
     (!feed.when || validPredicateReferences(feed.when, form.fields, true)) &&
     feed.mapping.every((m) => form.fields.some((f) => fieldId(f) === m.fieldId))

@@ -30,7 +30,7 @@
   <form method="post" action="?/create" class="ui-fields">
     <Field id="kind" label={t('admin.forms.kind')} locale={data.locale}
       >{#snippet control(a)}<select {...a} name="kind"
-          >{#each ['contact', 'signup', 'petition', 'rsvp'] as kind}<option value={kind}
+          >{#each ['contact', 'signup', 'petition', 'rsvp', 'donation'] as kind}<option value={kind}
               >{t(`admin.forms.option.${kind}` as 'admin.forms.option.signup')}</option
             >{/each}</select
         >{/snippet}</Field

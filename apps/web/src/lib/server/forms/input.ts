@@ -63,6 +63,20 @@ export function fieldInput(data: FormData, old?: FormField): FormField {
           max: text(data, 'max') ? Number(text(data, 'max')) : undefined,
         }
       : {}),
+    // An amount's presets as typed ("10, 25, 50"; a decimal comma reads as a point); the core
+    // refuses fewer than three, more than six, doubles and ones outside min and max.
+    ...(type === 'amount'
+      ? (() => {
+          const presets = text(data, 'presets')
+            .replace(/,\s+/g, ' ')
+            .split(/[\s;]+/)
+            .filter(Boolean)
+            .map((p) => Number(p.replace(',', '.')));
+          return presets.length
+            ? { presets, custom: checked(data, 'custom') }
+            : { presets: undefined, custom: undefined };
+        })()
+      : {}),
     ...(['text', 'textarea', 'phone'].includes(type)
       ? { maxLength: text(data, 'maxLength') ? Number(text(data, 'maxLength')) : undefined }
       : {}),

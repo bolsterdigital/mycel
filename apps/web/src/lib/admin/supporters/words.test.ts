@@ -30,6 +30,8 @@ describe('supporter timeline words', () => {
       'access.granted',
       'access.revoked',
       'reader.signed_in',
+      'donation.payment.succeeded',
+      'donation.payment.failed',
     ] as const;
     expect(written.filter((type) => eventKey({ type }) === null)).toEqual([]);
   });
@@ -52,7 +54,17 @@ describe('supporter timeline words', () => {
     );
     expect(eventSentence(ui('en'), entry({ type: 'access.granted', tierId: 't1' }), names)).toBe(
       'Was given access to Vrienden'
-    );
+    ); // A gift by its amount, in the page's locale (MY-252).
+    const gift = { value: 2500, currency: 'EUR' };
+    expect(say(entry({ type: 'donation.payment.succeeded', amount: gift }))).toBe('Gaf €\u00a025');
+    expect(
+      eventSentence(
+        ui('en'),
+        entry({ type: 'donation.payment.succeeded', amount: { value: 1250, currency: 'EUR' } }),
+        names,
+        'en'
+      )
+    ).toBe('Gave €12.50');
   });
 
   it('fall back to the list id, general words and the type name', () => {

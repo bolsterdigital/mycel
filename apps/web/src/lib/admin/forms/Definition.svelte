@@ -31,7 +31,7 @@
     />
     <Field id="kind" label={t('admin.forms.kind')} {locale}
       >{#snippet control(a)}<select {...a} name="kind"
-          >{#each ['signup', 'contact', 'petition', 'rsvp'] as kind}<option
+          >{#each ['signup', 'contact', 'petition', 'rsvp', 'donation'] as kind}<option
               value={kind}
               selected={kind === form.kind}
               >{t(`admin.forms.option.${kind}` as 'admin.forms.option.signup')}</option
@@ -118,6 +118,20 @@
           : ''}
       />
     {/each}
+    <Field
+      id="{key}-presets"
+      name="presets"
+      label={t('admin.forms.presets')}
+      hint={t('admin.forms.presets.hint')}
+      {locale}
+      value={field?.type === 'amount' && field.presets ? field.presets.join(', ') : ''}
+    />
+    <Checkbox
+      id="{key}-custom"
+      name="custom"
+      label={t('admin.forms.custom')}
+      checked={field?.type === 'amount' ? field.custom !== false : true}
+    />
     <CopyFields
       id="{key}-label"
       prefix="label"
