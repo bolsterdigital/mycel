@@ -85,15 +85,20 @@ Form notifications and designated transactional receipts use the same `sendOnce`
 
 ## Newsletter editions
 
-An article with `delivery.email` goes out as a newsletter through three use cases (`packages/core/src/mailing/edition.ts`; ADR 010 rules 6 to 9, ADR 018 rule 4):
+An article with `delivery.email` goes out as a newsletter through these use cases (`packages/core/src/mailing/edition.ts`; ADR 010 rules 6 to 9, ADR 018 rule 4):
 
-| Use case               | Needs          | Does                                                                                                           |
-| ---------------------- | -------------- | -------------------------------------------------------------------------------------------------------------- |
-| `mailing.edition.get`  | `content:read` | the mail a send would make of one published locale, with the list and its confirmed subscribers; sends nothing |
-| `mailing.edition.test` | `mailing:send` | that mail to the operator's own address, marked `[Test]`; no edition, no list                                  |
-| `mailing.edition.send` | `mailing:send` | stores the edition and plans its delivery                                                                      |
+| Use case               | Needs          | Does                                                                                                                                                               |
+| ---------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mailing.edition.get`  | `content:read` | the mail a send would make of one published locale, with the list and its confirmed subscribers; sends nothing. With `editionId`: that sent edition as it went out |
+| `mailing.edition.list` | `content:read` | the editions of one article, newest first: when, list, count, locales and subjects, delivered or not; no mail                                                      |
+| `mailing.edition.test` | `mailing:send` | that mail to the operator's own address, marked `[Test]`; no edition, no list                                                                                      |
+| `mailing.edition.send` | `mailing:send` | stores the edition and plans its delivery                                                                                                                          |
 
-All three refuse (`conflict`) a locale that is not published, an article whose published revision names no list, and restricted content (ADR 016). `send` also refuses past `mail.monthly_max`. Writing or publishing content never sends: the registry conformance holds `mailing:send` to these two commands.
+`site` (name, root URL, default locale) is input, as for `mailing.email.get`; the admin derives it on the server from the tenant and its primary hostname (`apps/web/src/lib/server/mail/newsletter.ts`), never from a form.
+
+**In the admin** (#250 PR 4): an article's edit screen has a Newsletter panel whose list and subject are fields of the document (`delivery.email`), saved and published with it. Test is one button there; sending goes through a confirmation page (`content/<id>/email/send`) that names list, count and languages, then shows "sent on ... to N" with a link to the edition as sent.
+
+The three refuse (`conflict`) a locale that is not published, an article whose published revision names no list, and restricted content (ADR 016). `send` also refuses past `mail.monthly_max`. Writing or publishing content never sends: the registry conformance holds `mailing:send` to these two commands.
 
 **The edition.** `mail_editions` (migration 0070) holds one row per locale of a send: the revision published in that locale at that moment and the subject, HTML and text rendered from it, once, through the `EmailRenderer`. The application role may insert a row and move `delivered_through` and `completed_at`; it cannot update or delete anything else, so a correction of the article never changes what was sent, and sending again is a new edition. The rows hold no address and no supporter id; the audit row of the command and the actor of the outbox event `mailing.edition.sent` say who sent it. The edition travels in a tenant export.
 

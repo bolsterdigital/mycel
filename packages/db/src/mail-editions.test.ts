@@ -191,6 +191,17 @@ describe.skipIf(skip)('mail editions over Postgres', () => {
     expect(
       await uow.run(adminOf(tenantId), (ctx) => ctx.mailEditions.get(editionId))
     ).toMatchObject({ deliveredThrough: members[0]!.id, completedAt: null, recipients: 2 });
+    // The list of the item's editions carries the subject, not the mail.
+    const listed = await uow.run(adminOf(tenantId), (ctx) => ctx.mailEditions.forItem(itemId));
+    expect(listed[0]).toEqual({
+      id: editionId,
+      itemId,
+      list: LIST,
+      recipients: 2,
+      sentAt: expect.any(Date),
+      completedAt: null,
+      locales: [{ locale: 'nl', subject: 'Het nieuws' }],
+    });
   });
 
   it('makes one provider call per recipient when two workers run one edition', async () => {

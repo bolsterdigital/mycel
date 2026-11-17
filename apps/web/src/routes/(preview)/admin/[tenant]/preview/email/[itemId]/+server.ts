@@ -1,6 +1,6 @@
 // The rendered newsletter of one item and locale, for the frame on its e-mail preview page
-// (lib/server/mail/email-preview.ts): only for an operator of this site who may read content,
-// never cached, with a policy of its own.
+// (lib/server/mail/email-preview.ts), or with `edition` a sent edition as it went out: only for
+// an operator of this site who may read content, never cached, with a policy of its own.
 import { isUuid } from '@mycel/core';
 import { adminMediaPrincipal } from '#lib/server/admin/admin.js';
 import { loaded } from '#lib/server/admin/admin-actions.js';
@@ -16,8 +16,10 @@ export const GET: RequestHandler = async ({ params, locals, url }) => {
   const tenant = principal && (await runtime().tenants.findBySlug(params.tenant));
   if (!principal || !tenant) return refused(403);
   const locale = url.searchParams.get('locale') ?? tenant.defaultLocale;
+  const edition = url.searchParams.get('edition');
   if (!isUuid(params.itemId) || !tenant.locales.includes(locale)) return refused(404);
-  const { html } = await loaded(renderItemEmail(principal, tenant, params.itemId, locale));
+  if (edition !== null && !isUuid(edition)) return refused(404);
+  const { html } = await loaded(renderItemEmail(principal, tenant, params.itemId, locale, edition));
   return new Response(framed(html), {
     headers: {
       ...PREVIEW_HEADERS,

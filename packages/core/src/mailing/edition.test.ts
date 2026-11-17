@@ -22,6 +22,7 @@ import {
   TENANT,
 } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
+import { exampleId } from '../util/ids.js';
 import {
   deliverEdition,
   EDITION_SUBSCRIBER,
@@ -236,6 +237,44 @@ describe('mailing.edition', () => {
     expect((await edition(second.editionId))!.locales[0]!.subject).toBe('Correctie');
     await deliver(second.editionId);
     expect(mailer.sent.map((m) => m.subject)).toEqual(['Het nieuws', 'Correctie']);
+
+    // The list names both, newest first; reading the first shows it as it went out.
+    const { editions } = await invoker.run(useCases.listEditions, admin, { itemId });
+    expect(editions.map((e) => e.id)).toEqual([second.editionId, first.editionId]);
+    expect(editions[1]).toEqual({
+      id: first.editionId,
+      list: LIST,
+      recipients: 1,
+      sentAt: first.sentAt,
+      completedAt: expect.any(String),
+      locales: [
+        { locale: 'en', subject: 'The news' },
+        { locale: 'nl', subject: 'Het nieuws' },
+      ],
+    });
+    const sent = await invoker.run(useCases.getEdition, admin, {
+      itemId,
+      locale: 'nl',
+      site: SITE,
+      editionId: first.editionId,
+    });
+    expect(sent).toMatchObject({
+      subject: 'Het nieuws',
+      recipients: 1,
+      revisionId: before!.locales.find((l) => l.locale === 'nl')!.revisionId,
+    });
+    expect(sent.html).toContain('Nieuws van november');
+    expect(sent.html).not.toContain('gecorrigeerd');
+    expect(sent.text).not.toContain(UNSUBSCRIBE_PLACEHOLDER);
+    // Only an edition of this item, in a locale it went out in.
+    for (const wrong of [
+      { itemId, locale: 'de', editionId: first.editionId },
+      { itemId: exampleId(0x9), locale: 'nl', editionId: first.editionId },
+    ])
+      await expectCode(
+        invoker.run(useCases.getEdition, admin, { ...wrong, site: SITE }),
+        'not_found'
+      );
   });
 
   it('refuses a locale that is not published, restricted content and an article without a list', async () => {

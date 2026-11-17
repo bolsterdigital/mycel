@@ -13,7 +13,12 @@
 // What can be sent is what a visitor can read: a published locale of an article with
 // `delivery.email`, public (ADR 016: a restricted article is not mailed). `mailing.edition.get`
 // shows exactly that mail without sending, and `mailing.edition.test` sends it to the operator's
-// own address only.
+// own address only. With an `editionId`, `get` shows a sent edition as it went out instead, and
+// `mailing.edition.list` names an item's editions: when, to which list, to how many.
+//
+// `site` (name, root URL, default locale) comes from the caller, as for `mailing.email.get`: the
+// admin derives it on the server from the tenant and its primary hostname, never from a form.
+// Deriving it here would need the platform's URL mode in core for no gain on that path.
 //
 // Rejected: rendering per recipient at delivery (recipients of one send would get different mail
 // when the article is corrected meanwhile, against rule 4), one edition per locale (a
@@ -29,6 +34,7 @@ import { jobKey } from '../jobs/types.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
 import { exampleId } from '../util/ids.js';
+import { iso } from '../util/date.js';
 import { statusOf } from '../content/lifecycle.js';
 import type { ItemRecord } from '../content/ports.js';
 import { emailDocument, EmailSite, UNSUBSCRIBE_PLACEHOLDER, withUnsubscribeUrl } from './email.js';
@@ -110,13 +116,26 @@ const forViewing = (mail: { html: string; text: string }, site: EmailSite) =>
 const OneLocale = z.object({ itemId: z.string().guid(), locale: Locale, site: EmailSite }).strict();
 const EXAMPLE_SITE = { name: 'Probe', url: 'https://probe.example.org', defaultLocale: 'nl' };
 
+/** One locale of a sent edition of `itemId`, as it went out; not found for anything else. */
+async function sentLocale(
+  ctx: TransactionContext,
+  itemId: string,
+  editionId: string,
+  locale: string
+) {
+  const edition = await ctx.mailEditions.get(editionId);
+  const sent = edition?.itemId === itemId && edition.locales.find((l) => l.locale === locale);
+  if (!edition || !sent) throw notFound('edition');
+  return { ...sent, list: edition.list, recipients: edition.recipients };
+}
+
 export const getEdition = defineUseCase({
   name: 'mailing.edition.get',
   kind: 'query',
   description:
-    'Read the newsletter a send would make of one published locale of an article, without sending: subject, HTML, text part, the list and how many confirmed subscribers it has now. Refuses a locale that is not published, an article without e-mail delivery and restricted content.',
+    'Read the newsletter a send would make of one published locale of an article, without sending: subject, HTML, text part, the list and how many confirmed subscribers it has now. Refuses a locale that is not published, an article without e-mail delivery and restricted content. With `editionId`, read that sent edition of the article instead, as it went out, with the number it went to.',
   requires: 'content:read',
-  input: OneLocale,
+  input: OneLocale.extend({ editionId: z.string().guid().optional() }).strict(),
   output: z.object({
     subject: z.string(),
     html: z.string(),
@@ -125,8 +144,28 @@ export const getEdition = defineUseCase({
     recipients: z.number().int().nonnegative(),
     revisionId: z.string().guid(),
   }),
-  examples: [{ input: { itemId: exampleId(0x1), locale: 'nl', site: EXAMPLE_SITE } }],
-  async handler(ctx, { itemId, locale, site }) {
+  examples: [
+    { input: { itemId: exampleId(0x1), locale: 'nl', site: EXAMPLE_SITE } },
+    {
+      input: {
+        itemId: exampleId(0x1),
+        locale: 'nl',
+        site: EXAMPLE_SITE,
+        editionId: exampleId(0x2),
+      },
+    },
+  ],
+  async handler(ctx, { itemId, locale, site, editionId }) {
+    if (editionId) {
+      const sent = await sentLocale(ctx, itemId, editionId, locale);
+      return {
+        subject: sent.subject,
+        ...forViewing(sent, site),
+        list: sent.list,
+        recipients: sent.recipients,
+        revisionId: sent.revisionId,
+      };
+    }
     const item = await ctx.content.get(itemId);
     if (!item) throw notFound('content item');
     const made = await editionLocale(ctx, item, locale, site);
@@ -136,6 +175,41 @@ export const getEdition = defineUseCase({
       list: made.list,
       recipients: await ctx.supporters.countMembers(made.list),
       revisionId: made.revisionId,
+    };
+  },
+});
+
+export const listEditions = defineUseCase({
+  name: 'mailing.edition.list',
+  kind: 'query',
+  description:
+    'List the newsletter editions an article was sent as, newest first: when, to which list, to how many confirmed subscribers, in which locales with which subject, and whether delivery reached the end of the list. No mail and no recipients.',
+  requires: 'content:read',
+  input: z.object({ itemId: z.string().guid() }).strict(),
+  output: z.object({
+    editions: z.array(
+      z.object({
+        id: z.string().guid(),
+        list: z.string(),
+        recipients: z.number().int().nonnegative(),
+        sentAt: z.string().datetime(),
+        completedAt: z.string().datetime().nullable(),
+        locales: z.array(z.object({ locale: z.string(), subject: z.string() })),
+      })
+    ),
+  }),
+  examples: [{ input: { itemId: exampleId(0x1) } }],
+  async handler(ctx, { itemId }) {
+    const editions = await ctx.mailEditions.forItem(itemId);
+    return {
+      editions: editions.map((e) => ({
+        id: e.id,
+        list: e.list,
+        recipients: e.recipients,
+        sentAt: e.sentAt.toISOString(),
+        completedAt: iso(e.completedAt),
+        locales: e.locales,
+      })),
     };
   },
 });

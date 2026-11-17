@@ -6,6 +6,8 @@
 // and a layout's error would replace that answer, so the campaign read is never the louder one.
 // Rejected: the edit route's load (past its ceiling, scripts/gates/file-size.test.mjs), and
 // repeating the page's checks here (two places to keep the same answer in step).
+// An article's newsletter panel (lib/server/mail/newsletter.ts) loads here for the
+// same reasons, with its outcome from `?newsletter=`.
 import { adminTimeZone } from '#lib/server/admin/admin.js';
 import {
   CAMPAIGN_OUTCOMES,
@@ -14,18 +16,45 @@ import {
   isRefusal,
 } from '#lib/server/admin/campaigns.js';
 import { refusalOf } from '#lib/server/http/refuse.js';
+import { contentLocale } from '#lib/server/content/content-locale.js';
+import {
+  NEWSLETTER_OUTCOMES,
+  newsletterOutcome,
+  newsletterPanel,
+} from '#lib/server/mail/newsletter.js';
+import { langOf } from '../../../../../../i18n/index.js';
 import type { LayoutServerLoad } from './$types';
 
-export const load: LayoutServerLoad = async ({ parent, locals, params, url }) => {
+export const load: LayoutServerLoad = async ({ parent, locals, params, url, cookies }) => {
   const { tenant } = await parent();
   const { zone, site } = await adminTimeZone(locals);
   const panel = await campaignPanel(locals.principal!, params.itemId, zone).catch((e: unknown) => {
     refusalOf(e);
     return null;
   });
-  if (!panel) return { campaign: null };
+  if (!panel) {
+    const work = contentLocale(cookies, tenant, url.searchParams.get('locale'));
+    const newsletter = await newsletterPanel(locals.principal!, tenant, params.itemId, {
+      ui: langOf(locals),
+      work,
+      zone,
+    });
+    const outcome = newsletterOutcome(url.searchParams.get('newsletter'));
+    return {
+      campaign: null,
+      newsletter: newsletter && {
+        panel: newsletter,
+        work,
+        outcome: outcome && {
+          copy: NEWSLETTER_OUTCOMES[outcome],
+          ok: outcome === 'tested' || outcome === 'sent',
+        },
+      },
+    };
+  }
   const outcome = campaignOutcome(url.searchParams.get('campaign'));
   return {
+    newsletter: null,
     campaign: {
       panel,
       action: `/admin/${tenant.slug}/campaigns/${panel.id}`,

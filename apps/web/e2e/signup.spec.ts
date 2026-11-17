@@ -7,7 +7,7 @@ import { expectNoAxeViolations } from './lib/axe';
 import { isA11y, onlyA11y, NAVIGATION_SCRIPT } from './lib/project';
 import { callApi, postUseCase } from './lib/api';
 import { pastMinimumFillTime } from './lib/form';
-import { forwarded, login } from './lib/login';
+import { ADMIN, forwarded, login } from './lib/login';
 import {
   NARROW,
   TEXT_SIZES,
@@ -575,6 +575,168 @@ test('an article shows its newsletter: the e-mail preview per language, without 
   const anonymous = await request.get(frame!);
   expect(anonymous.status()).toBe(403);
   expect(await anonymous.text()).not.toContain('Buurtbatterij');
+});
+
+/** The spooled mails whose subject is `subject`, as the console mailer wrote them. */
+async function mailsWith(subject: string, count = 1) {
+  const dir = process.env['MAIL_SPOOL_DIR']!;
+  const read = () =>
+    readdirSync(dir)
+      .map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')))
+      .filter((m) => m.subject === subject);
+  await expect.poll(() => read().length, { timeout: 30_000, message: subject }).toBe(count);
+  return read() as { to: { email: string }; headers?: Record<string, string> }[];
+}
+
+// ADR 010 and ADR 018 rule 4: list and subject are saved with the article, the published version is what goes
+// out, a test goes to the operator only, sending names list, count and language first.
+test('an article goes out as a newsletter from its edit screen: settings, test, confirm, send', async ({
+  page,
+  browser,
+}) => {
+  const stamp = `${test.info().project.name}-${Date.now()}`;
+  const tenant = await tenantId();
+  const site = systemPrincipal(tenant, 'e2e-newsletter');
+  const title = `Pepernoten ${stamp}`;
+  const reader = `e2e-edition-${stamp}@example.org`;
+  const { item } = await withInvoker((invoker) =>
+    invoker.run(useCases.createItem, site, {
+      slug: `pepernoten-${stamp}`,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: title },
+        blocks: [
+          {
+            type: 'rich-text',
+            version: 1,
+            props: {
+              content: {
+                nl: {
+                  type: 'doc',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Zout.' }] }],
+                },
+              },
+            },
+          },
+        ],
+      },
+    })
+  );
+  await withInvoker((_, uow) =>
+    uow.run(site, (ctx) =>
+      ingest(
+        ctx,
+        SupporterEvent.parse({
+          schema: 'wings.supporter-event.v1',
+          id: `${reader}:newsletter`,
+          type: 'newsletter.subscribed',
+          email: reader,
+          occurred_at: new Date(Date.now() - 60_000).toISOString(),
+          source: 'e2e',
+          source_site: 'urn:e2e',
+          source_ref: `e2e:${reader}`,
+          props: { list: 'newsletter', confirmed: true, locale: 'nl' },
+        })
+      )
+    )
+  );
+  const edit = `/admin/probe/content/${item.id}`;
+  await login(page, `${edit}?locale=nl`);
+  const panel = page.locator('section.email-panel');
+  await panel.getByLabel('Ook per mail versturen').check();
+  await panel.getByLabel('Lijst').selectOption('newsletter');
+  // The subject starts as the title.
+  await expect(panel.getByLabel('Onderwerp van de e-mail')).toHaveValue(title);
+  const subject = `Nieuws ${stamp}`;
+  await panel.getByLabel('Onderwerp van de e-mail').fill(subject);
+  await page.getByRole('button', { name: 'Opslaan', exact: true }).first().click();
+  await expect(page).toHaveURL(/saved/);
+  await expect(panel).toContainText('Publiceer het artikel eerst');
+  await expect(panel.getByRole('link', { name: /^Versturen naar/ })).toHaveCount(0);
+
+  await withInvoker(async (invoker) => {
+    const { revision } = await invoker.run(useCases.getItem, site, { itemId: item.id });
+    await invoker.run(useCases.publishItem, site, {
+      itemId: item.id,
+      revisionId: revision.id,
+      locale: 'nl',
+    });
+  });
+  await page.goto(`${edit}?locale=nl`);
+  const sendLink = panel.getByRole('link', { name: /^Versturen naar \d+ inschrijvers?$/ });
+  const n = Number(/\d+/.exec((await sendLink.textContent())!)![0]);
+  expect(n).toBeGreaterThan(0);
+
+  // A test, to the operator's own address only.
+  await panel.getByRole('button', { name: 'Test naar mij sturen' }).click();
+  await expect(panel.getByText('Er is een test onderweg naar je eigen adres.')).toBeVisible();
+  const [test1] = await mailsWith(`[Test] ${subject}`);
+  expect(test1!.to.email).toBe(ADMIN);
+
+  // The confirmation names list, count and language; nothing goes out before the button.
+  await panel.getByRole('link', { name: /^Versturen naar/ }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Per mail versturen: ${title}`);
+  const facts = page.locator('main .ui-meta');
+  await expect(facts).toContainText('newsletter');
+  await expect(facts).toContainText(String(n));
+  await expect(facts).toContainText('Nederlands');
+  await expect(facts).toContainText(subject);
+  if (isA11y()) await expectNoAxeViolations(page, { label: 'newsletter send page' });
+  for (const size of TEXT_SIZES) {
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, size);
+    await layoutGate(page, `send page at 320px, ${size}`, 'main');
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await setTextSize(page, '100%');
+  await page.getByRole('button', { name: /^Versturen naar/ }).click();
+  await expect(page).toHaveURL(new RegExp(`${edit}\\?newsletter=sent`));
+  await expect(panel.getByText('De nieuwsbrief wordt verstuurd.')).toBeVisible();
+  await expect(panel.locator('.email-sent li')).toHaveCount(1);
+  await expect(panel.locator('.email-sent li')).toContainText(
+    new RegExp(`naar ${n} inschrijvers?`)
+  );
+  const sent = await mailsWith(subject, n);
+  const mine = sent.find((m) => m.to.email === reader)!;
+  expect(mine.headers?.['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
+
+  // As it went out, also after the article changes.
+  await panel.getByRole('link', { name: 'Bekijk zoals verstuurd' }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Verstuurde e-mail: ${title}`);
+  await expect(page.locator('main .ui-meta dd')).toHaveText(subject);
+  await expect(page.frameLocator('iframe').getByRole('heading', { level: 1 })).toHaveText(title);
+
+  // An English editor without mailing:send sees the settings and no way to send.
+  const email = `e2e-newsletter-${stamp}@probe.test`;
+  const member = await withInvoker((invoker) =>
+    invoker.run(useCases.inviteMember, site, {
+      email,
+      capabilities: ['content:write', 'content:publish'],
+    })
+  );
+  await asOwner((owner) =>
+    owner
+      .updateTable('operators')
+      .set({ ui_locale: 'en' })
+      .where('id', '=', member.operatorId)
+      .execute()
+  );
+  const other = await browser.newContext({ locale: 'en-GB' });
+  const english = await other.newPage();
+  await login(english, `${edit}?locale=nl`, email);
+  const theirs = english.locator('section.email-panel');
+  await expect(theirs.getByLabel('Also send by email')).toBeChecked();
+  await expect(theirs.getByLabel('Email subject')).toHaveValue(subject);
+  await expect(theirs).toContainText('Sent on');
+  await expect(theirs.getByRole('button', { name: 'Send test to me' })).toHaveCount(0);
+  await expect(theirs.getByRole('link', { name: /^Send to/ })).toHaveCount(0);
+  expect((await english.request.get(`${edit}/email/send`)).status()).toBe(403);
+  if (isA11y()) await expectNoAxeViolations(english, { label: 'newsletter panel en' });
+  await english.setViewportSize(NARROW);
+  await layoutGate(english, 'edit screen at 320px', 'section.email-panel');
+  await other.close();
 });
 
 test.describe('in English', () => {
