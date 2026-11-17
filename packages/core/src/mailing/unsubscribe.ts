@@ -24,6 +24,7 @@ import { defineUseCase } from '../registry.js';
 import { isTombstone } from '../supporters/erasure.js';
 import { ingest, SOURCE } from '../supporters/service.js';
 import { SupporterEvent } from '../supporters/events.js';
+import type { SupporterProjection } from '../supporters/model.js';
 import type { PlatformConfig } from '../tenants/ports.js';
 import { siteUrl } from '../tenants/url.js';
 import { sha1Hex } from '../util/digest.js';
@@ -174,18 +175,72 @@ export type OptOutResult = z.infer<typeof OptOutResult>;
 async function resolveToken(ctx: TransactionContext, token: string, now: Date) {
   const payload = await verifyUnsubscribeToken(ctx.signer, token, now);
   if (!payload || payload.tenantId !== ctx.principal.tenantId) return null;
-  const before = await ctx.supporters.getProjectionById(payload.supporterId);
+  const supporter = await lockedLiveSupporter(ctx, payload.supporterId);
+  if (!supporter) return null;
+  return {
+    supporter,
+    list: payload.list,
+    locale: payload.locale,
+    subscribed: onList(supporter, payload.list),
+  };
+}
+
+/** Signed up for `list`, confirmed or still pending: both are what an unsubscribe ends. */
+export const onList = (supporter: SupporterProjection, list: string): boolean =>
+  supporter.lists.includes(list) || supporter.pendingLists.includes(list);
+
+/**
+ * The live supporter by id under its address lock, or null when it is gone, erased or no longer
+ * the holder of its address. Locks, so a withdrawal and an ingest of the same supporter
+ * serialise (ADR 019 rule 3).
+ */
+export async function lockedLiveSupporter(
+  ctx: TransactionContext,
+  supporterId: string
+): Promise<SupporterProjection | null> {
+  const before = await ctx.supporters.getProjectionById(supporterId);
   if (!before || isTombstone(before.email)) return null;
   await ctx.supporters.lock(before.email);
   // Reread under the lock: an address change in between would leave the lock on the old one.
-  const supporter = await ctx.supporters.getProjectionById(payload.supporterId);
+  const supporter = await ctx.supporters.getProjectionById(supporterId);
   if (!supporter || supporter.email !== before.email) return null;
   if (!(await ctx.erasures.allows(supporter.email, supporter.id))) return null;
   // The address must still resolve to this supporter, because `ingest` resolves by address.
   if ((await ctx.supporters.getProjection(supporter.email))?.id !== supporter.id) return null;
-  const subscribed =
-    supporter.lists.includes(payload.list) || supporter.pendingLists.includes(payload.list);
-  return { supporter, list: payload.list, locale: payload.locale, subscribed };
+  return supporter;
+}
+
+/** How a withdrawal came in: evidence in the event, nothing else reads it. */
+export type WithdrawalVia = 'page' | 'one_click' | 'reader';
+
+/**
+ * Append `newsletter.unsubscribed` for `list` and fold it now, through `ingest`, so the next send
+ * reads a projection without the list. The caller holds the lock (`lockedLiveSupporter`).
+ */
+export async function withdrawFromList(
+  ctx: TransactionContext,
+  supporter: SupporterProjection,
+  list: string,
+  via: WithdrawalVia,
+  now: Date
+): Promise<void> {
+  const occurredAt = now.toISOString();
+  const sourceRef = `unsubscribe:${supporter.id}:${list}`;
+  const type = 'newsletter.unsubscribed';
+  await ingest(
+    ctx,
+    SupporterEvent.parse({
+      schema: 'wings.supporter-event.v1',
+      id: await sha1Hex([SOURCE, sourceRef, type, occurredAt].join('|')),
+      type,
+      email: supporter.email,
+      occurred_at: occurredAt,
+      source: SOURCE,
+      source_site: 'urn:mycel:mailing:unsubscribe',
+      source_ref: sourceRef,
+      props: { list, via },
+    })
+  );
 }
 
 export const previewOptOut = defineUseCase({
@@ -236,23 +291,7 @@ export const confirmOptOut = defineUseCase({
     const { supporter, list } = found;
     const locale = found.locale ? { locale: found.locale } : {};
     if (!found.subscribed) return { status: 'already_unsubscribed', ...locale };
-    const occurredAt = now.toISOString();
-    const sourceRef = `unsubscribe:${supporter.id}:${list}`;
-    const type = 'newsletter.unsubscribed';
-    await ingest(
-      ctx,
-      SupporterEvent.parse({
-        schema: 'wings.supporter-event.v1',
-        id: await sha1Hex([SOURCE, sourceRef, type, occurredAt].join('|')),
-        type,
-        email: supporter.email,
-        occurred_at: occurredAt,
-        source: SOURCE,
-        source_site: 'urn:mycel:mailing:unsubscribe',
-        source_ref: sourceRef,
-        props: { list, via },
-      })
-    );
+    await withdrawFromList(ctx, supporter, list, via, now);
     return { status: 'unsubscribed', ...locale };
   },
 });

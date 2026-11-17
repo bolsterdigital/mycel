@@ -131,10 +131,16 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * What a signed-in reader reaches beside the visitor's list: ending their own session. Closed the
- * same way, so a reader cookie opens no use case someone forgot to think about.
+ * What a signed-in reader reaches beside the visitor's list: ending their own session, reading
+ * their own account and leaving one of their own lists. Closed the same way, so a reader cookie
+ * opens no use case someone forgot to think about.
  */
-export const READER_USE_CASES: ReadonlySet<string> = new Set(['reader.signout']);
+export const READER_USE_CASES: ReadonlySet<string> = new Set([
+  'reader.signout',
+  // Self-service (ADR 016 rule 1): the reader's own account and lists, never anyone else's.
+  'reader.account.get',
+  'reader.subscription.withdraw',
+]);
 
 /**
  * The commands that write no audit row (ADR 029 rule 3), closed like `ANONYMOUS_USE_CASES`: a new

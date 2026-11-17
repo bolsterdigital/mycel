@@ -38,7 +38,7 @@ Today the `supporters.ingest` subscriber maps `newsletter.subscribed` and `conse
 
 ## The projection and fold order
 
-`supporter.get` (capability `supporters:read`, MCP resource `mycel://supporters/{email}`) returns `id`, `email`, `firstSeen`, `lastActivity`, `lists` (confirmed consent; the only lists a sender may use), `pendingLists` (signed up, not yet confirmed) and `appliedThrough`.
+`supporter.get` (capability `supporters:read`, MCP resource `mycel://supporters/{email}`) returns `id`, `email`, `firstSeen`, `lastActivity`, `lists` (confirmed consent; the only lists a sender may use), `pendingLists` (signed up, not yet confirmed), `grants`, `lastSeenAt` (the last `reader.signed_in`, kept after retention removed the sign-in events; null for a supporter who never signed in) and `appliedThrough`.
 
 `supporter.list` (same capability) lists the supporters of the site, newest `lastActivity` first and the higher id first within one moment: `id`, `email`, `lists`, `pendingLists`, `firstSeen` and `lastActivity` per row, `total` for every match and `next`, the cursor (`<epoch ms>.<supporter id>`) to pass as `after`. `list` narrows to supporters on that list, confirmed or pending; `status` (`confirmed` or `pending`) only together with `list`; `q` is the start of the normalised address, taken literally, never a substring. An erased supporter is never listed. The rules live in `packages/core/src/supporters/listing.ts` and one adapter-rules scenario holds memory and Postgres to them. The admin shows the list at `/admin/<tenant>/supporters` (Manage, for `supporters:read`); neither the search term nor an address is logged.
 

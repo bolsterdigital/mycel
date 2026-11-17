@@ -1,6 +1,8 @@
 // The decided retention terms (docs/reference/jobs.md § Retention): a processed outbox event goes after
 // 30 days, a form submission after a number of calendar months the tenant sets (24 unless it chose
-// fewer), a reserved admission seat after its window. This file is the arithmetic and the
+// fewer), a reserved admission seat after its window, and a reader's `reader.signed_in` events
+// after a number of days the tenant sets (90 unless it chose otherwise; ADR 019 rule 7), once the
+// projection's `lastSeenAt` holds them. This file is the arithmetic and the
 // document; `retention.apply` in the worker reads the setting, asks for the cut-offs here and
 // hands them to the adapter, so memory, Postgres and the docs count the same way.
 // Rejected: a term in days for submissions (the decision is in months, and "24 months" as 730
@@ -16,10 +18,16 @@ export const OUTBOX_RETENTION_DAYS = 30;
 export const MAX_SUBMISSION_RETENTION_MONTHS = 24;
 /** The shortest term on offer: a month leaves room for confirmation, mail and reconciliation. */
 export const MIN_SUBMISSION_RETENTION_MONTHS = 1;
+/** Sign-in events of readers are kept this many days unless the tenant chose otherwise. */
+export const DEFAULT_READER_ACTIVITY_DAYS = 90;
+/** The longest term on offer for sign-in events; 0 keeps the projection's `lastSeenAt` only. */
+export const MAX_READER_ACTIVITY_DAYS = 365;
 
 /**
- * What a site decides about retention: how many calendar months a form submission is kept. No
- * unlimited option and nothing above 24 months; a lower term applies to what is already stored.
+ * What a site decides about retention: how many calendar months a form submission is kept, and
+ * how many days a reader's sign-in events are (ADR 019 rule 7, `readers.activity_retention_days`).
+ * No unlimited option; a lower term applies to what is already stored. A stored document without
+ * `readerActivityDays` reads as the default, so no tenant needs a backfill.
  */
 export const SiteRetention = z
   .object({
@@ -28,11 +36,20 @@ export const SiteRetention = z
       .int()
       .min(MIN_SUBMISSION_RETENTION_MONTHS)
       .max(MAX_SUBMISSION_RETENTION_MONTHS),
+    readerActivityDays: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_READER_ACTIVITY_DAYS)
+      .default(DEFAULT_READER_ACTIVITY_DAYS),
   })
   .strict();
 export type SiteRetention = z.infer<typeof SiteRetention>;
+/** What a writer may hand over: `readerActivityDays` may be left out and reads as the default. */
+export type SiteRetentionInput = z.input<typeof SiteRetention>;
 export const DEFAULT_RETENTION: SiteRetention = {
   submissionMonths: MAX_SUBMISSION_RETENTION_MONTHS,
+  readerActivityDays: DEFAULT_READER_ACTIVITY_DAYS,
 };
 
 /**
@@ -64,12 +81,18 @@ export interface RetentionCutoffs {
   submissionsBefore: Date;
   /** Admission seats with `admitted_at` at or before this, the window `form.submit` counts with. */
   admissionsThrough: Date;
+  /** `reader.signed_in` events with `occurred_at` before this; 0 days is `now` itself. */
+  readerActivityBefore: Date;
 }
 
-export function retentionCutoffs(now: Date, retention: SiteRetention): RetentionCutoffs {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function retentionCutoffs(now: Date, retention: SiteRetentionInput): RetentionCutoffs {
+  const readerDays = retention.readerActivityDays ?? DEFAULT_READER_ACTIVITY_DAYS;
   return {
-    outboxBefore: new Date(now.getTime() - OUTBOX_RETENTION_DAYS * 24 * 60 * 60 * 1000),
+    outboxBefore: new Date(now.getTime() - OUTBOX_RETENTION_DAYS * DAY_MS),
     submissionsBefore: monthsBefore(now, retention.submissionMonths),
     admissionsThrough: new Date(now.getTime() - ADMISSION_WINDOW_MS),
+    readerActivityBefore: new Date(now.getTime() - readerDays * DAY_MS),
   };
 }

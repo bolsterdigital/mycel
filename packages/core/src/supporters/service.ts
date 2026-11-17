@@ -21,7 +21,7 @@ import {
   applyEvent,
   compareFoldPosition,
   foldPosition,
-  rebuildProjection,
+  refold,
 } from './model.js';
 import './ports.js';
 import { EmailAddress } from '../util/email.js';
@@ -156,6 +156,7 @@ export async function ingest(
       lists: [],
       pendingLists: [],
       grants: [],
+      lastSeenAt: null,
     });
   }
   const appended = await appendAndFold(ctx, { ...event, supporter_id: id });
@@ -196,7 +197,7 @@ export async function appendAndFold(
   const next =
     current && compareFoldPosition(foldPosition(event), current.appliedThrough) > 0
       ? applyEvent(current, event)
-      : rebuildProjection(await ctx.supporters.eventsFor(event.supporter_id));
+      : refold(current, await ctx.supporters.eventsFor(event.supporter_id));
   if (!next) throw new Error(`supporter ${event.supporter_id} has no events after an append`);
   await ctx.supporters.saveProjection(next);
   return true;

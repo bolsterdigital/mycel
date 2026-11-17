@@ -38,6 +38,11 @@ export const SupporterProjection = z.object({
   pendingLists: z.array(z.string()),
   /** One standing grant per tier, by tier id (ADR 016 rule 2). */
   grants: z.array(AccessGrant).default([]),
+  /**
+   * The last `reader.signed_in` (ADR 019 rule 7): what remains of a reader's activity once
+   * retention has removed the sign-in events themselves. Null for a supporter who never signed in.
+   */
+  lastSeenAt: z.string().datetime({ offset: true }).nullable().default(null),
   /** Position of the last folded event in fold order. */
   appliedThrough: z.object({ at: z.string().datetime({ offset: true }), id: z.string() }),
 });
@@ -143,6 +148,7 @@ export function applyEvent(
     lists: [],
     pendingLists: [],
     grants: [],
+    lastSeenAt: null,
     appliedThrough: position,
   };
   const lists = new Set(base.lists);
@@ -162,7 +168,40 @@ export function applyEvent(
     lists: [...lists].sort(),
     pendingLists: [...pending].sort(),
     grants: [...grants.values()].sort((a, b) => (a.tierId < b.tierId ? -1 : 1)),
+    lastSeenAt:
+      event.type === 'reader.signed_in'
+        ? latest(base.lastSeenAt ?? null, at)
+        : (base.lastSeenAt ?? null),
     appliedThrough: position,
+  };
+}
+
+const latest = (a: string | null, b: string | null): string | null =>
+  a === null ? b : b === null ? a : Date.parse(a) >= Date.parse(b) ? a : b;
+const earliest = (a: string, b: string): string => (Date.parse(a) <= Date.parse(b) ? a : b);
+
+/**
+ * A re-fold of `log` that keeps what retention compacted out of it (ADR 019 rule 7): a late event
+ * re-folds from the log, and the log no longer holds the sign-in events retention removed, so the
+ * re-fold alone would move `lastSeenAt` back, `firstSeen` forward and `lastActivity` back. The
+ * stored projection still holds them, and those three only ever move one way. Rejected: a
+ * compaction event in the log (a second kind of fact for one timestamp, and an erasure would have
+ * to find it too) and refusing late events (a backfill must be able to land).
+ */
+export function refold(
+  current: SupporterProjection | null,
+  log: readonly SupporterEvent[]
+): SupporterProjection | null {
+  const next = rebuildProjection(log);
+  if (!next || !current) return next;
+  return {
+    ...next,
+    firstSeen: earliest(next.firstSeen, current.firstSeen),
+    lastActivity:
+      Date.parse(current.lastActivity) > Date.parse(next.lastActivity)
+        ? current.lastActivity
+        : next.lastActivity,
+    lastSeenAt: latest(next.lastSeenAt, current.lastSeenAt ?? null),
   };
 }
 

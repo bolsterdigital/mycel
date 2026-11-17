@@ -1,6 +1,8 @@
-<!-- The reader page: a native sign-in form for a visitor, a status line and a sign-out button
-     for a reader (ADR 009: no JavaScript needed). The honeypot sits out of sight and out of
-     reach of password managers, like the form block's; `proof.js` fills `_proof` when it runs. -->
+<!-- The reader page: a native sign-in form for a visitor; for a reader their own account, one
+     form per newsletter to leave it and a sign-out button (ADR 009: no JavaScript needed). Each
+     newsletter row has one button, so no row of actions has to fit side by side. The honeypot
+     sits out of sight and out of reach of password managers, like the form block's; `proof.js`
+     fills `_proof` when it runs. -->
 <script lang="ts">
   import type { PageProps } from './$types';
 
@@ -9,18 +11,63 @@
 </script>
 
 <svelte:head>
-  <title>{labels.title}</title>
+  <title>{data.account ? labels.accountTitle : labels.title}</title>
   {#if data.form}<script type="module" src="/_form/proof.js"></script>{/if}
 </svelte:head>
 
 <main class="page">
-  <h1>{labels.title}</h1>
-  {#if data.signedIn}
-    <p>{labels.signedIn}</p>
+  {#if data.account}
+    {@const account = data.account}
+    <h1>{labels.accountTitle}</h1>
+    {#if account.withdrawn}
+      <p role="status">{labels.withdrawn.replace('{list}', account.withdrawn)}</p>
+    {/if}
+    <dl class="reader-account">
+      <dt>{labels.email}</dt>
+      <dd>{account.email}</dd>
+      {#if account.lastSeen}
+        <dt>{labels.lastSeen}</dt>
+        <dd>{account.lastSeen}</dd>
+      {/if}
+    </dl>
+
+    <h2>{labels.access}</h2>
+    {#if account.access.length}
+      <ul class="reader-access">
+        {#each account.access as entry (entry.name)}
+          <li><strong>{entry.name}</strong>: {entry.status}</li>
+        {/each}
+      </ul>
+      <p>{labels.accessChange}</p>
+    {:else}
+      <p>{labels.accessNone}</p>
+    {/if}
+
+    <h2>{labels.newsletters}</h2>
+    {#if account.lists.length}
+      <ul class="reader-lists">
+        {#each account.lists as entry (entry.list)}
+          <li>
+            <span>{entry.label}</span>
+            <form method="post" action={account.withdrawAction}>
+              <input type="hidden" name="list" value={entry.list} />
+              <button type="submit">{entry.button}</button>
+            </form>
+          </li>
+        {/each}
+      </ul>
+    {:else}
+      <p>{labels.newslettersNone}</p>
+    {/if}
+
+    <h2>{labels.privacy}</h2>
+    <p>{account.retention}</p>
+    <p>{account.sessionEnds}</p>
     <form method="post" action={data.signoutAction}>
       <button type="submit">{labels.signout}</button>
     </form>
   {:else if data.form}
+    <h1>{labels.title}</h1>
     <p>{labels.intro}</p>
     <form
       method="post"
@@ -67,6 +114,7 @@
       <button type="submit">{labels.submit}</button>
     </form>
   {:else}
+    <h1>{labels.title}</h1>
     <p>{labels.suspended}</p>
   {/if}
 </main>
