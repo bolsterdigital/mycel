@@ -41,8 +41,8 @@ import {
   sweepRateLimits,
   uuidv7Ids,
   withTenant,
-} from './index.js';
-import { asRole, closeTenantWork, migrateSchema, requireDatabase, testTenant } from './testing.js';
+} from '../index.js';
+import { asRole, closeTenantWork, migrateSchema, requireDatabase, testTenant } from '../testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 

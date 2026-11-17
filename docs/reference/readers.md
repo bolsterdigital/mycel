@@ -1,6 +1,6 @@
 # Reader sign-in
 
-A reader is a supporter who proved their e-mail address with a magic link and holds a session on one site ([ADR 016](../adr/016-readers-access-and-paywall.md) rule 1, [ADR 019](../adr/019-supporter-consistency-identity-and-retention.md) rules 1 and 5 to 8). There is no password and no second identity: the session names a supporter id. Code: `packages/core/src/readers/`, `packages/db/src/readers.ts` (migration 0069), the routes under `apps/web/src/routes/(public)/[tenant]/reader/`. What a signed-in reader may read is the access policy of [content-model.md](content-model.md#access-tiers-and-grants); signing in changes no page yet.
+A reader is a supporter who proved their e-mail address with a magic link and holds a session on one site ([ADR 016](../adr/016-readers-access-and-paywall.md) rule 1, [ADR 019](../adr/019-supporter-consistency-identity-and-retention.md) rules 1 and 5 to 8). There is no password and no second identity: the session names a supporter id. Code: `packages/core/src/readers/`, `packages/db/src/supporters/readers.ts` (migration 0069), the routes under `apps/web/src/routes/(public)/[tenant]/reader/`. What a signed-in reader may read is the access policy of [content-model.md](content-model.md#access-tiers-and-grants); signing in changes no page yet.
 
 ## The flow
 

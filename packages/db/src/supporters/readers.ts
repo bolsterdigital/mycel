@@ -9,7 +9,7 @@ import type {
   SigninLink,
   SigninLinkRepository,
 } from '@mycel/core';
-import type { Database } from './infra/schema.js';
+import type { Database } from '../infra/schema.js';
 
 type Trx = Kysely<Database>;
 

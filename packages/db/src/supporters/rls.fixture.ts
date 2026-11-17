@@ -1,4 +1,4 @@
-// The supporter of the RLS fixture (rls.conformance.test.ts): a signup through the form, its
+// The supporter of the RLS fixture (../rls.conformance.test.ts): a signup through the form, its
 // ingest into the log and the projection, and a reader sign-in of that supporter (0069: a pending
 // link and a session). One subject in a file of its own, so the conformance file holds the checks
 // and not every row's setup. Returns the address and the signup's event, which the caller hands
@@ -14,7 +14,7 @@ import {
   type Principal,
   type UnitOfWork,
 } from '@mycel/core';
-import { uuidv7 } from './infra/ids.js';
+import { uuidv7 } from '../infra/ids.js';
 
 export async function seedSupporter(
   invoker: Invoker,

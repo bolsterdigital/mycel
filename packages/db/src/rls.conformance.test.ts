@@ -42,7 +42,7 @@ import {
 } from './index.js';
 import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 import { seedCampaign } from './portability/campaigns.fixture.js';
-import { seedSupporter } from './supporter.fixture.js';
+import { seedSupporter } from './supporters/rls.fixture.js';
 import { seedNavigation } from './portability/navigation.fixture.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');

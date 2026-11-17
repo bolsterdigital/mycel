@@ -1,7 +1,7 @@
 // Reader sign-in in memory (ADR 016 rule 1, ADR 019): one answer for every request, one mail per
 // address per day, a link that works once, a session bound to one tenant that sign-out and
 // erasure end, and a reader principal that can only read. The Postgres side (two processes, the
-// one winner of a parallel consume, RLS) is packages/db/src/readers.test.ts.
+// one winner of a parallel consume, RLS) is packages/db/src/supporters/readers.test.ts.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { issueProofChallenge } from '../forms/proof.js';

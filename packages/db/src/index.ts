@@ -51,7 +51,7 @@ import {
   accessTierRepository,
 } from './content.js';
 import { erasureRepository } from './erasures.js';
-import { readerSessionRepository, signinLinkRepository } from './readers.js';
+import { readerSessionRepository, signinLinkRepository } from './supporters/readers.js';
 import { personErasureRepository } from './people/erasures.js';
 import { tenantExportRepository } from './portability/tenant-exports.js';
 import { hostnameRepository } from './hostnames.js';

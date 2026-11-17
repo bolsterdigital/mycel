@@ -45,7 +45,6 @@ import {
 import { memoryFormMail, memoryForms, memoryRateLimits, memorySubmissions } from './forms.js';
 import { MemoryJobRecovery, MemoryScheduler } from './operations/jobs.js';
 import { memoryMailSends } from './mailing.js';
-import { memoryReaderSessions, memorySigninLinks } from './readers.js';
 import type { EmailRenderer } from '../../mailing/ports.js';
 import { MemoryBlobStore, memoryImageProcessor, memoryMedia } from './media.js';
 import {
@@ -55,7 +54,12 @@ import {
   memoryOperators,
 } from './operators.js';
 import { MemoryStore, entityRepository, paged, sluggedRepository, tenantLock } from './store.js';
-import { memoryAdmissions, memorySupporters } from './supporters.js';
+import {
+  memoryAdmissions,
+  memoryReaderSessions,
+  memorySigninLinks,
+  memorySupporters,
+} from './supporters.js';
 import { memoryExports, memoryHostnames, memoryUsage } from './tenants.js';
 
 export interface MemoryDeps {
