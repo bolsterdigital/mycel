@@ -39,6 +39,7 @@ import {
   FakeInputHasher,
   FakeSigner,
   MemoryBlobStore,
+  memoryBrandProcessor,
   memoryImageProcessor,
   memoryPlatform,
   conditionalProbeForm,
@@ -100,16 +101,7 @@ describe.skipIf(skip)('tenant export and import', () => {
     dns: new FakeDns(),
     platform: memoryPlatform,
     media: { blobs, images: memoryImageProcessor },
-    brandProcessor: {
-      logo: async (bytes) => ({
-        bytes,
-        contentType: 'image/webp' as const,
-        width: 1,
-        height: 1,
-        licence: null,
-      }),
-      font: async () => {},
-    },
+    brandProcessor: memoryBrandProcessor,
     connectionCredentialKey: '10'.repeat(32),
   });
   const invoker = new Invoker(buildRegistry(), uow);

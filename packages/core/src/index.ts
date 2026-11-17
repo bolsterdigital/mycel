@@ -67,6 +67,7 @@ export * from './theme/ports.js';
 export * from './theme/presets.js';
 export * from './theme/service.js';
 export * from './theme/settings.js';
+export * from './theme/ai-use.js';
 export * from './navigation/check.js';
 export * from './navigation/model.js';
 export * from './navigation/prefooter.js';

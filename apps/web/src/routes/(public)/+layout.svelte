@@ -40,8 +40,16 @@
   {#each data.feeds as feed (feed.href)}
     <link rel="alternate" type={feed.type} href={feed.href} title={feed.title} />
   {/each}
+  {#if data.siteHead}
+    <link rel="manifest" href={data.siteHead.manifest} />
+    {#if data.siteHead.tdmReservation}<meta name="tdm-reservation" content="1" />{/if}
+  {/if}
   {#if data.chrome?.logo}
     <link rel="icon" href={data.chrome.logo.src} type="image/webp" />
+    {#if data.siteHead?.touchIcon}<link
+        rel="apple-touch-icon"
+        href={data.siteHead.touchIcon}
+      />{/if}
   {:else}
     <link rel="icon" href="data:," />
   {/if}

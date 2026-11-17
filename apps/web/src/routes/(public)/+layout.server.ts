@@ -10,13 +10,21 @@
 // `theme-color` per mode is the theme's `body` background, and the icon is the site's own logo
 // (the chrome's); a site without a logo links an empty icon, so the browser makes no request
 // (not even the implicit `/favicon.ico`). Rejected: a generated icon or a platform default,
-// which would show a mark the site never chose.
-import { negotiateLocale } from '@mycel/core';
+// which would show a mark the site never chose. The touch icon is that same logo, squared on the
+// light background, and the manifest names it; a site that reserves text and data mining
+// says so in a TDMRep meta, beside the same choice in its robots.txt.
+import { aiPolicy, negotiateLocale } from '@mycel/core';
 import { chromeModel } from '#lib/server/public/chrome.js';
 import { localeOf } from '#lib/server/public/content-route.js';
 import { feedLinks } from '#lib/server/public/text/feed.js';
 import { sitePath } from '#lib/server/site.js';
-import { siteTheme, themePath } from '#lib/server/public/theme.js';
+import {
+  iconPath,
+  siteBrand,
+  siteGeneral,
+  siteTheme,
+  themePath,
+} from '#lib/server/public/theme.js';
 import type { LayoutServerLoad } from './$types';
 
 export const csr = false;
@@ -26,9 +34,19 @@ const CONTENT_ROUTE = /\/\[\[locale=locale\]\]\/(?:\[\.\.\.path\]|people\/\[slug
 
 export const load: LayoutServerLoad = async ({ locals, request, params, route, setHeaders }) => {
   const site = locals.site;
-  if (!site) return { credit: null, theme: null, chrome: null, locale: 'en', feeds: [] };
-  const { hash, preload, colors } = await siteTheme(site);
+  if (!site)
+    return { credit: null, theme: null, chrome: null, locale: 'en', feeds: [], siteHead: null };
+  const [{ hash, preload, colors }, { logo }, general] = await Promise.all([
+    siteTheme(site),
+    siteBrand(site),
+    siteGeneral(site),
+  ]);
   const theme = { href: sitePath(site, themePath(hash)), preload, colors };
+  const head = {
+    manifest: sitePath(site, '/manifest.webmanifest'),
+    touchIcon: logo.active ? sitePath(site, iconPath(logo.version, colors.light, 180)) : null,
+    tdmReservation: aiPolicy(general.aiUse).tdmReservation,
+  };
   // A content path has its language in the address; anything else depends on the visitor's.
   if (!CONTENT_ROUTE.test(route.id ?? '')) setHeaders({ vary: 'accept-language' });
   const locale = CONTENT_ROUTE.test(route.id ?? '')
@@ -44,5 +62,11 @@ export const load: LayoutServerLoad = async ({ locals, request, params, route, s
   const feeds = CONTENT_ROUTE.test(route.id ?? '')
     ? feedLinks(site, locale, '/', site.tenant.name)
     : [];
-  return { theme, locale, feeds, ...(await chromeModel(site, locale, sitePath(site, ''))) };
+  return {
+    theme,
+    locale,
+    feeds,
+    siteHead: head,
+    ...(await chromeModel(site, locale, sitePath(site, ''))),
+  };
 };

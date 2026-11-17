@@ -19,6 +19,7 @@ import type {
 import { PRESENCE_READ_LIMIT } from '../../content/presence/model.js';
 import type { TransactionContext } from '../../ports.js';
 import { paged, type TenantStore } from './store.js';
+import { memoryBrandProcessor } from './media.js';
 
 /** The trash half of the content port, split off so `memoryContent` stays readable. */
 function memoryTrash(
@@ -369,16 +370,7 @@ export function memorySite(
         return next.version;
       },
     },
-    brandProcessor: {
-      logo: async (bytes) => ({
-        bytes,
-        contentType: 'image/webp' as const,
-        width: 1,
-        height: 1,
-        licence: null,
-      }),
-      font: async () => {},
-    },
+    brandProcessor: memoryBrandProcessor,
   };
 }
 

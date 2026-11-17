@@ -2728,6 +2728,14 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.general.timeZone.hint':
     'Het beheer plant en toont tijden in deze zone, tenzij iemand onder Voorkeuren een eigen zone koos.',
   'admin.site.general.save': 'Tijdzone opslaan',
+  'admin.site.ai.title': 'Gebruik door AI',
+  'admin.site.ai.label': 'Wat mogen AI-diensten met de gepubliceerde inhoud?',
+  'admin.site.ai.hint':
+    'Zoekmachines blijven de site altijd vinden. De keuze staat in robots.txt en in elke pagina; een dienst die zich er niet aan houdt, houdt Mycel niet tegen.',
+  'admin.site.ai.open': 'Alles: lezen, antwoorden en trainen',
+  'admin.site.ai.no-training': 'Lezen en antwoorden, niet trainen',
+  'admin.site.ai.search-only': 'Alleen zoekmachines',
+  'admin.site.ai.save': 'AI-keuze opslaan',
   'admin.site.retention.title': 'Inzendingen bewaren',
   'admin.site.retention.current': 'Deze site bewaart formulierinzendingen {months}.',
   'admin.site.retention.months': 'Bewaartermijn',

@@ -14,6 +14,7 @@
      General also holds, for `tenant:admin` only, how long form submissions are kept. -->
 <script lang="ts">
   import {
+    AI_USES,
     CAPTION_FONTS,
     DROP_CAPS,
     FONT_PAIRS,
@@ -201,6 +202,33 @@
           { value: 'auto', label: t('admin.people.site.auto') },
           { value: 'off', label: t('admin.people.site.off') },
         ]}
+      />
+    </SettingsSection>
+    <SettingsSection
+      id="site-ai"
+      title={t('admin.site.ai.title')}
+      action={action('ai')}
+      submit={t('admin.site.ai.save')}
+      saved={saved('ai')}
+      unsaved={t('admin.site.unsaved')}
+    >
+      <!-- The time zone travels along unchanged: one general document, one version. -->
+      <input
+        type="hidden"
+        name="baseVersion"
+        value={form?.action === 'ai'
+          ? value('baseVersion', String(data.general.version))
+          : String(data.general.version)}
+      />
+      <input type="hidden" name="timeZone" value={data.general.value.timeZone} />
+      <Select
+        id="site-ai-use"
+        name="aiUse"
+        label={t('admin.site.ai.label')}
+        locale={data.locale}
+        hint={t('admin.site.ai.hint')}
+        value={value('aiUse', data.general.value.aiUse ?? 'open')}
+        options={AI_USES.map((use) => ({ value: use, label: t(`admin.site.ai.${use}`) }))}
       />
     </SettingsSection>
     {#if data.retention}

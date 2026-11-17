@@ -8,6 +8,7 @@ import {
   FakeDns,
   FakeInputHasher,
   FakeSigner,
+  memoryBrandProcessor,
   memoryPlatform,
   runSuffix,
 } from '@mycel/core/testing';
@@ -38,16 +39,7 @@ describe.skipIf(skip)('site settings conformance', () => {
       inputHasher: new FakeInputHasher(),
       dns: new FakeDns(),
       platform: memoryPlatform,
-      brandProcessor: {
-        logo: async (bytes) => ({
-          bytes,
-          contentType: 'image/webp' as const,
-          width: 1,
-          height: 1,
-          licence: null,
-        }),
-        font: async () => {},
-      },
+      brandProcessor: memoryBrandProcessor,
     })
   );
   let a = '';

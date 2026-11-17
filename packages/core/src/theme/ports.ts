@@ -25,6 +25,11 @@ export interface SiteSettingsRepository {
 export interface BrandProcessor {
   logo(bytes: Uint8Array, contentType: string): Promise<BrandAsset>;
   font(bytes: Uint8Array): Promise<void>;
+  /**
+   * A square, opaque PNG of `size` pixels: the logo derivative centred on `background` (a CSS
+   * colour), for the touch icon and the web app manifest.
+   */
+  icon(logo: Uint8Array, size: number, background: string): Promise<Uint8Array>;
 }
 export interface BrandAssetsRepository {
   get(kind: BrandKind): Promise<{ version: number; asset: BrandAsset | null }>;

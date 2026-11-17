@@ -1953,6 +1953,13 @@ test.describe('site-settings', () => {
     request,
   }) => {
     await login(page, `/admin/${slug}/site`, `site-editor-${slug}@probe.test`);
+    // The AI choice reaches robots.txt and, as a TDM reservation, every page.
+    await page.getByLabel('What may AI services do').selectOption('no-training');
+    await page.getByRole('button', { name: 'Save AI choice' }).click();
+    await shown(page);
+    const robots = await (await request.get(`/${slug}/robots.txt`)).text();
+    expect(robots).toMatch(/^Content-Signal: search=yes, ai-input=yes, ai-train=no$/m);
+    expect(robots).toMatch(/^User-agent: GPTBot\n/m);
     const largeLogo = await sharp(randomBytes(512 * 512 * 3), {
       raw: { width: 512, height: 512, channels: 3 },
     })
@@ -1995,6 +2002,11 @@ test.describe('site-settings', () => {
     const logoUrl = await identity.locator('img').getAttribute('src');
     expect(logoUrl).toBeTruthy();
     await expect(page.locator('link[rel=icon]')).toHaveAttribute('href', logoUrl!);
+    await expect(page.locator('meta[name=tdm-reservation]')).toHaveAttribute('content', '1');
+    const touch = await page.locator('link[rel=apple-touch-icon]').getAttribute('href');
+    expect((await request.get(touch!)).headers()['content-type']).toBe('image/png');
+    const manifest = await (await request.get(`/${slug}/manifest.webmanifest`)).json();
+    expect(manifest.icons.map((i: { sizes: string }) => i.sizes)).toEqual(['192x192', '512x512']);
     const logoResponse = await request.get(logoUrl!);
     expect(logoResponse.status()).toBe(200);
     expect(logoResponse.headers()['content-type']).toBe('image/webp');
@@ -2021,6 +2033,7 @@ test.describe('site-settings', () => {
       .click();
     await shown(page);
     expect((await request.get(logoUrl!)).status()).toBe(404);
+    expect((await request.get(touch!)).status()).toBe(404);
     const freshPage = await request.get(`/${slug}/home`, {
       headers: { 'if-none-match': activeEtag! },
     });

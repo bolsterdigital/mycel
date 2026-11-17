@@ -6,24 +6,24 @@
 // `/_brand` (logo and font): a crawler that renders the page needs them, and blocking them shows
 // it every page unstyled. Rejected: a per-tenant editable file (a typo can hide a whole site;
 // `seo.noindex` is the per-item switch) and listing restricted URLs here (robots.txt is public
-// and would map them).
+// and would map them). Which AI agents may read the site, the Content-Signal line and nothing
+// else follow from the site's one AI choice (`robotsTxt` in core).
 import { createHash } from 'node:crypto';
+import { robotsTxt } from '@mycel/core';
 import { PUBLIC_CACHE } from '#lib/server/http/http-cache.js';
 import { requireSite, sitePath, siteUrls } from '#lib/server/site.js';
+import { siteGeneral } from '#lib/server/public/theme.js';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals }) => {
   const site = requireSite(locals);
   const absolute = await siteUrls(site);
   const internal = ['/_speculation.json', '/confirm'];
-  const body = [
-    'User-agent: *',
-    'Disallow: /admin',
-    ...internal.map((path) => `Disallow: ${sitePath(site, path)}`),
-    '',
-    `Sitemap: ${absolute('/sitemap.xml')}`,
-    '',
-  ].join('\n');
+  const body = robotsTxt({
+    use: (await siteGeneral(site)).aiUse,
+    disallowPaths: ['/admin', ...internal.map((path) => sitePath(site, path))],
+    sitemap: absolute('/sitemap.xml'),
+  });
   return new Response(body, {
     headers: {
       'content-type': 'text/plain; charset=utf-8',

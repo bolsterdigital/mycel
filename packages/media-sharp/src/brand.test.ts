@@ -77,3 +77,36 @@ describe('brand decoder', () => {
     );
   });
 });
+
+describe('brand icon', () => {
+  it('fits a wide logo into an opaque square on the background, with a margin', async () => {
+    const wide = await sharp({
+      create: { width: 400, height: 100, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite([
+        {
+          input: await sharp({
+            create: { width: 400, height: 100, channels: 3, background: '#c00000' },
+          })
+            .png()
+            .toBuffer(),
+        },
+      ])
+      .webp()
+      .toBuffer();
+    const icon = await processor.icon(wide, 180, '#fafafa');
+    const meta = await sharp(icon).metadata();
+    expect(meta).toMatchObject({ format: 'png', width: 180, height: 180 });
+    const { data, info } = await sharp(icon).raw().toBuffer({ resolveWithObject: true });
+    const at = (x: number, y: number) => {
+      const i = (y * info.width + x) * info.channels;
+      return [...data.subarray(i, i + 3)];
+    };
+    // The corner is the background, the centre the mark, nothing is transparent.
+    expect(at(2, 2)).toEqual([250, 250, 250]);
+    expect(at(90, 90)[0]).toBeGreaterThan(180);
+    expect(at(90, 90)[1]).toBeLessThan(40);
+    expect(at(8, 90)).toEqual([250, 250, 250]);
+    if (info.channels === 4) for (let i = 3; i < data.length; i += 4) expect(data[i]).toBe(255);
+  });
+});

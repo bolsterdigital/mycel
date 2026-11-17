@@ -27,6 +27,7 @@ import {
   Theme,
   SiteChrome,
   useCases,
+  type AiUse,
   type Capability,
 } from '@mycel/core';
 import { fail, redirect } from '@sveltejs/kit';
@@ -164,6 +165,22 @@ export const actions: Actions = {
       return { saved: 'general', version: result.version };
     } catch (e) {
       return refused(e, 'general', data);
+    }
+  },
+  // The AI choice is a field of the general document with a form of its own: the time zone
+  // travels along unchanged, so the save is a compare-and-set on the same version.
+  ai: async ({ request, locals, url, params }) => {
+    const data = await request.formData();
+    const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
+    if (!can(principal, 'content:write')) refuse(403);
+    try {
+      const result = await runtime().invoker.run(useCases.updateSiteGeneral, principal, {
+        baseVersion: baseVersion(data),
+        general: { timeZone: text(data, 'timeZone'), aiUse: text(data, 'aiUse') as AiUse },
+      });
+      return { saved: 'ai', version: result.version };
+    } catch (e) {
+      return refused(e, 'ai', data);
     }
   },
   retention: async ({ request, locals, url, params }) => {
