@@ -72,7 +72,7 @@
   "apps/web/src/lib/blocks/intro.conformance.test.ts": 1,
   "apps/web/src/lib/blocks/markdown.ts": 1,
   "apps/web/src/lib/blocks/model.ts": 4,
-  "apps/web/src/lib/blocks/resolve.ts": 5,
+  "apps/web/src/lib/blocks/resolve.ts": 4,
   "apps/web/src/lib/components/MycelCredit.svelte": 1,
   "apps/web/src/lib/editor/WritingSurface.svelte": 1,
   "apps/web/src/lib/editor/article-document.test.ts": 1,

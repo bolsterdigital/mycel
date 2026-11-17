@@ -3,8 +3,9 @@
 // The route file only passes the runtime's pieces in.
 //
 //   unknown id, unknown file, `original.*`, deleted or not ready  -> 404
-//   restricted without a valid signature (ADR 018 rule 7)        -> 403, private, no-store
-//   restricted with one                                          -> 200, private, no-store
+//   restricted without a valid reader signature (ADR 018 rule 7) -> 403, private, no-store
+//   restricted with one of this tenant (`for`, expired or forged
+//   counts as none)                                              -> 200, private, no-store
 //   public                                                       -> 200, public, immutable
 //
 // A variant's key contains the media id and never changes (replacing a file is a new id), so a
@@ -101,16 +102,22 @@ export async function serveMedia(
   if (!media || media.deletedAt || media.state !== 'ready' || !variant) return status(404);
 
   const restricted = media.access === 'restricted';
+  // Only a reader's path opens it here: one signed for this site's tenant (`readerMediaScope`).
+  const scope = url.searchParams.get('for');
   if (
     restricted &&
-    !(await verifyMediaSignature(
-      deps.signer,
-      id,
-      file,
-      url.searchParams.get('exp'),
-      url.searchParams.get('sig'),
-      deps.clock.now()
-    ))
+    !(
+      scope?.startsWith(`${tenant.id}/`) &&
+      (await verifyMediaSignature(
+        deps.signer,
+        id,
+        file,
+        url.searchParams.get('exp'),
+        url.searchParams.get('sig'),
+        deps.clock.now(),
+        scope
+      ))
+    )
   )
     return status(403, PRIVATE_NO_STORE);
 

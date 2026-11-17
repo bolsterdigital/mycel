@@ -16,6 +16,11 @@
 // a key, an agent and a visitor are nobody here; an operator reads a restricted body through
 // `content.item.get`, which asks for a membership.
 //
+// Restricted media (ADR 018 rule 7) open the same way: a reader with access gets the item's own
+// restricted images and files, those of its blocks and its hero, as views with paths signed for
+// this tenant, item and locale until the earliest of ten minutes, the session's end and the end
+// of the grants that open it. Everyone else gets none, and a card, feed or share card never asks.
+//
 // Rejected: a flag on the full projection that the renderer honours (the body would be in the
 // JSON and one forgetful representation leaks it), cutting the projected blocks after the locale
 // (the description chain would already have read the body), and a prompt per tier name here (the
@@ -23,10 +28,15 @@
 
 import { z } from 'zod';
 import type { TransactionContext } from '../../ports.js';
+import { variantFile, type MediaView } from '../../media/model.js';
+import '../../media/ports.js';
+import { toMediaView } from '../../media/service.js';
+import { readerMediaScope } from '../../media/signed-paths.js';
 import { liveSession } from '../../readers/service.js';
 import '../../supporters/ports.js';
+import { blockReferenceRows } from '../blocks.js';
 import type { ContentDocument } from '../model.js';
-import { hasAccess, readerOf, type ReaderAccess } from './model.js';
+import { accessEndsAt, hasAccess, readerOf, type ReaderAccess } from './model.js';
 
 /**
  * Why the body was left out, as the one thing a visitor can do about it: `signin` for nobody
@@ -72,25 +82,80 @@ export function cardDocument(doc: ContentDocument): ContentDocument {
   return doc.access.level === 'public' ? doc : { ...teaserDocument(doc), blocks: [] };
 }
 
-/** The reader behind this request's principal, read now; null for everyone who is not one. */
-export async function readerAccess(ctx: TransactionContext): Promise<ReaderAccess | null> {
+/**
+ * The reader behind this request's principal, read now, with the end of their session; null for
+ * everyone who is not one.
+ */
+export async function readerAccess(
+  ctx: TransactionContext
+): Promise<(ReaderAccess & { sessionEndsAt: Date }) | null> {
   const { actor } = ctx.principal;
   if (actor.kind !== 'reader') return null;
   const session = await liveSession(ctx, actor.sessionId, ctx.clock.now());
   if (!session) return null;
-  return readerOf(await ctx.supporters.getProjectionById(session.supporterId));
+  const reader = readerOf(await ctx.supporters.getProjectionById(session.supporterId));
+  return reader && { ...reader, sessionEndsAt: session.expiresAt };
 }
 
 /**
  * The document this request's principal may read of a published revision, and the gate when the
- * body was cut. A public document is returned as it is without reading any session.
+ * body was cut. A public document is returned as it is without reading any session. `until` is
+ * when a reader's access to a restricted document ends (session or grants); null otherwise.
  */
 export async function accessProjection(
   ctx: TransactionContext,
   doc: ContentDocument
-): Promise<{ document: ContentDocument; gate: AccessGate | null }> {
-  if (doc.access.level === 'public') return { document: doc, gate: null };
+): Promise<{ document: ContentDocument; gate: AccessGate | null; until: Date | null }> {
+  if (doc.access.level === 'public') return { document: doc, gate: null, until: null };
   const reader = await readerAccess(ctx);
-  if (hasAccess(reader, doc, ctx.clock.now())) return { document: doc, gate: null };
-  return { document: teaserDocument(doc), gate: { prompt: reader ? 'tier' : 'signin' } };
+  const now = ctx.clock.now();
+  if (reader && hasAccess(reader, doc, now)) {
+    const grants = accessEndsAt(reader, doc, now);
+    const until = grants && grants < reader.sessionEndsAt ? grants : reader.sessionEndsAt;
+    return { document: doc, gate: null, until };
+  }
+  return {
+    document: teaserDocument(doc),
+    gate: { prompt: reader ? 'tier' : 'signin' },
+    until: null,
+  };
+}
+
+/** How long a reader's signed media path works at most (ADR 018 rule 7). */
+export const READER_MEDIA_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * The restricted media of a document a reader may read until `until`, by id, as views whose paths
+ * are signed for `scope` (tenant, item, locale): those of its blocks and its hero, ready and not
+ * deleted. Public media are left out, the front reads them as a visitor; so are the featured and
+ * share images, which only cards and share cards show.
+ */
+export async function readerMedia(
+  ctx: TransactionContext,
+  doc: Pick<ContentDocument, 'blocks' | 'heroImageId'>,
+  scope: { itemId: string; locale: string },
+  until: Date
+): Promise<Record<string, MediaView>> {
+  const ids = new Set(
+    blockReferenceRows(doc.blocks)
+      .filter((r) => r.type === 'media')
+      .map((r) => r.refId)
+  );
+  if (doc.heroImageId) ids.add(doc.heroImageId);
+  const ttl = new Date(ctx.clock.now().getTime() + READER_MEDIA_TTL_MS);
+  const expiresAt = until < ttl ? until : ttl;
+  const signedFor = readerMediaScope(ctx.principal.tenantId, scope.itemId, scope.locale);
+  const out: Record<string, MediaView> = {};
+  for (const id of ids) {
+    const m = await ctx.media.get(id);
+    if (!m || m.deletedAt || m.state !== 'ready' || m.access !== 'restricted') continue;
+    const view = toMediaView(ctx, m);
+    const paths = await Promise.all(
+      m.variants.map((v) =>
+        ctx.delivery.signedVariantPath(ctx.signer, m.id, variantFile(v), expiresAt, signedFor)
+      )
+    );
+    out[id] = { ...view, variants: view.variants.map((v, i) => ({ ...v, path: paths[i]! })) };
+  }
+  return out;
 }

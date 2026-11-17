@@ -3,6 +3,7 @@
 // hidden place carries a sentinel, and the test reads the serialised answer for it, so a field
 // that starts carrying the body fails here whatever its name is. The same sentinels through the
 // site's HTML and Markdown are apps/web/e2e; RLS and two tenants in Postgres are packages/db.
+// Restricted media come to a reader with access only, as paths signed for one item and locale.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Invoker } from '../../invoke.js';
@@ -18,7 +19,9 @@ import { FakeClock, MemoryUnitOfWork, TENANT, principal } from '../../testing/in
 import { buildRegistry, useCases } from '../../use-cases.js';
 import { publicItemPath } from '../../mailing/email.js';
 import type { ContentDocument } from '../model.js';
-import { teaserBlocks, teaserDocument } from './projection.js';
+import { EXAMPLE_PNG } from '../../media/service.js';
+import { readerMediaScope, verifyMediaSignature } from '../../media/signed-paths.js';
+import { READER_MEDIA_TTL_MS, teaserBlocks, teaserDocument } from './projection.js';
 
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const HOUR = 60 * 60 * 1000;
@@ -248,6 +251,89 @@ describe('the access projection of a published item', () => {
     const after = await read('stuk', ada.as);
     expect(after.gate).toEqual({ prompt: 'tier' });
     expect(hidden(after)).toEqual([]);
+  });
+
+  it('signs the item’s restricted media for a reader with access only, until the grant ends', async () => {
+    const t = await tier('donateurs');
+    const upload = (access: 'public' | 'restricted') =>
+      invoker.run(useCases.uploadMedia, admin(), {
+        filename: 'pixel.png',
+        contentType: 'image/png',
+        bytes: EXAMPLE_PNG,
+        access,
+      });
+    const [hero, inside, open] = [
+      await upload('restricted'),
+      await upload('restricted'),
+      await upload('public'),
+    ];
+    const image = (id: string, mediaId: string) => ({
+      id,
+      type: 'image' as const,
+      version: 1 as const,
+      props: { mediaId, decorative: true, alt: null },
+    });
+    const item = await article(
+      'beeld',
+      { level: 'tier', tierIds: [t.id], teaser: 'marker' },
+      {
+        heroImageId: hero.id,
+        // The featured image is a card's: a reader gets no signed path for it.
+        featuredImageId: inside.id,
+        blocks: [rich('open', 'Open.'), paywall, image('foto', inside.id), image('vrij', open.id)],
+      }
+    );
+    const [ada, bob] = [await reader('ada@example.org'), await reader('bob@example.org')];
+    const ends = new Date(clock.now().getTime() + 3 * 60 * 1000);
+    await invoker.run(useCases.createAccessGrant, admin(), {
+      supporterId: ada.supporterId,
+      tierId: t.id,
+      kind: 'comp',
+      reason: 'test',
+      until: ends.toISOString(),
+    });
+    // A visitor and a reader without the tier get no signed path, and no path at all.
+    for (const as of [visitor(), bob.as]) {
+      const answer = await read('beeld', as);
+      expect(answer.readerMedia).toBeUndefined();
+      expect(JSON.stringify(answer)).not.toContain('sig=');
+    }
+    const answer = await read('beeld', ada.as);
+    // Only the restricted ones, each file signed for this tenant, item and locale.
+    expect(Object.keys(answer.readerMedia ?? {}).sort()).toEqual([hero.id, inside.id].sort());
+    const signed = answer.readerMedia![inside.id]!;
+    expect(signed.variants.length).toBeGreaterThan(0);
+    const scope = readerMediaScope(TENANT, item.id, 'nl');
+    for (const v of signed.variants) {
+      const url = new URL(v.path, 'https://site.example');
+      expect(url.searchParams.get('for')).toBe(scope);
+      // The grant ends before the ten minutes do, so the path ends with it.
+      expect(Number(url.searchParams.get('exp'))).toBe(Math.floor(ends.getTime() / 1000));
+    }
+    const first = new URL(signed.variants[0]!.path, 'https://site.example');
+    const opens = (at: Date, as = scope) =>
+      verifyMediaSignature(
+        uow.signer,
+        inside.id,
+        first.pathname.split('/').pop()!,
+        first.searchParams.get('exp'),
+        first.searchParams.get('sig'),
+        at,
+        as
+      );
+    expect(await opens(clock.now())).toBe(true);
+    expect(await opens(clock.now(), readerMediaScope(OTHER, item.id, 'nl'))).toBe(false);
+    expect(await opens(ends)).toBe(false);
+    // A grant without an end: ten minutes at most.
+    await invoker.run(useCases.createAccessGrant, admin(), {
+      supporterId: bob.supporterId,
+      tierId: t.id,
+      kind: 'comp',
+      reason: 'test',
+    });
+    const later = await read('beeld', bob.as);
+    const exp = new URL(later.readerMedia![hero.id]!.variants[0]!.path, 'https://x').searchParams;
+    expect(Number(exp.get('exp')) * 1000).toBe(clock.now().getTime() + READER_MEDIA_TTL_MS);
   });
 
   it('reads a revoked grant, a signed-out session and an ended session as closed', async () => {

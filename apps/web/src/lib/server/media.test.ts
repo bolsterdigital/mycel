@@ -1,6 +1,6 @@
 // The delivery route's answers (TODO #10, brief decision 8) over in-memory ports: headers of a
-// public variant, 304 on a matching ETag, 403 for a restricted asset without a signature and 200
-// with one, 404 for the original, an unknown file or another site's asset. Below it the admin's
+// public variant, 304 on a matching ETag, 403 for a restricted asset without a reader's signature
+// for this tenant and 200 with one, 404 for the original, an unknown file or another site's asset. Below it the admin's
 // own files (TODO #10b): the original needs an operator and a signature, the thumbnail an
 // operator.
 import { describe, expect, it } from 'vitest';
@@ -10,6 +10,7 @@ import {
   Invoker,
   appDelivery,
   buildRegistry,
+  readerMediaScope,
   bytesToBase64,
   systemPrincipal,
   useCases,
@@ -97,25 +98,35 @@ describe('media delivery route', () => {
     expect((await get(m.id, 'w1.webp', '', OTHER)).status).toBe(404);
   });
 
-  it('opens a restricted asset only with a valid, unexpired signature, never to a shared cache', async () => {
+  it('opens a restricted asset only with a reader’s valid, unexpired signature, never to a shared cache', async () => {
     const { upload, get, signer, clock } = await setup();
     const m = await upload({ access: 'restricted' });
     const denied = await get(m.id, 'w1.avif');
     expect(denied.status).toBe(403);
     expect(denied.headers.get('cache-control')).toBe('private, no-store');
 
-    const path = await appDelivery.signedVariantPath(
-      signer,
-      m.id,
-      'w1.avif',
-      new Date(+clock.now() + 600_000)
-    );
-    const query = path.slice(path.indexOf('?'));
+    const item = '01900000-0000-7000-8000-0000000000c1';
+    const sign = (file: string, scope?: string) =>
+      appDelivery
+        .signedVariantPath(signer, m.id, file, new Date(+clock.now() + 600_000), scope)
+        .then((path) => path.slice(path.indexOf('?')));
+    const query = await sign('w1.avif', readerMediaScope(TENANT, item, 'nl'));
     const ok = await get(m.id, 'w1.avif', query);
     expect(ok.status).toBe(200);
     expect(ok.headers.get('cache-control')).toBe('private, no-store');
-    // The signature is for one file, and it expires.
+    expect(ok.headers.get('etag')).not.toBeNull();
+    // The signature is for one file, one scope and one tenant, and it expires.
     expect((await get(m.id, 'w1.webp', query)).status).toBe(403);
+    const forged = query.replace(`for=${encodeURIComponent(`${TENANT}/${item}/nl`)}`, (f) =>
+      f.replace('%2Fnl', '%2Fen')
+    );
+    expect(forged).not.toBe(query);
+    expect((await get(m.id, 'w1.avif', forged)).status).toBe(403);
+    expect((await get(m.id, 'w1.avif', query.replace(/sig=[^&]+/, 'sig=x'))).status).toBe(403);
+    // An unscoped path (the admin's kind) and one for another tenant open nothing on the site.
+    expect((await get(m.id, 'w1.avif', await sign('w1.avif'))).status).toBe(403);
+    const other = await sign('w1.avif', readerMediaScope(OTHER, item, 'nl'));
+    expect((await get(m.id, 'w1.avif', other)).status).toBe(403);
     clock.advance(600_001);
     expect((await get(m.id, 'w1.avif', query)).status).toBe(403);
   });

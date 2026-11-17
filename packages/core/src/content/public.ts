@@ -4,7 +4,8 @@
 // published locale of it: the other translations in the same revision snapshot, published or
 // not, never leave the core (ADR 018 rule 9, ADR 020 rule 8). A restricted item is served whole
 // to a reader with access and as its teaser to everyone else (access/projection.ts): the body is
-// cut from the document before anything below reads it, and `gate` says that it was.
+// cut from the document before anything below reads it, and `gate` says that it was. The reader
+// also gets the item's restricted media with signed paths (`readerMedia`).
 //
 // The locale is chosen by the caller (the HTML route from its path, the read route from
 // `?locale=`), never negotiated from Accept-Language, so a response depends on its URL only and
@@ -24,7 +25,8 @@ import { notFound } from '../errors.js';
 import { ARTICLE_HEADERS } from './model.js';
 import { Locale } from '../i18n/locale.js';
 import { defineUseCase } from '../registry.js';
-import { AccessGate, accessProjection } from './access/projection.js';
+import { MediaView } from '../media/model.js';
+import { AccessGate, accessProjection, readerMedia } from './access/projection.js';
 import { Block, blockLocalized, projectBlock } from './blocks.js';
 import { ContentType, LocalDateTime, Slug, type ContentDocument } from './model.js';
 import { EffectiveView, effectiveOf } from './header/effective.js';
@@ -101,6 +103,12 @@ export const PublishedItem = z.object({
    * and an event's details were left out for this caller, and `prompt` says what would open them.
    */
   gate: AccessGate.nullable(),
+  /**
+   * The restricted images and files of the item's blocks and hero, by id, with short-lived paths
+   * signed for this tenant, item and locale (ADR 018 rule 7). Only for a reader with access, and
+   * only when there are any; the answer that carries it is private.
+   */
+  readerMedia: z.record(z.string().guid(), MediaView).optional(),
   /** The introduction in this locale, on pages and articles. */
   lead: z.string().nullable(),
   /** Images and short texts after inheritance (#86), so no reader derives them on its own. */
@@ -181,7 +189,10 @@ export const getPublished = defineUseCase({
     const revision = await ctx.content.revision(item.id, state.publishedRevisionId!);
     if (!revision) throw missing();
     // The one access decision (ADR 016 rule 3): everything below reads `doc`, never the revision.
-    const { document: doc, gate } = await accessProjection(ctx, revision.document);
+    const { document: doc, gate, until } = await accessProjection(ctx, revision.document);
+    const signed = until
+      ? await readerMedia(ctx, doc, { itemId: item.id, locale: chosen }, until)
+      : {};
     const effective = effectiveOf(doc, chosen, (await ctx.siteSettings.images()).value);
     const base = {
       id: item.id,
@@ -206,6 +217,7 @@ export const getPublished = defineUseCase({
       },
       access: doc.access.level,
       gate,
+      ...(Object.keys(signed).length ? { readerMedia: signed } : {}),
       lead: doc.lead?.[chosen] ?? null,
       effective,
       ...(doc.prefooter === false ? { prefooter: false as const } : {}),

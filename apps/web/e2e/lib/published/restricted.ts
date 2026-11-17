@@ -3,12 +3,13 @@
 // reader without the tier the same teaser, a reader with a grant the whole article, and the
 // teaser again the moment the grant ends inside the open session. Every hidden place carries a
 // sentinel, read in the HTML, the Markdown and the JSON read route; the caching headers are
-// those a shared cache would act on. The core matrix is access/projection.test.ts. The spec
+// those a shared cache would act on. A restricted image behind the boundary reaches the reader
+// with access only, through a signed path that ends with the grant. The core matrix is access/projection.test.ts. The spec
 // brings the sign-in (it owns the mail spool); the fixtures are made here.
 
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { systemPrincipal, useCases } from '@mycel/core';
+import { EXAMPLE_PNG, systemPrincipal, useCases } from '@mycel/core';
 import { requireApi } from '../api';
 import { expectNoAxeViolations } from '../axe';
 import { tenantId, withInvoker } from '../invoker';
@@ -30,6 +31,12 @@ async function fixtures(id: string) {
     const tier = await invoker.run(useCases.createAccessTier, principal, {
       slug: `e2e-tier-${id}`,
       name: { nl: 'Donateurs', en: 'Donors' },
+    });
+    const photo = await invoker.run(useCases.uploadMedia, principal, {
+      filename: `besloten-${id}.png`,
+      contentType: 'image/png',
+      bytes: EXAMPLE_PNG,
+      access: 'restricted',
     });
     const author = await invoker.run(useCases.createPerson, principal, {
       slug: `e2e-auteur-${id}`,
@@ -62,6 +69,11 @@ async function fixtures(id: string) {
               content: { nl: text('SENTINEL-BODY achter de grens.'), en: text('SENTINEL-EN') },
             },
           },
+          {
+            type: 'image',
+            version: 1,
+            props: { mediaId: photo.id, decorative: false, alt: { nl: 'Besloten foto' } },
+          },
         ],
         access: { level: 'tier', tierIds: [tier.id], teaser: 'marker' },
       } as never,
@@ -72,7 +84,7 @@ async function fixtures(id: string) {
       revisionId: revision.id,
       locale: 'nl',
     });
-    return { tierId: tier.id, slug: item.slug };
+    return { tierId: tier.id, slug: item.slug, itemId: item.id, photoId: photo.id };
   });
 }
 
@@ -100,7 +112,7 @@ export async function exerciseRestrictedArticle(
   /** Fills in the sign-in form the page is on and follows the mailed link to its one button. */
   signIn: (email: string) => Promise<void>
 ) {
-  const { tierId, slug } = await fixtures(randomUUID().slice(0, 8));
+  const { tierId, slug, itemId, photoId } = await fixtures(randomUUID().slice(0, 8));
   const path = `/articles/${slug}`;
   const url = `${SITE}${path}`;
   const gate = page.locator('.reader-gate');
@@ -115,6 +127,7 @@ export async function exerciseRestrictedArticle(
   expect(etag).toMatch(/:nl:teaser:/);
   expect(teaser).toContain('Open alinea voor iedereen.');
   expect(leaks(teaser)).toEqual([]);
+  expect(teaser).not.toContain(photoId);
   expect((await request.get(url, { headers: { 'if-none-match': etag } })).status()).toBe(304);
   expect(teaser).toMatch(
     /"isAccessibleForFree":false,"hasPart":\{[^}]*"cssSelector":"\.reader-gate"/
@@ -179,8 +192,23 @@ export async function exerciseRestrictedArticle(
   expect(await readerMd.text()).toContain('SENTINEL-BODY');
   expect(readerMd.headers()['cache-control']).toBe('private, no-store');
   expect(readerMd.headers()['etag']).toBeUndefined();
+  // The restricted image: a path signed for this tenant, item and locale, only on this page.
+  const photo = page.getByRole('img', { name: 'Besloten foto' });
+  await expect(photo).toBeVisible();
+  const src = new URL((await photo.getAttribute('src'))!, SITE);
+  expect(src.pathname).toMatch(new RegExp(`^/media/${photoId}/`));
+  expect(src.searchParams.get('for')).toMatch(new RegExp(`/${itemId}/nl$`));
+  const signedImage = await page.request.get(src.href);
+  expect(signedImage.status()).toBe(200);
+  expect(signedImage.headers()['cache-control']).toBe('private, no-store');
+  expect((await request.get(`${SITE}${src.pathname}`)).status()).toBe(403);
+  const forged = new URL(src);
+  forged.searchParams.set('sig', 'x');
+  expect((await request.get(forged.href)).status()).toBe(403);
   // Meanwhile a request without the cookie is still a visitor's.
-  expect(leaks(await (await request.get(url)).text())).toEqual([]);
+  const visitorPage = await (await request.get(url)).text();
+  expect(leaks(visitorPage)).toEqual([]);
+  expect(visitorPage).not.toContain(photoId);
 
   // The grant ends while the session stays open: the next read is the teaser again.
   await page.waitForTimeout(Math.max(0, granted + GRANT_SECONDS * 1000 + 500 - Date.now()));
@@ -189,4 +217,7 @@ export async function exerciseRestrictedArticle(
     gate.getByRole('heading', { name: 'Je toegang geldt niet voor dit stuk' })
   ).toBeVisible();
   expect(leaks(await page.content())).toEqual([]);
+  expect(await page.content()).not.toContain(photoId);
+  // The path handed out while the grant stood ended with it.
+  expect((await request.get(src.href)).status()).toBe(403);
 }
