@@ -1,10 +1,10 @@
 // The storage catalog of what is kept outside the tables: blobs, export archives, backups and
-// copies at a provider. Same fields as `STORAGE` in storage.ts beside this file, which holds the
+// copies at a provider. Same fields as `STORAGE` in `../storage.ts`, which holds the
 // rules of the catalog and re-exports this one. Apart so that file stays under its size ceiling;
 // storage.test.ts reads both catalogs, so nothing is checked less.
 // Rejected: a size allowance for storage.ts (the gate asks for a subject in a file of its own).
 
-import type { StorageEntry } from './storage.js';
+import type { StorageEntry } from '../storage.js';
 
 /** What is kept outside the tables, with the same fields; `where` says where it lives. */
 export interface OffTableStorage extends Omit<StorageEntry, 'category'> {

@@ -15,11 +15,11 @@
 // with different routes), and prose in docs alone (nothing fails when a migration adds a table).
 
 import type { Database } from '../infra/schema.js';
-import { ACCESS_STORAGE } from './storage-access.js';
-import { ASSIST_STORAGE } from './storage-assist.js';
-import { NAVIGATION_STORAGE } from './storage-navigation.js';
+import { ACCESS_STORAGE } from './storage/access.js';
+import { ASSIST_STORAGE } from './storage/assist.js';
+import { NAVIGATION_STORAGE } from './storage/navigation.js';
 
-export { OFF_TABLE_STORAGE } from './storage-off-table.js';
+export { OFF_TABLE_STORAGE } from './storage/off-table.js';
 
 /**
  * Whose copy. `supporter`: someone who signed, subscribed or gave, erased on request (ADR 019

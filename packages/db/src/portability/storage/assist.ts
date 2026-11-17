@@ -1,8 +1,8 @@
-// The storage catalog entries of the writing assistant (ADR 021), spread into `STORAGE` beside
-// this file, which holds the rules of the catalog. Apart so that file stays under its size
+// The storage catalog entries of the writing assistant (ADR 021), spread into `STORAGE` in
+// `../storage.ts`, which holds the rules of the catalog. Apart so that file stays under its size
 // ceiling; the conformance suites read the merged `STORAGE`, so nothing is checked less.
 
-import type { StorageEntry } from './storage.js';
+import type { StorageEntry } from '../storage.js';
 
 export const ASSIST_STORAGE = {
   assist_settings: {

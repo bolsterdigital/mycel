@@ -1,9 +1,9 @@
 // The storage catalog entries of reader sign-in and the rate windows (ADR 016, ADR 019 rule 8),
-// spread into `STORAGE` beside this file, which holds the rules of the catalog. Apart so that file
-// stays under its size ceiling; the conformance suites read the merged `STORAGE`, so nothing is
-// checked less.
+// spread into `STORAGE` in `../storage.ts`, which holds the rules of the catalog. Apart so that
+// file stays under its size ceiling; the conformance suites read the merged `STORAGE`, so nothing
+// is checked less.
 
-import type { StorageEntry } from './storage.js';
+import type { StorageEntry } from '../storage.js';
 
 export const ACCESS_STORAGE = {
   reader_signin_links: {
