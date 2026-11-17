@@ -298,11 +298,11 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
   const sign = async (email: string) => {
     await pastMinimumFillTime(visitor);
     await visitor.getByLabel('E-mailadres').fill(email);
-    await visitor.getByRole('button', { name: 'Versturen' }).click();
+    await visitor.getByRole('button', { name: 'Teken de petitie' }).click();
   };
   await visitor.goto(`/probe/${slug}`);
   await expect(visitor.getByText('Meedoen kan nog niet.')).toBeVisible();
-  await expect(visitor.getByRole('button', { name: 'Versturen' })).toHaveCount(0);
+  await expect(visitor.getByRole('button', { name: 'Teken de petitie' })).toHaveCount(0);
 
   await page.goto(`/admin/probe/content/${itemId}`);
   await panel.getByRole('button', { name: 'Deelname openen' }).click();
@@ -353,7 +353,7 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
   await expect(
     visitor.getByText('Meedoen kan niet meer: deze campagne is gesloten.')
   ).toBeVisible();
-  await expect(visitor.getByRole('button', { name: 'Versturen' })).toHaveCount(0);
+  await expect(visitor.getByRole('button', { name: 'Teken de petitie' })).toHaveCount(0);
   await stale.locator('#campaign').getByRole('button', { name: 'Campagne opslaan' }).click();
   await expect(stale).toHaveURL(/\?campaign=conflict#campaign$/);
   await expect(
@@ -386,7 +386,7 @@ test('a campaign card: live on page, article and scheduled page; nothing when un
   await expect(cards.first()).toContainText('Petitie · nog niet open');
   await expect(cards.first()).toContainText(`Kaart kaart-${stamp}`);
   await expect(page.getByRole('link', { name: 'Bekijk de campagne' })).toHaveCount(2);
-  await expect(page.getByRole('button', { name: 'Versturen' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Teken de petitie' })).toHaveCount(0);
   expect(response?.headers()['etag']).toBeTruthy();
   // Published in Dutch only: the English host shows no card for it.
   await page.goto(`/probe/en/gast-${stamp}`);
@@ -397,7 +397,7 @@ test('a campaign card: live on page, article and scheduled page; nothing when un
   // The page before was cacheable for a minute (rule 6: a display delay); revalidate it.
   await page.goto(host);
   response = await page.reload();
-  await expect(cards.first().getByRole('button', { name: 'Versturen' })).toBeVisible();
+  await expect(cards.first().getByRole('button', { name: 'Teken de petitie' })).toBeVisible();
   await expect(cards.nth(1).getByRole('link', { name: 'Teken de petitie' })).toBeVisible();
   await expect(page.locator('form.signup')).toHaveCount(1);
   expect(response?.headers()['cache-control']).toContain('no-store');
@@ -418,7 +418,7 @@ test('a campaign card: live on page, article and scheduled page; nothing when un
   // Signed from the card on the host: the host's thank-you page, as from any form.
   await pastMinimumFillTime(page);
   await cards.first().getByLabel('E-mailadres').fill(`e2e-card-${stamp}@example.org`);
-  await cards.first().getByRole('button', { name: 'Versturen' }).click();
+  await cards.first().getByRole('button', { name: 'Teken de petitie' }).click();
   await expect(page.getByText('bevestig je handtekening')).toBeVisible();
 
   await page.goto(`/probe/articles/gast-artikel-${stamp}`);
@@ -439,11 +439,15 @@ test('a campaign card: live on page, article and scheduled page; nothing when un
   // The scheduled host publishes the revision it pinned, and the card still shows the campaign
   // as it is then: closed, under the landing page's newer title.
   await campaignAction('closeCampaign');
-  await stale.locator('.campaign-card').first().getByRole('button', { name: 'Versturen' }).click();
+  await stale
+    .locator('.campaign-card')
+    .first()
+    .getByRole('button', { name: 'Teken de petitie' })
+    .click();
   await expect(
     stale.getByRole('alert').getByText('Deze campagne neemt op dit moment geen deelname aan.')
   ).toBeVisible();
-  await expect(stale.getByRole('button', { name: 'Versturen' })).toHaveCount(0);
+  await expect(stale.getByRole('button', { name: 'Teken de petitie' })).toHaveCount(0);
   await expect(stale.locator('.campaign-card').first()).toContainText('Petitie · gesloten');
   await stale.close();
   await publishOnSchedule(`Gesloten ${stamp}`);
@@ -451,7 +455,7 @@ test('a campaign card: live on page, article and scheduled page; nothing when un
   await expect(cards).toContainText('Petitie · gesloten');
   await expect(cards).toContainText(`Gesloten ${stamp}`);
   await page.goto(host);
-  await expect(page.getByRole('button', { name: 'Versturen' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Teken de petitie' })).toHaveCount(0);
   await page.goto(`/probe/kaart-${stamp}`);
   await expect(page.getByText('Meedoen kan niet meer: deze campagne is gesloten.')).toBeVisible();
 });
