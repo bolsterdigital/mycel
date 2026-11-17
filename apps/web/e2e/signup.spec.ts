@@ -33,6 +33,7 @@ import { testTenant } from '@mycel/db/testing';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { campaignCardFixture } from './lib/blocks/campaigns';
 import { exerciseRestrictedArticle } from './lib/published/restricted';
+import { exerciseDonation } from './lib/forms/donation';
 
 /**
  * A form page ships proof of work, plus conditional display only when its definition needs it.
@@ -755,6 +756,11 @@ test.describe('in English', () => {
     await expectNoAxeViolations(page);
   });
 });
+
+// MY-252: give, pay at the test provider, the outcome, the admin list and the donor's page.
+test('a donation: an amount, the test provider, thanks or failure, Donations and the person', async ({
+  page,
+}, testInfo) => exerciseDonation(page, testInfo.project.name));
 
 test('an invalid confirmation link explains itself and passes axe', async ({ page, request }) => {
   await page.goto('/probe/confirm?token=forged');

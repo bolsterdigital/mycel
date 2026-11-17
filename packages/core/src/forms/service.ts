@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { notFound } from '../errors.js';
-import { withinLimit } from '../entitlements/guards.js';
+import { requireEntitled, withinLimit } from '../entitlements/guards.js';
 import { defineUseCase } from '../registry.js';
 import { emailKey } from '../supporters/email-key.js';
 import {
@@ -12,7 +12,18 @@ import {
   type ParticipationRequestedProps,
 } from './events.js';
 import { participationFor } from '../campaigns/service.js';
-import { FormDefinition, SubmitInput, SubmitResult, type FormField } from './model.js';
+import {
+  FormDefinition,
+  JOINING_KINDS,
+  SubmitInput,
+  SubmitResult,
+  donationAmountField,
+  type FormField,
+} from './model.js';
+import { startDonation } from '../money/service.js';
+import { MAX_AMOUNT, MIN_AMOUNT } from '../money/model.js';
+import { UseCaseError } from '../errors.js';
+import { t } from '../i18n/index.js';
 import { ProofChallenge, checkProof, issueProofChallenge } from './proof.js';
 import {
   CONFIRMATION_COOLDOWN_SECONDS,
@@ -72,7 +83,7 @@ export const submitForm = defineUseCase({
   name: 'form.submit',
   kind: 'command',
   description:
-    'Submit a form. Stores the submission and, with consent, publishes newsletter.subscribed; a form bound to a campaign also needs that campaign open (else the error campaign.closed) and mails a confirmation that makes the signature count. Returns accepted, invalid (field errors as i18n keys) or rejected (spam defence).',
+    'Submit a form. Stores the submission and, with consent, publishes newsletter.subscribed; a form bound to a campaign also needs that campaign open (else the error campaign.closed) and mails a confirmation that makes the signature count. A donation form also needs `returnUrl` (with `{token}`), starts the payment and answers with the `checkoutUrl` where the visitor pays. Returns accepted, invalid (field errors as i18n keys) or rejected (spam defence).',
   requires: 'forms:write',
   consumes: 'supporters.max',
   input: SubmitInput,
@@ -180,6 +191,38 @@ export const submitForm = defineUseCase({
     const { values, email, errors, consent, activeFieldIds, requiredFieldIds, discardedFieldIds } =
       evaluated;
     if (errors.length) return { status: 'invalid', errors };
+    // The gift in cents, within what one payment may move; refused before anything is stored.
+    const gift = form.kind === 'donation' ? donationAmountField(form) : undefined;
+    const cents = gift ? Math.round(Number(values[gift.name]) * 100) : 0;
+    if (gift && (cents < MIN_AMOUNT || cents > MAX_AMOUNT))
+      return {
+        status: 'invalid',
+        errors: [{ field: gift.name, message: 'forms.error.donation-amount' }],
+      };
+    // A site that cannot take a gift says so before anything is counted or stored.
+    if (gift) {
+      requireEntitled(principal, 'donations.enabled');
+      if (!ctx.paymentProvider)
+        throw new UseCaseError('conflict', 'no payment provider is configured');
+    }
+    if (gift && !input.returnUrl)
+      throw new UseCaseError('invalid_input', 'a donation form needs returnUrl', [
+        { path: 'returnUrl', message: 'donation.return-url.token-missing' },
+      ]);
+    // An accepted donation opens its checkout after the submission is stored (the payment names
+    // it), in this transaction: a provider that does not answer rolls the submission back too.
+    const accept = async (): Promise<SubmitResult> => {
+      if (!gift) return { status: 'accepted', submissionId };
+      const { checkoutUrl, token } = await startDonation(ctx, {
+        amount: cents,
+        currency: 'EUR',
+        description: t(input.locale, 'forms.donation.description'),
+        locale: input.locale,
+        returnUrl: input.returnUrl!,
+        submissionId,
+      });
+      return { status: 'accepted', submissionId, checkoutUrl, token };
+    };
 
     const submissionId = ctx.ids.next();
     const submission: import('./model.js').Submission = {
@@ -230,14 +273,16 @@ export const submitForm = defineUseCase({
     // so a probe learns nothing.
     const campaign = await participationFor(ctx, form, input.locale, now);
     if (campaign) submission.evaluation!.campaignId = campaign.id;
-    const joins = consent && ['signup', 'petition'].includes(form.kind);
+    const joins = consent && JOINING_KINDS.includes(form.kind);
 
-    // Every signup causes a confirmation mail, so every signup passes the recipient cooldown.
+    // Every signup causes a confirmation mail, so every signup passes the recipient cooldown. A
+    // gift without consent mails nothing here, and someone may give twice in a day.
     // After the tenant lock, which already serialises submissions; the adapter's own lock makes
     // the primitive safe without it. Hashed so the table holds no address (the submission row is
     // the only copy). A refusal writes nothing: no submission, no event, no seat.
     const recipientKey = await emailKey(principal.tenantId, email, 'rate-limit');
     if (
+      (!gift || joins) &&
       !(await ctx.rateLimits.cooldown(
         `forms.confirm:${form.id}:${recipientKey}`,
         CONFIRMATION_COOLDOWN_SECONDS
@@ -245,7 +290,8 @@ export const submitForm = defineUseCase({
     )
       return reject('recipient-limited');
 
-    if (joins || campaign) {
+    // A donor gives their address to give: it becomes a supporter when the payment settles.
+    if (joins || campaign || gift) {
       const lifecycleId = await ctx.erasures.admit(email, submissionId, now);
       if (lifecycleId === null)
         return { status: 'rejected', reason: 'unavailable', message: 'forms.rejected.unavailable' };
@@ -272,7 +318,7 @@ export const submitForm = defineUseCase({
     // a campaign's form still mails the confirmation that makes the signature count, with no list.
     if (!joins && !campaign) {
       await ctx.submissions.insert(submission);
-      return { status: 'accepted', submissionId };
+      return accept();
     }
 
     const holder = await ctx.supporters.getProjection(email);
@@ -314,7 +360,7 @@ export const submitForm = defineUseCase({
         props: { ...requested, formVersion: version, ...confirmationProps },
       });
     }
-    if (!joins) return { status: 'accepted', submissionId };
+    if (!joins) return accept();
 
     const props: NewsletterSubscribedProps = {
       email,
@@ -339,6 +385,6 @@ export const submitForm = defineUseCase({
         ...confirmationProps,
       },
     });
-    return { status: 'accepted', submissionId };
+    return accept();
   },
 });

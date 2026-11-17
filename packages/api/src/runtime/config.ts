@@ -65,6 +65,14 @@ const Config = z
      * indexing delay; 15 is an assumption with a budget until someone measures it.
      */
     MAIL_RECONCILE_LAG_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
+    /**
+     * Who takes payments (ADR 005, brief MY-252 PR 2). `none`: donation forms answer that no
+     * provider is configured. `fake`: a provider that moves no money, with its own payment screen
+     * on the site, keeping its payments in PAYMENT_FAKE_DIR (a trial installation and the e2e
+     * gate); refused in production. Mollie follows as a per-tenant connection, not as env.
+     */
+    PAYMENT_PROVIDER: z.enum(['none', 'fake']).default('none'),
+    PAYMENT_FAKE_DIR: z.string().min(1).optional(),
     ASSIST_PROVIDER: z.enum(['none', 'fake', 'openai-compatible']).default('none'),
     ASSIST_PROVIDER_LABEL: z.string().min(1).optional(),
     ASSIST_BASE_URL: z.string().url().optional(),
@@ -202,6 +210,12 @@ const Config = z
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.MAIL_SPOOL_DIR), {
     message: 'MAIL_SPOOL_DIR is not allowed in production',
+  })
+  .refine((c) => !(c.NODE_ENV === 'production' && c.PAYMENT_PROVIDER === 'fake'), {
+    message: 'PAYMENT_PROVIDER=fake is not allowed in production',
+  })
+  .refine((c) => c.PAYMENT_PROVIDER !== 'fake' || !!c.PAYMENT_FAKE_DIR, {
+    message: 'PAYMENT_PROVIDER=fake needs PAYMENT_FAKE_DIR (web, API and worker share it)',
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.ASSIST_PROVIDER === 'fake'), {
     message: 'ASSIST_PROVIDER=fake is not allowed in production',

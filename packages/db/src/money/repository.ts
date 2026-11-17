@@ -1,7 +1,8 @@
-// Payments and their ledger over Postgres (0072). The application role cannot update or delete a
-// ledger entry, so `appendLedger` is the only write there is; it numbers the entry after the
-// last of its payment (`seq`), and `ledger` reads in that order, which is the order of writing. `save` writes exactly what a step
-// of the state machine changes; amount, currency, provider and reference are fixed at insert.
+// Payments and their ledger over Postgres (0072, 0074). The application role cannot update or
+// delete a ledger entry, so `appendLedger` is the only write there is; it numbers the entry after
+// the last of its payment (`seq`), and `ledger` reads in that order, which is the order of
+// writing. `save` writes exactly what a step of the state machine changes, and the supporter a
+// settling step found; amount, currency, provider, reference and submission are fixed at insert.
 // Rejected: `save` as an upsert (a payment that vanished must not come back as a new row).
 import { sql, type Kysely, type Selectable } from 'kysely';
 import { LedgerEntry, Payment, type PaymentRepository } from '@mycel/core';
@@ -22,6 +23,7 @@ const read = (row: Selectable<Database['payments']>): Payment =>
     providerStatus: row.provider_status,
     checkoutUrl: row.checkout_url,
     supporterId: row.supporter_id,
+    submissionId: row.submission_id,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
     paidAt: toIso(row.paid_at),
@@ -51,6 +53,7 @@ export function paymentRepository(trx: Kysely<Database>, tenantId: string): Paym
           provider_status: p.providerStatus,
           checkout_url: p.checkoutUrl,
           supporter_id: p.supporterId,
+          submission_id: p.submissionId,
           created_at: p.createdAt,
           updated_at: p.updatedAt,
           paid_at: p.paidAt,
@@ -68,6 +71,7 @@ export function paymentRepository(trx: Kysely<Database>, tenantId: string): Paym
           checkout_url: p.checkoutUrl,
           updated_at: p.updatedAt,
           paid_at: p.paidAt,
+          supporter_id: p.supporterId,
         })
         .where('id', '=', p.id)
         .execute();
@@ -80,6 +84,16 @@ export function paymentRepository(trx: Kysely<Database>, tenantId: string): Paym
         .orderBy('created_at', 'desc')
         .orderBy('id', 'desc')
         .offset(offset)
+        .limit(limit)
+        .execute();
+      return found.map(read);
+    },
+    async due(before, limit) {
+      const found = await rows()
+        .where('status', 'in', ['created', 'open'])
+        .where('updated_at', '<', new Date(before))
+        .orderBy('updated_at')
+        .orderBy('id')
         .limit(limit)
         .execute();
       return found.map(read);

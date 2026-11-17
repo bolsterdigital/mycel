@@ -19,6 +19,15 @@ export function fieldPattern(type: string): string | undefined {
 }
 
 const FieldId = z.string().regex(/^[a-z][a-z0-9_-]{0,63}$/);
+/** A positive amount in whole cents. */
+const Amount = z
+  .number()
+  .positive()
+  .max(1_000_000)
+  .refine((n) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-7, 'two decimals at most');
+
+/** The name under which an amount field with presets posts its own amount. */
+export const otherAmountName = (name: string): string => `${name}-other`;
 const Atom = z.discriminatedUnion('op', [
   z.object({
     op: z.enum(['equals', 'not-equals']),
@@ -63,9 +72,27 @@ export const FormField = z.discriminatedUnion('type', [
   }),
   z.object({
     ...common,
-    type: z.enum(['number', 'amount']),
+    type: z.literal('number'),
     min: z.number().finite().optional(),
     max: z.number().finite().optional(),
+  }),
+  z.object({
+    ...common,
+    type: z.literal('amount'),
+    min: z.number().finite().optional(),
+    max: z.number().finite().optional(),
+    /**
+     * Amounts to choose from, in the field's unit (euros, two decimals at most), offered as radio
+     * buttons. Without them the field is one free input.
+     */
+    presets: z.array(Amount).min(3).max(6).optional(),
+    /**
+     * With presets: whether the visitor may also type an amount of their own. Its input is posted
+     * as `<name>-other`, a name no field can have (names take no hyphen), and wins over the
+     * chosen preset when filled in: typing an amount says more than a preset that was checked
+     * for them.
+     */
+    custom: z.boolean().optional(),
   }),
   z.object({ ...common, type: z.literal('date') }),
   z.object({ ...common, type: z.enum(['choice', 'multiple-choice']), options }),
@@ -115,6 +142,10 @@ export function validFieldReferences(fields: FormField[]): boolean {
       field.min > field.max
     )
       return false;
+    if (field.type === 'amount' && field.presets) {
+      if (new Set(field.presets).size !== field.presets.length) return false;
+      if (field.presets.some((p) => outside(field, p))) return false;
+    }
     for (const predicate of [field.activeWhen, field.requiredWhen]) {
       if (!predicate) continue;
       if (!validPredicateReferences(predicate, [...prior.values()])) return false;
@@ -147,6 +178,9 @@ export function validPredicateReferences(
   return true;
 }
 
+const outside = (field: { min?: number | undefined; max?: number | undefined }, n: number) =>
+  (field.min !== undefined && n < field.min) || (field.max !== undefined && n > field.max);
+
 /** One pass in dependency order; predicates consume only earlier validated, active values. */
 export function evaluateFields(fields: readonly FormField[], raw: Record<string, FieldValue>) {
   const values: Record<string, FieldValue> = {};
@@ -176,7 +210,15 @@ export function evaluateFields(fields: readonly FormField[], raw: Record<string,
     const required =
       field.required || !!(field.requiredWhen && predicateMatches(field.requiredWhen, byId));
     if (required) requiredFieldIds.push(id);
-    const input = field.type === 'hidden' ? field.value : raw[field.name];
+    const own =
+      field.type === 'amount' && field.presets ? raw[otherAmountName(field.name)] : undefined;
+    const typed =
+      field.type === 'amount' &&
+      field.presets &&
+      field.custom !== false &&
+      typeof own === 'string' &&
+      own.trim() !== '';
+    const input = field.type === 'hidden' ? field.value : typed ? own : raw[field.name];
     const text = typeof input === 'string' ? input.trim() : '';
     let value: FieldValue | undefined;
     let error: string | undefined;
@@ -213,7 +255,10 @@ export function evaluateFields(fields: readonly FormField[], raw: Record<string,
         (field.min !== undefined && number < field.min) ||
         (field.max !== undefined && number > field.max) ||
         (field.type === 'amount' &&
-          (number < 0 || Math.abs(number * 100 - Math.round(number * 100)) > 1e-7))
+          (number < 0 ||
+            Math.abs(number * 100 - Math.round(number * 100)) > 1e-7 ||
+            // Without an amount of their own, only an offered one.
+            (field.presets && !typed && !field.presets.includes(number))))
       )
         error = 'forms.error.value';
       else value = number;

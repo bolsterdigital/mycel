@@ -51,7 +51,13 @@ import {
 } from './campaigns/service.js';
 import { composeCampaign } from './campaigns/compose.js';
 import { getCampaignCard } from './campaigns/card.js';
-import { checkDonation, createDonation, getDonation, listDonations } from './money/service.js';
+import {
+  checkDonation,
+  checkDonationReturn,
+  createDonation,
+  getDonation,
+  listDonations,
+} from './money/service.js';
 import {
   createConnection,
   disconnectConnection,
@@ -299,6 +305,7 @@ export const useCases = {
   getCampaignCard,
   createDonation,
   checkDonation,
+  checkDonationReturn,
   getDonation,
   listDonations,
   listCampaigns,

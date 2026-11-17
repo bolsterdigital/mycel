@@ -7,12 +7,26 @@ import { Locale, localized, pickAny } from '../i18n/locale.js';
 import { FormField, FieldValue, validFieldReferences } from './fields.js';
 export { FormField } from './fields.js';
 
+/**
+ * What a form is for. `donation` (MY-252 PR 2) also starts a payment: its one `amount` field is
+ * the gift, and an accepted submission returns where the visitor pays.
+ */
+export const FormKind = z.enum(['signup', 'contact', 'petition', 'rsvp', 'donation']);
+export type FormKind = z.infer<typeof FormKind>;
+
+/** Kinds whose ticked consent field joins the form's list (a donor may also subscribe). */
+export const JOINING_KINDS: readonly FormKind[] = ['signup', 'petition', 'donation'];
+
+/** The field that holds the gift of a donation form. */
+export const donationAmountField = (form: Pick<FormDefinition, 'fields'>) =>
+  form.fields.find((f) => f.type === 'amount');
+
 export const FormDefinition = z
   .object({
     id: z.string().guid(),
     /** Editorial metadata only; absent on legacy definitions to preserve their fingerprints. */
     name: localized(z.string().trim().min(1).max(200)).optional(),
-    kind: z.enum(['signup', 'contact', 'petition', 'rsvp']),
+    kind: FormKind,
     /** The consent scope a signup adds to (ADR 010 rule 6: a list is a consent scope). */
     list: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
     fields: z.array(FormField).min(1).max(64),
@@ -33,6 +47,15 @@ export const FormDefinition = z
     message: 'forms.needs-one-consent-owner',
   })
   .refine((f) => validFieldReferences(f.fields), { message: 'forms.fields.invalid-references' })
+  // The gift is one amount the visitor always gives: no second one to choose between, none that
+  // a condition can switch off.
+  .refine(
+    (f) =>
+      f.kind !== 'donation' ||
+      (f.fields.filter((x) => x.type === 'amount').length === 1 &&
+        f.fields.some((x) => x.type === 'amount' && x.required && !x.activeWhen)),
+    { message: 'forms.donation.needs-one-amount-field' }
+  )
   .refine((f) => f.fields.some((x) => x.type === 'email' && x.required && !x.activeWhen), {
     message: 'forms.needs-active-required-email',
   });
@@ -60,6 +83,11 @@ export const SubmitInput = z.object({
   /** The page the form was on, for provenance and the supporter event's `source_site`. */
   pageUrl: z.string().url().optional(),
   /**
+   * A donation form only: where the payment provider sends the visitor back, with `{token}` where
+   * their return token goes (`donation.create`).
+   */
+  returnUrl: z.string().url().max(2000).optional(),
+  /**
    * Spam signals the public front collects; required for anonymous principals. `honeypot` is
    * the posted value of the hidden field, absent when the post had no such field: an anonymous
    * post without it is refused as spam (the handler, not the schema, since integrations omit it).
@@ -76,7 +104,14 @@ export const SubmitInput = z.object({
 export type SubmitInput = z.infer<typeof SubmitInput>;
 
 export const SubmitResult = z.discriminatedUnion('status', [
-  z.object({ status: z.literal('accepted'), submissionId: z.string().guid() }),
+  z.object({
+    status: z.literal('accepted'),
+    submissionId: z.string().guid(),
+    /** A donation form: where the visitor pays now; null when the provider settled at once. */
+    checkoutUrl: z.string().url().nullable().optional(),
+    /** A donation form: the token of the visitor's return page. */
+    token: z.string().optional(),
+  }),
   z.object({
     status: z.literal('invalid'),
     /** `message` is an i18n key (ADR 007); fronts translate it into the visitor's locale. */

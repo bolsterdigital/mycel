@@ -1058,6 +1058,7 @@ test.describe('admin-shell', () => {
       'Forms',
       'Reader access',
       'Supporters',
+      'Donations',
       'Connections',
       'API access',
       'AI assistance',

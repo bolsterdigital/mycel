@@ -105,6 +105,44 @@
       undefined}
     {#if field.type === 'hidden'}
       <input type="hidden" name={field.name} value={field.value ?? ''} />
+    {:else if field.type === 'amount' && field.presets}
+      <!-- A gift: radio buttons for the presets and, when offered, an amount of one's own under
+           `<name>-other`, which wins when filled in (core `forms/fields.ts`). The radios are
+           required only when there is nothing else to fill in. -->
+      <fieldset class="field amount" data-form-field aria-describedby={describedBy}>
+        <legend>{field.label}</legend>
+        {#if field.help}<p id="{id}-help">{field.help}</p>{/if}
+        {#if error}<p class="error" id="{id}-error">{error}</p>{/if}
+        <div class="presets">
+          {#each field.presets as preset, i (preset.value)}
+            <label class="preset"
+              ><input
+                id={i === 0 ? id : `${id}-${i}`}
+                type="radio"
+                name={field.name}
+                value={preset.value}
+                required={field.required && !field.otherLabel}
+                checked={textValue(field.name) === preset.value}
+              />{preset.label}</label
+            >
+          {/each}
+        </div>
+        {#if field.otherLabel}
+          <label for="{id}-other">{field.otherLabel}</label>
+          <input
+            id="{id}-other"
+            name="{field.name}-other"
+            type="number"
+            inputmode="decimal"
+            min={field.min}
+            max={field.max}
+            step="0.01"
+            autocomplete="off"
+            aria-invalid={error ? 'true' : undefined}
+            value={textValue(`${field.name}-other`)}
+          />
+        {/if}
+      </fieldset>
     {:else if field.type === 'consent' || field.type === 'checkbox'}
       <div class="field check" data-form-field>
         {#if error}<p class="error" id="{id}-error">{error}</p>{/if}

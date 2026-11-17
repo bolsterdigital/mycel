@@ -322,7 +322,7 @@
           {@const at = when(e.occurredAt)}
           <tr
             ><td data-label={t('admin.supporter.timeline.what')}
-              >{eventSentence(t, e, data.names)}</td
+              >{eventSentence(t, e, data.names, data.locale)}</td
             >
             <td data-label={t('admin.supporter.timeline.when')}
               ><time datetime={at.iso} title={at.full}>{at.text}</time></td

@@ -6,7 +6,7 @@ import { emailKey } from '../supporters/email-key.js';
 import { UseCaseError } from '../errors.js';
 import { entitled, reserveFormMailBudget } from '../entitlements/guards.js';
 import type { DomainEvent, TransactionContext } from '../ports.js';
-import type { Submission } from './model.js';
+import { JOINING_KINDS, type Submission } from './model.js';
 import { mailValues, resolveFormMail } from './mail-templates.js';
 import type { PinnedMailAction, ResolvedFormMail } from './mail-model.js';
 
@@ -35,7 +35,7 @@ export async function planFormMail(ctx: TransactionContext, submission: Submissi
   // by Mycel even when a provider owns the consent: the link then confirms only the signature.
   const participates = !!submission.evaluation?.campaignId;
   const consented =
-    ['signup', 'petition'].includes(form.kind) &&
+    JOINING_KINDS.includes(form.kind) &&
     form.fields.some((f) => f.type === 'consent' && submission.values[f.name] === true);
   const needsConfirmation = participates || consented;
   // The form's own confirmation copy is written for a subscription. It goes only with the link

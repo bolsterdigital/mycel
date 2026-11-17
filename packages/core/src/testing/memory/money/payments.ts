@@ -33,6 +33,13 @@ export function memoryPayments(s: TenantStore): PaymentRepository {
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
           .slice(offset, offset + limit)
       ),
+    due: async (before, limit) =>
+      structuredClone(
+        [...rows.values()]
+          .filter((p) => (p.status === 'created' || p.status === 'open') && p.updatedAt < before)
+          .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt) || a.id.localeCompare(b.id))
+          .slice(0, limit)
+      ),
     async appendLedger(entry) {
       s.ledgerEntries.push(structuredClone(entry));
     },

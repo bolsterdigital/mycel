@@ -109,7 +109,11 @@ describe('a one-off donation (ADR 005)', () => {
   it('records paid once, however often it is checked', async () => {
     const { give, check, read, provider, clock } = setup();
     const { paymentId } = await give();
-    expect(await check(paymentId)).toMatchObject({ status: 'open', paidAt: null });
+    expect(await check(paymentId)).toMatchObject({
+      status: 'open',
+      paidAt: null,
+      checkoutUrl: `https://pay.example/checkout/fake_${paymentId}`,
+    });
     provider!.settle(`fake_${paymentId}`, 'paid');
     clock.advance(60_000);
     const paid = await check(paymentId);
@@ -118,6 +122,7 @@ describe('a one-off donation (ADR 005)', () => {
       amount: 2500,
       currency: 'EUR',
       paidAt: clock.now().toISOString(),
+      checkoutUrl: null,
     });
     clock.advance(60_000);
     expect(await check(paymentId, 'reconcile')).toEqual(paid);
@@ -224,14 +229,20 @@ describe('a one-off donation (ADR 005)', () => {
     await expectCode(give({ supporterId: gone.id }), 'not_found');
   });
 
-  it('answers the donor’s token with status and amount only', async () => {
+  it('answers the donor’s token with status, amount and where to pay only', async () => {
     const { give, invoker, as, provider } = setup();
     const { paymentId, token } = await give();
     provider!.settle(`fake_${paymentId}`, 'paid');
     const visitor = as(['donations:write']);
     const outcome = await invoker.run(useCases.checkDonation, visitor, { token, cause: 'return' });
-    expect(Object.keys(outcome).sort()).toEqual(['amount', 'currency', 'paidAt', 'status']);
-    expect(outcome.status).toBe('paid');
+    expect(Object.keys(outcome).sort()).toEqual([
+      'amount',
+      'checkoutUrl',
+      'currency',
+      'paidAt',
+      'status',
+    ]);
+    expect(outcome).toMatchObject({ status: 'paid', checkoutUrl: null });
     await expectCode(
       invoker.run(useCases.checkDonation, visitor, { token: `${token}x`, cause: 'return' }),
       'not_found'

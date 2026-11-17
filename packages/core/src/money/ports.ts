@@ -55,10 +55,15 @@ export interface PaymentRepository {
   get(id: string): Promise<Payment | null>;
   /** The payment, locked for the rest of the transaction: two reports about it run in turn. */
   lock(id: string): Promise<Payment | null>;
-  /** Writes what a step changes: status, the provider's word, the checkout and the times. */
+  /**
+   * Writes what a step changes: status, the provider's word, the checkout, the times, and the
+   * supporter a settling step found for a payment that named only its submission.
+   */
   save(payment: Payment): Promise<void>;
   /** Newest first. */
   list(filter: PaymentFilter, offset: number, limit: number): Promise<Payment[]>;
+  /** Payments not yet settled (`created`, `open`) and unchanged since `before`, oldest first. */
+  due(before: string, limit: number): Promise<Payment[]>;
   /** Append-only: an entry is never changed or removed. */
   appendLedger(entry: LedgerEntry): Promise<void>;
   /** In the order the entries were appended; one walk writes several with the same `at`. */

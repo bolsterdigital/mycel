@@ -21,7 +21,9 @@
 .field label {
   font-weight: 600;
 }
-.signup .field :is(input:not([type='checkbox'], [type='hidden']), textarea, select) {
+.signup
+  .field
+  :is(input:not([type='checkbox'], [type='radio'], [type='hidden']), textarea, select) {
   width: 100%;
   max-inline-size: 40ch;
   min-width: 0;
@@ -48,6 +50,43 @@
 .field input[aria-invalid='true'] {
   border-width: 3px;
   border-color: var(--color-body-fg);
+}
+/* A gift's presets: a row of large tap targets that wraps on a narrow screen. */
+fieldset.amount {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+fieldset.amount legend {
+  padding: 0;
+  margin-block-end: var(--space-1);
+  font-weight: 600;
+}
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.preset {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 1rem;
+  font-weight: 600;
+  border: 2px solid var(--color-muted-fg);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.preset:has(input:checked) {
+  border-color: var(--color-body-fg);
+  border-width: 3px;
+}
+.preset input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
 }
 .check {
   grid-template-columns: auto 1fr;

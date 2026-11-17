@@ -873,6 +873,8 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
 // hostname form (the hostnames part of admin.spec.ts) and the development path form (signup.spec.ts).
 const WEB_ORIGIN = quality ? 'https://localhost:4443' : 'http://127.0.0.1:4173';
 const spool = mkdtempSync(join(tmpdir(), 'mycel-e2e-mail-'));
+// The fake payment provider keeps its payments here; web and API share it, like the spool.
+const payments = mkdtempSync(join(tmpdir(), 'mycel-e2e-payments-'));
 const env = {
   ...process.env,
   PUBLIC_BASE_URL: WEB_ORIGIN,
@@ -880,6 +882,8 @@ const env = {
   SITE_URL_MODE: 'hostnames',
   MAILER: 'console',
   MAIL_SPOOL_DIR: spool,
+  PAYMENT_PROVIDER: 'fake',
+  PAYMENT_FAKE_DIR: payments,
   MAILCHIMP_FIXTURE_ORIGIN: `http://127.0.0.1:${MAILCHIMP_PORT}`,
   MYCEL_API_KEY: apiKey,
   OIDC_ISSUER: `http://127.0.0.1:${OIDC_PORT}`,
@@ -920,6 +924,7 @@ const stop = () => {
   if (worker.exitCode === null) worker.kill('SIGTERM');
   if (idp.exitCode === null) idp.kill('SIGTERM');
   rmSync(spool, { recursive: true, force: true });
+  rmSync(payments, { recursive: true, force: true });
 };
 process.on('exit', stop);
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => process.exit(1));

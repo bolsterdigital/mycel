@@ -1,13 +1,14 @@
 // The words for one event on a supporter's page (brief MY-251 PR 2): the log stores a type and a
 // reference, the administrator reads "Signed up for Newsletter" and "Signed Petition X". Each
-// event type the platform writes today has its sentence in the catalogue; a type without one
-// (a donation or membership event of a backfill, a type of a newer release) shows its type name,
+// event type the platform writes today has its sentence in the catalogue, a gift with its amount;
+// a type without one (a membership event of a backfill, a type of a newer release) shows its name,
 // which says more than an empty row. Pure and client-safe, like ../audit-words.ts; rejected: the
 // sentences in core (copy belongs in the web catalogue, ADR 007).
 
 import type { TimelineEntry } from '@mycel/core';
 import { en, type UiKey } from '../../../i18n/en.js';
 import { fill } from '../../../i18n/index.js';
+import { formatMoney } from '../../money.js';
 
 const has = (key: string): key is UiKey => key in en;
 
@@ -41,8 +42,15 @@ function subject(t: (key: UiKey) => string, entry: TimelineEntry, names: Timelin
 export function eventSentence(
   t: (key: UiKey) => string,
   entry: TimelineEntry,
-  names: TimelineNames
+  names: TimelineNames,
+  locale = 'nl'
 ): string {
   const key = eventKey(entry);
-  return key ? fill(t(key), { what: subject(t, entry, names) }) : entry.type;
+  if (!key) return entry.type;
+  // A gift reads by its amount ("Gaf € 25"); the page's locale formats it.
+  if (entry.amount)
+    return fill(t(key), {
+      what: formatMoney(entry.amount.value, entry.amount.currency, locale),
+    });
+  return fill(t(key), { what: subject(t, entry, names) });
 }

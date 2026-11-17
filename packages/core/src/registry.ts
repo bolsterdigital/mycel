@@ -106,6 +106,10 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   'content.share_card.get',
   'content.public_person.get',
   'content.public_person.list',
+  // The donor's own return page (ADR 005): the signed token names one payment of this site; the
+  // answer is its status, amount and checkout, never who gave. It asks the provider and may record
+  // a step, as a webhook would; it takes no status, so it cannot mark anything paid.
+  'donation.return.check',
   'form.get',
   'form.submit',
   'mailing.opt_in.confirm',
