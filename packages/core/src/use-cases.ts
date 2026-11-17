@@ -128,6 +128,7 @@ import { getEntitlements, getUsage } from './entitlements/service.js';
 import { getForm, submitForm } from './forms/service.js';
 import { confirmSubscription, previewConfirmation } from './mailing/service.js';
 import { getEmail } from './mailing/email.js';
+import { confirmOptOut, previewOptOut } from './mailing/unsubscribe.js';
 import {
   bulkDeleteMedia,
   deleteMedia,
@@ -314,6 +315,8 @@ export const useCases = {
   submitForm,
   confirmSubscription,
   previewConfirmation,
+  confirmOptOut,
+  previewOptOut,
   getEmail,
   getSupporter,
   changeSupporterEmail,

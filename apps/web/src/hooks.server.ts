@@ -31,6 +31,9 @@
 // A request to the admin that another site made is refused before the session is read
 // (security-headers.ts).
 //
+// Before everything, a cross-site form post is a 403 (lib/server/http/csrf.ts): SvelteKit's own
+// origin check is off so that this one can leave the RFC 8058 one-click unsubscribe exempt.
+//
 // `/_reports` takes the browser's reports on every hostname (lib/server/http/reports.ts).
 //
 // An admin response no route gave a Cache-Control is `private, no-store` (http-cache.ts).
@@ -63,6 +66,7 @@ import { adminLanguage, onPlatformOrigin } from '#lib/server/admin/admin-paths.j
 import { runtime } from '#lib/server/runtime.js';
 import { decideSite } from '#lib/server/site.js';
 import { bodyLimit, boundedBody } from '#lib/server/http/body-limit.js';
+import { csrfForbidden, csrfRefusal } from '#lib/server/http/csrf.js';
 import {
   applySecurityHeaders,
   refusedCrossSite,
@@ -147,6 +151,8 @@ export const handleError: HandleServerError = ({ kind, error }) => {
 const route: Handle = async ({ event, resolve }) => {
   const rt = runtime();
   const path = event.url.pathname;
+  if (!import.meta.env.DEV && csrfForbidden(event.request, event.url.origin, event.route.id))
+    return csrfRefusal(event.request);
   const request = await boundedBody(event.request, bodyLimit(event.request, event.url));
   if (!request) return new Response('Payload too large', { status: 413 });
   const render = () =>

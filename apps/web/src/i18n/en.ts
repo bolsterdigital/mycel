@@ -1125,6 +1125,7 @@ export const en = {
   'admin.audit.op.form.mail.replay': 'Form mail reconciliation requested',
   'admin.audit.op.form.submit': 'Form sent',
   'admin.audit.op.mailing.opt_in.confirm': 'Subscription confirmed',
+  'admin.audit.op.mailing.opt_out.confirm': 'Unsubscribed',
   'admin.audit.op.media.restore': 'File restored',
   'admin.audit.op.media.bulk.delete': 'Files moved to the trash',
   'admin.audit.op.media.delete': 'File deleted',
@@ -1298,6 +1299,18 @@ export const en = {
   'reader.invalid.again': 'Ask for a new link',
   'reader.signedIn.body': 'You are signed in on this device.',
   'reader.signout.submit': 'Sign out',
+  'unsubscribe.pending.title': 'Unsubscribe from the newsletter',
+  'unsubscribe.pending.body':
+    'Do you no longer want to receive this newsletter? Confirm with the button below. You can sign up again at any time.',
+  'unsubscribe.pending.button': 'Unsubscribe',
+  'unsubscribe.ok.title': 'You are unsubscribed',
+  'unsubscribe.ok.body': 'You will receive no more mail for this newsletter.',
+  'unsubscribe.already.title': 'Already unsubscribed',
+  'unsubscribe.already.body':
+    'You are no longer subscribed to this newsletter. Nothing more to do.',
+  'unsubscribe.invalid.title': 'This link does not work',
+  'unsubscribe.invalid.body':
+    'The unsubscribe link is invalid or has expired. Use the link in a more recent mail, or contact the sender.',
   'reader.gate.signin.title': 'Sign in to read on',
   'reader.gate.signin.members':
     'The rest is for readers who are signed in. Signing in takes an e-mail address, no password.',

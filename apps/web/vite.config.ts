@@ -59,6 +59,11 @@ export default defineConfig({
           'report-to': ['default'],
         },
       },
+      // The origin check runs in hooks.server.ts (lib/server/http/csrf.ts), with the same rule
+      // and one exempt route: the RFC 8058 one-click unsubscribe, which a mail provider posts to
+      // without an Origin of the site. `'*'` is how SvelteKit 3 turns its own check off; remote
+      // functions keep theirs regardless.
+      csrf: { trustedOrigins: ['*'] },
     }),
   ],
 });

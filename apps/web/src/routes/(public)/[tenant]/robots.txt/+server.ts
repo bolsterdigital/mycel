@@ -18,7 +18,7 @@ import type { RequestHandler } from './$types';
 export const GET: RequestHandler = async ({ locals }) => {
   const site = requireSite(locals);
   const absolute = await siteUrls(site);
-  const internal = ['/_speculation.json', '/confirm'];
+  const internal = ['/_speculation.json', '/confirm', '/unsubscribe'];
   const body = robotsTxt({
     use: (await siteGeneral(site)).aiUse,
     disallowPaths: ['/admin', ...internal.map((path) => sitePath(site, path))],
