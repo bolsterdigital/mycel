@@ -98,6 +98,7 @@ export * from './readers/model.js';
 export * from './readers/ports.js';
 export * from './readers/service.js';
 export * from './readers/mail.js';
+export * from './readers/account.js';
 export * from './mailing/ports.js';
 export * from './mailing/confirmation.js';
 export * from './mailing/send-attempts.js';

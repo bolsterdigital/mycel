@@ -158,6 +158,7 @@ describe.skipIf(skip)('stored actors over Postgres (ADR 035 rule 4)', () => {
         lists: ['newsletter:main'],
         pendingLists: [],
         grants: [],
+        lastSeenAt: null,
         firstSeen: at,
         lastActivity: at,
         appliedThrough: { at, id: 'fixture' },

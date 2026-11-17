@@ -38,7 +38,7 @@ Today the `supporters.ingest` subscriber maps `newsletter.subscribed` and `conse
 
 ## The projection and fold order
 
-`supporter.get` (capability `supporters:read`, MCP resource `mycel://supporters/{email}`) returns `id`, `email`, `firstSeen`, `lastActivity`, `lists` (confirmed consent; the only lists a sender may use), `pendingLists` (signed up, not yet confirmed) and `appliedThrough`.
+`supporter.get` (capability `supporters:read`, MCP resource `mycel://supporters/{email}`) returns `id`, `email`, `firstSeen`, `lastActivity`, `lists` (confirmed consent; the only lists a sender may use), `pendingLists` (signed up, not yet confirmed), `grants`, `lastSeenAt` (the last `reader.signed_in`, kept after retention removed the sign-in events; null for a supporter who never signed in) and `appliedThrough`.
 
 Fold order is `occurred_at` compared as an instant, then `id` by code unit, which matches `collate "C"` on `events.id`. Because a late event triggers a re-fold, every arrival order of the same events ends in the same projection. List transitions: `newsletter.subscribed` with `confirmed: false` adds a pending list unless it is already confirmed; `newsletter.subscribed` without that flag, and `consent.given`, confirm it; `newsletter.unsubscribed` and `consent.withdrawn` remove it from both.
 

@@ -230,14 +230,16 @@ export const updateSiteImages = defineUseCase({
   },
 });
 /**
- * How long this site keeps what visitors sent in (docs/reference/jobs.md § Retention). A document of its
+ * How long this site keeps what visitors sent in and when its readers last signed in
+ * (docs/reference/jobs.md § Retention). A document of its
  * own with its own capability: `general` is written with `content:write`, and a shorter term
  * deletes submissions, which is not an editor's decision.
  */
 export const getSiteRetention = defineUseCase({
   name: 'site.retention.get',
   kind: 'query',
-  description: 'Read how many months this site keeps form submissions.',
+  description:
+    'Read how many months this site keeps form submissions and how many days it keeps the sign-in events of its readers.',
   requires: 'forms:read',
   input: z.object({}).strict(),
   output: RetentionState,
@@ -248,11 +250,13 @@ export const updateSiteRetention = defineUseCase({
   name: 'site.retention.update',
   kind: 'command',
   description:
-    'Set how many months this site keeps form submissions, at a known version; a shorter term deletes older submissions at the next daily run.',
+    'Set how many months this site keeps form submissions and how many days it keeps sign-in events of readers (0: only the last sign-in), at a known version; a shorter term deletes what is older at the next daily run.',
   requires: 'tenant:admin',
   input: z.object({ baseVersion: version, retention: SiteRetention }).strict(),
   output: RetentionState,
-  examples: [{ input: { baseVersion: 0, retention: { submissionMonths: 12 } } }],
+  examples: [
+    { input: { baseVersion: 0, retention: { submissionMonths: 12, readerActivityDays: 30 } } },
+  ],
   handler: async (ctx, { baseVersion, retention }) => {
     const next = await ctx.siteSettings.updateRetention(baseVersion, retention);
     if (next === null) return conflict();

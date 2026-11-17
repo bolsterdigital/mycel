@@ -210,7 +210,9 @@ export function applyAllRetention(
         ctx.siteSettings.retention()
       );
       const gone = await applyRetention(operatorDb, id, retentionCutoffs(now, value));
-      return gone.outbox + gone.mailIntents + gone.submissions + gone.admissions;
+      return (
+        gone.outbox + gone.mailIntents + gone.submissions + gone.admissions + gone.readerActivity
+      );
     },
     errors
   );

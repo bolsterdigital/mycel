@@ -4,12 +4,14 @@
 // teaser again the moment the grant ends inside the open session. Every hidden place carries a
 // sentinel, read in the HTML, the Markdown and the JSON read route; the caching headers are
 // those a shared cache would act on. A restricted image behind the boundary reaches the reader
-// with access only, through a signed path that ends with the grant. The core matrix is access/projection.test.ts. The spec
-// brings the sign-in (it owns the mail spool); the fixtures are made here.
+// with access only, through a signed path that ends with the grant. The reader page lists the
+// access as it stands and ends, and leaves a newsletter (ADR 016 rule 1, self-service). The core
+// matrix is access/projection.test.ts. The spec brings the sign-in (it owns the mail spool); the
+// fixtures are made here.
 
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { systemPrincipal, useCases } from '@mycel/core';
+import { SupporterEvent, ingest, systemPrincipal, useCases } from '@mycel/core';
 import { callApi, requireApi } from '../api';
 import { expectNoAxeViolations } from '../axe';
 import { tenantId, withInvoker } from '../invoker';
@@ -18,7 +20,7 @@ import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from '../layout';
 const SITE = 'http://probe.localhost:4173';
 const PUBLIC_CACHE = 'public, max-age=60, stale-while-revalidate=600';
 const HIDDEN = ['SENTINEL-BODY', 'SENTINEL-CORRECTION', 'SENTINEL-EN', 'sentinel-author@'];
-const GRANT_SECONDS = 6;
+const GRANT_SECONDS = 10;
 
 const text = (t: string) => ({
   type: 'doc',
@@ -103,6 +105,29 @@ async function grant(email: string, tierId: string, seconds: number) {
   });
 }
 
+/** A confirmed subscription to `list`, as the supporter subscriber would ingest one. */
+async function subscribe(email: string, list: string) {
+  const principal = systemPrincipal(await tenantId(), 'e2e');
+  await withInvoker((_invoker, uow) =>
+    uow.run(principal, (ctx) =>
+      ingest(
+        ctx,
+        SupporterEvent.parse({
+          schema: 'wings.supporter-event.v1',
+          id: `e2e-${randomUUID()}`,
+          type: 'newsletter.subscribed',
+          email,
+          occurred_at: new Date().toISOString(),
+          source: 'e2e',
+          source_site: 'urn:e2e',
+          source_ref: `e2e:${email}:${list}`,
+          props: { list, confirmed: true },
+        })
+      )
+    )
+  );
+}
+
 const leaks = (body: string) => HIDDEN.filter((s) => body.includes(s));
 
 export async function exerciseRestrictedArticle(
@@ -162,14 +187,19 @@ export async function exerciseRestrictedArticle(
   await page.setViewportSize(wide);
 
   // The gate leads to the sign-in page and back to the article; without a grant the reader
-  // gets the same teaser, as theirs alone: no validator, no shared cache.
+  // gets the same teaser, as theirs alone: no validator, no shared cache. Their gate leads to
+  // their account instead of the sign-in.
+  await subscribe(email, 'e2e-nieuwsbrief');
   await gate.getByRole('link', { name: 'Inloggen' }).click();
   await signIn(email);
   await expect(page).toHaveURL(url);
   await expect(
     gate.getByRole('heading', { name: 'Je toegang geldt niet voor dit stuk' })
   ).toBeVisible();
-  await expect(gate.getByRole('link')).toHaveCount(0);
+  await expect(gate.getByRole('link', { name: 'Bekijk je toegang' })).toHaveAttribute(
+    'href',
+    '/reader'
+  );
   expect(leaks(await page.content())).toEqual([]);
   await expectNoAxeViolations(page);
 
@@ -216,6 +246,35 @@ export async function exerciseRestrictedArticle(
   expect(leaks(visitorPage)).toEqual([]);
   expect(visitorPage).not.toContain(photoId);
 
+  // The reader's own page: the address, the tier with its end, the newsletter and what the site
+  // keeps; private, never cached, never another reader's.
+  const account = await page.goto(`${SITE}/reader`);
+  expect(account?.headers()['cache-control']).toBe('no-store');
+  await expect(page.getByRole('heading', { level: 1, name: 'Mijn account' })).toBeVisible();
+  await expect(page.getByText(email)).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ hasText: 'Donateurs' })).toContainText(
+    'actief tot'
+  );
+  await expect(page.getByText('We bewaren je inlogmomenten 90 dagen')).toBeVisible();
+  await expectNoAxeViolations(page);
+  // Each newsletter row has one button: at 320 CSS px and the largest text it wraps whole.
+  await page.setViewportSize(NARROW);
+  for (const size of TEXT_SIZES) {
+    await setTextSize(page, size);
+    await layoutGate(page, `reader page at 320px / ${size}`, 'main');
+  }
+  await page.screenshot({
+    path: test.info().outputPath('reader-page-320-200.png'),
+    fullPage: true,
+  });
+  await setTextSize(page, '16px');
+  await page.setViewportSize(wide);
+  expect(await (await request.get(`${SITE}/reader`)).text()).not.toContain(email);
+  await page.getByRole('button', { name: 'Afmelden voor e2e-nieuwsbrief' }).click();
+  await expect(page.getByRole('status')).toHaveText('Je bent afgemeld voor e2e-nieuwsbrief.');
+  await expect(page.getByText('Je staat niet ingeschreven voor een nieuwsbrief')).toBeVisible();
+  await expectNoAxeViolations(page);
+
   // The grant ends while the session stays open: the next read is the teaser again.
   await page.waitForTimeout(Math.max(0, granted + GRANT_SECONDS * 1000 + 500 - Date.now()));
   await page.goto(url);
@@ -226,4 +285,9 @@ export async function exerciseRestrictedArticle(
   expect(await page.content()).not.toContain(photoId);
   // The path handed out while the grant stood ended with it.
   expect((await request.get(src.href)).status()).toBe(403);
+  // The reader page says so too.
+  await page.goto(`${SITE}/reader`);
+  await expect(page.getByRole('listitem').filter({ hasText: 'Donateurs' })).toContainText(
+    'verlopen op'
+  );
 }

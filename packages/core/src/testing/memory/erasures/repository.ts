@@ -240,8 +240,15 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
   for (const p of s.projections.values()) {
     if (live.has(p.id) || !(ids.has(p.id) || ended(p.email))) continue;
     const tomb = tombstoneEmail(p.id);
-    if (p.email === tomb && !p.lists.length && !p.pendingLists.length && !p.grants.length) continue;
-    Object.assign(p, { email: tomb, lists: [], pendingLists: [], grants: [] });
+    if (
+      p.email === tomb &&
+      !p.lists.length &&
+      !p.pendingLists.length &&
+      !p.grants.length &&
+      !p.lastSeenAt
+    )
+      continue;
+    Object.assign(p, { email: tomb, lists: [], pendingLists: [], grants: [], lastSeenAt: null });
     changed++;
   }
   // A reader session of an erased supporter ends here, before its clock runs out.

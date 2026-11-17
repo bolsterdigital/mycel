@@ -271,7 +271,8 @@ export async function pendingHashes(trx: Trx, tenantId: string): Promise<string[
   const ids = register.map((r) => r.supporter_id);
   const byId = await sql<{ id: string }>`
     select id from supporters where id = any(${ids}::uuid[])
-      and not (email = id::text || ${TOMB} and lists = '{}' and pending_lists = '{}')
+      and not (email = id::text || ${TOMB} and lists = '{}' and pending_lists = '{}'
+               and grants = '[]'::jsonb and last_seen_at is null)
     union
     select supporter_id from events where supporter_id = any(${ids}::uuid[])
       and not (email = supporter_id::text || ${TOMB} and props = '{}'::jsonb)
@@ -479,10 +480,10 @@ async function eraseRows(
     await sql`
       update supporters
       set email = id::text || ${TOMB}, lists = '{}', pending_lists = '{}',
-          grants = '[]'::jsonb, updated_at = now()
+          grants = '[]'::jsonb, last_seen_at = null, updated_at = now()
       where id = any(${supporterIds}::uuid[])
         and not (email = id::text || ${TOMB} and lists = '{}' and pending_lists = '{}'
-                 and grants = '[]'::jsonb)`.execute(trx)
+                 and grants = '[]'::jsonb and last_seen_at is null)`.execute(trx)
   );
   // ADR 033 rule 8: an erased supporter's participations go, and the confirmed, non-withdrawn
   // ones join the campaign's anonymous count in the same statement, so the public number never

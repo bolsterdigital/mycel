@@ -511,6 +511,7 @@ export interface Database {
     lists: string[];
     pending_lists: string[];
     grants: Json<AccessGrant[]>;
+    last_seen_at: Timestamp | null;
     applied_through_at: Timestamp;
     applied_through_id: string;
     updated_at: Generated<Date>;

@@ -14,6 +14,9 @@
 // A fed submission whose intent is settled goes at its term like any other, also that of a
 // readmitted lifecycle: the provider comparison then works from the receipt
 // (`applyMailchimpObservation`; ADR 032 rule 3 accepts it as the evidence for a withdrawal).
+// A reader's sign-in event goes at the tenant's `readerActivityDays` (ADR 019 rule 7), and only
+// once the projection's `last_seen_at` holds it: the policy of 0071 refuses any other, so a
+// sign-in folded late or a supporter not yet re-folded keeps its event until the next run.
 // A mail intent goes with its event: it holds a keyed digest of the recipient that the erasure
 // register finds through the event only, so an intent without its event would be a copy nothing
 // can erase any more.
@@ -34,6 +37,8 @@ export interface RetentionResult {
   mailIntents: number;
   submissions: number;
   admissions: number;
+  /** `reader.signed_in` events compacted into `supporters.last_seen_at`. */
+  readerActivity: number;
 }
 
 type Trx = Kysely<Database>;
@@ -100,6 +105,18 @@ async function submissionBatch(trx: Trx, before: Date, limit: number): Promise<n
   return Number(result.numAffectedRows ?? 0n);
 }
 
+async function readerActivityBatch(trx: Trx, before: Date, limit: number): Promise<number> {
+  const result = await sql`
+    delete from events where (tenant_id, id, occurred_at) in (
+      select e.tenant_id, e.id, e.occurred_at from events e
+      join supporters s on s.id = e.supporter_id
+      where e.type = 'reader.signed_in' and e.occurred_at < ${before}
+        and s.last_seen_at >= e.occurred_at
+      order by e.occurred_at limit ${limit}
+    )`.execute(trx);
+  return Number(result.numAffectedRows ?? 0n);
+}
+
 /**
  * Delete what passed its term for one tenant and return how much went. Idempotent: a second run
  * with the same cut-offs finds nothing. `batch` is for the tests; the worker uses the default.
@@ -110,7 +127,13 @@ export async function applyRetention(
   cutoffs: RetentionCutoffs,
   batch = RETENTION_BATCH
 ): Promise<RetentionResult> {
-  const total: RetentionResult = { outbox: 0, mailIntents: 0, submissions: 0, admissions: 0 };
+  const total: RetentionResult = {
+    outbox: 0,
+    mailIntents: 0,
+    submissions: 0,
+    admissions: 0,
+    readerActivity: 0,
+  };
   for (;;) {
     const got = await asRetention(operatorDb, tenantId, (trx) =>
       outboxBatch(trx, cutoffs.outboxBefore, batch)
@@ -124,6 +147,13 @@ export async function applyRetention(
       submissionBatch(trx, cutoffs.submissionsBefore, batch)
     );
     total.submissions += got;
+    if (got < batch) break;
+  }
+  for (;;) {
+    const got = await asRetention(operatorDb, tenantId, (trx) =>
+      readerActivityBatch(trx, cutoffs.readerActivityBefore, batch)
+    );
+    total.readerActivity += got;
     if (got < batch) break;
   }
   total.admissions = await asRetention(operatorDb, tenantId, async (trx) => {
