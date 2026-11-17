@@ -155,6 +155,7 @@ import { getAttentionSummary, listAttention, updateAttentionSeenAt } from './att
 import { UseCaseRegistry, type UseCase } from './registry.js';
 import { changeSupporterEmail, getSupporter } from './supporters/service.js';
 import { listSupporters } from './supporters/listing.js';
+import { getSupporterTimeline } from './supporters/timeline.js';
 import { createAccessGrant, revokeAccessGrant } from './supporters/access.js';
 import { getReaderAccount, withdrawReaderSubscription } from './readers/account.js';
 import {
@@ -327,6 +328,7 @@ export const useCases = {
   sendEdition,
   getSupporter,
   listSupporters,
+  getSupporterTimeline,
   changeSupporterEmail,
   eraseSupporter,
   getSupporterErasure,
