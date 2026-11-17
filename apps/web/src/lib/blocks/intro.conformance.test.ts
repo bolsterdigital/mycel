@@ -19,7 +19,9 @@ import {
 } from '@mycel/core';
 import Page from '../../routes/(public)/[tenant]/[[locale=locale]]/[...path]/+page.svelte';
 import Credit from './Credit.svelte';
+import { renderMarkdown } from './markdown.js';
 import {
+  renderCorrections,
   renderEvent,
   renderMeta,
   resolveDocument,
@@ -105,7 +107,13 @@ async function page(
   locale: 'nl' | 'en',
   theme: keyof typeof THEMES,
   heroAlt: Partial<Record<string, string>> | undefined = undefined,
-  head: { header?: 'standard' | 'cover'; hero?: boolean; meta?: boolean; event?: boolean } = {}
+  head: {
+    header?: 'standard' | 'cover';
+    hero?: boolean;
+    meta?: boolean;
+    event?: boolean;
+    corrections?: { date: string; text: string }[];
+  } = {}
 ) {
   const model = await resolveDocument(
     source,
@@ -153,6 +161,7 @@ async function page(
     view: 'item' as const,
     model,
     intro,
+    corrections: renderCorrections(head.corrections, locale),
     dropCap: resolveTheme(THEMES[theme]).dropCap === 'articles',
     head: {
       canonical: '/',
@@ -301,4 +310,52 @@ describe('the hero image alt (#99)', () => {
       expect(img(await page(locale, 'default', described))).toContain(`alt="${described[locale]}"`);
       expect(img(await page(locale, 'default'))).toContain('alt=""');
     });
+});
+
+describe('an article’s corrections (ADR 012 rule 1)', () => {
+  const at = (html: string, s: string) => html.indexOf(s);
+  const corrections = {
+    nl: [
+      { date: '2026-11-01', text: 'Een eerdere versie noemde het verkeerde jaartal.' },
+      { date: '2026-11-03', text: 'De naam van de wethouder is hersteld.' },
+    ],
+    en: [{ date: '2026-11-01', text: 'An earlier version gave the wrong year.' }],
+  };
+  for (const locale of ['nl', 'en'] as const)
+    it(`shows dated notes in their own section after the body in ${locale}`, async () => {
+      const html = await page(locale, 'default', undefined, {
+        corrections: corrections[locale],
+      });
+      await expect(html).toMatchFileSnapshot(`__snapshots__/item-corrections.${locale}.html`);
+      expect(at(html, 'rich-text')).toBeLessThan(at(html, 'page-corrections'));
+      expect(html).toMatch(
+        /<section[^>]*aria-labelledby="page-corrections"[^>]*>\s*<h2 id="page-corrections">/
+      );
+      expect(html).toContain(locale === 'nl' ? '>Correcties</h2>' : '>Corrections</h2>');
+      expect(html).toContain('datetime="2026-11-01"');
+      expect(html).toContain(locale === 'nl' ? '1 november 2026' : 'November 1, 2026');
+      expect(html.match(/<li>/g)).toHaveLength(corrections[locale].length);
+    });
+
+  it('ends the Markdown with the same section, escaped', async () => {
+    const model = await resolveDocument(
+      source,
+      { locale: 'nl', ...projectDocument(article, 'nl') },
+      { base: '', fallbackLocale: 'nl' }
+    );
+    const markdown = renderMarkdown(model, {
+      canonicalUrl: 'https://example.org/x',
+      siteRoot: 'https://example.org',
+      corrections: renderCorrections([{ date: '2026-11-01', text: 'Jaartal *hersteld*.' }], 'nl'),
+    });
+    expect(markdown.endsWith('## Correcties\n\n- 1 november 2026: Jaartal \\*hersteld\\*.\n')).toBe(
+      true
+    );
+  });
+
+  it('has no section without corrections', async () => {
+    expect(renderCorrections([], 'nl')).toBeNull();
+    expect(renderCorrections(undefined, 'nl')).toBeNull();
+    expect(await page('nl', 'default')).not.toContain('page-corrections');
+  });
 });

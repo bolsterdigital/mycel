@@ -58,6 +58,7 @@ export async function markdownResponse(
     canonicalUrl: view.head.canonical,
     siteRoot,
     lead: view.intro.lead,
+    corrections: view.corrections,
     gate: view.gate && {
       title: view.gate.title,
       body: view.gate.body,

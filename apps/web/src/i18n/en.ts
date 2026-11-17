@@ -1247,6 +1247,7 @@ export const en = {
   'block.credit.illustration': 'Illustration: {name}',
   'block.credit.other': 'Image: {name}',
   'block.meta.by': 'by {names}',
+  'block.corrections.title': 'Corrections',
   'block.event.when': 'When',
   'block.event.where': 'Where',
   'block.event.online': 'Online',

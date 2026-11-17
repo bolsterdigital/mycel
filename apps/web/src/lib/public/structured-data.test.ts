@@ -70,6 +70,14 @@ it('describes an article as a NewsArticle with its access and section, and escap
     hasPart: { '@type': 'WebPageElement', isAccessibleForFree: false, cssSelector: '.reader-gate' },
   });
   expect(articleData({ ...item, type: 'page' }, url, 'nl', 'nl', (p) => p)).toBeNull();
+  // Corrections the projection released are CorrectionComments; none (a teaser) adds nothing.
+  expect(value).not.toHaveProperty('correction');
+  const corrected = { ...item, corrections: [{ date: '2026-11-03', text: 'Jaartal hersteld.' }] };
+  expect(articleData(corrected, url, 'nl', 'nl', (p) => p)).toMatchObject({
+    correction: [
+      { '@type': 'CorrectionComment', datePublished: '2026-11-03', text: 'Jaartal hersteld.' },
+    ],
+  });
 });
 
 it('describes an event page as an Event with the site’s offset, and nothing else as one', () => {

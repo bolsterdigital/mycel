@@ -1262,6 +1262,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'block.credit.illustration': 'Illustratie: {name}',
   'block.credit.other': 'Beeld: {name}',
   'block.meta.by': 'door {names}',
+  'block.corrections.title': 'Correcties',
   'block.event.when': 'Wanneer',
   'block.event.where': 'Waar',
   'block.event.online': 'Online',

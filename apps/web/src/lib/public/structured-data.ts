@@ -109,6 +109,16 @@ export function articleData(
           },
         }),
     ...(item.section ? { articleSection: item.section.name } : {}),
+    // Present only when the projection released them, so never on a teaser.
+    ...(item.corrections?.length
+      ? {
+          correction: item.corrections.map((c) => ({
+            '@type': 'CorrectionComment',
+            datePublished: c.date,
+            text: c.text,
+          })),
+        }
+      : {}),
     author: (item.authors ?? []).map((person) => ({
       '@type': 'Person',
       name: person.name,

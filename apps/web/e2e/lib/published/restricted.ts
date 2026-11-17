@@ -182,14 +182,20 @@ export async function exerciseRestrictedArticle(
   expect(whole?.headers()['cache-control']).toBe('private, no-store');
   expect(whole?.headers()['vary']?.toLowerCase()).toContain('cookie');
   expect(whole?.headers()['etag']).toBeUndefined();
-  // The unpublished translation and the author's address stay inside for a reader too (the
-  // page does not print corrections yet).
-  expect(leaks(await page.content())).toEqual(['SENTINEL-BODY']);
+  // The corrections come with the body, in their own section after it; the unpublished
+  // translation and the author's address stay inside for a reader too.
+  const corrections = page.getByRole('region', { name: 'Correcties' });
+  await expect(corrections.getByRole('listitem')).toHaveText(
+    '1 november 2026: SENTINEL-CORRECTION'
+  );
+  expect(leaks(await page.content())).toEqual(['SENTINEL-BODY', 'SENTINEL-CORRECTION']);
+  await expectNoAxeViolations(page);
   const revalidated = await page.request.get(url, { headers: { 'if-none-match': etag } });
   expect(revalidated.status()).toBe(200);
   expect(await revalidated.text()).toContain('SENTINEL-BODY');
   const readerMd = await page.request.get(`${url}?format=md`);
   expect(await readerMd.text()).toContain('SENTINEL-BODY');
+  expect(await readerMd.text()).toContain('- 1 november 2026: SENTINEL-CORRECTION');
   expect(readerMd.headers()['cache-control']).toBe('private, no-store');
   expect(readerMd.headers()['etag']).toBeUndefined();
   // The restricted image: a path signed for this tenant, item and locale, only on this page.

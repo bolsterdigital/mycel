@@ -105,6 +105,15 @@ export interface RenderMeta {
 }
 
 /**
+ * An article's corrections after its body (ADR 012 rule 1): the heading and each dated note in
+ * this locale, in the order the editor added them. Absent where there are none to show.
+ */
+export interface RenderCorrections {
+  title: string;
+  entries: { date: { iso: string; label: string }; text: string }[];
+}
+
+/**
  * An event page's when and where under its lead, with the words of its labels: `iso` is
  * the start as an HTML local date and time, in the site's zone like the label.
  */

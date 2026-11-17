@@ -67,6 +67,7 @@ import type {
   RenderCampaign,
   RenderForm,
   RenderImage,
+  RenderCorrections,
   RenderIntro,
   RenderModel,
 } from './model.js';
@@ -420,6 +421,26 @@ export function renderMeta(
     // A function, so `$&` in a name stays text instead of a replacement pattern.
     byline: authors.length ? ui(locale)('block.meta.by').replace('{names}', () => names) : null,
     section,
+  };
+}
+
+/**
+ * An article's corrections (ADR 012 rule 1) in this locale; null without any, which is also what
+ * a teaser gets, since the core leaves them out of it. A correction's date is a calendar date, so
+ * it is formatted as such, in no zone.
+ */
+export function renderCorrections(
+  corrections: readonly { date: string; text: string }[] | undefined,
+  locale: string
+): RenderCorrections | null {
+  if (!corrections?.length) return null;
+  const format = new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone: 'UTC' });
+  return {
+    title: ui(locale)('block.corrections.title'),
+    entries: corrections.map((c) => ({
+      date: { iso: c.date, label: format.format(new Date(`${c.date}T00:00:00Z`)) },
+      text: c.text,
+    })),
   };
 }
 
