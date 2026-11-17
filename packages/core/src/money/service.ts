@@ -279,7 +279,10 @@ export const createDonation = defineUseCase({
   handler: (ctx, input) => startDonation(ctx, input),
 });
 
-/** What starting a donation needs; `submissionId` only from `form.submit`, under its address lock. */
+/**
+ * What starting a donation needs; `submissionId` only from `form.submit`, which holds the lock of
+ * that submission's address.
+ */
 export interface DonationStart {
   amount: number;
   currency: string;

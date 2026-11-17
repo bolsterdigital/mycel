@@ -1203,6 +1203,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.campaign.archive': 'Campagne gearchiveerd',
   'admin.audit.op.donation.create': 'Donatie gestart',
   'admin.audit.op.donation.check': 'Status van donatie nagevraagd bij de betaalprovider',
+  'admin.audit.op.donation.return.check': 'Gever terug van de betaalprovider',
   'admin.audit.op.campaign.participation.withdraw': 'Deelname aan campagne ingetrokken',
   'admin.audit.op.campaign.landing.create': 'Campagne gestart met pagina en formulier',
   'admin.campaign.title': 'Campagnes',
