@@ -110,6 +110,7 @@ describe.skipIf(skip)('mail editions over Postgres', () => {
         lists,
         pendingLists,
         grants: [],
+        lastSeenAt: null,
         firstSeen: at,
         lastActivity: at,
         appliedThrough: { at, id: 'fixture' },
