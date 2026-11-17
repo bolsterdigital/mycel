@@ -33,6 +33,7 @@ const entry = (n: number, revision = 0) => ({
   imageId: null,
   event: null,
   pinned: false,
+  restricted: false,
 });
 
 async function model(list: (page: number) => Overview, blocks: Block[], page = 1) {

@@ -14,10 +14,11 @@
 //     is null and its card renders nothing, with the reason only for the admin preview. A form
 //     bound to a campaign that does not accept participation now renders where the campaign
 //     stands instead of its fields (rule 2); the submit path decides anyway (rule 3).
-//   - items: a public path only if the item is published in this locale and its published
-//     revision is `access.level: public`, the rules of `content.published.get`; otherwise null,
-//     so an action without a target is dropped and a text link becomes text. The path follows
-//     the route grammar (`contentPath`): locale prefix for a non-default locale, `articles/`.
+//   - items: a public path only if the item is published in this locale (`publicItemPath`, the
+//     rule of `content.published.get`; a restricted item's address serves its teaser, a zone has
+//     none); otherwise null, so an action without a target is dropped and a text link becomes
+//     text. The path follows the route grammar (`contentPath`): locale prefix for a non-default
+//     locale, `articles/`.
 //
 // No locks, no writes. Rejected: resolving inside each component (a query per block, and a
 // renderer that cannot run without a database), and passing the whole `MediaView` through
@@ -47,7 +48,7 @@ import {
   linkedItemIds,
   pick,
   translate,
-  statusOf,
+  publicItemPath,
   useCases,
   type Block,
   type MediaCredit,
@@ -141,17 +142,7 @@ export function runtimeSource(deps: {
     overview: (props, locale, page) =>
       invoker.run(useCases.getOverview, reader, { props, locale, page }),
     itemPath: (itemId, locale) =>
-      uow.run(reader, async (ctx) => {
-        const item = await ctx.content.get(itemId);
-        if (!item) return null;
-        const state = item.publication.find(
-          (s) => s.locale === locale && statusOf(s) === 'published'
-        );
-        if (!state?.publishedRevisionId) return null;
-        const revision = await ctx.content.revision(item.id, state.publishedRevisionId);
-        if (!revision || revision.document.access.level !== 'public') return null;
-        return contentPath(item, locale, defaultLocale);
-      }),
+      uow.run(reader, (ctx) => publicItemPath(ctx, itemId, locale, defaultLocale)),
   };
 }
 
@@ -214,6 +205,7 @@ export function blockCopy(locale: string): BlockCopy {
       older: t('block.overview.older'),
       newer: t('block.overview.newer'),
       label: t('block.overview.pages'),
+      restricted: t('block.overview.restricted'),
     },
   };
 }
@@ -634,6 +626,7 @@ export async function resolveDocument(
                 ? renderImage(media.get(e.imageId) ?? null, { decorative: true, alt: null }, locale)
                 : null,
             pinned: e.pinned,
+            restricted: e.restricted,
             revisionId: e.revisionId,
           })),
           older: paged && list.older ? pageLink(page + 1) : null,

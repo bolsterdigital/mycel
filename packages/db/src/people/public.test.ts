@@ -44,7 +44,7 @@ describe.skipIf(skip)('public people through Postgres', () => {
     await db.destroy();
     await owner.destroy();
   });
-  it('reads pinned authors across locales, excludes restricted cards and respects tenant boundaries', async () => {
+  it('reads pinned authors across locales, shows a restricted card as its teaser and respects tenant boundaries', async () => {
     const admin = adminOf(tenant);
     const visitor = anonymousPrincipal(tenant, ['content:read']);
     const sam = await invoker.run(useCases.createPerson, admin, {
@@ -96,12 +96,19 @@ describe.skipIf(skip)('public people through Postgres', () => {
     expect(
       (await invoker.run(useCases.getPublicPerson, visitor, { slug: 'sam', locale: 'en' })).articles
     ).toEqual([]);
+    // The restricted EN revision is a teaser card for its own author: title, lead and access.
     const restrictedOnly = await invoker.run(useCases.getPublicPerson, visitor, {
       slug: 'lee',
       locale: 'en',
     });
-    expect(restrictedOnly.articles).toEqual([]);
-    expect(restrictedOnly.total).toBe(0);
+    expect(restrictedOnly.articles).toEqual([
+      expect.objectContaining({
+        title: 'Private new title',
+        lead: 'Private lead',
+        access: 'members',
+      }),
+    ]);
+    expect(restrictedOnly.total).toBe(1);
     await expect(
       invoker.run(useCases.getPublicPerson, anonymousPrincipal(foreign, ['content:read']), {
         slug: 'sam',

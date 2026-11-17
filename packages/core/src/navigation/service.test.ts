@@ -419,7 +419,7 @@ describe('nav-labels', () => {
 });
 
 describe('nav-offline', () => {
-  it('renders nothing for what is not public in the locale, and keeps a labelled branch as a group', async () => {
+  it('renders nothing for what is not published in the locale, and keeps a labelled branch as a group', async () => {
     const t = setup();
     const two = { locales: ['nl', 'en'] };
     const parent = await t.page('campagnes', {
@@ -493,16 +493,22 @@ describe('nav-offline', () => {
         ],
       },
       // The group's only child went offline: an empty group renders nothing. The anchor that
-      // no longer exists falls back to the page; the restricted item is not shown.
+      // no longer exists falls back to the page. The members' page is a link to its teaser,
+      // named by its title (ADR 036 rule 8 as amended 2026-11-17).
       expect.objectContaining({
         id: 'anchored',
         label: 'Anker',
         target: expect.not.objectContaining({ anchor: expect.anything() }),
       }),
+      expect.objectContaining({
+        id: 'restricted',
+        label: 'Leden',
+        target: expect.objectContaining({ itemId: restricted.id, slug: 'leden' }),
+      }),
     ]);
     // No own label in en: the whole branch goes.
     const en = await t.run('resolveNavigation', { locale: 'en' }, t.visitor);
-    expect(en.main.nodes.map((n: { id: string }) => n.id)).toEqual(['anchored']);
+    expect(en.main.nodes.map((n: { id: string }) => n.id)).toEqual(['anchored', 'restricted']);
 
     const published = await t.run('publishNavigation', {
       revisionId: next.revisionId,
@@ -517,9 +523,11 @@ describe('nav-offline', () => {
           children: ['child', 'child-url'],
         },
         { menuId: 'main', nodeId: 'anchored', code: 'anchor-missing' },
-        { menuId: 'main', nodeId: 'restricted', code: 'target-unavailable' },
         { menuId: 'main', nodeId: 'lonely', code: 'target-unavailable' },
       ])
+    );
+    expect(published.problems).not.toContainEqual(
+      expect.objectContaining({ nodeId: 'restricted' })
     );
   });
 });

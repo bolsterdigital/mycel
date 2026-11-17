@@ -1,5 +1,6 @@
 // RSS 2.0 and Atom feeds of a site, a section or a person, from `content.feed.get`:
-// the published public articles in one locale, newest first, with the featured title and summary.
+// the published articles in one locale, newest first, with the featured title and summary; a
+// restricted one as its teaser (title and lead), the same document for everyone.
 // The locale is the URL's (`/feed.xml` the default, `/en/feed.xml` English), never the request's
 // Accept-Language, so one URL is one cacheable document. Every link is an absolute URL on the
 // site's primary address (`siteUrls`), never one built from the Host header.

@@ -1,7 +1,7 @@
 // The site's `/llms.txt` (llmstxt.org): the site's name, then per locale its published
 // public pages and articles as Markdown links to their `?format=md` representation, each with
 // its summary. The rows are `content.feed.get`: publication pointers only, public revisions
-// only, without noindex items or items whose canonical is elsewhere, at most FEED_MAX of each type
+// only (the feed's restricted teasers are left out here, ADR 018 rule 7), without noindex items or items whose canonical is elsewhere, at most FEED_MAX of each type
 // per locale, so a large site is a bounded file of its newest content and never one unbounded
 // read. Every URL is absolute on the primary address; headings come from the site's catalog.
 //
@@ -25,11 +25,12 @@ export async function llmsResponse(site: Site): Promise<Response> {
   for (const locale of locales) {
     const t = ui(locale);
     for (const type of ['page', 'article'] as const) {
-      const { entries } = await runtime().invoker.run(useCases.getFeed, reader, {
+      const feed = await runtime().invoker.run(useCases.getFeed, reader, {
         locale,
         type,
         limit: FEED_MAX,
       });
+      const entries = feed.entries.filter((e) => !e.restricted);
       if (!entries.length) continue;
       const label = t(type === 'page' ? 'public.llms.pages' : 'public.llms.articles');
       out.push(

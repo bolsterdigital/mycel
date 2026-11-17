@@ -65,7 +65,7 @@ export interface BlockCopy {
     notOpen: Record<'upcoming' | 'closed', string>;
   };
   /** The page links under an overview with an archive. */
-  overview: { older: string; newer: string; label: string };
+  overview: { older: string; newer: string; label: string; restricted: string };
 }
 
 export interface RenderImage {
@@ -330,6 +330,8 @@ export type RenderBlock = { id: string } & (
         /** Decorative: the title beside it names the item. */
         image: RenderImage | null;
         pinned: boolean;
+        /** For members or a tier: the card names it, and its link leads to the teaser. */
+        restricted: boolean;
         revisionId: string;
       }[];
       /** Site-root paths of the neighbouring pages; only with `archive` on. */

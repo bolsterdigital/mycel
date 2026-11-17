@@ -413,7 +413,7 @@ export const en = {
   'admin.navigation.source.title': 'Page title',
   'admin.navigation.source.system': 'Standard name',
   'admin.navigation.state.unpublished': 'Page not published',
-  'admin.navigation.state.restricted': 'Members only: not shown',
+  'admin.navigation.state.restricted': 'Members only: visitors see the introduction',
   'admin.navigation.state.missing': 'Page no longer exists',
   'admin.navigation.state.noLabel': 'No text in {locale}',
   'admin.navigation.field.name': 'Name',
@@ -424,7 +424,7 @@ export const en = {
     'Leave empty to use the title of the page. An address needs a text of its own.',
   'admin.navigation.field.label.inherits': 'Leave empty to use the title of the page: "{title}".',
   'admin.navigation.field.label.inheritsRestricted':
-    'Leave empty to use the title of the page: "{title}". The page is for members only, so visitors do not see this link.',
+    'Leave empty to use the title of the page: "{title}". The page is for members only: visitors see the link and the introduction.',
   'admin.navigation.field.label.groupHint': 'The text above the sub-items.',
   'admin.navigation.field.url.hint': 'Starts with / for a place on this site, or with https://.',
   'admin.navigation.field.anchor': 'Where on the page',
@@ -547,7 +547,7 @@ export const en = {
   'admin.navigation.problem.where': '{item} in {menu}',
   'admin.navigation.problem.label-missing':
     'It has no text in {locale}; add one before publishing.',
-  'admin.navigation.problem.target-unavailable': 'Its page is not published publicly in {locale}.',
+  'admin.navigation.problem.target-unavailable': 'Its page is not published in {locale}.',
   'admin.navigation.problem.children-unreachable':
     'Its page is not shown and it has no text of its own in {locale}, so its sub-items are left out too.',
   'admin.navigation.problem.anchor-missing':
@@ -1267,6 +1267,7 @@ export const en = {
   'block.overview.older': 'Show older',
   'block.overview.newer': 'Show newer',
   'block.overview.pages': 'More in this overview',
+  'block.overview.restricted': 'Members only',
   'block.campaign.notOpen.upcoming': 'You cannot take part yet.',
   'block.campaign.notOpen.closed': 'You can no longer take part: this campaign has closed.',
   'block.lightbox.enlarge': 'larger version',

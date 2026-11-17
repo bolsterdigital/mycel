@@ -1,8 +1,12 @@
 // What an overview block shows: the pins on top, then the newest or oldest published
 // articles or pages that match the block's filter, as cards with the featured title, summary and
-// image of each published revision in this locale. Only `access: public` revisions: a restricted
-// item never appears, not even as a teaser (reader access is ADR 016). One query for the pins
-// and one for the list, never one per card.
+// image of each published revision in this locale. A restricted item is a card like any other,
+// drawn from its teaser without blocks (`cardDocument`: title, explicit lead or card text, header
+// image) and marked `restricted`, the same for every visitor and reader, so the host page stays
+// one public cache entry (ADR 018 rules 7 and 8). The renderer shows an image only when the asset
+// itself is public. An agenda leaves restricted events out: when and where is what a members'
+// meeting keeps to its members (`teaserDocument`), and an agenda sorts by it. One query for the
+// pins and one for the list, never one per card.
 //
 // Pages: page 1 shows the pins that are published here and fills up to the limit; page n > 1
 // continues the same list where page n - 1 stopped, without pins, so an archive reads as one
@@ -28,6 +32,7 @@ import { ContentType, Slug, canonicalTag } from '../model.js';
 import { PublishedEvent, projectEvent } from '../public.js';
 import { wallClock } from '../../util/time-zone.js';
 import { effectiveOf } from '../header/effective.js';
+import { cardDocument } from '../access/projection.js';
 import { OverviewProps } from '../blocks/overview.js';
 import type { PublishedCardRow } from '../ports.js';
 import '../ports.js';
@@ -53,6 +58,8 @@ export const OverviewEntry = z.object({
   /** When and where in this locale, for an event page; null for anything else. */
   event: PublishedEvent.nullable(),
   pinned: z.boolean(),
+  /** For members or a tier (ADR 016): the card says so, and its address serves the teaser. */
+  restricted: z.boolean(),
 });
 export type OverviewEntry = z.infer<typeof OverviewEntry>;
 
@@ -74,7 +81,8 @@ export async function overviewOf(
   const site = (await ctx.siteSettings.images()).value;
   const { timeZone } = (await ctx.siteSettings.general()).value;
   const entry = (row: PublishedCardRow, pinned: boolean): OverviewEntry => {
-    const effective = effectiveOf(row.document, locale, site);
+    const doc = cardDocument(row.document);
+    const effective = effectiveOf(doc, locale, site);
     return {
       id: row.itemId,
       type: row.type,
@@ -84,15 +92,20 @@ export async function overviewOf(
       title: effective.title.text,
       summary: effective.summary.text,
       imageId: effective.images.featured.mediaId,
-      event: projectEvent(row.document, locale, timeZone),
+      event: projectEvent(doc, locale, timeZone),
       pinned,
+      restricted: doc.access.level !== 'public',
     };
   };
 
   // The pins as page 1 shows them, in the editor's order; their count decides where the list
   // starts on every page, so page 2 continues page 1 exactly.
   const pinRows = pinIds.length
-    ? await ctx.content.publishedCards({ locale, ids: pinIds, order: 'newest' }, 0, pinIds.length)
+    ? await ctx.content.publishedCards(
+        { locale, ids: pinIds, order: 'newest', restricted: true },
+        0,
+        pinIds.length
+      )
     : [];
   const pins = pinIds.flatMap((id) => pinRows.filter((r) => r.itemId === id).slice(0, 1));
   const shownPins = Math.min(pins.length, limit);
@@ -112,6 +125,7 @@ export async function overviewOf(
       ...(props.tags.length ? { tags: props.tags.map((t) => canonicalTag(t.tag)) } : {}),
       exclude: pinIds,
       order: props.order,
+      restricted: !events,
     },
     offset,
     take + 1
@@ -130,7 +144,7 @@ export const getOverview = defineUseCase({
   kind: 'query',
   requires: 'content:read',
   description:
-    "Read what an overview block shows in one locale: its pinned items, then the published public articles or pages that match its filter, newest or oldest first, or the upcoming (soonest first) or past (latest first) events on the site's clock now, as cards with featured title, summary, image and, for an event, when and where; page 2 and on continue the list without the pins.",
+    "Read what an overview block shows in one locale: its pinned items, then the published articles or pages that match its filter (a restricted one as a teaser card marked `restricted`), newest or oldest first, or the upcoming (soonest first) or past (latest first) events on the site's clock now, as cards with featured title, summary, image and, for an event, when and where; page 2 and on continue the list without the pins.",
   input: z
     .object({
       props: OverviewProps,
@@ -145,7 +159,7 @@ export const getOverview = defineUseCase({
         props: { sectionId: exampleId(0x5ec1), limit: '6' },
         locale: 'nl',
       },
-      note: 'The six newest public articles of one section.',
+      note: 'The six newest articles of one section.',
     },
   ],
   async handler(ctx, { props, locale, page }) {

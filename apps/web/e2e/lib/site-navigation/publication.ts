@@ -126,7 +126,7 @@ export async function exerciseNavigationPublication(page: Page, request: APIRequ
   await page.goto('/admin/probe/navigation/preview/en');
   const problems = page.locator('#navigation-problems');
   await expect(problems).toContainText('Blocks publication');
-  await expect(problems).toContainText('not published publicly in en');
+  await expect(problems).toContainText('not published in en');
   await expect(page.getByRole('button', { name: 'Publish in en' })).toHaveCount(0);
 
   // In nl nothing blocks: the preview shows the bar and the footer column, and publishes. The

@@ -148,7 +148,7 @@ describe('public people', () => {
     ).rejects.toMatchObject({ code: 'not_found' });
   });
 
-  it('counts published restricted articles for auto without exposing their cards or count', async () => {
+  it('lists a published restricted article as a teaser card: title, lead and its access', async () => {
     const { invoker, visitor, createPerson, article, publish } = setup();
     const sam = await createPerson('sam');
     const restricted = await article('restricted-secret', [sam.id], 'members');
@@ -157,9 +157,14 @@ describe('public people', () => {
       slug: 'sam',
       locale: 'en',
     });
-    expect(result.articles).toEqual([]);
-    expect(result.total).toBe(0);
-    expect(JSON.stringify(result)).not.toContain('restricted-secret');
+    expect(result.articles).toEqual([
+      expect.objectContaining({
+        title: 'restricted-secret-en',
+        lead: 'Introduction EN',
+        access: 'members',
+      }),
+    ]);
+    expect(result.total).toBe(1);
     expect(
       (await invoker.run(useCases.listPublicPeople, visitor, { locale: 'nl' })).people
     ).toHaveLength(1);

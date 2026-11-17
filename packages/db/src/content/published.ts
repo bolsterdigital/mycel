@@ -96,8 +96,9 @@ interface CardRow {
 
 /**
  * `ContentRepository.publishedCards`: one query per overview, the published revision's
- * document included so core derives the card (`effectiveOf`) the way every other card does. The
- * filter is on plain values of that document (access level, section, tags), as above; the tag
+ * document included so core derives the card (`effectiveOf`) the way every other card does, after
+ * projecting a restricted one (`cardDocument`). The filter is on plain values of that document
+ * (access level unless `restricted` asks for every level, section, tags), as above; the tag
  * test is jsonb containment, so every tag must be there. A document that no longer parses is left
  * out, as `latestDocuments` does, so one broken row does not empty a homepage. An agenda's test
  * and order are on the published document's event times, plain `YYYY-MM-DDTHH:mm` text, so they
@@ -105,7 +106,7 @@ interface CardRow {
  */
 export function publishedCards(trx: Kysely<Database>): ContentRepository['publishedCards'] {
   return async (
-    { locale, type, sectionId, authorId, tags, ids, exclude, order, events },
+    { locale, type, sectionId, authorId, tags, ids, exclude, order, events, restricted },
     offset,
     limit
   ) => {
@@ -122,7 +123,7 @@ export function publishedCards(trx: Kysely<Database>): ContentRepository['publis
       join content_revisions r on r.id = l.published_revision_id
       where l.published_revision_id is not null
         and l.locale = ${locale}
-        and coalesce(r.document->'access'->>'level', 'public') = 'public'
+        ${restricted ? sql`` : sql`and coalesce(r.document->'access'->>'level', 'public') = 'public'`}
         ${type ? sql`and i.type = ${type}` : sql``}
         ${sectionId ? sql`and i.type = 'article' and r.document->>'sectionId' = ${sectionId}` : sql``}
         ${authorId ? sql`and i.type = 'article' and r.document->'authorIds' @> ${JSON.stringify([authorId])}::jsonb` : sql``}
