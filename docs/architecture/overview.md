@@ -17,7 +17,8 @@ Short map; the reasoning is in [`../adr/`](../adr/).
                  │ assist · attention · audit · jobs · ops · i18n             │
                  │ use-case registry                                          │
                  │ ports: UnitOfWork, Clock, Ids, Signer, EventBus, Scheduler,│
-                 │        Mailer, BlobStore, ImageProcessor, MediaDelivery,   │
+                 │        Mailer, EmailRenderer, BlobStore, ImageProcessor,   │
+                 │        MediaDelivery,                                      │
                  │        TextModel, IdentityStore, SiteDirectory, Logger,    │
                  │        ErrorReporter (repositories in each ports.ts)       │
                  └───────────────┬───────────────────────┬────────────────────┘
@@ -27,6 +28,7 @@ Short map; the reasoning is in [`../adr/`](../adr/).
                  │ Postgres · Kysely    │   │ packages/media-sharp         │
                  │ migrations · RLS     │   │ packages/mail-tem            │
                  │                      │   │ packages/assist-openai       │
+                 │                      │   │ packages/render-email        │
                  └──────────────────────┘   └──────────────────────────────┘
 
    beside        packages/observability: logs, request context, error

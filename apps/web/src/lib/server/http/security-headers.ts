@@ -85,7 +85,7 @@ export function denyFraming(policy: string): string {
   return frameAncestors(policy, "'none'");
 }
 
-/** Only the live draft document may be framed by its own admin origin. */
+/** Only the live draft document and the e-mail preview may be framed by their own admin origin. */
 export function frameAncestors(policy: string, source: "'none'" | "'self'"): string {
   const directives = policy
     .split(';')

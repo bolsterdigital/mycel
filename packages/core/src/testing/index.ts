@@ -6,3 +6,4 @@ export * from './fake-connection-transport.js';
 export * from './services.js';
 export * from './demo-content.js';
 export * from './navigation-fixtures.js';
+export * from './email-examples.js';

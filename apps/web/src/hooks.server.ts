@@ -121,7 +121,8 @@ export const handle: Handle = async (input) => {
     )
       response.headers.append('link', API_CATALOG_LINK);
     if (kind === 'public') response = conditional(event.request, response);
-    const liveDraft = /^\/admin\/[^/]+\/preview\/draft$/.test(event.url.pathname);
+    // The live draft and the e-mail preview are the admin documents its own pages frame.
+    const liveDraft = /^\/admin\/[^/]+\/preview\/(draft|email\/[^/]+)$/.test(event.url.pathname);
     if (liveDraft) {
       response.headers.set('cache-control', PRIVATE_NO_STORE);
       response.headers.set('x-robots-tag', 'noindex');

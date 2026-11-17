@@ -212,6 +212,8 @@ export interface UnitOfWorkDeps {
   /** A separate 32-byte key for encrypted connector credentials, hex encoded. */
   connectionCredentialKey?: string | undefined;
   assistProviderLabel?: string | null;
+  /** Newsletter markup; absent in suites that render no mail: then `ctx.emailRenderer` refuses. */
+  emailRenderer?: import('@mycel/core').EmailRenderer | undefined;
 }
 
 const unconfigured = (port: string) =>
@@ -261,6 +263,9 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           ),
           connectionIntents: connectionIntentsRepository(trx, tenantId),
           assistProviderLabel: deps.assistProviderLabel ?? null,
+          emailRenderer:
+            deps.emailRenderer ??
+            (unconfigured('EmailRenderer') as import('@mycel/core').EmailRenderer),
           authors: authorRepository(trx, tenantId),
           personGroups: personGroupRepository(trx, tenantId),
           sections: sectionRepository(trx, tenantId),

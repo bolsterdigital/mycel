@@ -487,6 +487,89 @@ test('a landing page is refused the trash with its own reason while its campaign
   if (isA11y()) await expectNoAxeViolations(page, { label: 'landing page delete refused' });
 });
 
+test('an article shows its newsletter: the e-mail preview per language, without JavaScript', async ({
+  page,
+  request,
+}) => {
+  const slug = `nieuwsbrief-${test.info().project.name}-${Date.now()}`;
+  const editor = systemPrincipal(await tenantId(), 'e2e-email-preview');
+  const text = (t: string) => ({
+    type: 'doc' as const,
+    content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }],
+  });
+  const { item } = await withInvoker((invoker) =>
+    invoker.run(useCases.createItem, editor, {
+      slug,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: 'Buurtbatterij komt er', en: 'The battery is coming' },
+        lead: { nl: 'Veertig daken doen mee.', en: 'Forty roofs take part.' },
+        delivery: {
+          web: true,
+          email: {
+            listId: 'nieuwsbrief',
+            subject: { nl: 'Nieuws uit de wijk', en: 'News from the area' },
+          },
+        },
+        blocks: [
+          {
+            type: 'rich-text',
+            version: 1,
+            props: { content: { nl: text('Eerste alinea.'), en: text('First paragraph.') } },
+          },
+          {
+            type: 'video-embed',
+            version: DEFS['video-embed'].version,
+            props: {
+              provider: 'youtube',
+              videoId: 'dQw4w9WgXcQ',
+              title: { nl: 'De opening', en: 'The opening' },
+            },
+          },
+        ],
+      },
+    })
+  );
+  await login(page, `/admin/probe/content/${item.id}`);
+  await page.getByRole('link', { name: 'E-mail bekijken' }).click();
+  await expect(page).toHaveURL(new RegExp(`/content/${item.id}/email$`));
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    'Voorbeeld e-mail: Buurtbatterij komt er'
+  );
+  await expect(page.locator('main .ui-meta dd')).toHaveText('Nieuws uit de wijk');
+  const mail = page.frameLocator('iframe');
+  await expect(mail.getByRole('heading', { level: 1 })).toHaveText('Buurtbatterij komt er');
+  await expect(mail.getByRole('link', { name: /Bekijk de video: De opening/ })).toHaveAttribute(
+    'href',
+    /youtube\.com\/watch/
+  );
+  await expect(page.locator('main pre')).toContainText('Eerste alinea.');
+  if (isA11y()) await expectNoAxeViolations(page, { label: 'e-mail preview nl' });
+
+  await page.getByRole('link', { name: 'English' }).click();
+  await expect(page.locator('main .ui-meta dd')).toHaveText('News from the area');
+  await expect(
+    mail.getByRole('link', { name: 'View this e-mail in your browser' })
+  ).toHaveAttribute('href', new RegExp(`/en/articles/${slug}$`));
+  await page.setViewportSize(NARROW);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)
+  ).toBeLessThanOrEqual(0);
+
+  // The frame's route: its own narrow policy, framed by the admin only, and nothing without a session.
+  const frame = await page.locator('iframe').getAttribute('src');
+  const own = await page.request.get(frame!);
+  expect(own.status()).toBe(200);
+  expect(own.headers()['content-security-policy']).toMatch(
+    /default-src 'none'.*frame-ancestors 'self'/
+  );
+  const anonymous = await request.get(frame!);
+  expect(anonymous.status()).toBe(403);
+  expect(await anonymous.text()).not.toContain('Buurtbatterij');
+});
+
 test.describe('in English', () => {
   // A Dutch browser on the English path: the path decides, not Accept-Language.
   test.use({ locale: 'nl-NL' });

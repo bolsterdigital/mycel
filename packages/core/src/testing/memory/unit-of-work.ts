@@ -45,6 +45,7 @@ import {
 import { memoryFormMail, memoryForms, memoryRateLimits, memorySubmissions } from './forms.js';
 import { MemoryJobRecovery, MemoryScheduler } from './operations/jobs.js';
 import { memoryMailSends } from './mailing.js';
+import type { EmailRenderer } from '../../mailing/ports.js';
 import { MemoryBlobStore, memoryImageProcessor, memoryMedia } from './media.js';
 import {
   memoryApiKeys,
@@ -68,7 +69,16 @@ export interface MemoryDeps {
   delivery?: MediaDelivery;
   assistProviderLabel?: string | null;
   mailchimpDiscovery?: MailchimpDiscovery;
+  emailRenderer?: EmailRenderer;
 }
+
+/**
+ * The mail model as JSON: enough for a use case test to see what reached the renderer. The real
+ * markup is `packages/render-email`, which the core cannot import.
+ */
+export const memoryEmailRenderer: EmailRenderer = {
+  render: (email) => ({ html: JSON.stringify(email), text: JSON.stringify(email) }),
+};
 
 export class MemoryUnitOfWork implements UnitOfWork {
   readonly store: MemoryStore;
@@ -84,6 +94,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
   readonly inputHasher: InputHasher = new FakeInputHasher();
   readonly mailchimpDiscovery: MailchimpDiscovery;
   readonly assistProviderLabel: string | null;
+  readonly emailRenderer: EmailRenderer;
 
   constructor(deps: MemoryDeps = {}) {
     this.mailchimpDiscovery = deps.mailchimpDiscovery ?? unavailableMailchimp;
@@ -97,6 +108,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
     this.images = deps.images ?? memoryImageProcessor;
     this.delivery = deps.delivery ?? appDelivery;
     this.assistProviderLabel = deps.assistProviderLabel ?? null;
+    this.emailRenderer = deps.emailRenderer ?? memoryEmailRenderer;
   }
 
   async run<T>(principal: Principal, fn: (tx: TransactionContext) => Promise<T>): Promise<T> {
@@ -136,6 +148,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         connections: memoryConnections(s, principal),
         connectionIntents: memoryConnectionIntents(s),
         assistProviderLabel: this.assistProviderLabel,
+        emailRenderer: this.emailRenderer,
         authors: {
           ...sluggedRepository(s.authors),
           list: async (after, limit, kind) =>

@@ -1,0 +1,1063 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`render-email > renders audio in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/en/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">Listen on the website: The talk with the council &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders audio in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+Listen on the website: The talk with the council: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders audio in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">Luister op de website: Het gesprek met de raad &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders audio in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+Luister op de website: Het gesprek met de raad: https://vogelwijk.example.org/articles/buurtbatterij
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders callout in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;border-left:4px solid #2d6cb5;"><tr><td style="padding:20px;"><p style="margin:0 0 6px;font-size:14px;font-weight:700;">Information</p><p style="margin:0 0 14px;">The outcome is in <a href="https://vogelwijk.example.org/en/articles/rapport" style="color:#1b1b1f;text-decoration:underline;">our report</a></p></td></tr></table></td></tr>
+"
+`;
+
+exports[`render-email > renders callout in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+INFORMATION
+The outcome is in our report (https://vogelwijk.example.org/en/articles/rapport)
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders callout in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;border-left:4px solid #2d6cb5;"><tr><td style="padding:20px;"><p style="margin:0 0 6px;font-size:14px;font-weight:700;">Informatie</p><p style="margin:0 0 14px;">De uitslag staat in <a href="https://vogelwijk.example.org/articles/rapport" style="color:#1b1b1f;text-decoration:underline;">ons verslag</a></p></td></tr></table></td></tr>
+"
+`;
+
+exports[`render-email > renders callout in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+INFORMATIE
+De uitslag staat in ons verslag (https://vogelwijk.example.org/articles/rapport)
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders campaign-card in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/en/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">Take part on the website &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders campaign-card in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+Take part on the website: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders campaign-card in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">Doe mee op de website &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders campaign-card in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+Doe mee op de website: https://vogelwijk.example.org/articles/buurtbatterij
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders cards in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;"><tr><td style="padding:20px;"><h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Become a member</h2><p style="margin:8px 0 0;">Together we stand stronger.</p><p style="margin:4px 0 0;"><a href="https://vogelwijk.example.org/en/articles/rapport" style="display:inline-block;margin:8px 8px 0 0;padding:12px 20px;background-color:#2d6cb5;color:#ffffff;font-weight:700;text-decoration:none;border-radius:4px;">Sign up</a></p></td></tr></table></td></tr><tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;"><tr><td style="padding:20px;"><h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Volunteer with us</h2><p style="margin:8px 0 0;">A few hours a month already make a difference, even if you have never joined in before.</p><p style="margin:4px 0 0;"><a href="https://example.org/klussen" style="display:inline-block;margin:8px 8px 0 0;padding:12px 20px;background-color:#2d6cb5;color:#ffffff;font-weight:700;text-decoration:none;border-radius:4px;">See the jobs</a></p></td></tr></table></td></tr><tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;"><tr><td style="padding:20px;"><h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Support us</h2><p style="margin:4px 0 0;"><a href="https://example.org/doneer" style="display:inline-block;margin:8px 8px 0 0;padding:12px 20px;background-color:#2d6cb5;color:#ffffff;font-weight:700;text-decoration:none;border-radius:4px;">Donate</a></p></td></tr></table></td></tr>
+"
+`;
+
+exports[`render-email > renders cards in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+BECOME A MEMBER
+Together we stand stronger.
+Sign up: https://vogelwijk.example.org/en/articles/rapport
+
+VOLUNTEER WITH US
+A few hours a month already make a difference, even if you have never joined in before.
+See the jobs: https://example.org/klussen
+
+SUPPORT US
+Donate: https://example.org/doneer
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders cards in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;"><tr><td style="padding:20px;"><h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Word lid</h2><p style="margin:8px 0 0;">Samen staan we sterker.</p><p style="margin:4px 0 0;"><a href="https://vogelwijk.example.org/articles/rapport" style="display:inline-block;margin:8px 8px 0 0;padding:12px 20px;background-color:#2d6cb5;color:#ffffff;font-weight:700;text-decoration:none;border-radius:4px;">Meld je aan</a></p></td></tr></table></td></tr><tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;"><tr><td style="padding:20px;"><h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Doe mee als vrijwilliger</h2><p style="margin:8px 0 0;">Een paar uur per maand maakt al verschil, ook als je nog nooit eerder hebt meegedaan.</p><p style="margin:4px 0 0;"><a href="https://example.org/klussen" style="display:inline-block;margin:8px 8px 0 0;padding:12px 20px;background-color:#2d6cb5;color:#ffffff;font-weight:700;text-decoration:none;border-radius:4px;">Bekijk de klussen</a></p></td></tr></table></td></tr><tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;"><tr><td style="padding:20px;"><h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Steun ons</h2><p style="margin:4px 0 0;"><a href="https://example.org/doneer" style="display:inline-block;margin:8px 8px 0 0;padding:12px 20px;background-color:#2d6cb5;color:#ffffff;font-weight:700;text-decoration:none;border-radius:4px;">Doneer</a></p></td></tr></table></td></tr>
+"
+`;
+
+exports[`render-email > renders cards in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+WORD LID
+Samen staan we sterker.
+Meld je aan: https://vogelwijk.example.org/articles/rapport
+
+DOE MEE ALS VRIJWILLIGER
+Een paar uur per maand maakt al verschil, ook als je nog nooit eerder hebt meegedaan.
+Bekijk de klussen: https://example.org/klussen
+
+STEUN ONS
+Doneer: https://example.org/doneer
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders cta in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f2c14e;color:#1b1b1f;"><tr><td style="padding:20px;"><h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Join in</h2><p style="margin:8px 0 0;">Every signature counts.</p><p style="margin:4px 0 0;"><a href="https://vogelwijk.example.org/en/articles/rapport" style="display:inline-block;margin:8px 8px 0 0;padding:12px 20px;background-color:#2d6cb5;color:#ffffff;font-weight:700;text-decoration:none;border-radius:4px;">Sign the petition</a></p></td></tr></table></td></tr>
+"
+`;
+
+exports[`render-email > renders cta in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+JOIN IN
+Every signature counts.
+Sign the petition: https://vogelwijk.example.org/en/articles/rapport
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders cta in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f2c14e;color:#1b1b1f;"><tr><td style="padding:20px;"><h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Doe mee</h2><p style="margin:8px 0 0;">Elke handtekening telt.</p><p style="margin:4px 0 0;"><a href="https://vogelwijk.example.org/articles/rapport" style="display:inline-block;margin:8px 8px 0 0;padding:12px 20px;background-color:#2d6cb5;color:#ffffff;font-weight:700;text-decoration:none;border-radius:4px;">Teken de petitie</a></p></td></tr></table></td></tr>
+"
+`;
+
+exports[`render-email > renders cta in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+DOE MEE
+Elke handtekening telt.
+Teken de petitie: https://vogelwijk.example.org/articles/rapport
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders faq in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><h2 style="margin:8px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:24px;line-height:1.25;font-weight:700;">Frequently asked questions</h2></td></tr><tr><td style="padding:0 24px 20px;"><h2 style="margin:0 0 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">What happens to my data?</h2><p style="margin:0 0 14px;">See <a href="https://vogelwijk.example.org/en/articles/rapport" style="color:#1f4f8f;text-decoration:underline;">our privacy statement</a></p></td></tr><tr><td style="padding:0 24px 20px;"><h2 style="margin:0 0 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Can I unsubscribe?</h2><p style="margin:0 0 14px;">Yes, at any time.</p></td></tr>
+"
+`;
+
+exports[`render-email > renders faq in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+Frequently asked questions
+--------------------------
+
+WHAT HAPPENS TO MY DATA?
+See our privacy statement (https://vogelwijk.example.org/en/articles/rapport)
+
+CAN I UNSUBSCRIBE?
+Yes, at any time.
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders faq in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><h2 style="margin:8px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:24px;line-height:1.25;font-weight:700;">Veelgestelde vragen</h2></td></tr><tr><td style="padding:0 24px 20px;"><h2 style="margin:0 0 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Wat gebeurt er met mijn gegevens?</h2><p style="margin:0 0 14px;">Dat lees je in <a href="https://vogelwijk.example.org/articles/rapport" style="color:#1f4f8f;text-decoration:underline;">onze privacyverklaring</a></p></td></tr><tr><td style="padding:0 24px 20px;"><h2 style="margin:0 0 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Kan ik me afmelden?</h2><p style="margin:0 0 14px;">Ja, altijd.</p></td></tr>
+"
+`;
+
+exports[`render-email > renders faq in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+Veelgestelde vragen
+-------------------
+
+WAT GEBEURT ER MET MIJN GEGEVENS?
+Dat lees je in onze privacyverklaring (https://vogelwijk.example.org/articles/rapport)
+
+KAN IK ME AFMELDEN?
+Ja, altijd.
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders file-download in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/en/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">See this part on the website &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders file-download in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+See this part on the website: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders file-download in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">Bekijk dit onderdeel op de website &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders file-download in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+Bekijk dit onderdeel op de website: https://vogelwijk.example.org/articles/buurtbatterij
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders form in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/en/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">Fill in the form on the website &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders form in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+Fill in the form on the website: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders form in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">Vul het formulier in op de website &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders form in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+Vul het formulier in op de website: https://vogelwijk.example.org/articles/buurtbatterij
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders gallery in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><div style="margin:0 0 16px;"><img src="https://vogelwijk.example.org/media/<image>/w1.webp" alt="Protesters with banners on the Malieveld" width="1" style="display:block;width:100%;max-width:1px;height:auto;border:0;"><p style="margin:6px 0 0;font-size:14px;line-height:1.4;">The Malieveld on Saturday · Photo: Noor Bakker</p></div><div style="margin:0 0 16px;"><img src="https://vogelwijk.example.org/media/<image>/w1.webp" alt="Protesters with banners on the Malieveld" width="1" style="display:block;width:100%;max-width:1px;height:auto;border:0;"><p style="margin:6px 0 0;font-size:14px;line-height:1.4;">The Malieveld on Saturday · Photo: Noor Bakker</p></div></td></tr>
+"
+`;
+
+exports[`render-email > renders gallery in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+[Protesters with banners on the Malieveld]
+The Malieveld on Saturday · Photo: Noor Bakker
+
+[Protesters with banners on the Malieveld]
+The Malieveld on Saturday · Photo: Noor Bakker
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders gallery in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><div style="margin:0 0 16px;"><img src="https://vogelwijk.example.org/media/<image>/w1.webp" alt="Demonstranten met spandoeken op het Malieveld" width="1" style="display:block;width:100%;max-width:1px;height:auto;border:0;"><p style="margin:6px 0 0;font-size:14px;line-height:1.4;">Het Malieveld op zaterdag · Foto: Noor Bakker</p></div><div style="margin:0 0 16px;"><img src="https://vogelwijk.example.org/media/<image>/w1.webp" alt="Demonstranten met spandoeken op het Malieveld" width="1" style="display:block;width:100%;max-width:1px;height:auto;border:0;"><p style="margin:6px 0 0;font-size:14px;line-height:1.4;">Het Malieveld op zaterdag · Foto: Noor Bakker</p></div></td></tr>
+"
+`;
+
+exports[`render-email > renders gallery in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+[Demonstranten met spandoeken op het Malieveld]
+Het Malieveld op zaterdag · Foto: Noor Bakker
+
+[Demonstranten met spandoeken op het Malieveld]
+Het Malieveld op zaterdag · Foto: Noor Bakker
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders heading in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><h2 style="margin:8px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:24px;line-height:1.25;font-weight:700;">Who we are</h2></td></tr>
+"
+`;
+
+exports[`render-email > renders heading in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+Who we are
+----------
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders heading in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><h2 style="margin:8px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:24px;line-height:1.25;font-weight:700;">Wie we zijn</h2></td></tr>
+"
+`;
+
+exports[`render-email > renders heading in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+Wie we zijn
+-----------
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders hero in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;"><tr><td style="padding:20px;"><h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Clean air for everyone</h2></td></tr></table></td></tr>
+"
+`;
+
+exports[`render-email > renders hero in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+CLEAN AIR FOR EVERYONE
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders hero in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;"><tr><td style="padding:20px;"><h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Schone lucht voor iedereen</h2></td></tr></table></td></tr>
+"
+`;
+
+exports[`render-email > renders hero in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+SCHONE LUCHT VOOR IEDEREEN
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders image in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><img src="https://vogelwijk.example.org/media/<image>/w1.webp" alt="Protesters with banners on the Malieveld" width="1" style="display:block;width:100%;max-width:1px;height:auto;border:0;"><p style="margin:6px 0 0;font-size:14px;line-height:1.4;">The Malieveld on Saturday · Photo: Noor Bakker</p></td></tr>
+"
+`;
+
+exports[`render-email > renders image in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+[Protesters with banners on the Malieveld]
+The Malieveld on Saturday · Photo: Noor Bakker
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders image in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><img src="https://vogelwijk.example.org/media/<image>/w1.webp" alt="Demonstranten met spandoeken op het Malieveld" width="1" style="display:block;width:100%;max-width:1px;height:auto;border:0;"><p style="margin:6px 0 0;font-size:14px;line-height:1.4;">Het Malieveld op zaterdag · Foto: Noor Bakker</p></td></tr>
+"
+`;
+
+exports[`render-email > renders image in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+[Demonstranten met spandoeken op het Malieveld]
+Het Malieveld op zaterdag · Foto: Noor Bakker
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders overview in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/en/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">See this part on the website &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders overview in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+See this part on the website: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders overview in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">Bekijk dit onderdeel op de website &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders overview in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+Bekijk dit onderdeel op de website: https://vogelwijk.example.org/articles/buurtbatterij
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders paywall in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+
+"
+`;
+
+exports[`render-email > renders paywall in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders paywall in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+
+"
+`;
+
+exports[`render-email > renders paywall in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders people-grid in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/en/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">See this part on the website &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders people-grid in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+See this part on the website: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders people-grid in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">Bekijk dit onderdeel op de website &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders people-grid in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+Bekijk dit onderdeel op de website: https://vogelwijk.example.org/articles/buurtbatterij
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders quote in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><blockquote style="margin:0;padding:0 0 0 16px;border-left:4px solid #f2c14e;"><p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:21px;line-height:1.4;font-style:italic;">We have been waiting ten years for a safe crossing.</p><p style="margin:8px 0 0;font-size:15px;">Fatima el Amrani, local resident</p></blockquote></td></tr>
+"
+`;
+
+exports[`render-email > renders quote in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+"We have been waiting ten years for a safe crossing."
+Fatima el Amrani, local resident
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders quote in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><blockquote style="margin:0;padding:0 0 0 16px;border-left:4px solid #f2c14e;"><p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:21px;line-height:1.4;font-style:italic;">We wachten al tien jaar op een veilige oversteek.</p><p style="margin:8px 0 0;font-size:15px;">Fatima el Amrani, buurtbewoner</p></blockquote></td></tr>
+"
+`;
+
+exports[`render-email > renders quote in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+"We wachten al tien jaar op een veilige oversteek."
+Fatima el Amrani, buurtbewoner
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders rich-text in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0 0 14px;">More about our work is in <a href="https://vogelwijk.example.org/en/articles/rapport" style="color:#1f4f8f;text-decoration:underline;">the annual report</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders rich-text in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+More about our work is in the annual report (https://vogelwijk.example.org/en/articles/rapport)
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders rich-text in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0 0 14px;">Meer over ons werk staat in <a href="https://vogelwijk.example.org/articles/rapport" style="color:#1f4f8f;text-decoration:underline;">het jaarverslag</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders rich-text in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+Meer over ons werk staat in het jaarverslag (https://vogelwijk.example.org/articles/rapport)
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders signup-form in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/en/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">Fill in the form on the website &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders signup-form in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+Fill in the form on the website: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders signup-form in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">Vul het formulier in op de website &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders signup-form in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+Vul het formulier in op de website: https://vogelwijk.example.org/articles/buurtbatterij
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders the header, the frame and the footer > html en 1`] = `
+"<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light">
+<title>News from the Vogelwijk</title></head>
+<body style="margin:0;padding:0;background-color:#f3f3f0;color:#1b1b1f;">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">From spring, a shared battery stores the solar power of forty roofs.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;">
+<tr><td align="center" style="padding:12px 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;">
+<a href="https://vogelwijk.example.org/en/articles/buurtbatterij" style="color:#1b1b1f;text-decoration:underline;">View this e-mail in your browser</a>
+</td></tr>
+<tr><td align="center" style="padding:0 8px 24px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;color:#1b1b1f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:17px;line-height:1.55;">
+<tr><td style="padding:16px 24px;background-color:#2d6cb5;font-size:18px;font-weight:700;"><a href="https://vogelwijk.example.org" style="color:#ffffff;text-decoration:none;">Vogelwijk Energie</a></td></tr>
+<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A battery for the Vogelwijk</h1><p style="margin:12px 0 0;font-size:20px;line-height:1.5;">From spring, a shared battery stores the solar power of forty roofs.</p></td></tr>
+<tr><td style="padding:0 24px 20px;"><img src="https://vogelwijk.example.org/media/<image>/w1.webp" alt="Solar panels on a row of roofs" width="1" style="display:block;width:100%;max-width:1px;height:auto;border:0;"><p style="margin:6px 0 0;font-size:14px;line-height:1.4;">The Malieveld on Saturday · Photo: Noor Bakker</p></td></tr>
+
+<tr><td style="padding:20px 24px;font-size:14px;background-color:#f3f3f0;color:#1b1b1f;">You receive this e-mail from Vogelwijk Energie. <a href="https://vogelwijk.example.org" style="color:#1f4f8f;text-decoration:underline;color:#1b1b1f;">vogelwijk.example.org</a></td></tr>
+</table>
+</td></tr></table>
+</body></html>
+"
+`;
+
+exports[`render-email > renders the header, the frame and the footer > html nl 1`] = `
+"<!doctype html>
+<html lang="nl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light">
+<title>Nieuws uit de Vogelwijk</title></head>
+<body style="margin:0;padding:0;background-color:#f3f3f0;color:#1b1b1f;">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">Vanaf het voorjaar slaat een gedeelde batterij de zonnestroom van veertig daken op.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;">
+<tr><td align="center" style="padding:12px 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;">
+<a href="https://vogelwijk.example.org/articles/buurtbatterij" style="color:#1b1b1f;text-decoration:underline;">Bekijk deze e-mail in je browser</a>
+</td></tr>
+<tr><td align="center" style="padding:0 8px 24px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;color:#1b1b1f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:17px;line-height:1.55;">
+<tr><td style="padding:16px 24px;background-color:#2d6cb5;font-size:18px;font-weight:700;"><a href="https://vogelwijk.example.org" style="color:#ffffff;text-decoration:none;">Vogelwijk Energie</a></td></tr>
+<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij voor de Vogelwijk</h1><p style="margin:12px 0 0;font-size:20px;line-height:1.5;">Vanaf het voorjaar slaat een gedeelde batterij de zonnestroom van veertig daken op.</p></td></tr>
+<tr><td style="padding:0 24px 20px;"><img src="https://vogelwijk.example.org/media/<image>/w1.webp" alt="Zonnepanelen op een rij daken" width="1" style="display:block;width:100%;max-width:1px;height:auto;border:0;"><p style="margin:6px 0 0;font-size:14px;line-height:1.4;">Het Malieveld op zaterdag · Foto: Noor Bakker</p></td></tr>
+
+<tr><td style="padding:20px 24px;font-size:14px;background-color:#f3f3f0;color:#1b1b1f;">Je ontvangt deze e-mail van Vogelwijk Energie. <a href="https://vogelwijk.example.org" style="color:#1f4f8f;text-decoration:underline;color:#1b1b1f;">vogelwijk.example.org</a></td></tr>
+</table>
+</td></tr></table>
+</body></html>
+"
+`;
+
+exports[`render-email > renders the header, the frame and the footer > text en 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A battery for the Vogelwijk
+===========================
+
+From spring, a shared battery stores the solar power of forty roofs.
+
+[Solar panels on a row of roofs]
+The Malieveld on Saturday · Photo: Noor Bakker
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders the header, the frame and the footer > text nl 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij voor de Vogelwijk
+===================================
+
+Vanaf het voorjaar slaat een gedeelde batterij de zonnestroom van veertig daken op.
+
+[Zonnepanelen op een rij daken]
+Het Malieveld op zaterdag · Foto: Noor Bakker
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders timeline in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;"><tr><td style="padding:20px;"><p style="margin:0 0 4px;font-size:14px;">May 19, 2026</p><h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Debate in the council</h2></td></tr></table></td></tr><tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;"><tr><td style="padding:20px;"><p style="margin:0 0 4px;font-size:14px;">March 2, 2026</p><h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Petition handed over</h2></td></tr></table></td></tr>
+"
+`;
+
+exports[`render-email > renders timeline in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+May 19, 2026
+DEBATE IN THE COUNCIL
+
+March 2, 2026
+PETITION HANDED OVER
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders timeline in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;"><tr><td style="padding:20px;"><p style="margin:0 0 4px;font-size:14px;">19 mei 2026</p><h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Debat in de raad</h2></td></tr></table></td></tr><tr><td style="padding:0 24px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#f3f3f0;color:#1b1b1f;"><tr><td style="padding:20px;"><p style="margin:0 0 4px;font-size:14px;">2 maart 2026</p><h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:700;">Petitie aangeboden</h2></td></tr></table></td></tr>
+"
+`;
+
+exports[`render-email > renders timeline in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+19 mei 2026
+DEBAT IN DE RAAD
+
+2 maart 2026
+PETITIE AANGEBODEN
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders video-embed in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">Watch the video: Report of the march &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders video-embed in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+Watch the video: Report of the march: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders video-embed in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">Bekijk de video: Verslag van de mars &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders video-embed in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+Bekijk de video: Verslag van de mars: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;

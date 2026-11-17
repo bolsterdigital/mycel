@@ -27,6 +27,9 @@
     },
     {
       "path": "../assist-openai"
+    },
+    {
+      "path": "../render-email"
     }
   ]
 }

@@ -5,7 +5,7 @@
   import ArticleBlocks from '#lib/editor/article/ArticleBlocks.svelte';
   import AuthorPicker from '#lib/admin/people/AuthorPicker.svelte';
   import OldAddresses from '#lib/admin/old-addresses/OldAddresses.svelte';
-  import CampaignPanel from '#lib/admin/campaigns/CampaignPanel.svelte';
+  import ItemPanels from '#lib/admin/email-preview/ItemPanels.svelte';
   import EditorShortcuts from '#lib/editor/EditorShortcuts.svelte';
   import { onMount } from 'svelte';
   import { earlyInput } from '#lib/editor/early-input.js';
@@ -1243,7 +1243,7 @@
   {/snippet}
 
   {#snippet aside()}
-    {#if data.campaign}<CampaignPanel {...data.campaign} locale={data.locale} />{/if}
+    <ItemPanels campaign={data.campaign} {article} locale={data.locale} />
     {#if mainPublication || others.length}
       <PublicationDrawer
         id="publication-panel"
