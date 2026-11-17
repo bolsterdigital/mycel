@@ -13,12 +13,12 @@ Short map; the reasoning is in [`../adr/`](../adr/).
    domain        │ packages/core                                              │
                  │ tenants · operators · entitlements · content · theme       │
                  │ campaigns · media · forms · supporters · mailing           │
-                 │ connections · navigation · readers                         │
+                 │ connections · navigation · readers · money                 │
                  │ assist · attention · audit · jobs · ops · i18n             │
                  │ use-case registry                                          │
                  │ ports: UnitOfWork, Clock, Ids, Signer, EventBus, Scheduler,│
                  │        Mailer, EmailRenderer, BlobStore, ImageProcessor,   │
-                 │        MediaDelivery,                                      │
+                 │        MediaDelivery, PaymentProvider,                     │
                  │        TextModel, IdentityStore, SiteDirectory, Logger,    │
                  │        ErrorReporter (repositories in each ports.ts)       │
                  └───────────────┬───────────────────────┬────────────────────┘
@@ -66,7 +66,7 @@ Short map; the reasoning is in [`../adr/`](../adr/).
 
 **Media** is a register per tenant with the bytes behind three ports: [media](../reference/media.md).
 
-**Events.** Modules communicate through `EventBus` (a port). The first implementation is an in-process bus backed by a Postgres outbox table so that a crash never loses an event; a worker drains it. The supporter module is the main subscriber (ADR 003).
+**Events.** Modules talk through the `EventBus` port: an in-process bus on a Postgres outbox, so a crash never loses an event; a worker drains it. The supporter module is the main subscriber (ADR 003).
 
 **Supporter identity and fold**: a stable id, an append-only log and a projection under a per-supporter lock: [supporters](../reference/supporters.md).
 
@@ -99,4 +99,4 @@ Short map; the reasoning is in [`../adr/`](../adr/).
 | `docs/reference/`                | one page per module or contract, listed below                                                                                        |
 | `docs/adr/`                      | decisions, indexed in [`docs/adr/README.md`](../adr/README.md); `docs/plans` is a gitignored symlink to the private planning sibling |
 
-**Reference pages.** Use cases: [names](../reference/use-cases.md). Tenancy, access: [hostnames](../reference/hostnames.md), [operators](../reference/operators.md), [entitlements](../reference/entitlements.md), [platform API](../reference/platform-api.md), [database](../reference/database.md). Content: [content model](../reference/content-model.md), [blocks](../reference/blocks.md), [theme](../reference/theme.md), [fonts](../reference/fonts.md), [media](../reference/media.md), [i18n](../reference/i18n.md), [assist](../reference/assist.md). Supporters, mail: [forms](../reference/forms.md), [supporters](../reference/supporters.md), [readers](../reference/readers.md), [mail](../reference/mail.md), [connections](../reference/connections.md), [webhooks](../reference/managed-webhooks.md), [export, erasure](../reference/export.md). Running: [jobs](../reference/jobs.md), [ops](../reference/ops.md), [observability](../reference/observability.md), [audit](../reference/audit.md). Frontend quality: [runner](../reference/frontend-quality-runner.md), [enforcement](../reference/frontend-quality-enforcement.md).
+**Reference pages.** Use cases: [names](../reference/use-cases.md). Tenancy, access: [hostnames](../reference/hostnames.md), [operators](../reference/operators.md), [entitlements](../reference/entitlements.md), [platform API](../reference/platform-api.md), [database](../reference/database.md). Content: [content model](../reference/content-model.md), [blocks](../reference/blocks.md), [theme](../reference/theme.md), [fonts](../reference/fonts.md), [media](../reference/media.md), [i18n](../reference/i18n.md), [assist](../reference/assist.md). Supporters, mail: [forms](../reference/forms.md), [supporters](../reference/supporters.md), [donations](../reference/donations.md), [readers](../reference/readers.md), [mail](../reference/mail.md), [connections](../reference/connections.md), [webhooks](../reference/managed-webhooks.md), [export, erasure](../reference/export.md). Running: [jobs](../reference/jobs.md), [ops](../reference/ops.md), [observability](../reference/observability.md), [audit](../reference/audit.md). Frontend quality: [runner](../reference/frontend-quality-runner.md), [enforcement](../reference/frontend-quality-enforcement.md).

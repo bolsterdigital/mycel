@@ -45,6 +45,8 @@ const MODULES = [
   'campaign',
   'connection',
   'content',
+  // ADR 005: a one-off gift; its payment and ledger are how it is recorded, not its name.
+  'donation',
   'form',
   'mailing',
   'media',

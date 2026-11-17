@@ -87,6 +87,10 @@ export interface TenantStore {
   personGroups: Map<string, PersonGroup>;
   /** `campaigns` (0049), keyed by id. */
   campaigns: Map<string, Campaign>;
+  /** `payments` (0072), keyed by id. */
+  payments: Map<string, import('../../money/model.js').Payment>;
+  /** `ledger_entries` (0072), in the order they were appended. */
+  ledgerEntries: import('../../money/model.js').LedgerEntry[];
   /** `campaign_participations` (0049), keyed by `<campaign id> <supporter id>`. */
   participations: Map<string, import('../../campaigns/model.js').CampaignParticipation>;
   authors: Map<string, Author>;
@@ -184,6 +188,8 @@ const emptyTenant = (): TenantStore => ({
   personGroups: new Map(),
   campaigns: new Map(),
   participations: new Map(),
+  payments: new Map(),
+  ledgerEntries: [],
   authors: new Map(),
   sections: new Map(),
   accessTiers: new Map(),

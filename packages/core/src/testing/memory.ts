@@ -30,3 +30,4 @@ export { memoryExportLifecycle } from './memory/operations/export-jobs.js';
 export { MemoryIdentityStore } from './memory/operators.js';
 export { MemorySiteDirectory } from './memory/tenants.js';
 export { MemoryUnitOfWork } from './memory/unit-of-work.js';
+export { FakePaymentProvider } from './memory/money.js';

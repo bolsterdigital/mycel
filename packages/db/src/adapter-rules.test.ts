@@ -9,7 +9,8 @@
 // feed lists (`core/content/published/feed.ts`, scenario in `content/feed-rule.ts`), and where an
 // old address forwards (`core/content/address/redirects.ts`, scenario in `content/redirect-rule.ts`), and whom a
 // supporter list shows (`core/supporters/listing.ts`, scenario in `supporters/list-rule.ts`), and what one
-// supporter's page shows (`core/supporters/timeline.ts`, scenario in `supporters/timeline-rule.ts`). One scenario, one
+// supporter's page shows (`core/supporters/timeline.ts`, scenario in `supporters/timeline-rule.ts`), and how a
+// donation is recorded (`core/money/service.ts`, scenario in `money/donation-rule.ts`). One scenario, one
 // expected record, run once over the memory adapter and once over Postgres; a rule that one
 // adapter keeps on its own shows up as a difference here. Rejected: a suite per adapter, which
 // is how memory came to block a `resolved` intent while Postgres kept it.
@@ -34,6 +35,7 @@ import {
 } from '@mycel/core';
 import {
   FakeClock,
+  FakePaymentProvider,
   FakeDns,
   FakeInputHasher,
   FakeSigner,
@@ -50,6 +52,7 @@ import { expectedFeed, observeFeed } from './content/feed-rule.js';
 import { expectedRedirects, observeRedirects } from './content/redirect-rule.js';
 import { expectedSupporterList, observeSupporterList } from './supporters/list-rule.js';
 import { expectedSupporterTimeline, observeSupporterTimeline } from './supporters/timeline-rule.js';
+import { expectedDonation, observeDonation } from './money/donation-rule.js';
 import { closeTenantWork, requireDatabase, testTenant } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -60,6 +63,8 @@ interface Adapter {
   clock: FakeClock;
   tenant(): Promise<string>;
   apply(tenantId: string): Promise<unknown>;
+  /** The payment provider `uow` was built with. */
+  provider: FakePaymentProvider;
 }
 
 const connection = {
@@ -582,7 +587,7 @@ async function observeReadmission(uow: UnitOfWork, admin: Principal, clock: Fake
   };
 }
 
-async function observe({ uow, clock, tenant, apply }: Adapter) {
+async function observe({ uow, clock, tenant, apply, provider }: Adapter) {
   const t = await tenant();
   const admin = systemPrincipal(t, 'adapter-rules');
   const worker = systemPrincipal(t, 'connections.run');
@@ -726,9 +731,19 @@ async function observe({ uow, clock, tenant, apply }: Adapter) {
     clock,
     apply
   );
+  const donation = await observeDonation(
+    invoker,
+    uow,
+    provider,
+    systemPrincipal(await tenant(), 'adapter-rules'),
+    systemPrincipal(await tenant(), 'adapter-rules'),
+    clock,
+    apply
+  );
   return {
     supporterList,
     supporterTimeline,
+    donation,
     readmission,
     credential,
     frozen,
@@ -866,6 +881,7 @@ const expected = {
   feed: expectedFeed,
   supporterList: expectedSupporterList,
   supporterTimeline: expectedSupporterTimeline,
+  donation: expectedDonation,
   redirects: expectedRedirects,
   publishedList: {
     // Not `ingetrokken:nl` (unpublished), not `gepland` (its pin has not run).
@@ -918,10 +934,12 @@ it('keeps an intent whose state says what happened, and blocks the rest', () => 
 describe('adapter rules, memory', () => {
   it('applies the core rules', async () => {
     const clock = new FakeClock(new Date());
-    const uow = new MemoryUnitOfWork({ clock });
+    const provider = new FakePaymentProvider();
+    const uow = new MemoryUnitOfWork({ clock, paymentProvider: provider });
     const result = await observe({
       uow,
       clock,
+      provider,
       tenant: async () => uuidv7(),
       apply: (t) => uow.run(systemPrincipal(t, 'erasures'), (ctx) => ctx.erasures.apply()),
     });
@@ -933,7 +951,9 @@ describe.skipIf(skip)('adapter rules, postgres', () => {
   const operatorDb = createDb(operatorUrl);
   const appDb = createDb(appUrl);
   const clock = new FakeClock(new Date());
+  const provider = new FakePaymentProvider();
   const uow = createUnitOfWork(appDb, {
+    paymentProvider: provider,
     clock,
     ids: uuidv7Ids,
     signer: new FakeSigner(),
@@ -964,6 +984,7 @@ describe.skipIf(skip)('adapter rules, postgres', () => {
         return id;
       },
       apply: (t) => applyErasures(operatorDb, t),
+      provider,
     });
     expect(result).toEqual(expected);
     // Several tenants and an erasure pass on Postgres: about a second alone, past the default
