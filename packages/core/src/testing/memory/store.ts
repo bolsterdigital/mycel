@@ -4,6 +4,7 @@
 // make erasure, export and usage reach into a dozen objects for one question.
 
 import type { PersonGroup } from '../../content/people/model.js';
+import type { AccessTier } from '../../content/access/model.js';
 import type { Campaign } from '../../campaigns/model.js';
 import type { BulkPlan, BulkResult } from '../../content/bulk/model.js';
 import type { PresenceEntry } from '../../content/presence/model.js';
@@ -90,6 +91,7 @@ export interface TenantStore {
   participations: Map<string, import('../../campaigns/model.js').CampaignParticipation>;
   authors: Map<string, Author>;
   sections: Map<string, Section>;
+  accessTiers: Map<string, AccessTier>;
   presence: Map<string, PresenceEntry>;
   bulkPlans: Map<string, BulkPlan>;
   bulkUndo: Set<string>;
@@ -180,6 +182,7 @@ const emptyTenant = (): TenantStore => ({
   participations: new Map(),
   authors: new Map(),
   sections: new Map(),
+  accessTiers: new Map(),
   presence: new Map(),
   bulkPlans: new Map(),
   bulkUndo: new Set(),

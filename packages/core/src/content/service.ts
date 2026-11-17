@@ -306,6 +306,17 @@ export async function referenceIssues(
     if (doc.sectionId && !(await ctx.sections.get(doc.sectionId)))
       issues.push({ path: 'sectionId', message: 'content.reference.section-unknown' });
   }
+  // A tier is the tenant's own or it does not exist (ADR 016 rule 2): the read runs in the
+  // tenant's context, so an unknown id and another tenant's id are the same refusal, on every
+  // save and again at publish. Until a tier is found, tier access stays unpublishable.
+  if (doc.access.level === 'tier')
+    for (const id of doc.access.tierIds ?? [])
+      if (!(await ctx.accessTiers.get(id)))
+        issues.push({
+          path: 'access.tierIds',
+          message: 'content.reference.tier-unknown',
+          params: { id },
+        });
   return issues;
 }
 

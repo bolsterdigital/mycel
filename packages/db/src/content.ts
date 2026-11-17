@@ -18,6 +18,7 @@ import {
   Pattern,
   Revision,
   Section,
+  AccessTier,
   upgradeFaqV1InDocument,
   type ContentRepository,
   type EntityRepository,
@@ -733,6 +734,76 @@ export function sectionRepository(trx: Trx, tenantId: string): SluggedRepository
         .updateTable('sections')
         .set(fields(s))
         .where('id', '=', s.id)
+        .where('updated_at', '=', new Date(baseUpdatedAt))
+        .executeTakeFirst();
+      return r.numUpdatedRows > 0n;
+    },
+  };
+}
+
+/** Access tiers (0068): the shape of `sectionRepository`, plus the fixed `kind`. No delete. */
+export function accessTierRepository(trx: Trx, tenantId: string): SluggedRepository<AccessTier> {
+  const toTier = (r: Selectable<Database['access_tiers']>): AccessTier =>
+    AccessTier.parse({
+      id: r.id,
+      slug: r.slug,
+      name: r.name,
+      ...(r.description ? { description: r.description } : {}),
+      order: r.sort_order,
+      kind: r.kind,
+      createdAt: toIso(r.created_at),
+      updatedAt: toIso(r.updated_at),
+    });
+  const fields = (t: AccessTier) => ({
+    name: JSON.stringify(t.name),
+    description: t.description ? JSON.stringify(t.description) : null,
+    sort_order: t.order,
+    updated_at: t.updatedAt,
+  });
+  const rows = () => trx.selectFrom('access_tiers').selectAll();
+  return {
+    async get(id) {
+      const r = await rows().where('id', '=', id).executeTakeFirst();
+      return r ? toTier(r) : null;
+    },
+    async findBySlug(slug) {
+      const r = await rows().where('slug', '=', slug).executeTakeFirst();
+      return r ? toTier(r) : null;
+    },
+    async list(after, limit) {
+      let q = rows();
+      if (after) q = q.where('id', '<', after);
+      return paged(
+        (
+          await q
+            .orderBy('id', 'desc')
+            .limit(limit + 1)
+            .execute()
+        ).map(toTier),
+        limit
+      );
+    },
+    async insert(t) {
+      return insertedUnlessTaken('access_tiers_tenant_id_slug_key', async () => {
+        await trx
+          .insertInto('access_tiers')
+          .values({
+            id: t.id,
+            tenant_id: tenantId,
+            slug: t.slug,
+            kind: t.kind,
+            created_at: t.createdAt,
+            ...fields(t),
+          })
+          .execute();
+      });
+    },
+    async update(t, baseUpdatedAt) {
+      // Compare-and-set like a section (ADR 027); slug and kind are not in `fields`.
+      const r = await trx
+        .updateTable('access_tiers')
+        .set(fields(t))
+        .where('id', '=', t.id)
         .where('updated_at', '=', new Date(baseUpdatedAt))
         .executeTakeFirst();
       return r.numUpdatedRows > 0n;

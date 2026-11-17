@@ -48,6 +48,7 @@ import {
   contentRepository,
   patternRepository,
   sectionRepository,
+  accessTierRepository,
 } from './content.js';
 import { erasureRepository } from './erasures.js';
 import { personErasureRepository } from './people/erasures.js';
@@ -269,6 +270,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           authors: authorRepository(trx, tenantId),
           personGroups: personGroupRepository(trx, tenantId),
           sections: sectionRepository(trx, tenantId),
+          accessTiers: accessTierRepository(trx, tenantId),
           patterns: patternRepository(trx, tenantId),
           formMail: formMailRepository(trx, tenantId),
           formFeeds: formFeedRepository(trx, tenantId),

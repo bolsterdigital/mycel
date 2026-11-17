@@ -152,6 +152,13 @@ import { closeJob, getOpsStatus, retryJob } from './ops/service.js';
 import { getAttentionSummary, listAttention, updateAttentionSeenAt } from './attention/service.js';
 import { UseCaseRegistry, type UseCase } from './registry.js';
 import { changeSupporterEmail, getSupporter } from './supporters/service.js';
+import { createAccessGrant, revokeAccessGrant } from './supporters/access.js';
+import {
+  createAccessTier,
+  getAccessTier,
+  listAccessTiers,
+  updateAccessTier,
+} from './content/access/service.js';
 import { eraseSupporter, getSupporterErasure } from './supporters/erase.js';
 import { erasePeople } from './content/people/erase.js';
 import { checkThemeUseCase } from './theme/service.js';
@@ -306,6 +313,12 @@ export const useCases = {
   changeSupporterEmail,
   eraseSupporter,
   getSupporterErasure,
+  createAccessGrant,
+  revokeAccessGrant,
+  createAccessTier,
+  updateAccessTier,
+  getAccessTier,
+  listAccessTiers,
   erasePeople,
   listMembers,
   listMemberNames,

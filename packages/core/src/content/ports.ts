@@ -4,6 +4,7 @@
 // publish after a reschedule" follow from the lock order, not from timing.
 
 import type { PersonGroup } from './people/model.js';
+import type { AccessTier } from './access/model.js';
 
 import type { BulkPlan, BulkPhase, BulkResult } from './bulk/model.js';
 import type { PresenceEntry } from './presence/model.js';
@@ -373,6 +374,11 @@ declare module '../ports.js' {
     presence: PresenceRepository;
     authors: PersonRepository;
     sections: SluggedRepository<Section>;
+    /**
+     * The tenant's access tiers (ADR 016 rule 2). There is no delete: an article and a grant
+     * point at a tier by id, and a tier that could vanish would leave published access to guess at.
+     */
+    accessTiers: SluggedRepository<AccessTier>;
     patterns: PatternRepository;
   }
 }

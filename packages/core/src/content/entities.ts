@@ -37,10 +37,10 @@ import { exampleId } from '../util/ids.js';
 
 const Limit = z.number().int().min(1).max(MAX_PAGE_SIZE).optional();
 
-const slugTaken = (what: string, slug: string) =>
+export const slugTaken = (what: string, slug: string) =>
   new UseCaseError('conflict', `${what} with slug "${slug}" already exists`);
 
-async function assertFreeSlug<T extends { id: string; slug: string; updatedAt: string }>(
+export async function assertFreeSlug<T extends { id: string; slug: string; updatedAt: string }>(
   repo: SluggedRepository<T>,
   slug: string,
   what: string
@@ -71,7 +71,7 @@ const entityConflict = (what: string, updatedAt: string) =>
 const nextStamp = (ctx: TransactionContext, base: string) =>
   new Date(Math.max(ctx.clock.now().getTime(), Date.parse(base) + 1)).toISOString();
 
-async function updateEntity<T extends { id: string; slug: string; updatedAt: string }>(
+export async function updateEntity<T extends { id: string; slug: string; updatedAt: string }>(
   ctx: TransactionContext,
   repo: SluggedRepository<T>,
   what: string,
@@ -91,7 +91,7 @@ async function updateEntity<T extends { id: string; slug: string; updatedAt: str
 }
 
 /** The `updatedAt` a caller read: what an update of an author or section is based on. */
-const BaseUpdatedAt = z.string().datetime({ offset: true });
+export const BaseUpdatedAt = z.string().datetime({ offset: true });
 
 export const createPerson = defineUseCase({
   name: 'content.person.create',

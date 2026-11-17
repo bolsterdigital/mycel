@@ -324,6 +324,7 @@ describe.skipIf(skip)('row level security conformance', () => {
       personIds: [person.id],
     });
     await invoker.run(useCases.createSection, admin, { slug: 'rls', title: { nl: 'RLS' } });
+    await invoker.run(useCases.createAccessTier, admin, { slug: 'rls', name: { nl: 'RLS' } });
     await invoker.run(useCases.createPattern, admin, {
       name: { nl: 'RLS' },
       intendedType: 'page',
