@@ -310,11 +310,13 @@ export interface DonationStart {
   returnUrl: string;
   supporterId?: string | undefined;
   submissionId?: string | undefined;
+  /** The fundraiser the donation form is bound to; `form.submit` decided it accepts now. */
+  campaignId?: string | undefined;
 }
 
 /**
  * Open a checkout and record the payment (`donation.create`, and the donation form of
- * `form.submit` in its own transaction). Throws `conflict` when there is no provider or it does
+ * `form.submit` in its own transaction, with the fundraiser it is bound to). Throws `conflict` when there is no provider or it does
  * not answer, so a form submission that cannot be paid is not stored either.
  */
 export async function startDonation(
@@ -387,6 +389,7 @@ export async function startDonation(
     checkoutUrl: null,
     supporterId: supporter?.id ?? null,
     submissionId: input.submissionId ?? null,
+    campaignId: input.campaignId ?? null,
     createdAt: at,
     updatedAt: at,
     paidAt: null,

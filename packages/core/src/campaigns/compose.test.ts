@@ -88,9 +88,22 @@ describe('campaign.landing.create', () => {
     expect(await counts()).toEqual({ pages: 0, forms: 0, campaigns: 0 });
   });
 
-  it('refuses a fundraiser, which waits for the ledger', async () => {
-    const { compose } = setup();
-    await expectCode(compose({ kind: 'fundraiser' }), 'invalid_input');
+  it('makes a fundraiser with a donation form and a goal in cents', async () => {
+    const { invoker, admin, compose } = setup();
+    const campaign = await compose({
+      kind: 'fundraiser',
+      goal: { target: 500_000, milestones: [] },
+    });
+    expect(campaign).toMatchObject({
+      kind: 'fundraiser',
+      goal: { target: 500_000 },
+      participants: 0,
+      raised: { amount: 0, currency: 'EUR' },
+    });
+    const { form } = await invoker.run(useCases.getFormForAuthoring, admin, {
+      id: campaign.formId!,
+    });
+    expect(form.kind).toBe('donation');
   });
 });
 

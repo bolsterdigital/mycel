@@ -1,10 +1,11 @@
-// A new petition or signup: kind, a title per locale, the locales, an optional slug and
+// A new petition, signup or fundraiser: kind, a title per locale, the locales, an optional slug and
 // goal. One `campaign.landing.create` makes the form, the draft landing page with that form on it
 // and the campaign, in one transaction; the answer is a 303 to the page's editor, where the
 // campaign panel opens participation once the page is written and published. A refusal re-renders
 // the form with what was typed.
 import { fail, redirect } from '@sveltejs/kit';
-import { ComposableKind, useCases } from '@mycel/core';
+import { CampaignKind, useCases } from '@mycel/core';
+import { goalTarget } from '#lib/campaign-count.js';
 import { failureOf } from '#lib/server/admin/admin-actions.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { refusalOf } from '#lib/server/http/refuse.js';
@@ -15,7 +16,7 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent, url }) => {
   await parent();
-  return { kind: ComposableKind.safeParse(url.searchParams.get('kind')).data ?? 'petition' };
+  return { kind: CampaignKind.safeParse(url.searchParams.get('kind')).data ?? 'petition' };
 };
 
 /** Core's issue keys on a create, as admin copy. */
@@ -36,11 +37,13 @@ export const actions: Actions = {
     const title = Object.fromEntries(
       locales.flatMap((l) => (one(`title.${l}`) ? [[l, one(`title.${l}`)]] : []))
     );
-    const target = one('target') ? Number(one('target')) : null;
+    const kind = CampaignKind.safeParse(one('kind')).data ?? 'petition';
+    // A fundraiser's goal is typed in euros and kept in cents; NaN fails core's check as invalid.
+    const target = goalTarget(one('target'), kind);
     let landing: string;
     try {
       const campaign = await runtime().invoker.run(useCases.composeCampaign, principal, {
-        kind: ComposableKind.safeParse(one('kind')).data ?? 'petition',
+        kind,
         title,
         defaultLocale: tenant.defaultLocale,
         locales,

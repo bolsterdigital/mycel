@@ -402,7 +402,7 @@
     {@render picture(b.image, 'mediaId')}
   {:else if BLOCK_PRESENTATION[b.type].rest === 'text' && b.text}
     {#if b.type === 'hero' && b.image}{@render picture(b.image, 'image-mediaId')}{/if}
-    {@const words = restWords(b.text, data.restricted, t)}
+    {@const words = restWords(b.text, data.restricted, t, data.locale)}
     <BlockText view={b.text} {...words} />
     {#if b.type === 'hero'}
       <p class="ui-hint">

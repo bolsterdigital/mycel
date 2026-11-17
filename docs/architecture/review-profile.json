@@ -148,7 +148,8 @@
         "apps/web/src/lib/public/search-path.ts",
         "apps/web/src/lib/public/navigation-href.ts",
         "apps/web/src/lib/public/language-links.ts",
-        "apps/web/src/lib/money.ts"
+        "apps/web/src/lib/money.ts",
+        "apps/web/src/lib/campaign-count.ts"
       ],
       "adrs": ["004", "012", "017", "020"],
       "gates": [

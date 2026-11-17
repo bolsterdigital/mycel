@@ -30,6 +30,7 @@ import {
   windowChanged,
 } from './model.js';
 import './ports.js';
+import { tallies } from './tally.js';
 
 const CampaignId = z.string().guid();
 const IsoDate = z.string().datetime({ offset: true });
@@ -103,8 +104,8 @@ const conflict = () => refuse('conflict', 'baseUpdatedAt', 'campaign.conflict');
 
 /** The reader's view of campaigns: the public total, never the erased count on its own. */
 async function views(ctx: TransactionContext, campaigns: Campaign[]): Promise<CampaignView[]> {
-  const active = await ctx.campaigns.activeCounts(campaigns.map((c) => c.id));
-  return campaigns.map((c) => toView(c, active.get(c.id) ?? 0));
+  const counted = await tallies(ctx, campaigns);
+  return campaigns.map((c) => toView(c, counted.get(c.id)!));
 }
 const view = async (ctx: TransactionContext, campaign: Campaign) =>
   (await views(ctx, [campaign]))[0]!;
@@ -226,8 +227,6 @@ export const openCampaign = defineUseCase({
     const current = await lockCampaign(ctx, campaignId);
     if (Date.parse(current.updatedAt) !== Date.parse(baseUpdatedAt)) throw conflict();
     notArchived(current);
-    if (FORM_KIND_OF[current.kind] === null)
-      throw refuse('conflict', 'campaignId', 'campaign.kind.not-available', { kind: current.kind });
     if (!current.formId) throw refuse('conflict', 'formId', 'campaign.form.required');
     // Rule 3 at the moment it matters. `form.update` refuses to change a bound form's kind; this
     // read under the form's lock is the backstop for a form bound before that guard existed.

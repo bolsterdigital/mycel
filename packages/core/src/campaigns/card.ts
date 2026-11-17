@@ -15,7 +15,8 @@ import { exampleId } from '../util/ids.js';
 import { ContentType, Slug } from '../content/model.js';
 import { statusOf } from '../content/lifecycle.js';
 import { effectiveOf } from '../content/header/effective.js';
-import { acceptsNow, CampaignKind, FORM_KIND_OF, type Campaign } from './model.js';
+import { acceptsNow, CampaignKind, FORM_KIND_OF, Raised, type Campaign } from './model.js';
+import { tallyOf } from './tally.js';
 import './ports.js';
 import '../content/ports.js';
 import '../theme/ports.js';
@@ -70,10 +71,14 @@ export const CampaignCard = z.discriminatedUnion('available', [
     phase: CampaignPhase,
     opensAt: z.string().datetime({ offset: true }).nullable(),
     closesAt: z.string().datetime({ offset: true }).nullable(),
-    /** Null when the site hides the counter (rule 8): no number anywhere, not even in the ETag. */
+    /**
+     * Null when the site hides the counter (rule 8): no number anywhere, not even in the ETag. A
+     * fundraiser counts `raised` against a target in minor units; `participants` is its gifts.
+     */
     counter: z
       .object({
         participants: z.number().int().nonnegative(),
+        raised: Raised.nullable(),
         target: z.number().int().positive().nullable(),
       })
       .nullable(),
@@ -122,7 +127,6 @@ export async function campaignCardOf(
   const now = ctx.clock.now();
   const phase = phaseOf(campaign, now);
   const effective = effectiveOf(doc, locale, (await ctx.siteSettings.images()).value);
-  const active = (await ctx.campaigns.activeCounts([campaign.id])).get(campaign.id) ?? 0;
   let formId: string | null = null;
   if (phase === 'open' && campaign.formId) {
     const form = await ctx.forms.findById(campaign.formId);
@@ -146,7 +150,7 @@ export async function campaignCardOf(
     opensAt: campaign.participation.opensAt,
     closesAt: campaign.participation.closesAt,
     counter: campaign.counterVisible
-      ? { participants: active + campaign.erasedCount, target: campaign.goal?.target ?? null }
+      ? { ...(await tallyOf(ctx, campaign)), target: campaign.goal?.target ?? null }
       : null,
     formId,
   };

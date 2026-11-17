@@ -7,11 +7,14 @@ import { z } from 'zod';
 export const CampaignKind = z.enum(['petition', 'signup', 'fundraiser']);
 export type CampaignKind = z.infer<typeof CampaignKind>;
 
-/** The form kind each campaign kind binds (ADR 033 rule 3); a fundraiser waits for ADR 005. */
-export const FORM_KIND_OF: Record<CampaignKind, 'petition' | 'signup' | null> = {
+/**
+ * The form kind each campaign kind binds (ADR 033 rule 3): a fundraiser binds a donation form,
+ * whose accepted submission opens a payment for the campaign (amendment 2026-11-17).
+ */
+export const FORM_KIND_OF: Record<CampaignKind, 'petition' | 'signup' | 'donation'> = {
   petition: 'petition',
   signup: 'signup',
-  fundraiser: null,
+  fundraiser: 'donation',
 };
 
 const At = z.string().datetime({ offset: true });
@@ -76,6 +79,23 @@ export const Campaign = z.object({
 });
 export type Campaign = z.infer<typeof Campaign>;
 
+/** Money a fundraiser raised: paid amounts in minor units of the tenant currency (rule 8). */
+export const Raised = z.object({
+  amount: z.number().int().nonnegative(),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+});
+export type Raised = z.infer<typeof Raised>;
+
+/**
+ * What a campaign counts now (ADR 033 rule 8). A petition or signup counts people: active
+ * participations plus the anonymous erased ones. A fundraiser counts money in `raised`, and
+ * `participants` is then the number of paid gifts; its goal is in minor units, like `raised`.
+ */
+export interface Tally {
+  participants: number;
+  raised: Raised | null;
+}
+
 /**
  * What a reader of a campaign sees (ADR 033 rule 8): the public total, active participations plus
  * the anonymous erased ones, never `erasedCount` on its own. Review point 3 of PR #400: the split
@@ -83,12 +103,14 @@ export type Campaign = z.infer<typeof Campaign>;
  */
 export const CampaignView = Campaign.omit({ erasedCount: true }).extend({
   participants: z.number().int().nonnegative(),
+  /** Set for a fundraiser only: what its paid gifts add up to. */
+  raised: Raised.nullable(),
 });
 export type CampaignView = z.infer<typeof CampaignView>;
 
-export const toView = (campaign: Campaign, active: number): CampaignView => {
-  const { erasedCount, ...rest } = campaign;
-  return { ...rest, participants: active + erasedCount };
+export const toView = (campaign: Campaign, tally: Tally): CampaignView => {
+  const { erasedCount: _erased, ...rest } = campaign;
+  return { ...rest, participants: tally.participants, raised: tally.raised };
 };
 
 /**

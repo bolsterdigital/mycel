@@ -1209,7 +1209,7 @@ export const en = {
   'admin.campaign.kind.signup': 'Signup',
   'admin.campaign.kind.fundraiser': 'Fundraiser',
   'admin.campaign.kind.hint':
-    'A petition counts signatures; a signup counts people who join, with the subscription in the same step.',
+    'A petition counts signatures; a signup counts people who join, with the subscription in the same step; a fundraiser counts the money given through its donation form.',
   'admin.campaign.state.draft': 'Not opened yet',
   'admin.campaign.state.open': 'Open',
   'admin.campaign.state.closed': 'Closed',
@@ -1221,7 +1221,7 @@ export const en = {
   'admin.campaign.new.submit': 'Start campaign',
   'admin.campaign.field.target': 'Goal',
   'admin.campaign.field.target.hint':
-    'The number of participants you aim for. Leave it empty for no goal.',
+    'The number of participants you aim for, or for a fundraiser the amount in euros. Leave it empty for no goal.',
   'admin.campaign.field.opensAt': 'Opens at',
   'admin.campaign.field.closesAt': 'Closes at',
   'admin.campaign.field.counterVisible': 'Show the count on the site',

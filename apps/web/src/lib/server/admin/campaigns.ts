@@ -12,6 +12,7 @@ import type { UiKey } from '../../../i18n/index.js';
 import { fromLocalInput, localInput } from '../content/content-admin-publication.js';
 import { runtime } from '../runtime.js';
 import { text } from './admin-actions.js';
+import { goalTarget } from '../../campaign-count.js';
 
 /** What the editor's side column shows of the campaign a page is the landing page of. */
 export interface CampaignPanel {
@@ -20,6 +21,8 @@ export interface CampaignPanel {
   state: CampaignView['participation']['state'];
   archived: boolean;
   participants: number;
+  /** A fundraiser's paid gifts; then `target` is in minor units too. */
+  raised: CampaignView['raised'];
   target: number | null;
   counterVisible: boolean;
   opensAt: string;
@@ -47,6 +50,7 @@ export async function campaignPanel(
     state: campaign.participation.state,
     archived: !!campaign.archivedAt,
     participants: campaign.participants,
+    raised: campaign.raised,
     target: campaign.goal?.target ?? null,
     counterVisible: campaign.counterVisible,
     opensAt: local(campaign.participation.opensAt),
@@ -99,7 +103,12 @@ export function refusalOutcome(e: UseCaseError): CampaignOutcome {
  * may move it (the inputs are not there otherwise), the goal empty for none. `null` for a value
  * that is not a time or not a whole number, which the route answers as `invalid`.
  */
-export function campaignFields(data: FormData, zone: string, canPublish: boolean) {
+export function campaignFields(
+  data: FormData,
+  zone: string,
+  canPublish: boolean,
+  kind: CampaignView['kind']
+) {
   const at = (name: string) => {
     const value = text(data, name).trim();
     if (!value) return { ok: true as const, at: null };
@@ -108,9 +117,8 @@ export function campaignFields(data: FormData, zone: string, canPublish: boolean
   };
   const opens = at('opensAt');
   const closes = at('closesAt');
-  const targetText = text(data, 'target').trim();
-  const target = targetText ? Number(targetText) : null;
-  if (!opens.ok || !closes.ok || (target !== null && !Number.isInteger(target))) return null;
+  const target = goalTarget(text(data, 'target'), kind);
+  if (!opens.ok || !closes.ok || Number.isNaN(target)) return null;
   return {
     counterVisible: data.get('counterVisible') === 'on',
     goal: target === null ? null : { target, milestones: [] as number[] },

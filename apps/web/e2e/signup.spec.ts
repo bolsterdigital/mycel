@@ -35,6 +35,7 @@ import { campaignCardFixture } from './lib/blocks/campaigns';
 import { exerciseRestrictedArticle } from './lib/published/restricted';
 import { exerciseDonation } from './lib/forms/donation';
 import { exerciseMollieConnection } from './lib/forms/mollie';
+import { exerciseFundraiser } from './lib/forms/fundraiser';
 
 /**
  * A form page ships proof of work, plus conditional display only when its definition needs it.
@@ -769,6 +770,11 @@ test.describe('a Mollie key', () => {
   test('stored, live, hidden, and gone on disconnect', ({ page }) =>
     exerciseMollieConnection(page));
 });
+
+// ADR 033 rule 8: a fundraiser from the campaigns screen, a paid gift, and the money on card and list.
+test('a fundraiser: start with a goal in euros, open, give, count the money on a card', async ({
+  page,
+}, testInfo) => exerciseFundraiser(page, testInfo.project.name));
 
 test('an invalid confirmation link explains itself and passes axe', async ({ page, request }) => {
   await page.goto('/probe/confirm?token=forged');

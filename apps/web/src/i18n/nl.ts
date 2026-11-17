@@ -1227,7 +1227,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.campaign.kind.signup': 'Inschrijfactie',
   'admin.campaign.kind.fundraiser': 'Fondsenwerving',
   'admin.campaign.kind.hint':
-    'Een petitie telt handtekeningen; een inschrijfactie telt aanmeldingen, met de inschrijving in dezelfde stap.',
+    'Een petitie telt handtekeningen; een inschrijfactie telt aanmeldingen, met de inschrijving in dezelfde stap; een fondsenwerving telt het geld dat via haar doneerformulier binnenkomt.',
   'admin.campaign.state.draft': 'Nog niet geopend',
   'admin.campaign.state.open': 'Open',
   'admin.campaign.state.closed': 'Gesloten',
@@ -1239,7 +1239,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.campaign.new.submit': 'Campagne starten',
   'admin.campaign.field.target': 'Doel',
   'admin.campaign.field.target.hint':
-    'Het aantal deelnemers waar je naartoe werkt. Laat leeg voor geen doel.',
+    'Het aantal deelnemers, of bij een fondsenwerving het bedrag in euro’s, waar je naartoe werkt. Laat leeg voor geen doel.',
   'admin.campaign.field.opensAt': 'Opent op',
   'admin.campaign.field.closesAt': 'Sluit op',
   'admin.campaign.field.counterVisible': 'Toon de teller op de site',

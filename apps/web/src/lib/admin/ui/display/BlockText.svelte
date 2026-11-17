@@ -117,6 +117,7 @@
           kind: CampaignKind;
           phase: CampaignPhase;
           participants: number | null;
+          raised: { amount: number; currency: string } | null;
           target: number | null;
         } | null;
         reason: string | null;
