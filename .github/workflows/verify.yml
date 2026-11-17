@@ -205,14 +205,19 @@ jobs:
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      # Each project runs in three shards (Playwright splits by file). The a11y project reached the
-      # 12-minute step limit with every test green: 476 tests, 1,144 s of test time over two
-      # workers on a 4-core runner. Rejected: a higher step limit (the next spec crosses it
-      # again) and more workers per runner (more load on the class of e2e hangs under load). Two
-      # shards still left one at 570 s, too close to 720 s on a slow runner.
+      # Each project runs in six shards (Playwright splits by file, in order, on test count). The
+      # a11y project reached the 12-minute step limit four times with every test green: on three
+      # shards the first one carried the six editor specs, a step of 620 to 634 s. Four shards
+      # put content-blocks, media and public-site on one runner, where two saturated workers slow
+      # each other: 495 s on one run, 697 s on the next. On six, public-site.spec.ts runs alone
+      # and the heaviest step measured 520 s. That file is the floor: a spec is one serial unit
+      # and this one takes 350 to 420 s plus setup, so the next lever is the file, not the
+      # count. Rejected: a higher step limit (the next spec crosses it again), more workers per
+      # runner (the slowdown above) and a shard count per project (a second matrix shape to
+      # save three short jobs). The split follows the file order, so some shards are small.
       matrix:
         project: [no-js, a11y]
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4, 5, 6]
     services:
       postgres:
         image: postgres:16.15-alpine
@@ -280,7 +285,7 @@ jobs:
           npm run migrate -w @mycel/db
           npm run build
           # List emits each completed test and duration immediately, even if a later test hangs.
-          npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/3 --reporter=list
+          npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/6 --reporter=list
 
       - name: Keep downloaded packages for the cache
         if: steps.browser-debs.outputs.cache-hit != 'true'
@@ -323,9 +328,15 @@ jobs:
           test '${{ needs.image.result }}' = success
           test '${{ needs.compose.result }}' = success
 
-  # Known advisories in the whole dependency tree and secrets in the whole history (TODO #20c
-  # decision 8). A red `npm audit` without a fix is a stop to discuss, never an --omit or an
-  # exception list. Gitleaks as a pinned container, not gitleaks-action, which needs a licence for
+  # Known advisories in what ships and secrets in the whole history (TODO #20c decision 8). The
+  # audit blocks on runtime dependencies only (owner decision, 2026-11-17): GHSA-fc5q-39xc-vjpf
+  # (picomatch, no patched version) sat in vite, tinyglobby and svelte-check, build and test
+  # tooling that is in no image, and held every merge. The whole tree, development dependencies
+  # included, is audited weekly in dependency-audit.yml, which reports and does not block. A red
+  # runtime audit without a fix is still a stop to discuss, never an exception list. Rejected:
+  # waiting for upstream (an advisory in tooling stops all work for as long as a third party
+  # takes) and an allowlist of advisory ids (it rots, and it also hides the id in the runtime
+  # tree). Gitleaks as a pinned container, not gitleaks-action, which needs a licence for
   # organisation repositories; .gitleaks.toml excepts only the CI placeholders.
   security:
     needs: reuse
@@ -341,8 +352,8 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: npm audit (high and critical)
-        run: npm audit --audit-level=high
+      - name: npm audit of runtime dependencies (high and critical)
+        run: npm audit --omit=dev --audit-level=high
 
       - name: gitleaks over the full history
         run: |

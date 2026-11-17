@@ -106,7 +106,7 @@ test('local verify and CI cover every original command and both existing browser
   assert.deepEqual(projects, ['a11y', 'no-js']);
   // Every shard of a project runs; a shard dimension without its flag would run all tests twice.
   const shards = /shard: \[([^\]]+)\]/.exec(jobs.browsers)[1].split(', ');
-  assert.deepEqual(shards, ['1', '2', '3']);
+  assert.deepEqual(shards, ['1', '2', '3', '4', '5', '6']);
   assert.match(jobs.browsers, /fail-fast: false/);
   const browser = runBlock(stepsOf(jobs.browsers).find((s) => /Build and run browser/.test(s)));
   assert.deepEqual(
@@ -116,7 +116,7 @@ test('local verify and CI cover every original command and both existing browser
       'npx playwright install --with-deps chromium',
       'npm run migrate -w @mycel/db',
       'npm run build',
-      'npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/3 --reporter=list',
+      'npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/6 --reporter=list',
     ]
   );
 });
@@ -369,4 +369,16 @@ test('a job with only a step timeout has no timeout', () => {
     '',
   ].join('\n');
   assert.deepEqual(withoutTimeout(text), ['bare']);
+});
+
+test('the merge gate audits runtime dependencies and the weekly run audits the whole tree', () => {
+  // Owner decision 2026-11-17: tooling advisories report, they do not block. Without the weekly
+  // run the narrowed gate would leave the development tree unaudited.
+  const security = jobsOf(verifyWorkflow()).security;
+  assert.match(security, /^        run: npm audit --omit=dev --audit-level=high$/m);
+  const weekly = workflows().find((w) => w.path === 'dependency-audit.yml')?.text;
+  assert.ok(weekly, 'dependency-audit.yml exists');
+  assert.match(weekly, /^  schedule:\n    - cron: /m);
+  assert.match(weekly, /^        run: npm audit --audit-level=high$/m);
+  assert.doesNotMatch(weekly, /--omit|continue-on-error/);
 });
