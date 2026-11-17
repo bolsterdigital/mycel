@@ -22,6 +22,7 @@
 // locale the document lacks shows "start the translation", empty or as a copy of another locale.
 import { editorReferences } from '#lib/server/content/editor-references.js';
 import { relationshipChoices } from '#lib/server/people/relationships.js';
+import { tierChoices } from '#lib/server/access/tiers.js';
 import { addAuthor } from '#lib/server/people/add-author.js';
 import { blockNaming } from '#lib/server/content/block-names.js';
 import { blockMovePlace } from '#lib/admin/block-move/place.js';
@@ -293,8 +294,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     canPublish: can(principal, 'content:publish'),
     canWrite,
     restricted: doc.access.level !== 'public',
-    // Readers (#19) do not exist yet: access shows only on an item that already has it.
-    showAccess: doc.access.level !== 'public',
+    tiers: await loaded(tierChoices(principal, tenant.defaultLocale)),
     timeZone: zone,
     // Named next to the field only where the operator's own zone is not the site's (#88).
     timeZoneNamed: zone !== site,

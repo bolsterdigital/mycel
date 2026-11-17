@@ -12,6 +12,7 @@ import { bfcacheBack, bfcacheBrowser } from './lib/navigation/bfcache';
 import { blockPage, card, editorReady, more, newPage, reloadsEditor } from './lib/editor';
 import { exercisePeople } from './lib/people/manage';
 import { exerciseErasedAuthor } from './lib/people/erased';
+import { exerciseAccessTiers } from './lib/access/tiers';
 import { exerciseBlockNames } from './lib/blocks/names';
 import { exerciseBlockMove } from './lib/block-move';
 import { tenantId, withInvoker } from './lib/invoker';
@@ -1415,9 +1416,7 @@ test.describe('content-admin', () => {
     requireApi();
     await login(page, '/admin/probe');
     const edit = await newPage(page, slugFor('restricted'), 'Voor leden');
-    // A public item shows no access fields: the site has no readers yet (#19, #66 PR 2).
-    await expect(page.getByLabel('Wie het mag lezen')).toHaveCount(0);
-    // An item that has restricted access keeps its fields, so it can be opened up again.
+    await expect(page.getByLabel('Wie het mag lezen')).toHaveValue('public');
     const itemId = edit.split('/').at(-1)!;
     const { revision } = await callApi<{
       revision: { id: string; document: Record<string, unknown> };
@@ -1437,7 +1436,9 @@ test.describe('content-admin', () => {
     await expect(boundary).toContainText('Toegangsgrens');
     await expect(boundary).not.toContainText('openbaar');
     await openPublication(page);
-    const notice = card(page, 'nl').getByText('Bezoekers zonder account zien dit item niet');
+    const notice = card(page, 'nl').getByText(
+      'Dit item is besloten: bezoekers zonder toegang zien de teaser'
+    );
     await expect(notice).toBeVisible();
     // Before the first button in document order, and no button closes it.
     const before = await notice.evaluate((el) => {
@@ -2139,4 +2140,9 @@ test('people management preserves edits and adds an author inline', async ({ pag
 });
 test('an erased author stays visible and can be removed', async ({ page, request }) => {
   await exerciseErasedAuthor(page, request);
+});
+test.describe('access tiers', () => {
+  test.use({ locale: 'nl-NL' });
+  test('a tier is made and chosen', ({ page, request, browser }) =>
+    exerciseAccessTiers(page, request, browser));
 });

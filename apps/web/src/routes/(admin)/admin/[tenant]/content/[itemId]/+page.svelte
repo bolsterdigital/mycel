@@ -29,6 +29,7 @@
   import Inherited from '#lib/admin/Inherited.svelte';
   import PatternChoice, { offers } from '#lib/admin/patterns/PatternChoice.svelte';
   import SavePattern from '#lib/admin/patterns/SavePattern.svelte';
+  import AccessFields from '#lib/admin/access/AccessFields.svelte';
   import { issueLabel } from '#lib/admin/issue-label.js';
   import { thumbPath } from '#lib/admin/ui/thumb.js';
   import {
@@ -819,45 +820,17 @@
 {/snippet}
 
 {#snippet settingsTab()}
-  {#if data.showAccess}
-    <Fieldset legend={t('admin.content.edit.access')} collapsed={folded}>
-      <Select
-        id="level"
-        name="level"
-        invalid={flagged('level')}
-        label={t('admin.content.field.level')}
-        locale={data.locale}
-        value={v('level')}
-        options={['public', 'members', ...(v('level') === 'tier' ? ['tier'] : [])].map((level) => ({
-          value: level,
-          label: t(`admin.content.level.${level}` as UiKey),
-        }))}
-      />
-      <Select
-        id="teaser"
-        name="teaser"
-        invalid={flagged('teaser')}
-        label={t('admin.content.field.teaser')}
-        locale={data.locale}
-        value={v('teaser')}
-        options={['lead', 'marker', 'blocks'].map((teaser) => ({
-          value: teaser,
-          label: t(`admin.content.teaser.${teaser}` as UiKey),
-        }))}
-      />
-      <Field
-        id="teaserBlocks"
-        name="teaserBlocks"
-        invalid={flagged('teaserBlocks')}
-        type="number"
-        label={t('admin.content.field.teaserBlocks')}
-        locale={data.locale}
-        min="0"
-        max="200"
-        value={v('teaserBlocks')}
-      />
-    </Fieldset>
-  {/if}
+  <AccessFields
+    locale={data.locale}
+    level={v('level')}
+    teaser={v('teaser')}
+    teaserBlocks={v('teaserBlocks')}
+    tierIds={list('tierIds')}
+    tiers={data.tiers}
+    {flagged}
+    collapsed={folded}
+    manage={data.canPublish ? `${base}/access` : undefined}
+  />
   {#if article}
     <Fieldset legend={t('admin.content.field.corrections')} collapsed={folded}>
       {#each data.corrections as c, i (i)}

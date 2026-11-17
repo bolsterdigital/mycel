@@ -54,7 +54,7 @@ export function valuesFromForm(data: FormData): FormValues {
   return out;
 }
 
-const LISTS = new Set(['locales', 'authorIds']);
+const LISTS = new Set(['locales', 'authorIds', 'tierIds']);
 
 const one = (v: FormValues, key: string): string => {
   const x = v[key];
@@ -146,6 +146,7 @@ export function valuesOf(doc: ContentDocument): FormValues {
   v.shareImageId = doc.seo.imageId ?? '';
   put('shareImageAlt', doc.seo.imageAlt);
   v.level = doc.access.level;
+  v.tierIds = [...(doc.access.tierIds ?? [])];
   const teaser = doc.access.teaser;
   v.teaser = typeof teaser === 'object' ? 'blocks' : teaser;
   v.teaserBlocks = typeof teaser === 'object' ? String(teaser.blocks) : '';
@@ -257,7 +258,10 @@ export function documentFrom(
     title: optional(pick('featuredTitle', doc.featured?.title)),
     description: optional(pick('featuredDescription', doc.featured?.description)),
   };
-  const tierIds = (level || doc.access.level) === 'tier' ? doc.access.tierIds : undefined;
+  // The tier boxes are read where the form showed them (`tiersShown`), kept otherwise; none
+  // ticked is no `tierIds`, which core refuses for a tier item by name.
+  const tiers = 'tiersShown' in v ? many(v, 'tierIds') : (doc.access.tierIds ?? []);
+  const tierIds = (level || doc.access.level) === 'tier' && tiers.length ? tiers : undefined;
   const {
     heroImageId: _hero,
     heroAlt: _heroAlt,
@@ -291,8 +295,8 @@ export function documentFrom(
     locales,
     title: pick('title', doc.title),
     seo,
-    // The access fields show only on a site with readers (#66 PR 2); a form without them keeps
-    // the document's access as it is.
+    // A form without the access fields (a bulk edit, an older post) keeps the document's access
+    // as it is.
     access:
       'level' in v
         ? {

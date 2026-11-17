@@ -13,7 +13,12 @@ import type { IconName } from './ui/icons.js';
 
 /** The capabilities the shell knows of; `tenant:admin` opens every screen. */
 export type NavCapability =
-  'content:read' | 'content:write' | 'media:read' | 'connections:read' | 'tenant:admin';
+  | 'content:read'
+  | 'content:write'
+  | 'content:publish'
+  | 'media:read'
+  | 'connections:read'
+  | 'tenant:admin';
 
 /** One screen: where it lives, under which label, for whom. */
 export interface NavScreen {
@@ -58,6 +63,12 @@ export const MANAGE: NavSection = {
       label: 'admin.forms.title',
       needs: 'content:write',
       hint: 'admin.forms.intro',
+    },
+    {
+      path: 'access',
+      label: 'admin.tiers.title',
+      needs: 'content:publish',
+      hint: 'admin.manage.hint.tiers',
     },
     {
       path: 'connections',
