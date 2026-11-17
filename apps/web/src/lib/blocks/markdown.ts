@@ -19,6 +19,7 @@ import { BLOCK_DEPTH, headingTag } from './headings.js';
 import {
   VIDEO_PROVIDER_NAMES,
   type RenderBlock,
+  type RenderCorrections,
   type RenderImage,
   type RenderModel,
 } from './model.js';
@@ -31,6 +32,8 @@ export interface MarkdownOptions {
   siteRoot: string;
   /** The item's lead, a paragraph under the title (the HTML shows it in the intro). */
   lead?: string | null;
+  /** An article's corrections, a section after the body as in the HTML. */
+  corrections?: RenderCorrections | null;
   /**
    * Set when the body of a restricted item was left out: the notice that ends the document, with
    * the absolute address of the sign-in page when there is one.
@@ -122,6 +125,13 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
   for (const b of model.blocks) {
     const part = blockMarkdown(b);
     if (part) out.push(part);
+  }
+  if (options.corrections) {
+    const { title, entries } = options.corrections;
+    out.push(
+      heading(BLOCK_DEPTH, title),
+      entries.map((e) => `- ${md(e.date.label)}: ${md(e.text)}`).join('\n')
+    );
   }
   if (options.gate) {
     const { title, body, action } = options.gate;

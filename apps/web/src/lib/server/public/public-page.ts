@@ -56,12 +56,13 @@ import {
   type TenantInfo,
 } from '@mycel/core';
 import type { Cookies } from '@sveltejs/kit';
-import type { RenderIntro, RenderModel } from '../../blocks/model.js';
+import type { RenderCorrections, RenderIntro, RenderModel } from '../../blocks/model.js';
 import { hasForm } from './has-form.js';
 import {
   renderEvent,
   renderMeta,
   resolveDocument,
+  renderCorrections,
   resolveIntro,
   runtimeSource,
 } from '../../blocks/resolve.js';
@@ -116,6 +117,8 @@ export interface PublicItem {
   model: RenderModel;
   /** What sits between the title and the blocks (#86): the lead and the hero image. */
   intro: RenderIntro;
+  /** An article's corrections after the body; null without any (and on a teaser). */
+  corrections: RenderCorrections | null;
   /** Whether the first letter of the body is a drop cap: an article on a site that wants one. */
   dropCap: boolean;
   head: PublicHead;
@@ -228,6 +231,7 @@ export async function loadPublicItem(
       { text: template[1] ?? '' },
     ];
   }
+  const corrections = renderCorrections(item.corrections, locale);
   const theme = await siteTheme(site);
   const dropCap = item.type === 'article' && theme.dropCap === 'articles';
 
@@ -289,6 +293,7 @@ export async function loadPublicItem(
     locale,
     model,
     intro,
+    corrections,
     dropCap,
     head,
     structured,
@@ -309,6 +314,7 @@ export async function loadPublicItem(
       JSON.stringify({
         model,
         intro,
+        corrections,
         dropCap,
         head,
         structured,

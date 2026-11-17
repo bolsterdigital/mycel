@@ -311,6 +311,21 @@
     border-block-start: 1px solid var(--color-surface-bg);
   }
 
+  /* An article's corrections after its body (ADR 012 rule 1): set off by a thin line, the date in
+     the muted colour of the meta line. */
+  .page > .page-corrections {
+    clear: both;
+    border-block-start: 1px solid var(--color-surface-bg);
+    padding-block-start: var(--space-3);
+  }
+  .page-corrections ul {
+    padding-inline-start: 0;
+    list-style: none;
+  }
+  .page-corrections time {
+    color: var(--color-muted-fg);
+  }
+
   /* The cover header (rules 4 to 6), an article's option: the hero fills the screen under the site
      header. The height is a minimum, so a long title at 200% text grows the header instead of
      being clipped. `--site-header-height` is the plain header's height in CSS: a taller logo
