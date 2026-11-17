@@ -9,6 +9,7 @@
 // would go unchecked) and storing HTML (every renderer and agent would parse markup).
 
 import { z } from 'zod';
+import { Locale } from '../i18n/locale.js';
 
 /** Upper bounds per document (one locale's value): generous for a long read, finite for storage. */
 export const RICH_TEXT_LIMITS = {
@@ -52,6 +53,10 @@ export const Mark = z.discriminatedUnion('type', [
   z.object({ type: z.literal('italic') }).strict(),
   z.object({ type: z.literal('code') }).strict(),
   z.object({ type: z.literal('link'), attrs: LinkAttrs }).strict(),
+  // A passage in another language than the text around it (WCAG 3.1.2): renderers put `lang`
+  // and its writing direction on the passage, so a screen reader switches voice and a browser
+  // hyphenates and mirrors it right. The tag is the same validated subset as a content locale.
+  z.object({ type: z.literal('lang'), attrs: z.object({ lang: Locale }).strict() }).strict(),
   // The note's text travels with its reference; renderers collect them into a notes list.
   z
     .object({
@@ -68,7 +73,7 @@ const Text = z
     text: z.string().min(1).max(RICH_TEXT_LIMITS.textNode),
     marks: z
       .array(Mark)
-      .max(5)
+      .max(6)
       .refine((m) => new Set(m.map((x) => x.type)).size === m.length, 'content.marks.duplicate')
       .optional(),
   })

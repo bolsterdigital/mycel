@@ -7,7 +7,7 @@
 // Rejected: a copy per spec. Fifteen specs had one, in five variants, and a check added to one
 // (a broken word, a label past its card) never reached the others.
 
-import { expect, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 /** The narrow viewport of the gate: the 320 CSS px of WCAG 1.4.10 reflow. */
 export const NARROW = { width: 320, height: 900 };
@@ -33,6 +33,25 @@ export async function setTextSpacing(page: Page) {
     );
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
   });
+}
+
+/** A bar that keeps one row where its column has room: no taller than its tallest child. Height,
+ *  not a width sum, so the check holds whatever font the host renders with. On CI's Linux fonts
+ *  the formatting bar wrapped in the 690 px article column while a Mac kept it on one row, and
+ *  only a drag that aimed above the first paragraph noticed. `shot` names a screenshot. */
+export async function expectOneRow(page: Page, selector: string, shot?: string) {
+  const bars = await page.locator(selector).evaluateAll((all) =>
+    all
+      .map((bar) => ({
+        own: bar.getBoundingClientRect().height,
+        tallest: Math.max(0, ...[...bar.children].map((c) => c.getBoundingClientRect().height)),
+      }))
+      .filter(({ own }) => own > 0)
+  );
+  if (shot) await page.screenshot({ path: test.info().outputPath(`${shot}.png`) });
+  expect(bars.length, `a visible ${selector}`).toBeGreaterThan(0);
+  for (const { own, tallest } of bars)
+    expect(own, `${selector} on one row`).toBeLessThanOrEqual(tallest + 1);
 }
 
 /** Every problem the gate sees on the current page; `within` narrows the actions it measures. */

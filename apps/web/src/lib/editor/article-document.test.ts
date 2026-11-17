@@ -16,7 +16,7 @@ import {
   fromTiptap,
   removedArticleCards,
 } from './article-document.js';
-import { articleExtensions, proseExtensions } from './article-extensions.js';
+import { articleExtensions, langTag, proseExtensions } from './article-extensions.js';
 
 const editorSchema = getSchema(articleExtensions);
 const throughEditorSchema = (document: ContentDocument, locale: string) =>
@@ -42,6 +42,36 @@ const base = (block: (typeof blocks)[number]) =>
     seo: {},
     access: block.type === 'paywall' ? { level: 'members', teaser: 'marker' } : { level: 'public' },
   });
+
+it('keeps a passage in another language through the editor schema, with its tag as stored', () => {
+  const content = {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [
+          { type: 'text', text: 'Een ' },
+          {
+            type: 'text',
+            text: 'raison d’être',
+            marks: [{ type: 'italic' }, { type: 'lang', attrs: { lang: 'fr' } }],
+          },
+        ],
+      },
+    ],
+  };
+  const through = getSchema(proseExtensions).nodeFromJSON(toTiptap(content));
+  through.check();
+  expect(fromTiptap(through.toJSON())).toEqual(content);
+});
+
+it('reads a language tag from HTML as the core stores it, or not at all', () => {
+  expect(langTag('en-us')).toBe('en-US');
+  expect(langTag('NL')).toBe('nl');
+  expect(langTag('zh-Hant-TW')).toBe('zh');
+  for (const raw of [null, '', 'x-klingon', 'not a tag'])
+    expect(langTag(raw), String(raw)).toBe(null);
+});
 
 it('the inline page schema keeps all prose at the document root without article wrappers', () => {
   const content = {

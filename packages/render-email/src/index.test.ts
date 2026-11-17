@@ -92,4 +92,35 @@ describe('render-email', () => {
     );
     expect(text).toContain('gone and relative (https://vogelwijk.example.org/agenda)');
   });
+
+  it('gives a passage in another language its own lang and dir, and the text only its words', () => {
+    const email = {
+      ...fixture.header.nl,
+      blocks: [
+        {
+          type: 'rich-text' as const,
+          doc: {
+            type: 'doc' as const,
+            content: [
+              {
+                type: 'paragraph' as const,
+                content: [
+                  { type: 'text' as const, text: 'Zij zei ' },
+                  {
+                    type: 'text' as const,
+                    text: 'شكرا',
+                    marks: [{ type: 'lang' as const, attrs: { lang: 'ar' } }],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const { html, text } = renderEmail(email);
+    expect(html).toContain('<html lang="nl" dir="ltr">');
+    expect(html).toContain('Zij zei <span lang="ar" dir="rtl">شكرا</span>');
+    expect(text).toContain('Zij zei شكرا');
+  });
 });

@@ -8,6 +8,10 @@
 // its submit label linking to the page itself; a paywall and a decorative image add nothing. A
 // campaign card is its title linking to the campaign's page and its summary, never a form or a
 // count (ADR 033 consequences); a form whose campaign is not open adds nothing.
+//
+// A language mark adds nothing: Markdown has no syntax for it and this output carries no HTML.
+// The page's own `lang` comes with the representation; a passage in another language reads as
+// text, as it does in a plain-text mail.
 
 import type { Mark, MediaCredit, RichTextDoc } from '@mycel/core';
 import { creditText } from './credit.js';

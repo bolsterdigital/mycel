@@ -1676,6 +1676,8 @@ export const en = {
   'admin.editor.style.paragraph': 'Body text',
   'admin.editor.style.subheading': 'Subheading',
   'admin.editor.style.minorHeading': 'Minor heading',
+  'admin.editor.lang': 'Language of the selection',
+  'admin.editor.lang.same': 'Same language',
   'admin.editor.code': 'Code',
   'admin.editor.bulletList': 'Bulleted list',
   'admin.editor.orderedList': 'Numbered list',
@@ -2004,6 +2006,8 @@ export const en = {
   'admin.block.markdown.links':
     '[text](https://…) links to an address, [text](item:<id>) to a page of this site',
   'admin.block.markdown.notes': '[text][^1] with a line [^1]: note at the end makes a footnote',
+  'admin.block.markdown.lang':
+    '[text]{lang=fr} marks a passage in another language, with its language code',
   'admin.block.markdown.escape': '\\ before * _ ` [ ] shows the character itself',
   'admin.block.issue.required': 'fill this in',
   'admin.block.issue.altRequired': 'describe the image, or mark it as decorative',

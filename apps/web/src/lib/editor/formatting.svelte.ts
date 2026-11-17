@@ -2,7 +2,8 @@
 // cursor, and the few commands Mycel offers on it. The fixed bar and the selection bar are two
 // views of this one object, so a mark can never be on in one and off in the other.
 //
-// The set is deliberate (ADR 020 rule 2): strong, emphasis, code and link inside a line; body
+// The set is deliberate (ADR 020 rule 2): strong, emphasis, code, link and a passage's language
+// inside a line; body
 // text, three relative headings and two kinds of list around it; undo and redo. No underline
 // (it reads as a link), no strikethrough (a correction is a record of its own), no alignment,
 // colour, indent buttons or code blocks: none of them has a meaning every renderer, mail and
@@ -22,6 +23,8 @@ export interface FormattingState {
   italic: boolean;
   code: boolean;
   link: boolean;
+  /** The language the selected passage is marked with, or '' for the language of the text. */
+  lang: string;
   bulletList: boolean;
   orderedList: boolean;
   style: TextStyle;
@@ -30,6 +33,8 @@ export interface FormattingState {
   /** Words are selected, so a mark or a link has something to apply to. */
   selected: boolean;
   canLink: boolean;
+  /** Words are selected, or the cursor is in a marked passage: there is something to mark. */
+  canLang: boolean;
   canUndo: boolean;
   canRedo: boolean;
 }
@@ -47,12 +52,14 @@ const REST: FormattingState = {
   italic: false,
   code: false,
   link: false,
+  lang: '',
   bulletList: false,
   orderedList: false,
   style: 0,
   deepest: 1,
   selected: false,
   canLink: false,
+  canLang: false,
   canUndo: false,
   canRedo: false,
 };
@@ -112,17 +119,22 @@ export class Formatting {
     });
     const selected = selection instanceof TextSelection && !selection.empty;
     const link = editor.isActive('link');
+    const lang = editor.isActive('lang')
+      ? ((editor.getAttributes('lang').lang as string | null) ?? '')
+      : '';
     return {
       bold: editor.isActive('bold'),
       italic: editor.isActive('italic'),
       code: editor.isActive('code'),
       link,
+      lang,
       bulletList: editor.isActive('bulletList'),
       orderedList: editor.isActive('orderedList'),
       style: level,
       deepest: Math.max(level, Math.min(3, previous + 1)) as TextStyle,
       selected,
       canLink: selected || link,
+      canLang: selected || lang !== '',
       canUndo: editor.can().undo(),
       canRedo: editor.can().redo(),
     };
@@ -147,6 +159,21 @@ export class Formatting {
     if (!editor) return;
     if (style === 0) editor.chain().focus().setParagraph().run();
     else editor.chain().focus().clearNodes().setHeading({ level: style }).run();
+  }
+
+  /**
+   * Mark the selected words, or the whole passage the cursor is in, as written in `tag`; an
+   * empty tag returns them to the language of the text.
+   */
+  setLang(tag: string) {
+    const editor = this.editor;
+    if (!editor) return;
+    if (editor.state.selection.empty && editor.isActive('lang'))
+      editor.commands.extendMarkRange('lang');
+    if (editor.state.selection.empty) return;
+    const chain = editor.chain().focus();
+    if (tag) chain.setMark('lang', { lang: tag }).run();
+    else chain.unsetMark('lang').run();
   }
 
   /** `keepFocus` leaves focus on the button, so a keyboard can undo several steps in a row. */
@@ -238,6 +265,52 @@ export class Formatting {
     this.refusal = '';
     if (editor) editor.view.dispatch(editor.state.tr.setMeta(pendingRangeKey, null));
   }
+}
+
+/**
+ * The languages a passage can be marked with: the official and regional languages of the
+ * Netherlands and Belgium, the neighbours, and the most spoken languages of people who live
+ * here. A passage already marked with another tag keeps it and shows it as an extra choice.
+ * Rejected: every language `Intl` knows (a list of hundreds to scroll through) and a free text
+ * field (a writer does not know `pt-BR` by heart).
+ */
+export const PASSAGE_LANGUAGES = [
+  'ar',
+  'de',
+  'en',
+  'es',
+  'fr',
+  'fy',
+  'he',
+  'it',
+  'la',
+  'nl',
+  'pap',
+  'pl',
+  'pt',
+  'ro',
+  'ru',
+  'so',
+  'srn',
+  'ti',
+  'tr',
+  'uk',
+  'zh',
+] as const;
+
+/** Each language's name in the interface language, sorted by that name. */
+export function passageLanguages(uiLocale: string, current = ''): { tag: string; name: string }[] {
+  let names: Intl.DisplayNames | null = null;
+  try {
+    names = new Intl.DisplayNames([uiLocale], { type: 'language' });
+  } catch {
+    names = null;
+  }
+  const tags: string[] = [...PASSAGE_LANGUAGES];
+  if (current && !tags.includes(current)) tags.push(current);
+  return tags
+    .map((tag) => ({ tag, name: names?.of(tag) ?? tag }))
+    .sort((a, b) => a.name.localeCompare(b.name, uiLocale));
 }
 
 /** Whether this machine's keyboard has a Command key; false on the server. */

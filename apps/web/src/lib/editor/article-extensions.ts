@@ -133,6 +133,47 @@ const FootnoteReference = Mark.create({
   },
 });
 
+/** Core `Locale`, spelled out: this module loads before the writer has imported the core. */
+const LANG_TAG = /^[a-z]{2,3}(-[A-Z]{2})?$/;
+
+/** A `lang` value as the stored mark takes it (`en-us` becomes `en-US`), or null. */
+export function langTag(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const [tag = ''] = Intl.getCanonicalLocales(raw);
+    if (LANG_TAG.test(tag)) return tag;
+    const language = tag.split('-')[0] ?? '';
+    return LANG_TAG.test(language) ? language : null;
+  } catch {
+    return null;
+  }
+}
+
+// A passage in another language (core mark `lang`). Read back only from a span that carries both
+// `lang` and `dir`, which is what Mycel itself writes: Word puts `lang` on nearly every span it
+// copies, often the wrong one, and that must not turn pasted text into marked passages. In the
+// editor the direction is `auto`; the stored mark has no direction, renderers derive it.
+const Language = Mark.create({
+  name: 'lang',
+  inclusive: false,
+  addAttributes() {
+    return {
+      lang: { default: null, parseHTML: (element) => langTag(element.getAttribute('lang')) },
+    };
+  },
+  parseHTML() {
+    return [
+      {
+        tag: 'span[lang][dir]',
+        getAttrs: (element) => (langTag(element.getAttribute('lang')) ? null : false),
+      },
+    ];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['span', { lang: HTMLAttributes.lang, dir: 'auto' }, 0];
+  },
+});
+
 // TipTap supplies start: 1 to every ordered list. Keep whether it was present in the stored
 // document so the adapter can distinguish an omitted default from an explicit start of 1.
 const ExplicitListStart = Extension.create({
@@ -253,6 +294,7 @@ export const articleExtensions = [
   Card,
   SafeLink,
   FootnoteReference,
+  Language,
   ExplicitListStart,
   BlockIdentity,
   PendingRange,

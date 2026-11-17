@@ -640,7 +640,7 @@ describe('nothing leaks into any representation', () => {
 });
 
 describe('rich text', () => {
-  it('renders marks, lists, safe links and numbered footnotes', async () => {
+  it('renders marks, lists, safe links, numbered footnotes and passages in another language', async () => {
     const block = Block.parse({
       id: 'r',
       type: 'rich-text',
@@ -665,6 +665,18 @@ describe('rich text', () => {
                   },
                   { type: 'hard_break' },
                   { type: 'text', text: 'code', marks: [{ type: 'code' }] },
+                  { type: 'text', text: ' als ' },
+                  {
+                    type: 'text',
+                    text: 'raison d’être',
+                    marks: [{ type: 'lang', attrs: { lang: 'fr' } }],
+                  },
+                  { type: 'text', text: ' en ' },
+                  {
+                    type: 'text',
+                    text: 'مرحبا',
+                    marks: [{ type: 'italic' }, { type: 'lang', attrs: { lang: 'ar' } }],
+                  },
                 ],
               },
               {
@@ -690,6 +702,10 @@ describe('rich text', () => {
     expect(html).toContain('<li id="fn-r-1">Gezien op 1 mei.');
     expect(html).toContain('<ol start="3">');
     expect(html).toContain('<code>code</code>');
+    // A passage in another language carries its own language and direction, outside its marks.
+    expect(html).toContain('<span lang="fr" dir="ltr">raison d’être</span>');
+    expect(html).toContain('<span lang="ar" dir="rtl"><em>مرحبا</em></span>');
+    expect(markdown).toContain('als raison d’être en *مرحبا*');
     expect(markdown).toContain('[een bron](<https://example.org/a?b=1&c=2>)[^1]');
     expect(markdown).toContain('[^1]: Gezien op 1 mei.');
     expect(markdown).toContain('3. Drie');

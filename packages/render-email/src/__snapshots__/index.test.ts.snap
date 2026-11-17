@@ -878,7 +878,7 @@ https://vogelwijk.example.org
 
 exports[`render-email > renders the header, the frame and the footer > html en 1`] = `
 "<!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light">
 <title>News from the Vogelwijk</title></head>
 <body style="margin:0;padding:0;background-color:#f3f3f0;color:#1b1b1f;">
@@ -902,7 +902,7 @@ exports[`render-email > renders the header, the frame and the footer > html en 1
 
 exports[`render-email > renders the header, the frame and the footer > html nl 1`] = `
 "<!doctype html>
-<html lang="nl">
+<html lang="nl" dir="ltr">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light">
 <title>Nieuws uit de Vogelwijk</title></head>
 <body style="margin:0;padding:0;background-color:#f3f3f0;color:#1b1b1f;">

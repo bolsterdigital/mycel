@@ -1694,6 +1694,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.editor.style.paragraph': 'Gewone tekst',
   'admin.editor.style.subheading': 'Subkop',
   'admin.editor.style.minorHeading': 'Kleine kop',
+  'admin.editor.lang': 'Taal van de selectie',
+  'admin.editor.lang.same': 'Zelfde taal',
   'admin.editor.code': 'Code',
   'admin.editor.bulletList': 'Opsomming',
   'admin.editor.orderedList': 'Genummerde lijst',
@@ -2031,6 +2033,8 @@ export const nl: Partial<Record<UiKey, string>> = {
     '[tekst](https://…) linkt naar een adres, [tekst](item:<id>) naar een pagina van deze site',
   'admin.block.markdown.notes':
     '[tekst][^1] met een regel [^1]: noot aan het eind maakt een voetnoot',
+  'admin.block.markdown.lang':
+    '[tekst]{lang=fr} markeert een passage in een andere taal, met de taalcode',
   'admin.block.markdown.escape': '\\ voor * _ ` [ ] toont het teken zelf',
   'admin.block.issue.required': 'vul dit in',
   'admin.block.issue.altRequired': 'beschrijf de afbeelding, of markeer hem als decoratief',
