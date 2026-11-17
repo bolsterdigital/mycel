@@ -45,6 +45,9 @@
         })),
       ]}
     />
+    {#if data.recipientsHref}
+      <p><a href={data.recipientsHref}>{t('admin.email.send.recipientsLink')}</a></p>
+    {/if}
     <form method="post" action="?/send&locale={encodeURIComponent(data.work)}">
       {#each send.locales as l (l.locale)}
         <input type="hidden" name="locales" value={l.locale} />

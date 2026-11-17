@@ -2,7 +2,8 @@
 // screen sits where, under which label and for which capability, and the shell only renders it.
 // Two entries hold the rarer screens: Manage (who and what runs the site: team, domains,
 // connections, status) and Settings (how the site looks and works). Each lists its screens under
-// native disclosures, including while you are elsewhere. Team is a screen within Manage.
+// native disclosures, including while you are elsewhere. Team is a screen within Manage, and so
+// are Supporters, next to the forms they come in through (MY-251).
 // Addresses do not move: API access, AI
 // assistance and usage stay sections of `/site`, they only appear under Manage.
 // Rejected: sections named by each screen's page data (the menu could not show a screen's place
@@ -18,6 +19,7 @@ export type NavCapability =
   | 'content:publish'
   | 'media:read'
   | 'connections:read'
+  | 'supporters:read'
   | 'tenant:admin';
 
 /** One screen: where it lives, under which label, for whom. */
@@ -69,6 +71,12 @@ export const MANAGE: NavSection = {
       label: 'admin.nav.tiers',
       needs: 'content:publish',
       hint: 'admin.manage.hint.tiers',
+    },
+    {
+      path: 'supporters',
+      label: 'admin.supporters.title',
+      needs: 'supporters:read',
+      hint: 'admin.supporters.hint',
     },
     {
       path: 'connections',
