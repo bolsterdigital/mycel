@@ -258,4 +258,51 @@ describe('runtimeSource', () => {
     expect(form?.type === 'form' && form.form?.submitLabel).toBe('Aanmelden');
     expect(form?.type === 'form' && form.form?.startedToken).toBeTruthy();
   });
+
+  it('renders a reader’s signed view of the item’s own restricted image and hero, nothing else', async () => {
+    const { source, upload } = await setup();
+    const closed = await upload('restricted');
+    const visitorView = (await source.media(closed.id))!;
+    const signed = {
+      ...visitorView,
+      variants: visitorView.variants.map((v) => ({
+        ...v,
+        path: `/media/${closed.id}/${v.name}.${v.format}?exp=1&for=scope&sig=s`,
+      })),
+    };
+    const block = {
+      id: 'img',
+      type: 'image' as const,
+      version: 1 as const,
+      props: { mediaId: closed.id, decorative: true, alt: null, layout: 'content' as const },
+    };
+    const doc = { locale: 'nl', title: 'Titel', blocks: [block] };
+    const opened = await resolveDocument(source, doc, {
+      base: '/probe',
+      fallbackLocale: 'nl',
+      signedMedia: { [closed.id]: signed },
+    });
+    const [img] = opened.blocks;
+    expect(img?.type === 'image' && img.image?.src).toContain('for=scope&sig=s');
+    const intro = await resolveIntro(
+      source,
+      { lead: null, heroImageId: closed.id, heroAlt: null },
+      'nl',
+      { [closed.id]: signed }
+    );
+    expect(intro.hero?.src).toContain('sig=s');
+    // Without the reader's view, and with a view whose paths are not all signed, it fails closed.
+    const shut = await resolveDocument(source, doc, { base: '/probe', fallbackLocale: 'nl' });
+    expect(shut.blocks[0]?.type === 'image' && shut.blocks[0].image).toBeNull();
+    const half = {
+      ...signed,
+      variants: [...signed.variants, { ...signed.variants[0]!, path: '' }],
+    };
+    const partial = await resolveDocument(source, doc, {
+      base: '/probe',
+      fallbackLocale: 'nl',
+      signedMedia: { [closed.id]: half },
+    });
+    expect(partial.blocks[0]?.type === 'image' && partial.blocks[0].image).toBeNull();
+  });
 });

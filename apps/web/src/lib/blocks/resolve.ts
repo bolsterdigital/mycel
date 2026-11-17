@@ -5,7 +5,9 @@
 //
 // What a reference turns into is decided here, and it fails closed:
 //   - media: `media.get`; a restricted, deleted, failed or non-image asset is null, and the block
-//     renders nothing (no figure, no alt, no path). Signed paths for readers are #19.
+//     renders nothing (no figure, no alt, no path). A reader with access brings the item's own
+//     restricted media with signed paths (`readerMedia` of the published item); they stand in
+//     for the item's own blocks and hero only, never for a card, entry or person beside them.
 //     A document slot has the same rule for a document: the entry is left out, and a block with
 //     no file left renders nothing.
 //   - forms: `form.get` with a fresh `startedToken`, as the probe did; unknown is null.
@@ -230,8 +232,7 @@ function renderAssetImage(
   },
   locale: string
 ): RenderImage | null {
-  if (!asset || asset.access !== 'public' || asset.kind !== 'image' || asset.state !== 'ready')
-    return null;
+  if (!asset || !delivered(asset) || asset.kind !== 'image' || asset.state !== 'ready') return null;
   if (asset.width === null || asset.height === null) return null;
   const widths = (format: string) =>
     asset.variants
@@ -273,14 +274,21 @@ function renderAssetImage(
   };
 }
 
+/**
+ * Whether an asset has addresses to print: a public one, or a restricted one whose every variant
+ * came signed for this reader. A visitor's view of a restricted asset has none, so it fails closed.
+ */
+const delivered = (asset: MediaView): boolean =>
+  asset.access === 'public' ||
+  (asset.variants.length > 0 && asset.variants.every((v) => v.path !== ''));
+
 /** Where a visitor fetches a document and what it is ("PDF, 845 kB"); fails closed like an image. */
 function renderFile(
   asset: MediaView | null,
   locale: string,
   kind: 'document' | 'audio' = 'document'
 ): { href: string; meta: string } | null {
-  if (!asset || asset.access !== 'public' || asset.kind !== kind || asset.state !== 'ready')
-    return null;
+  if (!asset || !delivered(asset) || asset.kind !== kind || asset.state !== 'ready') return null;
   const file = asset.variants.find((v) => v.name === 'file' && v.path);
   if (!file) return null;
   const meta = `${file.format.toUpperCase()}, ${formatBytes(asset.sizeBytes, locale)}`;
@@ -303,9 +311,12 @@ export async function resolveIntro(
     meta?: RenderMeta | null;
     event?: RenderEvent | null;
   },
-  locale: string
+  locale: string,
+  /** The item's restricted media signed for a reader with access (`readerMedia`). */
+  signed: Readonly<Record<string, MediaView>> = {}
 ): Promise<RenderIntro> {
-  const asset = intro.heroImageId ? await source.media(intro.heroImageId) : null;
+  const id = intro.heroImageId;
+  const asset = id ? (signed[id] ?? (await source.media(id))) : null;
   const use = intro.heroAlt
     ? { decorative: false, alt: { [locale]: intro.heroAlt } }
     : { decorative: true, alt: null };
@@ -433,6 +444,8 @@ export async function resolveDocument(
     path?: string;
     /** The site's time zone for an overview's dates; UTC where a caller has none. */
     timeZone?: string;
+    /** The item's restricted media signed for a reader with access (`readerMedia`). */
+    signedMedia?: Readonly<Record<string, MediaView>>;
   }
 ): Promise<RenderModel> {
   const { locale } = projection;
@@ -492,6 +505,9 @@ export async function resolveDocument(
   }
   const media = new Map<string, MediaView | null>();
   for (const id of mediaIds) media.set(id, await source.media(id));
+  // The item's own blocks: a signed view where the reader has one, else the visitor's.
+  const signed = options.signedMedia ?? {};
+  const own = (id: string): MediaView | null => signed[id] ?? media.get(id) ?? null;
   const credits = new Map<string, { name: string; slug: string | null } | null>();
   const collect = async (value: unknown): Promise<void> => {
     if (!value || typeof value !== 'object') return;
@@ -506,7 +522,7 @@ export async function resolveDocument(
     }
     for (const child of Object.values(value)) await collect(child);
   };
-  for (const asset of media.values()) await collect(asset?.credit);
+  for (const asset of [...media.values(), ...Object.values(signed)]) await collect(asset?.credit);
   for (const block of blocks) await collect(block.props);
   const renderImage: typeof renderAssetImage = (asset, use, language) => {
     const credit = use.credit ?? asset?.credit;
@@ -669,11 +685,11 @@ export async function resolveDocument(
           id,
           type: 'image',
           layout: b.props.layout,
-          image: renderImage(media.get(b.props.mediaId) ?? null, b.props, locale),
+          image: renderImage(own(b.props.mediaId), b.props, locale),
         };
       case 'hero': {
         const image = b.props.image
-          ? renderImage(media.get(b.props.image.mediaId) ?? null, b.props.image, locale)
+          ? renderImage(own(b.props.image.mediaId), b.props.image, locale)
           : null;
         return {
           id,
@@ -718,7 +734,7 @@ export async function resolveDocument(
           title: text(b.props.title),
           body: text(b.props.body),
           files: b.props.files.flatMap((f) => {
-            const file = renderFile(media.get(f.fileId) ?? null, locale);
+            const file = renderFile(own(f.fileId), locale);
             return file ? [{ ...file, label: text(f.name) ?? '' }] : [];
           }),
         };
@@ -727,7 +743,7 @@ export async function resolveDocument(
           id,
           type: 'audio',
           title: text(b.props.title) ?? '',
-          file: renderFile(media.get(b.props.fileId) ?? null, locale, 'audio'),
+          file: renderFile(own(b.props.fileId), locale, 'audio'),
           transcript: text(b.props.transcript),
         };
       case 'gallery':
@@ -737,7 +753,7 @@ export async function resolveDocument(
           variant: b.props.variant,
           width: b.props.width,
           images: b.props.images.flatMap((use) => {
-            const image = renderImage(media.get(use.mediaId) ?? null, use, locale);
+            const image = renderImage(own(use.mediaId), use, locale);
             return image ? [image] : [];
           }),
         };

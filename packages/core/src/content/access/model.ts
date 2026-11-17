@@ -74,6 +74,24 @@ export function hasAccess(
   return reader.grants.some((grant) => tierIds.includes(grant.tierId) && grantStands(grant, now));
 }
 
+/**
+ * When the access `hasAccess` gives at `now` ends by the grants alone: null for one that does not
+ * (a `members` item, or an open-ended grant on one of the tiers), else the latest `until` among the
+ * standing grants that open the item. Only meaningful where `hasAccess` is true.
+ */
+export function accessEndsAt(
+  reader: ReaderAccess,
+  item: { access: Pick<Access, 'level' | 'tierIds'> },
+  now: Date
+): Date | null {
+  if (item.access.level !== 'tier') return null;
+  const tierIds = item.access.tierIds ?? [];
+  const opening = reader.grants.filter((g) => tierIds.includes(g.tierId) && grantStands(g, now));
+  if (opening.some((g) => g.until === null)) return null;
+  const ends = opening.map((g) => Date.parse(g.until!));
+  return ends.length ? new Date(Math.max(...ends)) : null;
+}
+
 /** A grant counts while `now < until`; an open-ended one always. */
 export function grantStands(grant: Pick<AccessGrant, 'until'>, now: Date): boolean {
   if (grant.until === null) return true;

@@ -174,6 +174,7 @@ export async function loadPublicItem(
     page: archivePage,
     path: contentPath(item, locale, tenant.defaultLocale),
     timeZone,
+    ...(item.readerMedia ? { signedMedia: item.readerMedia } : {}),
   });
   // A later page exists only where an overview with an archive still has entries on it.
   if (
@@ -203,7 +204,8 @@ export async function loadPublicItem(
         : {}),
       ...(item.event ? { event: renderEvent(item.event, locale) } : {}),
     },
-    locale
+    locale,
+    item.readerMedia
   );
   if (intro.meta && item.authors?.length) {
     const parts = new Intl.ListFormat(locale, { type: 'conjunction' }).formatToParts(

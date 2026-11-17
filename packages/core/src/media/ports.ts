@@ -92,12 +92,16 @@ export interface ImageProcessor {
 export interface MediaDelivery {
   /** `file` is the variant file name (`w960.avif`). */
   variantPath(mediaId: string, file: string): string;
-  /** The same path with `?exp=&sig=`, for a restricted asset (ADR 018 rule 7). */
+  /**
+   * The same path with `?exp=&sig=`, for a restricted asset (ADR 018 rule 7); `scope` (a reader's
+   * `readerMediaScope`) is signed with it and travels as `for`.
+   */
   signedVariantPath(
     signer: Signer,
     mediaId: string,
     file: string,
-    expiresAt: Date
+    expiresAt: Date,
+    scope?: string
   ): Promise<string>;
 }
 
