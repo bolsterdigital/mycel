@@ -2,6 +2,11 @@
 
 import type { CampaignRepository } from '../../campaigns/ports.js';
 import type { Campaign } from '../../campaigns/model.js';
+import {
+  afterParticipant,
+  compareParticipants,
+  type CampaignParticipant,
+} from '../../campaigns/participants.js';
 import type { TenantStore } from './store.js';
 
 export function memoryCampaigns(s: TenantStore): CampaignRepository {
@@ -60,6 +65,23 @@ export function memoryCampaigns(s: TenantStore): CampaignRepository {
         if (ids.includes(p.campaignId) && !p.withdrawnAt)
           counts.set(p.campaignId, (counts.get(p.campaignId) ?? 0) + 1);
       return counts;
+    },
+    async participants(campaignId, { after, limit }) {
+      const emails = new Map([...s.projections.values()].map((p) => [p.id, p.email]));
+      const all = [...parts.values()]
+        .filter((p) => p.campaignId === campaignId && emails.has(p.supporterId))
+        .map((p): CampaignParticipant => ({
+          supporterId: p.supporterId,
+          email: emails.get(p.supporterId)!,
+          confirmedAt: p.confirmedAt,
+          withdrawnAt: p.withdrawnAt,
+        }))
+        .sort(compareParticipants);
+      return {
+        rows: all.filter((p) => !after || afterParticipant(p, after)).slice(0, limit),
+        total: all.length,
+        active: all.filter((p) => !p.withdrawnAt).length,
+      };
     },
   };
 }

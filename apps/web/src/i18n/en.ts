@@ -1301,6 +1301,7 @@ export const en = {
   'admin.audit.op.donation.self.update': 'Gift changed by its giver',
   'admin.audit.op.donation.self.request': 'Gift management link requested',
   'admin.audit.op.campaign.participation.withdraw': 'Campaign participation withdrawn',
+  'admin.audit.op.campaign.participation.export': 'Campaign participants exported',
   'admin.audit.op.campaign.landing.create': 'Campaign started with its page and form',
   'admin.campaign.title': 'Campaigns',
   'admin.campaign.new': 'New campaign',
@@ -1369,6 +1370,22 @@ export const en = {
     'Only someone with publishing permission can change these dates.',
   'admin.campaign.openNeedsPublish':
     'Only someone with publishing permission can open or close participation.',
+  'admin.campaign.participants.link': 'View participants',
+  'admin.campaign.participants.title': 'Participants',
+  'admin.campaign.participants.intro':
+    'Everyone whose participation in this campaign was confirmed, newest first. Someone who withdrew stays listed and no longer counts.',
+  'admin.campaign.participants.empty': 'Nobody took part yet',
+  'admin.campaign.participants.empty.body':
+    'A participation shows here once the participant has confirmed it.',
+  'admin.campaign.participants.empty.fundraiser':
+    'A fundraiser counts gifts, not participants. Its gifts are under Donations.',
+  'admin.campaign.participants.count.one': '{n} participant',
+  'admin.campaign.participants.count.other': '{n} participants',
+  'admin.campaign.participants.withdrawnCount': '{n} withdrawn',
+  'admin.campaign.participants.confirmed': 'Confirmed',
+  'admin.campaign.participants.status': 'Status',
+  'admin.campaign.participants.counts': 'Counts',
+  'admin.campaign.participants.export.max': 'The file holds the most recent {n}.',
   'admin.campaign.action.save': 'Save campaign',
   'admin.campaign.action.open': 'Open participation',
   'admin.campaign.action.close': 'Close participation',

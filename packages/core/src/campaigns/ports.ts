@@ -4,6 +4,7 @@
 // use case (a race passes it twice) and only in the store (an unlocked race aborts the
 // transaction with a constraint error instead of a typed refusal).
 import type { Campaign, CampaignKind, CampaignParticipation } from './model.js';
+import type { ParticipantPage, ParticipantPosition } from './participants.js';
 
 export interface CampaignFilter {
   kind?: CampaignKind | undefined;
@@ -48,6 +49,15 @@ export interface CampaignRepository {
   participation(campaignId: string, supporterId: string): Promise<CampaignParticipation | null>;
   /** Active (confirmed, not withdrawn) participations per campaign; absent ids count 0. */
   activeCounts(campaignIds: readonly string[]): Promise<Map<string, number>>;
+  /**
+   * The participations of one campaign with each supporter's address, withdrawn ones included,
+   * newest confirmation first and the higher supporter id first within one moment
+   * (`participants.ts`); `total` and `active` count the whole campaign, whatever the page.
+   */
+  participants(
+    campaignId: string,
+    page: { after: ParticipantPosition | null; limit: number }
+  ): Promise<ParticipantPage>;
 }
 
 declare module '../ports.js' {

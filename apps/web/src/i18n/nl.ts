@@ -1321,6 +1321,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.donation.self.update': 'Gift gewijzigd door de gever',
   'admin.audit.op.donation.self.request': 'Beheerlink voor een gift aangevraagd',
   'admin.audit.op.campaign.participation.withdraw': 'Deelname aan campagne ingetrokken',
+  'admin.audit.op.campaign.participation.export': 'Deelnemers van campagne geëxporteerd',
   'admin.audit.op.campaign.landing.create': 'Campagne gestart met pagina en formulier',
   'admin.campaign.title': 'Campagnes',
   'admin.campaign.new': 'Nieuwe campagne',
@@ -1390,6 +1391,22 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Alleen iemand met publicatierechten kan deze data wijzigen.',
   'admin.campaign.openNeedsPublish':
     'Alleen iemand met publicatierechten kan de deelname openen of sluiten.',
+  'admin.campaign.participants.link': 'Deelnemers bekijken',
+  'admin.campaign.participants.title': 'Deelnemers',
+  'admin.campaign.participants.intro':
+    'Iedereen van wie de deelname aan deze campagne is bevestigd, nieuwste eerst. Wie zich terugtrok blijft in de lijst staan en telt niet meer mee.',
+  'admin.campaign.participants.empty': 'Nog niemand deed mee',
+  'admin.campaign.participants.empty.body':
+    'Een deelname staat hier zodra de deelnemer haar heeft bevestigd.',
+  'admin.campaign.participants.empty.fundraiser':
+    'Een fondsenwerving telt giften, geen deelnemers. De giften staan onder Donaties.',
+  'admin.campaign.participants.count.one': '{n} deelnemer',
+  'admin.campaign.participants.count.other': '{n} deelnemers',
+  'admin.campaign.participants.withdrawnCount': '{n} ingetrokken',
+  'admin.campaign.participants.confirmed': 'Bevestigd',
+  'admin.campaign.participants.status': 'Status',
+  'admin.campaign.participants.counts': 'Telt mee',
+  'admin.campaign.participants.export.max': 'Het bestand bevat de {n} meest recente.',
   'admin.campaign.action.save': 'Campagne opslaan',
   'admin.campaign.action.open': 'Deelname openen',
   'admin.campaign.action.close': 'Deelname sluiten',

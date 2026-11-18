@@ -10,10 +10,10 @@
 // old address forwards (`core/content/address/redirects.ts`, scenario in `content/redirect-rule.ts`), and whom a
 // supporter list shows (`core/supporters/listing.ts`, scenario in `supporters/list-rule.ts`), and what one
 // supporter's page shows (`core/supporters/timeline.ts`, scenario in `supporters/timeline-rule.ts`), and how a
-// donation and a subscription are recorded (`core/money/`, scenarios in `money/*-rule.ts`). One scenario, one
-// expected record, run once over the memory adapter and once over Postgres; a rule that one
-// adapter keeps on its own shows up as a difference here. Rejected: a suite per adapter, which
-// is how memory came to block a `resolved` intent while Postgres kept it.
+// donation and a subscription are recorded (`core/money/`, scenarios in `money/*-rule.ts`), and who took part
+// in a campaign (`core/campaigns/participants.ts`, `campaigns/participants-rule.ts`). One scenario, one expected
+// record, run once over the memory adapter and once over Postgres; a rule that one adapter keeps on its own shows
+// up as a difference here. Rejected: a suite per adapter, which is how memory came to block a `resolved` intent while Postgres kept it.
 //
 // The memory half always runs; the Postgres half skips without DATABASE_URL and APP_DATABASE_URL,
 // and in CI that is a failure.
@@ -54,6 +54,7 @@ import { expectedSupporterList, observeSupporterList } from './supporters/list-r
 import { expectedSupporterTimeline, observeSupporterTimeline } from './supporters/timeline-rule.js';
 import { expectedDonation, observeDonation } from './money/donation-rule.js';
 import { expectedSubscription, observeSubscription } from './money/subscription-rule.js';
+import { expectedParticipants, observeParticipants } from './campaigns/participants-rule.js';
 import { closeTenantWork, requireDatabase, testTenant } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -743,6 +744,7 @@ async function observe({ uow, clock, tenant, apply, provider }: Adapter) {
   );
   const subscription = await observeSubscription(invoker, uow, provider, clock, apply, tenant);
   return {
+    participants: await observeParticipants(invoker, uow, apply, tenant),
     subscription,
     supporterList,
     supporterTimeline,
@@ -884,6 +886,7 @@ const expected = {
   feed: expectedFeed,
   supporterList: expectedSupporterList,
   supporterTimeline: expectedSupporterTimeline,
+  participants: expectedParticipants,
   donation: expectedDonation,
   subscription: expectedSubscription,
   redirects: expectedRedirects,

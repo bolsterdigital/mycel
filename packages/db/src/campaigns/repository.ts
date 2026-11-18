@@ -145,5 +145,39 @@ export function campaignRepository(trx: Kysely<Database>, tenantId: string): Cam
         .execute();
       return new Map(found.map((r) => [r.campaign_id, r.n]));
     },
+    // The join is on the supporter's row, which RLS keeps to this tenant like the participation
+    // itself; an erasure deletes the participation (erasures.ts), so no tombstone address shows.
+    async participants(campaignId, { after, limit }) {
+      const of = () =>
+        trx
+          .selectFrom('campaign_participations as p')
+          .innerJoin('supporters as s', 's.id', 'p.supporter_id')
+          .where('p.campaign_id', '=', campaignId);
+      const counts = await of()
+        .select([
+          sql<number>`count(*)::int`.as('total'),
+          sql<number>`(count(*) filter (where p.withdrawn_at is null))::int`.as('active'),
+        ])
+        .executeTakeFirstOrThrow();
+      let rows = of()
+        .select(['p.supporter_id', 's.email', 'p.confirmed_at', 'p.withdrawn_at'])
+        .orderBy('p.confirmed_at', 'desc')
+        .orderBy('p.supporter_id', 'desc')
+        .limit(limit);
+      if (after)
+        rows = rows.where(
+          sql<boolean>`(p.confirmed_at, p.supporter_id) < (${after.confirmedAt}::timestamptz, ${after.supporterId}::uuid)`
+        );
+      return {
+        rows: (await rows.execute()).map((r) => ({
+          supporterId: r.supporter_id,
+          email: r.email,
+          confirmedAt: toIso(r.confirmed_at)!,
+          withdrawnAt: toIso(r.withdrawn_at),
+        })),
+        total: counts.total,
+        active: counts.active,
+      };
+    },
   };
 }
