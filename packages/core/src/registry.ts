@@ -110,6 +110,12 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   // answer is its status, amount and checkout, never who gave. It asks the provider and may record
   // a step, as a webhook would; it takes no status, so it cannot mark anything paid.
   'donation.return.check',
+  // Donor self-service (ADR 005 rule 6): a signed link from a mail, or the reader's session,
+  // names one supporter of this site; these reach that supporter's own gifts and nothing else.
+  // Asking for the link answers the same for every address.
+  'donation.self.get',
+  'donation.self.request',
+  'donation.self.update',
   'form.get',
   'form.submit',
   'mailing.opt_in.confirm',

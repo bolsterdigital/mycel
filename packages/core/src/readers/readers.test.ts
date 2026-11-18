@@ -451,10 +451,13 @@ describe('reader sign-in', () => {
         .list()
         .filter((u) => registry.authorize(u, reader))
         .map((u) => u.name);
-      // Everything a reader reaches is public reading, their own sign-in or their own sign-out.
+      // Everything a reader reaches is public reading, their own sign-in or their own sign-out,
+      // and their own gifts (ADR 005 rule 6).
       expect(open).toContain('reader.signout');
       expect(open).toContain('content.published.get');
-      for (const name of open) expect(name).toMatch(/^(content|media|reader|campaign|site)\./);
+      expect(open).toContain('donation.self.get');
+      for (const name of open)
+        expect(name).toMatch(/^((content|media|reader|campaign|site)\.|donation\.self\.)/);
       // Even a reader cookie that somehow carried more opens nothing more.
       const greedy = { ...reader, capabilities: ['tenant:admin' as const] };
       for (const name of ['content.item.create', 'supporter.get', 'tenant.member.invite']) {

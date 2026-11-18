@@ -78,9 +78,12 @@ export const Subscription = z.object({
   supporterId: z.string().guid().nullable(),
   /** The authorisation the charges use; null until the first payment is paid. */
   mandateId: z.string().guid().nullable(),
-  /** When the first period began: `paidAt` of the first payment; null until then. */
+  /**
+   * When the current run of periods began: `paidAt` of the first payment, or the day a gift was
+   * resumed after its paid period had passed (PR 3); null until the first payment is paid.
+   */
   startedAt: Timestamp.nullable(),
-  /** Periods paid so far; `paidThrough` is `startedAt` plus this many intervals. */
+  /** Periods paid since `startedAt`; `paidThrough` is `startedAt` plus this many intervals. */
   periodsPaid: z.number().int().nonnegative(),
   /** Until when it is paid (ADR 005 rule 7); null until the first payment is paid. */
   paidThrough: Timestamp.nullable(),
@@ -155,6 +158,8 @@ export const SubscriptionStep = z.enum([
   'cancel-at-period-end',
   'cancelled',
   'ended',
+  // The giver changed the amount from the next charge (PR 3); the entry carries the new amount.
+  'amount-changed',
 ]);
 export type SubscriptionStep = z.infer<typeof SubscriptionStep>;
 

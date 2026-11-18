@@ -4,9 +4,11 @@
 
 import {
   SupporterEvent,
+  anonymousPrincipal,
   chargeSubscription,
   ingest,
   reconcileChargeAttempt,
+  selfToken,
   staleChargeAttempts,
   startSubscription,
   systemPrincipal,
@@ -39,7 +41,9 @@ const MINUTE = 60 * 1000;
  * never came and whose request reached the provider late reconciled by key, after the wait,
  * without a second charge, failed charges → retries → `ended`, charges the provider refuses (made
  * nothing) → the same dunning → `ended` (MY-255), cancelling, an erased giver whose subscription
- * ends and whose mandate stops, and another tenant that sees none of it (brief MY-254 PR 1).
+ * ends and whose mandate stops, and another tenant that sees none of it (brief MY-254 PR 1). Then
+ * the giver's own link (PR 3): a new amount, a pause and a resume, each one ledger step with cause
+ * `donor`; the same supporter's link for another site reaches nothing.
  */
 export async function observeSubscription(
   invoker: Invoker,
@@ -159,6 +163,32 @@ export async function observeSubscription(
   const mandate = await uow.run(admin, (ctx) =>
     ctx.subscriptions.getMandate(erased.subscription.mandateId!)
   );
+  // The giver's own link (PR 3), as a visitor of the site with a token from a mail. A minute on,
+  // so its events do not share a moment with the dunning's end (the log orders a tie by id).
+  clock.advance(MINUTE);
+  const own = await start(1200, noor.id);
+  await settle(own.paymentId, 'paid');
+  const link = await uow.run(admin, (ctx) =>
+    selfToken(ctx.signer, admin.tenantId, noor.id, new Date(clock.now().getTime() + DAY))
+  );
+  const elsewhere = await uow.run(other, (ctx) =>
+    selfToken(ctx.signer, other.tenantId, noor.id, new Date(clock.now().getTime() + DAY))
+  );
+  const visitor = (tenantId: string) => anonymousPrincipal(tenantId, ['content:read']);
+  const self = (action: 'amount' | 'pause' | 'resume', amount?: number) =>
+    invoker.run(useCases.updateOwnGift, visitor(admin.tenantId), {
+      token: link,
+      subscriptionId: own.subscriptionId,
+      action,
+      ...(amount ? { amount } : {}),
+    });
+  await self('amount', 1500);
+  await self('pause');
+  const resumed = (await self('resume')).gift;
+  const ownGifts = (
+    await invoker.run(useCases.getOwnGifts, visitor(admin.tenantId), { token: link })
+  ).gifts.map((g) => `${g.amount} ${g.status}`);
+
   const missing = (p: Promise<unknown>) =>
     p.then(
       () => 'found',
@@ -241,6 +271,17 @@ export async function observeSubscription(
     otherTenantCancel: await missing(
       invoker.run(useCases.cancelSubscription, other, { subscriptionId: monthly.subscriptionId })
     ),
+    own: {
+      gifts: ownGifts,
+      steps: (await steps(own.subscriptionId)).slice(2),
+      dueAtPeriodEnd: resumed.nextChargeAt === resumed.paidThrough,
+      otherSite: await missing(
+        invoker.run(useCases.getOwnGifts, visitor(other.tenantId), { token: elsewhere })
+      ),
+      otherSiteToken: await missing(
+        invoker.run(useCases.getOwnGifts, visitor(admin.tenantId), { token: elsewhere })
+      ),
+    },
   };
 }
 
@@ -289,7 +330,12 @@ export const expectedSubscription = {
     steps: ['->pending:started:checkout', 'pending>ended:ended:webhook'],
   },
   cancelled: { status: 'cancelled', next: null },
-  events: ['donation.subscription.started', 'donation.subscription.ended dunning'],
+  events: [
+    'donation.subscription.started',
+    'donation.subscription.ended dunning',
+    // The gift she manages with her own link below.
+    'donation.subscription.started',
+  ],
   erased: {
     status: 'ended',
     endReason: 'erasure',
@@ -302,9 +348,21 @@ export const expectedSubscription = {
     ],
     mandate: { status: 'invalid', supporterId: null },
   },
-  listed: ['900 ended', '700 cancelled', '500 ended', '2000 ended', '1000 ended'],
-  activeOnly: 0,
+  listed: ['1500 active', '900 ended', '700 cancelled', '500 ended', '2000 ended', '1000 ended'],
+  activeOnly: 1,
   otherTenantList: 0,
   otherTenantGet: 'not_found',
   otherTenantCancel: 'not_found',
+  own: {
+    // Noor's monthly gift ended in dunning before; the page shows both.
+    gifts: ['1500 active', '1000 ended'],
+    steps: [
+      'active>active:amount-changed:donor',
+      'active>paused:paused:donor',
+      'paused>active:resumed:donor',
+    ],
+    dueAtPeriodEnd: true,
+    otherSite: 'not_found',
+    otherSiteToken: 'not_found',
+  },
 };
