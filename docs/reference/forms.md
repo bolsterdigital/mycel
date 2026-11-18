@@ -67,6 +67,8 @@ An accepted submission stores a `submissions` row (the only copy of the address,
 - `mailing.confirmation` builds the double opt-in mail in the submission's locale with a link to `/confirm?token=...` on the tenant's primary hostname and sends it once ([mail.md](mail.md)). The token carries tenant id, submission id, list and expiry, never the address.
 - `supporters.ingest` appends the event to the supporter's log, folds the projection and releases the reserved seat in the same transaction ([supporters.md](supporters.md)).
 
+On a site that measures, an accepted public submission to a `signup` form also publishes one `analytics.intent` that carries only the catalogue event `form.submitted` with `kind: signup`: no address, form, submission or page URL ([analytics.md](analytics.md#how-an-accepted-signup-is-counted)). Confirming publishes none.
+
 Opening the link only reads (`mailing.opt_in.get`); the button on that page posts to `mailing.opt_in.confirm`, which calls `SubmissionRepository.confirm` and, for the first confirmation only, publishes `consent.given`. A link scanner therefore confirms nothing.
 
 ## Campaign forms

@@ -3,7 +3,16 @@
 import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
+import {
+  ANALYTICS_INTENT,
+  Invoker,
+  buildRegistry,
+  deliverAnalyticsIntent,
+  noopLogger,
+  systemPrincipal,
+  useCases,
+  type AnalyticsDelivery,
+} from '@mycel/core';
 import {
   FakeDns,
   FakeInputHasher,
@@ -13,7 +22,7 @@ import {
   runSuffix,
 } from '@mycel/core/testing';
 import { DEFAULT_THEME, DEFAULT_CHROME, DEFAULT_GENERAL, DEFAULT_IMAGES } from '@mycel/core';
-import { createDb, createUnitOfWork, uuidv7Ids } from './index.js';
+import { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } from './index.js';
 import type { Database } from './infra/schema.js';
 import { enterTenant } from './infra/roles.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
@@ -30,18 +39,16 @@ describe.skipIf(skip)('site settings conformance', () => {
       if (event.level === 'query') queries.push(event.query.sql);
     },
   });
-  const invoker = new Invoker(
-    buildRegistry(),
-    createUnitOfWork(app, {
-      clock: { now: () => new Date() },
-      ids: uuidv7Ids,
-      signer: new FakeSigner(),
-      inputHasher: new FakeInputHasher(),
-      dns: new FakeDns(),
-      platform: memoryPlatform,
-      brandProcessor: memoryBrandProcessor,
-    })
-  );
+  const uow = createUnitOfWork(app, {
+    clock: { now: () => new Date() },
+    ids: uuidv7Ids,
+    signer: new FakeSigner(),
+    inputHasher: new FakeInputHasher(),
+    dns: new FakeDns(),
+    platform: memoryPlatform,
+    brandProcessor: memoryBrandProcessor,
+  });
+  const invoker = new Invoker(buildRegistry(), uow);
   let a = '';
   let b = '';
   beforeAll(async () => {
@@ -231,6 +238,50 @@ describe.skipIf(skip)('site settings conformance', () => {
     });
     expect(await invoker.run(useCases.getAnalyticsTracker, principal, {})).toEqual(off);
   });
+  it('delivers an analytics intent once, for its own tenant, and not after the site switched off (#12)', async () => {
+    const sent: AnalyticsDelivery[] = [];
+    const deps = {
+      uow,
+      tenants: createTenantDirectory(app),
+      platform: memoryPlatform,
+      analytics: {
+        send: async (delivery: AnalyticsDelivery) => (sent.push(delivery), 'accepted' as const),
+      },
+      clock: { now: () => new Date() },
+      log: noopLogger,
+    };
+    const intent = (tenantId: string) => ({
+      id: uuidv7Ids.next(),
+      type: ANALYTICS_INTENT,
+      tenantId,
+      occurredAt: new Date(),
+      actor: { kind: 'anonymous' as const, channel: 'web' as const },
+      props: { name: 'form.submitted', props: { kind: 'signup' } },
+    });
+    const principal = systemPrincipal(b, 'test');
+    const { version } = await invoker.run(useCases.getAnalyticsSettings, principal, {});
+    await invoker.run(useCases.updateAnalyticsSettings, principal, {
+      baseVersion: version,
+      settings: { plausibleDomain: 'b.example' },
+    });
+    const event = intent(b);
+    // The claim commits in its own transaction before the send, so a second worker or a
+    // redelivery after a crashed drain finds it and sends nothing.
+    expect(await deliverAnalyticsIntent(deps, event)).toBe('accepted');
+    expect(await deliverAnalyticsIntent(deps, event)).toBe('duplicate');
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ domain: 'b.example', event: event.props });
+    expect(new URL(sent[0]!.url).search).toBe('');
+    // Tenant a measures nothing now (cleared above): its intent reads its own row and stops.
+    expect(await deliverAnalyticsIntent(deps, intent(a))).toBe('off');
+    await invoker.run(useCases.updateAnalyticsSettings, principal, {
+      baseVersion: version + 1,
+      settings: { plausibleDomain: null },
+    });
+    expect(await deliverAnalyticsIntent(deps, intent(b))).toBe('off');
+    expect(sent).toHaveLength(1);
+  });
+
   it('isolates brand bytes and versions under the same forced RLS row', async () => {
     const aPrincipal = systemPrincipal(a, 'test');
     const bPrincipal = systemPrincipal(b, 'test');

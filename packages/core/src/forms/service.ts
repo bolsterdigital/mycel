@@ -12,6 +12,7 @@ import {
   type ParticipationRequestedProps,
 } from './events.js';
 import { participationFor } from '../campaigns/service.js';
+import { countForAnalytics } from '../analytics/events.js';
 import {
   FormDefinition,
   JOINING_KINDS,
@@ -266,6 +267,11 @@ export const submitForm = defineUseCase({
     // A fundraiser's form gives the payment its campaign, decided under the share lock below.
     let fundraiserId: string | undefined;
     const accept = async (): Promise<SubmitResult> => {
+      // An accepted public signup is counted once, in this transaction: a rollback below takes
+      // the intent with it. Only the catalogue event travels, never the form, the address or the
+      // submission (docs/reference/analytics.md § Server events).
+      if (form.kind === 'signup')
+        await countForAnalytics(ctx, { name: 'form.submitted', props: { kind: 'signup' } });
       if (!gift) return { status: 'accepted', submissionId };
       const start = {
         amount: gift.cents,
