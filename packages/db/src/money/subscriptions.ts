@@ -104,6 +104,8 @@ export function subscriptionRepository(
         .updateTable('subscriptions')
         .set({
           status: s.status,
+          // The giver may change the amount of a gift from the next charge (PR 3).
+          amount: s.amount,
           supporter_id: s.supporterId,
           mandate_id: s.mandateId,
           started_at: s.startedAt,

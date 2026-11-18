@@ -59,6 +59,7 @@ import {
   listDonations,
 } from './money/service.js';
 import { cancelSubscription, getSubscription, listSubscriptions } from './money/subscriptions.js';
+import { getOwnGifts, requestOwnGiftsLink, updateOwnGift } from './money/self-service.js';
 import {
   createConnection,
   disconnectConnection,
@@ -312,6 +313,9 @@ export const useCases = {
   getSubscription,
   listSubscriptions,
   cancelSubscription,
+  getOwnGifts,
+  updateOwnGift,
+  requestOwnGiftsLink,
   listCampaigns,
   withdrawParticipation,
   createPersonGroup,

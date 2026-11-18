@@ -60,6 +60,8 @@
       <p>{labels.newslettersNone}</p>
     {/if}
 
+    <p><a href={data.givingHref}>{labels.giving}</a></p>
+
     <h2>{labels.privacy}</h2>
     <p>{account.retention}</p>
     <p>{account.sessionEnds}</p>

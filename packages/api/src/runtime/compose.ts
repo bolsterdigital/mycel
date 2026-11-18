@@ -18,6 +18,9 @@ import {
   SIGNIN_MAIL_SUBSCRIBER,
   signinMailSource,
   signinMailSubscriber,
+  GIVING_MAIL_SUBSCRIBER,
+  givingMailSource,
+  givingMailSubscriber,
   editionMailSource,
   editionTestMailSource,
   editionTestMailSubscriber,
@@ -363,6 +366,7 @@ export function createRuntime(
     formMailSubscriber(formMail),
     formFeedSubscriber(uow),
     signinMailSubscriber(confirmation),
+    givingMailSubscriber(confirmation),
     editionTestMailSubscriber(confirmation),
   ];
   // What `mail.reconcile` rebuilds a message with, per mail subscriber above.
@@ -370,6 +374,7 @@ export function createRuntime(
     [CONFIRMATION_SUBSCRIBER]: confirmationMailSource(confirmation),
     [FORM_MAIL_SUBSCRIBER]: formMailSource(formMail),
     [SIGNIN_MAIL_SUBSCRIBER]: signinMailSource(confirmation),
+    [GIVING_MAIL_SUBSCRIBER]: givingMailSource(confirmation),
     [EDITION_SUBSCRIBER]: editionMailSource(confirmation),
     [EDITION_TEST_SUBSCRIBER]: editionTestMailSource(confirmation),
   };

@@ -15,7 +15,7 @@ import { isA11y } from '../project';
 import { give } from './donation';
 
 /** A published page with a donation form whose amount offers once and monthly. */
-async function monthlyPage(project: string): Promise<string> {
+export async function monthlyPage(project: string): Promise<string> {
   const slug = `maandelijks-${project}-${Date.now()}`;
   const editor = systemPrincipal(await tenantId(), 'e2e-recurring');
   await withInvoker(async (invoker) => {

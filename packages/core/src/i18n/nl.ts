@@ -99,6 +99,30 @@ export const nl: Partial<Messages> = {
   'mail.signin.button': 'Inloggen',
   'mail.signin.expires': 'De link werkt één keer en 15 minuten lang.',
   'mail.signin.ignore': 'Heb je hier niet om gevraagd? Dan kun je deze mail negeren.',
+  'mail.giving.per.month': 'per maand',
+  'mail.giving.per.year': 'per jaar',
+  'mail.giving.button': 'Beheer je gift',
+  'mail.giving.expires': 'Deze link werkt 7 dagen. Daarna vraag je een nieuwe aan via {url}.',
+  'mail.giving.link.subject': 'Beheer je gift aan {tenant}',
+  'mail.giving.link.intro':
+    'Je hebt gevraagd om een link naar je gift aan {tenant}. Via de knop hieronder zie je je gift en kun je het bedrag wijzigen, pauzeren of stoppen.',
+  'mail.giving.started.subject': 'Bedankt voor je gift aan {tenant}',
+  'mail.giving.started.intro':
+    'Dank je wel! Vanaf nu geef je {amount} {per} aan {tenant}. Via de knop hieronder wijzig je het bedrag, pauzeer je of stop je je gift wanneer je wilt.',
+  'mail.giving.failed.subject': 'Je gift aan {tenant} kon niet worden afgeschreven',
+  'mail.giving.failed.intro': 'Het afschrijven van je gift van {amount} {per} is niet gelukt.',
+  'mail.giving.failed.retry':
+    'We proberen het opnieuw op {date}. Wil je je gift wijzigen of stoppen? Gebruik dan de knop hieronder.',
+  'mail.giving.failed.later':
+    'We proberen het later opnieuw. Wil je je gift wijzigen of stoppen? Gebruik dan de knop hieronder.',
+  'mail.giving.ended.subject': 'Je gift aan {tenant} is beëindigd',
+  'mail.giving.ended.intro':
+    'We hebben een paar keer geprobeerd je gift van {amount} {per} af te schrijven, zonder succes. Daarom hebben we je gift beëindigd: er wordt niets meer afgeschreven.',
+  'mail.giving.again': 'Wil je opnieuw geven? Dat kan altijd op de website van {tenant}.',
+  'mail.giving.cancelled.subject': 'Je gift aan {tenant} is gestopt',
+  'mail.giving.cancelled.intro':
+    'Je gift van {amount} {per} is gestopt. Er wordt niets meer afgeschreven.',
+  'mail.giving.thanks': 'Dank je wel voor je steun.',
   'mail.email.viewInBrowser': 'Bekijk deze e-mail in je browser',
   'mail.email.footer': 'Je ontvangt deze e-mail van {site}.',
   'mail.email.footnotes': 'Noten',

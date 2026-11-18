@@ -96,6 +96,32 @@ export const en = {
   'mail.signin.button': 'Sign in',
   'mail.signin.expires': 'The link works once and for 15 minutes.',
   'mail.signin.ignore': 'Did not ask for this? Then you can ignore this e-mail.',
+  'mail.giving.per.month': 'per month',
+  'mail.giving.per.year': 'per year',
+  'mail.giving.button': 'Manage your gift',
+  'mail.giving.expires':
+    'This link works for 7 days. After that you can ask for a new one at {url}.',
+  'mail.giving.link.subject': 'Manage your gift to {tenant}',
+  'mail.giving.link.intro':
+    'You asked for a link to your gift to {tenant}. Use the button below to see it, change the amount, pause it or stop it.',
+  'mail.giving.started.subject': 'Thank you for your gift to {tenant}',
+  'mail.giving.started.intro':
+    'Thank you! From now on {tenant} receives {amount} {per} from you. Use the button below to change the amount, pause or stop your gift at any time.',
+  'mail.giving.failed.subject': 'Your gift to {tenant} could not be collected',
+  'mail.giving.failed.intro': 'We could not collect your gift of {amount} {per}.',
+  'mail.giving.failed.retry':
+    'We will try again on {date}. Want to change or stop your gift? Use the button below.',
+  'mail.giving.failed.later':
+    'We will try again later. Want to change or stop your gift? Use the button below.',
+  'mail.giving.ended.subject': 'Your gift to {tenant} has ended',
+  'mail.giving.ended.intro':
+    'We tried several times to collect your gift of {amount} {per}, without success. So we have ended it: nothing more will be collected.',
+  'mail.giving.again':
+    'Would you like to give again? You can always do so on the website of {tenant}.',
+  'mail.giving.cancelled.subject': 'Your gift to {tenant} has stopped',
+  'mail.giving.cancelled.intro':
+    'Your gift of {amount} {per} has stopped. Nothing more will be collected.',
+  'mail.giving.thanks': 'Thank you for your support.',
   'mail.email.viewInBrowser': 'View this e-mail in your browser',
   'mail.email.footer': 'You receive this e-mail from {site}.',
   'mail.email.footnotes': 'Notes',

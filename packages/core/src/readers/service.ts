@@ -16,9 +16,6 @@
 
 import { z } from 'zod';
 import { withinLimit } from '../entitlements/guards.js';
-import { checkProof } from '../forms/proof.js';
-import { checkStartedToken } from '../forms/spam.js';
-import '../forms/ports.js';
 import { Locale } from '../i18n/locale.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
@@ -46,6 +43,7 @@ import {
   type ReaderSession,
   type SigninRequestedProps,
 } from './model.js';
+import { refuseLinkRequest } from './link-request.js';
 import './ports.js';
 
 const SigninRequestInput = z.object({
@@ -91,40 +89,12 @@ export const requestSignin = defineUseCase({
       return accepted;
     };
 
-    if (input.spam?.honeypot === undefined || input.spam.honeypot !== '') return refuse('honeypot');
-    const timing = await checkStartedToken(
-      ctx.signer,
-      input.spam.startedToken,
-      SIGNIN_FORM_SCOPE,
-      SIGNIN_MIN_FILL_SECONDS,
-      now
-    );
-    if (timing !== 'ok') return refuse(timing === 'invalid' ? 'token-invalid' : 'too-fast');
-    const proof = await checkProof(ctx.signer, input.spam.proof, SIGNIN_FORM_SCOPE, now);
-    if (proof.kind === 'invalid') return refuse('proof-invalid');
-    if (
-      proof.kind === 'ok' &&
-      !(await ctx.rateLimits.cooldown(`reader.signin.proof:${proof.challenge}`, 24 * 3600))
-    )
-      return refuse('proof-invalid');
-
-    // Per client address, so one client cannot walk a list of addresses; keyed hashes in
-    // Postgres, shared between processes. A post without a proof takes the stricter bucket.
-    const ipHash = principal.actor.kind === 'anonymous' ? principal.actor.ipHash : undefined;
-    if (
-      ipHash &&
-      !(await ctx.rateLimits.hit(`reader.signin:ip:${ipHash}`, SIGNIN_RATE_LIMITS.perIp))
-    )
-      return refuse('ip-limited');
-    if (
-      proof.kind === 'absent' &&
-      ipHash &&
-      !(await ctx.rateLimits.hit(
-        `reader.signin:unproven:${ipHash}`,
-        SIGNIN_RATE_LIMITS.perIpUnproven
-      ))
-    )
-      return refuse('ip-limited');
+    const refusal = await refuseLinkRequest(ctx, input.spam, {
+      scope: SIGNIN_FORM_SCOPE,
+      minFillSeconds: SIGNIN_MIN_FILL_SECONDS,
+      limits: SIGNIN_RATE_LIMITS,
+    });
+    if (refusal) return refuse(refusal);
 
     // An erased address gets no link: coming back after an erasure is an explicit signup through
     // a form (ADR 032), not a sign-in. A readmitted supporter is their current id.
