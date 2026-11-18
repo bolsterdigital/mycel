@@ -33,6 +33,8 @@ export interface BlockCopy {
   credit: Record<CreditKind, string>;
   /** `{provider}` filled by the renderer. */
   videoOn: string;
+  /** The play button of a placed player; `{title}` and `{provider}` filled by the renderer. */
+  videoPlay: string;
   footnotes: string;
   footnoteBack: string;
   /** The cover header's arrow down to the content. */
@@ -317,6 +319,8 @@ export type RenderBlock = { id: string } & (
       type: 'video-embed';
       provider: 'youtube' | 'vimeo';
       url: string;
+      /** The player's address, used only where the site placed that provider (`embeds.ts`). */
+      player: string;
       title: string;
       caption: string | null;
       width: Width;
@@ -402,6 +406,17 @@ export function videoUrl(provider: 'youtube' | 'vimeo', videoId: string): string
   return provider === 'youtube'
     ? `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`
     : `https://vimeo.com/${encodeURIComponent(videoId)}`;
+}
+
+/**
+ * The provider's player, without its tracking cookies: YouTube's nocookie host, Vimeo with `dnt`.
+ * It starts playing, because the visitor's click on the play button is what loads it.
+ */
+export function videoPlayerUrl(provider: 'youtube' | 'vimeo', videoId: string): string {
+  const id = encodeURIComponent(videoId);
+  return provider === 'youtube'
+    ? `https://www.youtube-nocookie.com/embed/${id}?autoplay=1`
+    : `https://player.vimeo.com/video/${id}?dnt=1&autoplay=1`;
 }
 
 export const VIDEO_PROVIDER_NAMES = { youtube: 'YouTube', vimeo: 'Vimeo' } as const;

@@ -76,6 +76,7 @@ import { ogLocales } from './share-locale.js';
 import { sitePath, siteTenant, siteUrls, type Site } from '../site.js';
 import { siteBrand, siteChrome, siteNavigation, siteTheme } from './theme.js';
 import { siteTracker } from './analytics.js';
+import { sitePlacement } from './integrations.js';
 import { refuse } from '#lib/server/http/refuse.js';
 
 export interface PublicHead {
@@ -315,6 +316,8 @@ export async function loadPublicItem(
   const navigation = await siteNavigation(site, locale);
   // Measurement on or off adds or removes the pageview tag (analytics.ts).
   const tracker = await siteTracker(site);
+  // And so does switching an integration: its player markup and the CSP (integrations.ts).
+  const integrations = await sitePlacement(site);
   const digest = createHash('sha256')
     .update(
       JSON.stringify({
@@ -331,6 +334,7 @@ export async function loadPublicItem(
         prefooter,
         gate,
         tracker,
+        integrations,
       })
     )
     .digest('base64url')

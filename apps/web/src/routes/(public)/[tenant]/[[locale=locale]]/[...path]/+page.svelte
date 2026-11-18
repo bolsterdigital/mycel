@@ -12,9 +12,13 @@
   import Intro from '#lib/blocks/Intro.svelte';
   import Prefooter from '#lib/components/public/Prefooter.svelte';
   import ReaderGate from '#lib/components/public/ReaderGate.svelte';
+  import { placeEmbeds } from '#lib/blocks/embeds.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
+  // Server-rendered only (`csr = false`), so the page's one value is read once.
+  // svelte-ignore state_referenced_locally
+  placeEmbeds(data.view === 'item' ? data.embeds : []);
 
   const hasProblem = $derived(!!form && (form.errors.length > 0 || !!form.message));
   // A refused post whose form the page no longer shows (ADR 033 rule 3: a campaign closed while
@@ -70,6 +74,7 @@
         data-domain={data.pageview.domain}
         data-url={data.pageview.url}
       ></script>{/if}
+    {#if data.embeds.length > 0}<script defer src="/_site/embed.js"></script>{/if}
   {/if}
 </svelte:head>
 

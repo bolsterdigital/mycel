@@ -1658,6 +1658,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'block.lightbox.zoom': 'Ware grootte',
   'block.lightbox.count': 'Afbeelding {n} van {total}',
   'block.video.on': 'Video op {provider}',
+  'block.video.play': 'Video afspelen: {title} (laadt {provider})',
   'block.footnotes': 'Noten',
   'block.footnote.back': 'Terug naar de tekst',
   'reader.title': 'Inloggen',

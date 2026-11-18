@@ -72,7 +72,7 @@ import type {
   RenderIntro,
   RenderModel,
 } from './model.js';
-import { videoUrl, type RenderEvent, type RenderMeta } from './model.js';
+import { videoPlayerUrl, videoUrl, type RenderEvent, type RenderMeta } from './model.js';
 
 /** Where the resolver reads tenant data; `runtimeSource` is the real one, tests may stub it. */
 export interface ResolveSource {
@@ -163,6 +163,7 @@ export function blockCopy(locale: string): BlockCopy {
     audioTranscript: t('block.audio.transcript'),
     credit: creditWords(t),
     videoOn: t('block.video.on'),
+    videoPlay: t('block.video.play'),
     footnotes: t('block.footnotes'),
     footnoteBack: t('block.footnote.back'),
     toContent: t('block.cover.toContent'),
@@ -840,6 +841,7 @@ export async function resolveDocument(
           type: 'video-embed',
           provider: b.props.provider,
           url: videoUrl(b.props.provider, b.props.videoId),
+          player: videoPlayerUrl(b.props.provider, b.props.videoId),
           title: text(b.props.title) ?? '',
           caption: text(b.props.caption) || null,
           width: b.props.width,

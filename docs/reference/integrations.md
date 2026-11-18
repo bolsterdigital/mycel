@@ -1,6 +1,6 @@
 # Managed integrations
 
-External code a public Mycel page may load: a video player or a tag manager. The rules are [ADR 022](../adr/022-managed-extensions-and-site-integrations.md) rules 5-7; this page says how they are built. Status: the catalogue, the tenant setting and the decision are in place; the video player and the consent banner with the tag manager loader follow.
+External code a public Mycel page may load: a video player or a tag manager. The rules are [ADR 022](../adr/022-managed-extensions-and-site-integrations.md) rules 5-7; this page says how they are built. Status: the catalogue, the tenant setting, the decision and the video player are in place; the consent banner with the tag manager loader follows.
 
 ## Who decides what
 
@@ -28,6 +28,12 @@ A tag manager's container is edited outside Mycel, so Mycel cannot review its ta
 4. The response's CSP gains exactly the origins of what is placed, never a wildcard and never a tenant parameter.
 
 The server never reads the visitor's consent: pages stay cacheable, and the browser applies the choice before anything loads.
+
+The published content route asks once per response (`apps/web/src/lib/server/public/integrations.ts`), over the item's blocks and the pre-footer's, and the placement is part of the item's ETag, so switching an entry off is not hidden behind a 304.
+
+## Video
+
+Where the site switched a provider on, its video block renders a play button above the link to the video, hidden in the HTML. `static/_site/embed.js`, on the page only when it places a video, shows the button; a click puts the player in its place (YouTube on `youtube-nocookie.com`, Vimeo with `dnt=1`, both starting to play), titled after the video, in a sandbox without top navigation or forms, and moves focus to it. Before that click the browser asks the provider nothing, not even a thumbnail. The response's CSP gets `frame-src 'self'` plus exactly the placed providers' origins (`frameSources` in `security-headers.ts`). Without JavaScript, with the provider off, in a preview or in an e-mail, the video is the link.
 
 ## What this does not promise
 

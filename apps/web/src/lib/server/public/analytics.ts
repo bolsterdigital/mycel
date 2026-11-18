@@ -17,6 +17,7 @@ import {
   anonymousPrincipal,
   pageviewDecision,
   useCases,
+  type PageviewRequest,
   type PublishedItem,
 } from '@mycel/core';
 import { runtime } from '../runtime.js';
@@ -55,13 +56,36 @@ export interface PageviewTag {
  */
 export async function pageviewTag(
   site: Site,
-  response: { method: string; status: number; url: URL; thanks: boolean },
+  response: PublishedResponse,
   item: Pick<PublishedItem, 'type' | 'slug' | 'access'>,
   locale: string
 ): Promise<PageviewTag | null> {
   const domain = await siteTracker(site);
   if (domain === null) return null;
-  const decision = pageviewDecision({
+  const decision = pageviewDecision(publishedRequest(site, response, item, locale));
+  if (!decision.eligible) return null;
+  return { endpoint: PLAUSIBLE_EVENT_ENDPOINT, domain, url: (await siteUrls(site))(decision.path) };
+}
+
+/** The response a published item's route is about to send, as far as the route knows it. */
+export interface PublishedResponse {
+  method: string;
+  status: number;
+  url: URL;
+  thanks: boolean;
+}
+
+/**
+ * The response as `pageviewDecision` reads it; `integrationDecision` reads the same, so a page
+ * that does not count places no integration either (integrations.ts).
+ */
+export function publishedRequest(
+  site: Site,
+  response: PublishedResponse,
+  item: Pick<PublishedItem, 'type' | 'slug' | 'access'>,
+  locale: string
+): PageviewRequest {
+  return {
     method: response.method,
     status: response.status,
     contentType: null,
@@ -75,7 +99,5 @@ export async function pageviewTag(
       locale,
       defaultLocale: site.tenant.defaultLocale,
     },
-  });
-  if (!decision.eligible) return null;
-  return { endpoint: PLAUSIBLE_EVENT_ENDPOINT, domain, url: (await siteUrls(site))(decision.path) };
+  };
 }

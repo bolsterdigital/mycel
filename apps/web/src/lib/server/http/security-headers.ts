@@ -87,12 +87,28 @@ export function denyFraming(policy: string): string {
 
 /** Only the live draft document and the e-mail preview may be framed by their own admin origin. */
 export function frameAncestors(policy: string, source: "'none'" | "'self'"): string {
+  return directive(policy, 'frame-ancestors', source);
+}
+
+/**
+ * A public page that places a video player may frame its own origin and exactly the players'
+ * origins its integration decision named (docs/reference/integrations.md); without it, frames
+ * fall back to `default-src 'self'`. The origins come from core's catalogue, never from a tenant.
+ */
+export function frameSources(policy: string, origins: readonly string[]): string {
+  return origins.length === 0
+    ? policy
+    : directive(policy, 'frame-src', ["'self'", ...origins].join(' '));
+}
+
+/** The policy with one directive replaced, or appended when it had none; the rest untouched. */
+function directive(policy: string, name: string, value: string): string {
   const directives = policy
     .split(';')
     .map((d) => d.trim())
     .filter(Boolean)
-    .filter((d) => !/^frame-ancestors(\s|$)/i.test(d));
-  return [...directives, `frame-ancestors ${source}`].join('; ');
+    .filter((d) => d.split(/\s/, 1)[0]!.toLowerCase() !== name);
+  return [...directives, `${name} ${value}`].join('; ');
 }
 
 /** Sets the headers on a response, leaving any value a route chose itself. */
@@ -100,11 +116,14 @@ export function applySecurityHeaders(
   headers: Headers,
   kind: ResponseKind,
   https: boolean,
-  liveDraft = false
+  liveDraft = false,
+  frames: readonly string[] = []
 ): void {
   for (const [name, value] of Object.entries(securityHeaders(kind, https)))
     if (!headers.has(name)) headers.set(name, value);
   const policy = headers.get('content-security-policy');
+  if (kind === 'public' && policy && frames.length > 0)
+    headers.set('content-security-policy', frameSources(policy, frames));
   if (kind === 'admin' && policy)
     headers.set('content-security-policy', frameAncestors(policy, liveDraft ? "'self'" : "'none'"));
 }
