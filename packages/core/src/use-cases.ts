@@ -204,6 +204,11 @@ import {
   updateAnalyticsSettings,
 } from './analytics/service.js';
 import {
+  getIntegrationPlacement,
+  getIntegrationSettings,
+  updateIntegrationSettings,
+} from './integrations/service.js';
+import {
   addHostname,
   listHostnames,
   removeHostname,
@@ -431,6 +436,9 @@ export const useCases = {
   getAnalyticsSettings,
   updateAnalyticsSettings,
   getAnalyticsTracker,
+  getIntegrationSettings,
+  updateIntegrationSettings,
+  getIntegrationPlacement,
   getBrandAsset,
   putBrandAsset,
   removeBrandAsset,

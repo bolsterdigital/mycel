@@ -93,6 +93,10 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   // A campaign card on a public page (ADR 033 rule 4): only published, public landing pages and
   // aggregates; the reason a card is empty is no more than the page itself already withholds.
   'campaign.card.get',
+  // Managed integrations (docs/reference/integrations.md): the switched-on embeds and tag manager
+  // container, which every page that uses them shows anyway; parameters of switched-off entries stay
+  // `integration.settings.get`'s.
+  'integration.placement.get',
   'content.published.get',
   // Title and an excerpt of public, indexable published revisions only; restricted
   // items are left out whole.

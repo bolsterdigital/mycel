@@ -2,6 +2,7 @@
 import { expect, test, type APIRequestContext, type Page, type Response } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { exerciseAnalyticsSettings } from './lib/analytics/settings';
+import { exerciseIntegrationSettings } from './lib/integrations/settings';
 import { exercisePageviews } from './lib/analytics/pageviews';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -1630,3 +1631,7 @@ test('an administrator names the Plausible site; an editor cannot', ({ page, bas
 // With a Plausible site named, a published public page reports its own path and nothing else.
 test('a counted page reports the decided path; nothing else gets a tag', ({ page, baseURL }) =>
   exercisePageviews(page, baseURL!));
+
+// Which third party's code runs on the public site is the administrator's choice too.
+test('an administrator switches integrations on and off; an editor cannot', ({ page, baseURL }) =>
+  exerciseIntegrationSettings(page, baseURL!));

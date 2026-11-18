@@ -51,6 +51,7 @@ import {
 import type { OperatorPreferences } from '../../operators/preferences.js';
 import { DEFAULT_RETENTION, type SiteRetention } from '../../ops/retention.js';
 import { DEFAULT_ANALYTICS, type AnalyticsSettings } from '../../analytics/model.js';
+import { DEFAULT_INTEGRATIONS, type IntegrationSettings } from '../../integrations/model.js';
 import type { TenantExportRecord } from '../../tenants/exports.js';
 import { platformHostname } from '../../tenants/model.js';
 import type { HostnameRecord, TenantInfo } from '../../tenants/ports.js';
@@ -62,6 +63,7 @@ export interface TenantStore {
   siteImages: { version: number; value: SiteImages };
   siteRetention: { version: number; value: SiteRetention };
   analytics: { version: number; value: AnalyticsSettings };
+  integrations: { version: number; value: IntegrationSettings };
   brandLogo: { version: number; asset: BrandAsset | null };
   brandFont: { version: number; asset: BrandAsset | null };
   connections: Map<string, ConnectionRecord>;
@@ -172,6 +174,7 @@ const emptyTenant = (): TenantStore => ({
   siteImages: { version: 0, value: DEFAULT_IMAGES },
   siteRetention: { version: 0, value: DEFAULT_RETENTION },
   analytics: { version: 0, value: DEFAULT_ANALYTICS },
+  integrations: { version: 0, value: DEFAULT_INTEGRATIONS },
   brandLogo: { version: 0, asset: null },
   brandFont: { version: 0, asset: null },
   connections: new Map(),

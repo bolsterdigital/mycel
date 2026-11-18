@@ -12,9 +12,9 @@ Short map; the reasoning is in [`../adr/`](../adr/).
                  ┌────────────────────────────────────────────────────────────┐
    domain        │ packages/core                                              │
                  │ tenants · operators · entitlements · content · theme       │
-                 │ campaigns · media · forms · supporters · mailing           │
+                 │ campaigns · media · forms · supporters · mailing · i18n    │
                  │ connections · navigation · readers · money · analytics     │
-                 │ assist · attention · audit · jobs · ops · i18n             │
+                 │ integrations · assist · attention · audit · jobs · ops     │
                  │ use-case registry                                          │
                  │ ports: UnitOfWork, Clock, Ids, Signer, EventBus, Scheduler,│
                  │        Mailer, EmailRenderer, BlobStore, ImageProcessor,   │
@@ -45,7 +45,7 @@ Short map; the reasoning is in [`../adr/`](../adr/).
 
 **Planned, not in the code.** Recurring giving ([ADR 005](../adr/005-money-ledger.md) rules 5 and 7); one-off donations are built ([donations](../reference/donations.md)).
 
-**Accepted extension direction, not current implementation** ([ADRs 022 to 024](extensibility.md)). A trusted operator-installed extension will declare its core/schema compatibility, owner, capabilities, render and admin contracts, locale, preview, export, fallback and migrations. Activation and browser asset loading can be scoped to a site or page, but do not isolate code executing in the host process. Core remains framework-free and exposes typed ports; untrusted backend execution stays across an authenticated external service boundary. Site-only tenants may keep an external CRM, mail platform or subscription owner through registered connections. The composition root, block registry, theme and outbox do not implement a general extension loader. Configurable forms and managed webhook/Mailchimp connections use their existing typed ports and tenant-scoped registries.
+**Accepted extension direction, not current implementation** ([ADRs 022 to 024](extensibility.md)). A trusted operator-installed extension will declare its core/schema compatibility, owner, capabilities, render and admin contracts, locale, preview, export, fallback and migrations. Activation and browser asset loading can be scoped to a site or page, but do not isolate code executing in the host process. Core remains framework-free and exposes typed ports; untrusted backend execution stays across an authenticated external service boundary. Site-only tenants may keep an external CRM, mail platform or subscription owner through registered connections. The composition root, block registry, theme and outbox do not implement a general extension loader. Forms, webhook/Mailchimp connections and [integrations](../reference/integrations.md) use typed ports and tenant-scoped registries.
 
 **Running it** (PR #28). One image, several entrypoints (`Dockerfile`, `docker/entrypoint.sh`); `compose.yml` runs them on one box with Postgres and Caddy, each process with only the database login ADR 011 gives it (`docs/self-hosting.md`). The `mycel` CLI (`packages/api/src/runtime/cli.ts`) is the self-hoster's front: platform functions on the owner connection, and `setup`, which creates a tenant there and then invites and adds hostnames through the registry like any front. A tag `vX.Y.Z` publishes that image to GHCR (`.github/workflows/release.yml`, cut with `npm run release`); what an upgrade may rely on is `docs/upgrading.md` (PR #29).
 

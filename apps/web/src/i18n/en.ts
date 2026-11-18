@@ -1496,6 +1496,7 @@ export const en = {
   'admin.audit.op.site.general.update': 'General settings changed',
   'admin.audit.op.site.image.update': 'Default image changed',
   'admin.audit.op.analytics.settings.update': 'Statistics setting changed',
+  'admin.audit.op.integration.settings.update': 'Integrations changed',
   'admin.audit.op.site.retention.update': 'Retention terms changed',
   'admin.audit.op.site.theme.update': 'House style changed',
   'admin.audit.op.reader.signin.request': 'Sign-in link requested',
@@ -3214,6 +3215,28 @@ export const en = {
   'admin.site.analytics.mismatch':
     'The Plausible site {domain} does not match this site’s address {hostname}. Mycel does not change it: correct it here if the address changed.',
   'admin.site.analytics.save': 'Save statistics',
+  'admin.site.integrations.title': 'Integrations',
+  'admin.site.integrations.off':
+    'Nothing from other services loads on this site. Switch on a video player or a tag manager below; each one loads only after the visitor chooses so.',
+  'admin.site.integrations.on':
+    'Switched on: {names}. Each loads only after the visitor chooses so.',
+  'admin.site.integrations.embed': 'Play {name} videos in the page',
+  'admin.site.integrations.embed.hint':
+    'The player loads from {hosts} only after the visitor clicks the video. Off, or without JavaScript, the video is a link to {name}.',
+  'admin.site.integrations.gtm.warning':
+    'Tags in your container can read everything on the page and send it to their makers. With a tag manager this site no longer keeps its promise of no cookies and no visitor profiles; the tags in your container decide what visitors share. It never runs on pages with a form.',
+  'admin.site.integrations.gtm.enable': 'Load Google Tag Manager after consent',
+  'admin.site.integrations.gtm.hint':
+    'Loads from {hosts}, only after the visitor agrees to the category below. Switching it off keeps the values here.',
+  'admin.site.integrations.gtm.container': 'Container ID',
+  'admin.site.integrations.gtm.container.hint': 'As shown in Tag Manager, such as GTM-ABC123.',
+  'admin.site.integrations.gtm.category': 'Waits for consent to',
+  'admin.site.integrations.consent.analytics': 'Statistics',
+  'admin.site.integrations.consent.marketing': 'Marketing',
+  'admin.site.integrations.gtm.vendors': 'Services the tags may reach',
+  'admin.site.integrations.gtm.vendors.hint':
+    'The browser refuses a tag for any service not ticked here.',
+  'admin.site.integrations.save': 'Save integrations',
   'admin.content.state.short.live': 'Published',
   'admin.content.state.short.changed': 'Published · unpublished changes',
   'admin.content.state.short.pinned': 'Scheduled',

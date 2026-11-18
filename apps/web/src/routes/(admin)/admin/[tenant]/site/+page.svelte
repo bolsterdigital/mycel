@@ -12,7 +12,8 @@
      default image items inherit (#81-rest), and the theme whether articles open with a drop cap.
      API access (#101) is the site's API keys, moved from Members (lib/admin/ApiAccess.svelte).
      General also holds, for `tenant:admin` only, how long form submissions are kept and which
-     Plausible site counts its pageviews and signups. -->
+     Plausible site counts its pageviews and signups, and which managed integrations it places
+     (lib/admin/integrations/). -->
 <script lang="ts">
   import {
     AI_USES,
@@ -42,6 +43,7 @@
     Table,
   } from '#lib/admin/ui/index.js';
   import ApiAccess from '#lib/admin/ApiAccess.svelte';
+  import IntegrationSettings from '#lib/admin/integrations/IntegrationSettings.svelte';
   import UsageList from '#lib/admin/UsageList.svelte';
   import { fill, plural, ui, type UiKey, refusalCopy } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -332,6 +334,17 @@
           inputmode="url"
         />
       </SettingsSection>
+    {/if}
+    {#if data.integrations}
+      <IntegrationSettings
+        state={data.integrations}
+        locale={data.locale}
+        action={action('integrations')}
+        saved={saved('integrations')}
+        values={form?.action === 'integrations' && 'values' in form
+          ? (form.values as Record<string, FormDataEntryValue>)
+          : undefined}
+      />
     {/if}
   {:else if data.section === 'assist' && data.assist}
     {@const assist = data.assist}
