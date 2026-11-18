@@ -1,0 +1,6 @@
+{
+  "source": "The recorded answer of dropped.json without x-plausible-dropped: what Plausible sends for a site it knows (Events API reference, 202 Accepted).",
+  "status": 202,
+  "headers": { "content-type": "text/plain; charset=utf-8" },
+  "body": "ok"
+}

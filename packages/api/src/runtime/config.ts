@@ -78,6 +78,18 @@ const Config = z
     /** Mollie's API origin; a recorded-answer server in tests only, refused in production. */
     MOLLIE_API_ORIGIN: z.string().url().optional(),
     PAYMENT_FAKE_DIR: z.string().min(1).optional(),
+    /**
+     * Who delivers the server events of sites that measure (docs/reference/analytics.md § Server
+     * events). `none`: the subscriber sends nothing and logs `disabled`. `plausible`: each event
+     * goes to the platform's Plausible, core's `PLAUSIBLE_EVENT_ENDPOINT`, never a URL from env.
+     * Pageviews do not depend on it: the browser sends those itself.
+     */
+    ANALYTICS_PROVIDER: z.enum(['none', 'plausible']).default('none'),
+    /** Tests only: a loopback recorded-answer server in place of Plausible; refused in production. */
+    PLAUSIBLE_FIXTURE_ORIGIN: z
+      .string()
+      .regex(/^http:\/\/127\.0\.0\.1:[0-9]+$/)
+      .optional(),
     ASSIST_PROVIDER: z.enum(['none', 'fake', 'openai-compatible']).default('none'),
     ASSIST_PROVIDER_LABEL: z.string().min(1).optional(),
     ASSIST_BASE_URL: z.string().url().optional(),
@@ -227,6 +239,9 @@ const Config = z
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.MOLLIE_API_ORIGIN), {
     message: 'MOLLIE_API_ORIGIN is not allowed in production',
+  })
+  .refine((c) => !(c.NODE_ENV === 'production' && c.PLAUSIBLE_FIXTURE_ORIGIN), {
+    message: 'PLAUSIBLE_FIXTURE_ORIGIN is not allowed in production',
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.ASSIST_PROVIDER === 'fake'), {
     message: 'ASSIST_PROVIDER=fake is not allowed in production',

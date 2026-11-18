@@ -291,6 +291,7 @@
         "packages/mail-tem/**",
         "packages/assist-openai/**",
         "packages/pay-mollie/**",
+        "packages/analytics-plausible/**",
         "packages/blob/**",
         "packages/media-sharp/**",
         "docker/**",

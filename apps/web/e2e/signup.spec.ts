@@ -3,6 +3,7 @@ import { expect, test, type APIRequestContext, type Page, type Response } from '
 import { createHash } from 'node:crypto';
 import { exerciseAnalyticsSettings } from './lib/analytics/settings';
 import { exercisePageviews } from './lib/analytics/pageviews';
+import { exerciseCountedSignup } from './lib/analytics/signups';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expectNoAxeViolations } from './lib/axe';
@@ -1630,3 +1631,7 @@ test('an administrator names the Plausible site; an editor cannot', ({ page, bas
 // With a Plausible site named, a published public page reports its own path and nothing else.
 test('a counted page reports the decided path; nothing else gets a tag', ({ page, baseURL }) =>
   exercisePageviews(page, baseURL!));
+
+// An accepted signup reaches Plausible from the worker as one closed event, never the visitor.
+test('the worker counts an accepted signup once, also through an outage', ({ page, baseURL }) =>
+  exerciseCountedSignup(page, baseURL!));

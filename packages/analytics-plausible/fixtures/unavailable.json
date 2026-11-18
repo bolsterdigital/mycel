@@ -1,0 +1,6 @@
+{
+  "source": "Documented shape: the proxy in front of Plausible (Caddy) answers 503 when it has no healthy upstream; the event reached no Plausible process.",
+  "status": 503,
+  "headers": { "via": "1.1 Caddy" },
+  "body": ""
+}

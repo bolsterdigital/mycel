@@ -1,0 +1,6 @@
+{
+  "source": "Documented shape: Plausible answers 429 when a site exceeds its ingestion rate; the event was not processed.",
+  "status": 429,
+  "headers": { "content-type": "text/plain; charset=utf-8" },
+  "body": "Too many requests"
+}

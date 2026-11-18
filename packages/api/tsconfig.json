@@ -33,6 +33,9 @@
     },
     {
       "path": "../pay-mollie"
+    },
+    {
+      "path": "../analytics-plausible"
     }
   ]
 }

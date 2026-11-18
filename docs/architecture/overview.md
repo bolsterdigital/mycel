@@ -18,7 +18,7 @@ Short map; the reasoning is in [`../adr/`](../adr/).
                  │ use-case registry                                          │
                  │ ports: UnitOfWork, Clock, Ids, Signer, EventBus, Scheduler,│
                  │        Mailer, EmailRenderer, BlobStore, ImageProcessor,   │
-                 │        MediaDelivery, PaymentProvider,                     │
+                 │        MediaDelivery, PaymentProvider, Analytics,          │
                  │        TextModel, IdentityStore, SiteDirectory, Logger,    │
                  │        ErrorReporter (repositories in each ports.ts)       │
                  └───────────────┬───────────────────────┬────────────────────┘
@@ -30,6 +30,7 @@ Short map; the reasoning is in [`../adr/`](../adr/).
                  │                      │   │ packages/assist-openai       │
                  │                      │   │ packages/render-email        │
                  │                      │   │ packages/pay-mollie          │
+                 │                      │   │ packages/analytics-plausible │
                  └──────────────────────┘   └──────────────────────────────┘
 
    beside        packages/observability: logs, request context, error
