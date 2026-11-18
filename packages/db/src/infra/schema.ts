@@ -82,6 +82,8 @@ export interface Database {
     retention_version: Generated<number>;
     analytics: Json<unknown> | null;
     analytics_version: Generated<number>;
+    integrations: Json<unknown> | null;
+    integrations_version: Generated<number>;
   };
   connection_intents: {
     id: string;

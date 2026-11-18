@@ -208,6 +208,16 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
         if (r.right > width + 1 || r.left < -1) out.push(`field outside the viewport: ${name}`);
         if (r.height < 44 || r.width < 44) out.push(`field under 44px: ${name}`);
       }
+    // An ⓘ never hangs out of its legend: below it, its 44px box reached the first option of a
+    // Choices group once the legend wrapped, which only CI's wider font showed. This
+    // measures the cause on any machine, wrapped or not.
+    for (const root of document.querySelectorAll(scope))
+      for (const hint of root.querySelectorAll('legend > .ui-hint-toggle')) {
+        const r = hint.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) continue;
+        if (r.bottom > hint.parentElement!.getBoundingClientRect().bottom + 0.5)
+          out.push(`ⓘ hangs below its legend: ${hint.parentElement!.textContent?.trim()}`);
+      }
     // A label that runs past its card is clipped by the card even when the page does not scroll
     // (a radio's label at 200% text did).
     const card = '.ui-card-body, .card, .ui-card, .ui-panel, .ui-fieldset';

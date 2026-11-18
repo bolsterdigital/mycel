@@ -323,12 +323,12 @@ export function memoryContent(s: TenantStore): ContentRepository {
   };
 }
 
-/** Theme, chrome, general settings, analytics and brand assets, each a versioned value with a compare-and-set write. */
+/** Theme, chrome, general settings, analytics, integrations and brand assets, each a versioned value with a compare-and-set write. */
 export function memorySite(
   s: TenantStore
 ): Pick<
   TransactionContext,
-  'siteSettings' | 'analyticsSettings' | 'brandAssets' | 'brandProcessor'
+  'siteSettings' | 'analyticsSettings' | 'integrationSettings' | 'brandAssets' | 'brandProcessor'
 > {
   return {
     analyticsSettings: {
@@ -337,6 +337,14 @@ export function memorySite(
         if (s.analytics.version !== baseVersion) return null;
         s.analytics = { version: baseVersion + 1, value: structuredClone(value) };
         return s.analytics.version;
+      },
+    },
+    integrationSettings: {
+      get: async () => structuredClone(s.integrations),
+      update: async (baseVersion, value) => {
+        if (s.integrations.version !== baseVersion) return null;
+        s.integrations = { version: baseVersion + 1, value: structuredClone(value) };
+        return s.integrations.version;
       },
     },
     siteSettings: {

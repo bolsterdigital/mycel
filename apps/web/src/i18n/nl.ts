@@ -1517,6 +1517,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.site.general.update': 'Algemene instellingen gewijzigd',
   'admin.audit.op.site.image.update': 'Standaardbeeld gewijzigd',
   'admin.audit.op.analytics.settings.update': 'Statistiekinstelling gewijzigd',
+  'admin.audit.op.integration.settings.update': 'Integraties gewijzigd',
   'admin.audit.op.site.retention.update': 'Bewaartermijnen gewijzigd',
   'admin.audit.op.site.theme.update': 'Huisstijl gewijzigd',
   'admin.audit.op.reader.signin.request': 'Inloglink aangevraagd',
@@ -3248,6 +3249,27 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.analytics.mismatch':
     'De Plausible-site {domain} hoort niet bij het adres van deze site, {hostname}. Mycel past hem niet aan: verbeter hem hier als het adres is veranderd.',
   'admin.site.analytics.save': 'Statistiek opslaan',
+  'admin.site.integrations.title': 'Integraties',
+  'admin.site.integrations.off':
+    'Op deze site laadt niets van andere diensten. Zet hieronder een videospeler of tagmanager aan; elk laadt pas als de bezoeker daarvoor kiest.',
+  'admin.site.integrations.on': 'Aan: {names}. Elk laadt pas als de bezoeker daarvoor kiest.',
+  'admin.site.integrations.embed': 'Video’s van {name} in de pagina afspelen',
+  'admin.site.integrations.embed.hint':
+    'De speler laadt pas van {hosts} als de bezoeker op de video klikt. Uit, of zonder JavaScript, is de video een link naar {name}.',
+  'admin.site.integrations.gtm.warning':
+    'Tags in je container kunnen alles op de pagina lezen en naar hun makers sturen. Met een tagmanager geldt de belofte van deze site, geen cookies en geen bezoekersprofielen, niet meer; de tags in je container bepalen wat bezoekers delen. Op pagina’s met een formulier of campagnekaart draait hij nooit.',
+  'admin.site.integrations.gtm.enable': 'Google Tag Manager laden na toestemming',
+  'admin.site.integrations.gtm.hint':
+    'Laadt van {hosts}, pas als de bezoeker instemt met de categorie hieronder. Uitzetten bewaart de waarden hier.',
+  'admin.site.integrations.gtm.container': 'Container-ID',
+  'admin.site.integrations.gtm.container.hint': 'Zoals in Tag Manager, bijvoorbeeld GTM-ABC123.',
+  'admin.site.integrations.gtm.category': 'Wacht op toestemming voor',
+  'admin.site.integrations.consent.analytics': 'Statistiek',
+  'admin.site.integrations.consent.marketing': 'Marketing',
+  'admin.site.integrations.gtm.vendors': 'Diensten die de tags mogen bereiken',
+  'admin.site.integrations.gtm.vendors.hint':
+    'De browser weigert een tag voor elke dienst die hier niet is aangevinkt.',
+  'admin.site.integrations.save': 'Integraties opslaan',
   'admin.content.state.short.live': 'Gepubliceerd',
   'admin.content.state.short.changed': 'Gepubliceerd · ongepubliceerde wijzigingen',
   'admin.content.state.short.pinned': 'Ingepland',

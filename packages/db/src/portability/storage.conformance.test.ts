@@ -35,6 +35,10 @@ describe.skipIf(skip)('storage catalog against the schema', () => {
       ['site_settings.images', 'media ids of the default images, no person'],
       ['site_settings.retention', 'a number of months, no person'],
       ['site_settings.analytics', 'a validated Plausible site name, no person'],
+      [
+        'site_settings.integrations',
+        'switched-on catalogue entries and a tag container id, no person',
+      ],
       ['media.focal', 'a point in the image, no person'],
       ['media.variants', 'derivative names, formats and sizes, no person'],
       ['connections.consent_scopes', 'scope names of a connection, no person'],

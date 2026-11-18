@@ -43,6 +43,7 @@ import { auditRepository } from './audit.js';
 import { applicationName } from './infra/sessions.js';
 import {
   analyticsSettingsRepository,
+  integrationSettingsRepository,
   siteSettingsRepository,
   brandAssetsRepository,
 } from './site-settings.js';
@@ -288,6 +289,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           navigation: navigationRepository(trx, tenantId),
           siteSettings: siteSettingsRepository(trx, tenantId),
           analyticsSettings: analyticsSettingsRepository(trx, tenantId),
+          integrationSettings: integrationSettingsRepository(trx, tenantId),
           brandAssets: brandAssetsRepository(trx, tenantId),
           brandProcessor:
             deps.brandProcessor ??

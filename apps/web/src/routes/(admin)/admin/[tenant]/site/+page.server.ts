@@ -19,6 +19,8 @@
 // which an editor with `forms:read` opens too.
 // Measurement (`analytics.settings.*`, docs/reference/analytics.md) sits beside it for
 // the same reason and the same reader: which third party counts visitors is `tenant:admin`'s.
+// Managed integrations (`integration.settings.*`, docs/reference/integrations.md) too: which
+// third party's code runs on the public site is the same decision.
 import {
   BRAND_LIMITS,
   can,
@@ -31,6 +33,7 @@ import {
   useCases,
   type AiUse,
   type Capability,
+  type TagVendor,
 } from '@mycel/core';
 import { fail, redirect } from '@sveltejs/kit';
 import { act, failureOf, text as field } from '#lib/server/admin/admin-actions.js';
@@ -111,6 +114,10 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
     section === 'general' && can(principal, 'tenant:admin')
       ? await runtime().invoker.run(useCases.getAnalyticsSettings, principal, {})
       : null;
+  const integrations =
+    section === 'general' && can(principal, 'tenant:admin')
+      ? await runtime().invoker.run(useCases.getIntegrationSettings, principal, {})
+      : null;
   const chosen = images?.value.defaultImageId;
   const t = ui(langOf(locals));
   return {
@@ -120,6 +127,7 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
     zones: section === 'general' ? timeZoneOptions(langOf(locals)) : [],
     retention,
     analytics,
+    integrations,
     theme,
     chrome,
     logo,
@@ -221,6 +229,32 @@ export const actions: Actions = {
       return { saved: 'analytics', version: result.version };
     } catch (e) {
       return refused(e, 'analytics', data);
+    }
+  },
+  integrations: async ({ request, locals, url, params }) => {
+    const data = await request.formData();
+    const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
+    if (!can(principal, 'tenant:admin')) refuse(403);
+    // Unchecked boxes are absent; core validates the container id and the vendor list.
+    const container = text(data, 'gtmContainer');
+    try {
+      const result = await runtime().invoker.run(useCases.updateIntegrationSettings, principal, {
+        baseVersion: baseVersion(data),
+        settings: {
+          youtube: { enabled: data.get('youtube') === 'on' },
+          vimeo: { enabled: data.get('vimeo') === 'on' },
+          'google-tag-manager': {
+            enabled: data.get('gtm') === 'on',
+            containerId: container || null,
+            category: text(data, 'gtmCategory') === 'analytics' ? 'analytics' : 'marketing',
+            // Unknown names are refused by core, not filtered here.
+            vendors: data.getAll('gtmVendors').map(String) as TagVendor[],
+          },
+        },
+      });
+      return { saved: 'integrations', version: result.version };
+    } catch (e) {
+      return refused(e, 'integrations', data);
     }
   },
   brand: async ({ request, locals, url, params }) => {

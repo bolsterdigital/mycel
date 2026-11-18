@@ -21,7 +21,13 @@ import {
   memoryPlatform,
   runSuffix,
 } from '@mycel/core/testing';
-import { DEFAULT_THEME, DEFAULT_CHROME, DEFAULT_GENERAL, DEFAULT_IMAGES } from '@mycel/core';
+import {
+  DEFAULT_THEME,
+  DEFAULT_CHROME,
+  DEFAULT_GENERAL,
+  DEFAULT_IMAGES,
+  DEFAULT_INTEGRATIONS,
+} from '@mycel/core';
 import { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } from './index.js';
 import type { Database } from './infra/schema.js';
 import { enterTenant } from './infra/roles.js';
@@ -237,6 +243,66 @@ describe.skipIf(skip)('site settings conformance', () => {
       settings: off,
     });
     expect(await invoker.run(useCases.getAnalyticsTracker, principal, {})).toEqual(off);
+  });
+  it('keeps the integration setting per tenant, off by default and off when unreadable', async () => {
+    const principal = systemPrincipal(a, 'test');
+    const none = { embeds: [], tagManager: null };
+    expect(await invoker.run(useCases.getIntegrationSettings, principal, {})).toMatchObject({
+      version: 0,
+      value: DEFAULT_INTEGRATIONS,
+    });
+    const gtm = {
+      enabled: true,
+      containerId: 'GTM-ABC123',
+      category: 'marketing' as const,
+      vendors: ['meta-pixel' as const],
+    };
+    const writes = await Promise.allSettled(
+      [true, false].map((youtube) =>
+        invoker.run(useCases.updateIntegrationSettings, principal, {
+          baseVersion: 0,
+          settings: {
+            ...DEFAULT_INTEGRATIONS,
+            youtube: { enabled: youtube },
+            'google-tag-manager': gtm,
+          },
+        })
+      )
+    );
+    expect(writes.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const placed = await invoker.run(useCases.getIntegrationPlacement, principal, {});
+    expect(placed.tagManager).toEqual({
+      containerId: 'GTM-ABC123',
+      category: 'marketing',
+      vendors: ['meta-pixel'],
+    });
+    expect(
+      await invoker.run(useCases.getIntegrationPlacement, systemPrincipal(b, 'test'), {})
+    ).toEqual(none);
+    const leaked = await app.transaction().execute(async (trx) => {
+      await enterTenant(trx, b);
+      return trx
+        .selectFrom('site_settings')
+        .select('integrations')
+        .where('tenant_id', '=', a)
+        .execute();
+    });
+    expect(leaked).toEqual([]);
+    // A stored document this version does not accept places nothing.
+    await owner.transaction().execute(async (trx) => {
+      await enterTenant(trx, a);
+      await trx
+        .updateTable('site_settings')
+        .set({
+          integrations: JSON.stringify({
+            ...DEFAULT_INTEGRATIONS,
+            youtube: { enabled: true, src: 'https://evil.example/x.js' },
+          }),
+        })
+        .where('tenant_id', '=', a)
+        .execute();
+    });
+    expect(await invoker.run(useCases.getIntegrationPlacement, principal, {})).toEqual(none);
   });
   it('delivers an analytics intent once, for its own tenant, and not after the site switched off (#12)', async () => {
     const sent: AnalyticsDelivery[] = [];
