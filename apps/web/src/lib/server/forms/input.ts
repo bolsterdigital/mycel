@@ -126,10 +126,14 @@ export function updateDefinition(data: FormData, form: FormDefinition): FormDefi
     [fields[index], fields[target]] = [fields[target]!, fields[index]!];
   } else if (command === 'settings') {
     const name = localizedInput(data, 'name', form.name);
+    const kind = text(data, 'kind') as FormDefinition['kind'];
+    // A membership form keeps the tier it sells (MY-254 PR 4); any other kind names none.
+    const { tierId, ...rest } = form;
     return {
-      ...form,
+      ...rest,
+      ...(kind === 'membership' && tierId ? { tierId } : {}),
       name: Object.keys(name).length ? name : undefined,
-      kind: text(data, 'kind') as FormDefinition['kind'],
+      kind,
       list: text(data, 'list'),
       consentTextVersion: text(data, 'consentTextVersion'),
       submitLabel: localizedInput(data, 'submitLabel', form.submitLabel),
