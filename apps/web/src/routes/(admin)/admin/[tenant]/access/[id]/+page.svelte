@@ -165,50 +165,51 @@
       {/if}
     </Fieldset>
   {/if}
-</FormPage>
-{#if data.members}
-  <section class="page admin tier-members" aria-labelledby="tier-members">
-    <h2 id="tier-members">{t('admin.tiers.members')}</h2>
-    {#if data.members.length}
-      <Table
-        id="members"
-        caption={t('admin.tiers.members')}
-        hideCaption
-        stack
-        card
-        columns={[
-          { key: 'member', label: t('admin.tiers.members.member') },
-          { key: 'amount', label: t('admin.donations.amount') },
-          { key: 'until', label: t('admin.tiers.members.until') },
-        ]}
-      >
-        {#snippet rows()}{#each data.members ?? [] as m (m.id)}
-            <tr
-              ><th scope="row" data-label={t('admin.tiers.members.member')} class="tier-member"
-                >{#if m.email && m.supporterId}<a
-                    href="/admin/{data.tenant.slug}/supporters/{m.supporterId}">{m.email}</a
-                  >{:else}{t('admin.donations.knownGiver')}{/if}</th
-              >
-              <td data-label={t('admin.donations.amount')}
-                ><a href="/admin/{data.tenant.slug}/donations/recurring/{m.id}"
-                  >{perInterval(t, m.amount, m.currency, m.interval, data.locale)}</a
-                ></td
-              >
-              <td data-label={t('admin.tiers.members.until')}
-                >{#if m.paidThrough}{@const at = day(m.paidThrough)}<time
-                    datetime={at.iso}
-                    title={at.full}>{at.text}</time
-                  >{:else}{t('admin.giving.status.pending')}{/if}{#if m.cancelAtPeriodEnd}
-                  <Badge tone="warning">{t('admin.tiers.members.stops')}</Badge>{/if}</td
-              ></tr
-            >
-          {/each}{/snippet}
-      </Table>
-    {:else}
-      <p>{t('admin.tiers.members.none')}</p>
+  {#snippet after()}{#if data.members}
+      <section class="tier-members" aria-labelledby="tier-members">
+        <h2 id="tier-members">{t('admin.tiers.members')}</h2>
+        {#if data.members.length}
+          <Table
+            id="members"
+            caption={t('admin.tiers.members')}
+            hideCaption
+            stack
+            card
+            columns={[
+              { key: 'member', label: t('admin.tiers.members.member') },
+              { key: 'amount', label: t('admin.donations.amount') },
+              { key: 'until', label: t('admin.tiers.members.until') },
+            ]}
+          >
+            {#snippet rows()}{#each data.members ?? [] as m (m.id)}
+                <tr
+                  ><th scope="row" data-label={t('admin.tiers.members.member')} class="tier-member"
+                    >{#if m.email && m.supporterId}<a
+                        href="/admin/{data.tenant.slug}/supporters/{m.supporterId}">{m.email}</a
+                      >{:else}{t('admin.donations.knownGiver')}{/if}</th
+                  >
+                  <td data-label={t('admin.donations.amount')}
+                    ><a href="/admin/{data.tenant.slug}/donations/recurring/{m.id}"
+                      >{perInterval(t, m.amount, m.currency, m.interval, data.locale)}</a
+                    ></td
+                  >
+                  <td data-label={t('admin.tiers.members.until')}
+                    >{#if m.paidThrough}{@const at = day(m.paidThrough)}<time
+                        datetime={at.iso}
+                        title={at.full}>{at.text}</time
+                      >{:else}{t('admin.giving.status.pending')}{/if}{#if m.cancelAtPeriodEnd}
+                      <Badge tone="warning">{t('admin.tiers.members.stops')}</Badge>{/if}</td
+                  ></tr
+                >
+              {/each}{/snippet}
+          </Table>
+        {:else}
+          <p>{t('admin.tiers.members.none')}</p>
+        {/if}
+      </section>
     {/if}
-  </section>
-{/if}
+  {/snippet}
+</FormPage>
 
 <style>
   .tier-member {

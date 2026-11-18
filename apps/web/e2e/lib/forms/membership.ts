@@ -16,7 +16,7 @@ import { expectNoAxeViolations } from '../axe';
 import { pastMinimumFillTime } from '../form';
 import { tenantId, withInvoker } from '../invoker';
 import { NARROW, layoutGate, setTextSize } from '../layout';
-import { forwarded } from '../login';
+import { forwarded, login } from '../login';
 import { isA11y } from '../project';
 
 const SITE = 'http://probe.localhost:4173';
@@ -203,4 +203,16 @@ export async function exerciseMembership(page: Page, project: string): Promise<v
   );
   await page.goto(`${SITE}${article}`);
   await expect(page.getByText('LEDEN-BODY voor leden.')).toBeVisible();
+
+  // The admin: the tier lists its member, Recurring filters memberships and names the tier.
+  await login(page, `/admin/probe/access/${tier.id}`);
+  const members = page.getByRole('region', { name: 'Leden' });
+  await expect(members.getByRole('row').filter({ hasText: member })).toContainText(
+    /€\s?5 per maand/
+  );
+  await gate(page, 'tier members');
+  await page.goto('/admin/probe/donations/recurring?kind=membership');
+  await expect(page.getByRole('row').filter({ hasText: member })).toContainText(
+    `Lidmaatschap: ${tier.name.nl}`
+  );
 }
