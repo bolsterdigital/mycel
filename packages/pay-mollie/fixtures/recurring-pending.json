@@ -1,0 +1,40 @@
+{
+  "resource": "payment",
+  "id": "tr_Rq7bV3mL2s",
+  "mode": "test",
+  "createdAt": "2026-12-17T21:05:00+00:00",
+  "amount": {
+    "value": "10.00",
+    "currency": "EUR"
+  },
+  "description": "Monthly gift to Probe",
+  "method": "directdebit",
+  "metadata": {
+    "mycel_payment": "0194c2a0-0000-7000-8000-000000000003",
+    "mycel_charge": "subscription:0194c2a0-0000-7000-8000-0000000000aa:2026-12-17T21:02:00.000Z:1"
+  },
+  "status": "pending",
+  "profileId": "pfl_QkEhN94Ba",
+  "sequenceType": "recurring",
+  "customerId": "cst_8wmqcHMN4U",
+  "_links": {
+    "self": {
+      "href": "https://api.mollie.com/v2/payments/tr_Rq7bV3mL2s",
+      "type": "application/hal+json"
+    },
+    "customer": {
+      "href": "https://api.mollie.com/v2/customers/cst_8wmqcHMN4U",
+      "type": "application/hal+json"
+    },
+    "documentation": {
+      "href": "https://docs.mollie.com/reference/create-payment",
+      "type": "text/html"
+    },
+    "mandate": {
+      "href": "https://api.mollie.com/v2/customers/cst_8wmqcHMN4U/mandates/mdt_h3gAaD5zP",
+      "type": "application/hal+json"
+    }
+  },
+  "mandateId": "mdt_h3gAaD5zP",
+  "webhookUrl": "https://api.example/hooks/payments/TOKEN"
+}

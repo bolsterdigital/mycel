@@ -183,6 +183,227 @@ describe('MolliePaymentProvider.fetchPayment', () => {
   });
 });
 
+// Recurring giving (MY-254 PR 5): fixtures `first-*`, `customer`, `mandate*`, `recurring-pending`
+// and `customer-payments-*`, in the shape of Mollie's create-customer, get-mandate, list-mandates
+// and list-customer-payments references.
+const FIRST = '0194c2a0-0000-7000-8000-000000000002';
+const CHARGE_PAYMENT = '0194c2a0-0000-7000-8000-000000000003';
+const CHARGE_KEY = 'subscription:0194c2a0-0000-7000-8000-0000000000aa:2026-12-17T21:02:00.000Z:1';
+const CUSTOMER = 'cst_8wmqcHMN4U';
+const MANDATE = 'mdt_h3gAaD5zP';
+
+const charge = {
+  key: CHARGE_KEY,
+  paymentId: CHARGE_PAYMENT,
+  customerRef: CUSTOMER,
+  mandateRef: MANDATE,
+  amount: 1000,
+  currency: 'EUR',
+  description: 'Monthly gift to Probe',
+  locale: 'nl',
+};
+
+/** Answers by path, so one Mollie can play a flow of several requests. */
+const byPath =
+  (answers: Record<string, string | { status: number; body: string }>) => (seen: Seen) => {
+    const path = seen.url.split('?')[0]!;
+    const answer = answers[`${seen.method} ${path}`];
+    if (answer === undefined) return { status: 404, body: fixture('error-404') };
+    return typeof answer === 'string'
+      ? { status: seen.method === 'POST' ? 201 : 200, body: fixture(answer) }
+      : answer;
+  };
+
+describe('MolliePaymentProvider, a first payment', () => {
+  it('creates a customer of its own, then opens the payment with sequenceType first', async () => {
+    const m = await mollie(
+      byPath({ 'POST /v2/customers': 'customer', 'POST /v2/payments': 'first-open' })
+    );
+    const opened = await provider(m.origin).createCheckout({
+      ...checkout,
+      key: FIRST,
+      amount: 1000,
+      sequence: 'first',
+    });
+    expect(opened).toMatchObject({ ref: 'tr_Fx4nW2kq9P', outcome: 'open' });
+    expect(opened.checkoutUrl).toMatch(/^https:\/\/www\.mollie\.com\/checkout\//);
+    const [customer, payment] = m.seen;
+    expect(customer!.url).toBe('/v2/customers');
+    // Its own key: Mollie refuses one key on two endpoints. No name or address goes along.
+    expect(customer!.headers['idempotency-key']).toBe(`${FIRST}:customer`);
+    expect(JSON.parse(customer!.body)).toEqual({ metadata: { mycel_payment: FIRST } });
+    expect(payment!.headers['idempotency-key']).toBe(FIRST);
+    expect(JSON.parse(payment!.body)).toMatchObject({
+      customerId: CUSTOMER,
+      sequenceType: 'first',
+      redirectUrl: checkout.returnUrl,
+      metadata: { mycel_payment: FIRST },
+    });
+  });
+
+  it('opens nothing when Mollie refuses the customer', async () => {
+    const m = await mollie(
+      byPath({ 'POST /v2/customers': { status: 422, body: fixture('error-422') } })
+    );
+    await expect(
+      provider(m.origin).createCheckout({ ...checkout, sequence: 'first' })
+    ).rejects.toThrow('Mollie refused the customer');
+    expect(m.seen.map((s) => s.url)).toEqual(['/v2/customers']);
+  });
+
+  it('a one-off payment makes no customer', async () => {
+    const m = await mollie(byPath({ 'POST /v2/payments': 'open' }));
+    await provider(m.origin).createCheckout(checkout);
+    expect(m.seen.map((s) => s.url)).toEqual(['/v2/payments']);
+    expect(JSON.parse(m.seen[0]!.body)).not.toHaveProperty('sequenceType');
+  });
+
+  it('reports the mandate a paid first payment names', async () => {
+    const m = await mollie(
+      byPath({
+        'GET /v2/payments/tr_Fx4nW2kq9P': 'first-paid',
+        [`GET /v2/customers/${CUSTOMER}/mandates/${MANDATE}`]: 'mandate-valid',
+      })
+    );
+    expect(await provider(m.origin).fetchPayment('tr_Fx4nW2kq9P')).toEqual({
+      ref: 'tr_Fx4nW2kq9P',
+      outcome: 'paid',
+      raw: 'paid',
+      checkoutUrl: null,
+      mandate: { customerRef: CUSTOMER, mandateRef: MANDATE, method: 'directdebit', valid: true },
+    });
+  });
+
+  it('finds the valid mandate among the customer’s when the payment names none yet', async () => {
+    const m = await mollie(
+      byPath({
+        'GET /v2/payments/tr_Fx4nW2kq9P': 'first-paid-no-mandate-id',
+        [`GET /v2/customers/${CUSTOMER}/mandates`]: 'mandates',
+      })
+    );
+    const found = await provider(m.origin).fetchPayment('tr_Fx4nW2kq9P');
+    expect(found!.mandate).toEqual({
+      customerRef: CUSTOMER,
+      mandateRef: MANDATE,
+      method: 'directdebit',
+      valid: true,
+    });
+  });
+
+  it('reports a pending mandate as not valid: Mollie charges only a valid one', async () => {
+    const m = await mollie(
+      byPath({
+        'GET /v2/payments/tr_Fx4nW2kq9P': 'first-paid',
+        [`GET /v2/customers/${CUSTOMER}/mandates/${MANDATE}`]: 'mandate-pending',
+      })
+    );
+    const found = await provider(m.origin).fetchPayment('tr_Fx4nW2kq9P');
+    expect(found!.mandate!.valid).toBe(false);
+  });
+
+  it('asks for no mandate while the first payment is open, nor for a one-off payment', async () => {
+    const m = await mollie(
+      byPath({
+        'GET /v2/payments/tr_Fx4nW2kq9P': 'first-open',
+        'GET /v2/payments/tr_7UhSN1zuXS': 'paid',
+      })
+    );
+    expect(await provider(m.origin).fetchPayment('tr_Fx4nW2kq9P')).not.toHaveProperty('mandate');
+    expect(await provider(m.origin).fetchPayment('tr_7UhSN1zuXS')).not.toHaveProperty('mandate');
+    expect(m.seen).toHaveLength(2);
+  });
+
+  it('throws when the mandate cannot be read, so the paid payment is checked again', async () => {
+    const m = await mollie(byPath({ 'GET /v2/payments/tr_Fx4nW2kq9P': 'first-paid' }));
+    await expect(provider(m.origin).fetchPayment('tr_Fx4nW2kq9P')).rejects.toThrow(
+      'Mollie refused the mandate lookup'
+    );
+  });
+});
+
+describe('MolliePaymentProvider.chargeMandate', () => {
+  it('charges the mandate with the attempt key as idempotency key and in the metadata', async () => {
+    const m = await mollie(byPath({ 'POST /v2/payments': 'recurring-pending' }));
+    const made = await provider(m.origin, {
+      webhookUrl: async (id) => `https://api.example/hooks/payments/${id}`,
+    }).chargeMandate(charge);
+    expect(made).toEqual({
+      ref: 'tr_Rq7bV3mL2s',
+      outcome: 'open',
+      raw: 'pending',
+      checkoutUrl: null,
+    });
+    const [sent] = m.seen;
+    expect(sent!.headers['idempotency-key']).toBe(CHARGE_KEY);
+    expect(JSON.parse(sent!.body)).toEqual({
+      amount: { currency: 'EUR', value: '10.00' },
+      description: 'Monthly gift to Probe',
+      sequenceType: 'recurring',
+      customerId: CUSTOMER,
+      mandateId: MANDATE,
+      webhookUrl: `https://api.example/hooks/payments/${CHARGE_PAYMENT}`,
+      metadata: { mycel_payment: CHARGE_PAYMENT, mycel_charge: CHARGE_KEY },
+    });
+  });
+
+  it('throws on 409, Mollie still handling the same key, as on a timeout', async () => {
+    const m = await mollie(() => ({ status: 409, body: '{"status":409,"title":"Conflict"}' }));
+    await expect(provider(m.origin).chargeMandate(charge)).rejects.toThrow(MollieError);
+  });
+
+  it('sends nothing for a mandate that is not Mollie’s', async () => {
+    const m = await mollie(byPath({}));
+    await expect(
+      provider(m.origin).chargeMandate({ ...charge, customerRef: 'cst_fake/../x' })
+    ).rejects.toThrow('not a Mollie mandate');
+    expect(m.seen).toHaveLength(0);
+  });
+});
+
+describe('MolliePaymentProvider.findCharge', () => {
+  /** The first page, and `second` for the request that starts from the id the first names. */
+  const pages = (second: string) => (seen: Seen) => ({
+    status: 200,
+    body: fixture(seen.url.includes('from=') ? second : 'customer-payments-1'),
+  });
+
+  it('reads the customer’s payments page by page until the one with the key', async () => {
+    const m = await mollie(pages('customer-payments-2'));
+    const found = await provider(m.origin).findCharge(charge);
+    expect(found).toMatchObject({ ref: 'tr_Rq7bV3mL2s', outcome: 'open', raw: 'pending' });
+    expect(m.seen.map((s) => s.url)).toEqual([
+      `/v2/customers/${CUSTOMER}/payments?limit=250`,
+      `/v2/customers/${CUSTOMER}/payments?limit=250&from=tr_Oth3x`,
+    ]);
+  });
+
+  it('answers null only after the last page', async () => {
+    const m = await mollie(pages('customer-payments-2-without'));
+    expect(await provider(m.origin).findCharge(charge)).toBeNull();
+    expect(m.seen).toHaveLength(2);
+  });
+
+  it('throws, never null, when a page cannot be read', async () => {
+    const m = await mollie((seen) =>
+      seen.url.includes('from=')
+        ? { status: 503, body: '' }
+        : { status: 200, body: fixture('customer-payments-1') }
+    );
+    await expect(provider(m.origin).findCharge(charge)).rejects.toThrow(MollieError);
+  });
+
+  it('throws, never null, for a customer Mollie no longer knows', async () => {
+    const m = await mollie(() => ({ status: 404, body: fixture('error-404') }));
+    await expect(provider(m.origin).findCharge(charge)).rejects.toThrow(MollieError);
+  });
+
+  it('throws when the pages do not end', async () => {
+    const m = await mollie(() => ({ status: 200, body: fixture('customer-payments-1') }));
+    await expect(provider(m.origin).findCharge(charge)).rejects.toThrow('more payments');
+    expect(m.seen).toHaveLength(20);
+  });
+});
+
 describe('helpers', () => {
   it('writes minor units as a decimal string', () => {
     expect([100, 2500, 2501, 5_000_000].map(mollieAmount)).toEqual([

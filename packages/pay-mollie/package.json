@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "AGPL-3.0-only",
-  "description": "Mollie PaymentProvider adapter for one-off donations",
+  "description": "Mollie PaymentProvider adapter for one-off and recurring donations",
   "type": "module",
   "exports": {
     ".": {

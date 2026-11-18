@@ -3,7 +3,9 @@
 // recurring giving, charge a mandate and find a charge by its key. It answers in the five
 // outcomes the state machine knows plus its own word for it, so the core never reads a provider's
 // vocabulary; a second adapter changes nothing here. The two recurring methods are optional: an
-// adapter without them (Mollie until MY-254 PR 5) takes one-off gifts and refuses a subscription.
+// adapter without them takes one-off gifts and refuses a subscription. `findCharge` gets the
+// mandate's references beside the key, because a provider that cannot look a payment up by our
+// key (Mollie) can only be certain it made none by reading every payment of that customer.
 //
 // The provider sits on the transaction context, like the DNS resolver: opening a checkout moves
 // no money (the donor does that, at the provider, later), so a transaction that fails after the
@@ -74,6 +76,9 @@ export interface ChargeRequest {
   locale: string;
 }
 
+/** What a charge attempt is found by: its key, and the mandate it was charged against. */
+export type FindChargeRequest = Pick<ChargeRequest, 'key' | 'customerRef' | 'mandateRef'>;
+
 export interface PaymentProvider {
   /** Stable name of the adapter, stored with each payment. */
   readonly id: string;
@@ -86,8 +91,11 @@ export interface PaymentProvider {
    * the caller cannot tell whether it charged and asks `findCharge` before trying again.
    */
   chargeMandate?(request: ChargeRequest): Promise<ProviderPayment>;
-  /** The charge made with `key`, or null when the provider made none. Throws when unreachable. */
-  findCharge?(key: string): Promise<ProviderPayment | null>;
+  /**
+   * The charge made with `key`, or null only when the provider is certain it made none for it.
+   * Throws when it cannot be reached or cannot be certain; the attempt then waits for a later run.
+   */
+  findCharge?(request: FindChargeRequest): Promise<ProviderPayment | null>;
 }
 
 export interface PaymentFilter {
