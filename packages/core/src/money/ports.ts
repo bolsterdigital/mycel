@@ -155,7 +155,10 @@ export interface SubscriptionRepository {
   attempts(subscriptionId: string): Promise<ChargeAttempt[]>;
   /** The attempt whose payment this is, if a charge made it. */
   attemptOfPayment(paymentId: string): Promise<ChargeAttempt | null>;
-  /** Attempts `unknown`, or `pending` and unchanged since `before`: the reconciliation's work. */
+  /**
+   * Attempts `pending` or `unknown` and unchanged since `before`: the reconciliation's work. An
+   * `unknown` one waits too, so a charge that lands late is found rather than charged again.
+   */
   stale(before: string, limit: number): Promise<ChargeAttempt[]>;
 }
 
