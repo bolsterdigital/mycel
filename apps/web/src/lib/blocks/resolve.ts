@@ -58,7 +58,7 @@ import {
   LICENCE_URLS,
 } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
-import { amountChoices } from './amount-field.js';
+import { amountChoices, membershipChoices } from './amount-field.js';
 import { creditWords } from './credit.js';
 import { headingsAboveFloats } from './float-order.js';
 import type {
@@ -177,6 +177,7 @@ export function blockCopy(locale: string): BlockCopy {
     },
     honeypotLabel: t('form.honeypot.label'),
     summaryTitle: t('error.summary.title'),
+    membershipUnavailable: t('forms.membership.unavailable'),
     campaign: {
       kind: {
         petition: t('block.campaign.kind.petition'),
@@ -932,6 +933,7 @@ function toRenderForm(
     startedToken: string;
     proof: ProofChallenge;
     version?: string;
+    membership?: Parameters<typeof membershipChoices>[0];
   } | null,
   locale: string,
   fallback: string
@@ -944,6 +946,7 @@ function toRenderForm(
   return {
     formId: form.id,
     version: found.version,
+    ...membershipChoices(found.membership, locale, fallback),
     conditionalHelp: form.fields.some((f) => f.activeWhen || f.requiredWhen)
       ? translate(locale, 'forms.conditional.help')
       : undefined,

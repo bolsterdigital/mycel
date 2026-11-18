@@ -99,8 +99,9 @@ export interface PublicHead {
 
 /**
  * What stands where the body of a restricted item was left out: why, and for a visitor the way
- * to the sign-in page, which comes back to this address. A signed-in reader without the tier
- * gets no action: there is nothing they can do here until self-service exists.
+ * to the sign-in page, which comes back to this address; a signed-in reader without the tier is
+ * led to their account. When one of the item's tiers sells a membership, `join` leads to its
+ * signup page (MY-254 PR 4) and the sign-in or account link moves under it.
  */
 export interface PublicGate {
   prompt: NonNullable<PublishedItem['gate']>['prompt'];
@@ -108,6 +109,8 @@ export interface PublicGate {
   body: string;
   /** `href` is the link on this site's pages; `path` the same address from the site's root. */
   action: { href: string; path: string; label: string } | null;
+  /** Become a member: the tier's signup page. */
+  join: { href: string; path: string; label: string; other: string } | null;
 }
 
 export interface PublicItem {
@@ -339,29 +342,45 @@ export async function loadPublicItem(
  */
 function gateOf(site: Site, item: PublishedItem, locale: string): PublicGate {
   const t = ui(locale);
-  const { prompt } = item.gate!;
+  const { prompt, join: joinPath } = item.gate!;
+  const join = joinPath
+    ? {
+        href: sitePath(site, joinPath),
+        path: joinPath,
+        label: t('reader.gate.join.action'),
+        other: t(prompt === 'tier' ? 'reader.gate.join.account' : 'reader.gate.join.signin'),
+      }
+    : null;
   if (prompt === 'tier')
     return {
       prompt,
       title: t('reader.gate.tier.title'),
-      body: t('reader.gate.tier.body'),
+      body: t(join ? 'reader.gate.join.body' : 'reader.gate.tier.body'),
       action: {
         href: sitePath(site, READER_PATH),
         path: READER_PATH,
         label: t('reader.gate.tier.action'),
       },
+      join,
     };
   const back = contentPath(item, locale, site.tenant.defaultLocale);
   const path = `${READER_PATH}?return=${encodeURIComponent(back)}`;
   return {
     prompt,
-    title: t('reader.gate.signin.title'),
-    body: t(item.access === 'tier' ? 'reader.gate.signin.tier' : 'reader.gate.signin.members'),
+    title: t(join ? 'reader.gate.join.title' : 'reader.gate.signin.title'),
+    body: t(
+      join
+        ? 'reader.gate.join.body'
+        : item.access === 'tier'
+          ? 'reader.gate.signin.tier'
+          : 'reader.gate.signin.members'
+    ),
     action: {
       href: sitePath(site, path),
       path,
       label: t('reader.gate.signin.action'),
     },
+    join,
   };
 }
 

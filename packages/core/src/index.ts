@@ -24,6 +24,8 @@ export * from './analytics/model.js';
 export * from './analytics/eligibility.js';
 export * from './analytics/ports.js';
 export * from './analytics/service.js';
+export * from './money/membership.js';
+export * from './money/member-signin.js';
 export * from './assist/ports.js';
 export * from './assist/model.js';
 export * from './assist/service.js';

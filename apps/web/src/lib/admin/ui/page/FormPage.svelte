@@ -20,6 +20,7 @@
     submit,
     cancel,
     children,
+    after,
   }: {
     title: string;
     locale: string;
@@ -34,6 +35,8 @@
     submit: string;
     cancel?: { href: string; label: string } | undefined;
     children: Snippet;
+    /** What the page shows after its form, still inside `main` (a paid tier's members). */
+    after?: Snippet;
   } = $props();
 </script>
 
@@ -48,4 +51,5 @@
       {#if cancel}<Button variant="link" href={cancel.href}>{cancel.label}</Button>{/if}
     </Actions>
   </form>
+  {#if after}{@render after()}{/if}
 </main>

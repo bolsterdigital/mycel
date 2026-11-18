@@ -61,21 +61,27 @@ export const GivingNoticeProps = z.object({
   locale: z.string(),
   /** For `charge-failed`: when the next attempt is due, if one is. */
   nextChargeAt: z.string().nullable(),
+  /** A membership has its own words (PR 4); absent on notices from before it. */
+  kind: z.enum(['donation', 'membership']).default('donation'),
+  /** A membership cancelled for the end of its period: the last day it is paid for. */
+  paidThrough: z.string().nullable().default(null),
 });
 export type GivingNoticeProps = z.infer<typeof GivingNoticeProps>;
 
 /**
  * Put a notice for the giver of `sub` in the outbox; it is mailed after commit (giving-mail.ts).
- * A gift without a supporter (erased) gets none. A membership's notices come with memberships
- * (PR 4), whose words are another's.
+ * A gift without a supporter (erased) gets none. A membership's notice says so (`kind`), and a
+ * cancelled one when it stops (`paidThrough`).
  */
 export async function noticeGiver(
   ctx: TransactionContext,
   sub: Subscription,
   notice: GivingNoticeKind
 ): Promise<void> {
-  if (!sub.supporterId || sub.kind !== 'donation') return;
+  if (!sub.supporterId) return;
   const props: GivingNoticeProps = {
+    kind: sub.kind,
+    paidThrough: sub.kind === 'membership' && notice === 'cancelled' ? sub.paidThrough : null,
     subscriptionId: sub.id,
     notice,
     amount: sub.amount,

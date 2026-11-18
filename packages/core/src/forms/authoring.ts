@@ -11,6 +11,8 @@ import { FormDefinition, FormKind, JOINING_KINDS, parseFormDefinition } from './
 import { validMailPredicate } from './mail-model.js';
 import { resolveFormMail } from './mail-templates.js';
 import '../campaigns/ports.js';
+import '../content/ports.js';
+import type { TransactionContext } from '../ports.js';
 import { validFeed } from './feed/rules.js';
 
 export const listForms = defineUseCase({
@@ -51,16 +53,19 @@ export const createForm = defineUseCase({
   requires: 'content:write',
   consumes: null,
   description:
-    'Create an unplaced form; signup, petition and donation creation also require publishing permission. A donation form starts with an e-mail field, amounts to choose from and an optional consent. Never create send actions.',
-  input: z.object({ kind: FormKind }).strict(),
+    'Create an unplaced form; signup, petition, donation and membership creation also require publishing permission. A donation form starts with an e-mail field, amounts to choose from and an optional consent. A membership form needs `tierId`, a paid access tier: the visitor picks an interval the tier has a price for. Never create send actions.',
+  input: z.object({ kind: FormKind, tierId: z.string().guid().optional() }).strict(),
   output: FormDefinition,
   examples: [{ input: { kind: 'contact' } }],
-  async handler(ctx, { kind }) {
+  async handler(ctx, { kind, tierId }) {
     if (JOINING_KINDS.includes(kind) && !can(ctx.principal, 'content:publish'))
       throw new UseCaseError('forbidden', 'publishing permission required');
+    if (kind === 'membership' || tierId !== undefined)
+      await assertMembershipTier(ctx, kind, tierId);
     const form = parseFormDefinition({
       id: ctx.ids.next(),
       kind,
+      ...(kind === 'membership' ? { tierId } : {}),
       list: 'news',
       consentTextVersion: 'v1',
       // The button names what the visitor does: "Send" on a petition reads like a contact form.
@@ -73,11 +78,13 @@ export const createForm = defineUseCase({
               ? 'forms.default.petitionSubmit'
               : kind === 'donation'
                 ? 'forms.default.donationSubmit'
-                : kind === 'signup'
-                  ? 'forms.default.signupSubmit'
-                  : kind === 'rsvp'
-                    ? 'forms.default.rsvpSubmit'
-                    : 'forms.default.submit'
+                : kind === 'membership'
+                  ? 'forms.default.membershipSubmit'
+                  : kind === 'signup'
+                    ? 'forms.default.signupSubmit'
+                    : kind === 'rsvp'
+                      ? 'forms.default.rsvpSubmit'
+                      : 'forms.default.submit'
           ),
         ])
       ),
@@ -89,7 +96,7 @@ export const createForm = defineUseCase({
             // A signature is not a subscription (ADR 033 rule 7), so its thanks says so.
             kind === 'petition'
               ? 'forms.default.petitionThanks'
-              : kind === 'donation'
+              : kind === 'donation' || kind === 'membership'
                 ? 'forms.default.donationThanks'
                 : kind === 'signup'
                   ? 'forms.default.signupThanks'
@@ -123,7 +130,7 @@ export const createForm = defineUseCase({
           required: true,
           label: Object.fromEntries(['en', 'nl'].map((l) => [l, t(l, 'forms.default.email')])),
         },
-        ...(kind === 'signup' || kind === 'petition' || kind === 'donation'
+        ...(kind === 'signup' || kind === 'petition' || kind === 'donation' || kind === 'membership'
           ? [
               {
                 id: 'consent',
@@ -144,6 +151,22 @@ export const createForm = defineUseCase({
     return form;
   },
 });
+/**
+ * A membership form sells one paid tier of this site (MY-254 PR 4); any other kind names none.
+ * Prices may still be missing: until the tier has one, the form takes no member (`form.submit`).
+ */
+async function assertMembershipTier(
+  ctx: TransactionContext,
+  kind: FormKind,
+  tierId: string | undefined
+): Promise<void> {
+  const tier = tierId ? await ctx.accessTiers.get(tierId) : null;
+  if (kind !== 'membership' || !tier || tier.kind !== 'paid')
+    throw new UseCaseError('invalid_input', 'a membership form sells one paid tier', [
+      { path: 'tierId', message: 'forms.membership.needs-tier' },
+    ]);
+}
+
 export const updateForm = defineUseCase({
   name: 'form.update',
   kind: 'command',
@@ -189,6 +212,7 @@ export const updateForm = defineUseCase({
         { path: 'value.kind', message: 'campaign.form.kind-locked' },
       ]);
     const parsed = parseFormDefinition(value);
+    if (parsed.kind === 'membership') await assertMembershipTier(ctx, parsed.kind, parsed.tierId);
     const mail = (await ctx.formMail.get()).value;
     const config = mail.forms.find((f) => f.formId === value.id);
     for (const action of config?.actions ?? []) {

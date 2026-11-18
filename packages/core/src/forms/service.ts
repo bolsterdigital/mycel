@@ -22,6 +22,10 @@ import {
 } from './model.js';
 import { startDonation } from '../money/service.js';
 import { startSubscription } from '../money/subscriptions.js';
+import { membershipOf } from '../money/membership.js';
+import { TierPrices, sellable } from '../content/access/model.js';
+import '../content/ports.js';
+import { pickAny } from '../i18n/locale.js';
 import { MAX_AMOUNT, MIN_AMOUNT } from '../money/model.js';
 import { UseCaseError } from '../errors.js';
 import { t } from '../i18n/index.js';
@@ -43,7 +47,7 @@ export const getForm = defineUseCase({
   name: 'form.get',
   kind: 'query',
   description:
-    'Get a form definition by id, plus a fresh signed timing token and proof-of-work challenge for rendering it publicly.',
+    'Get a form definition by id, plus a fresh signed timing token and proof-of-work challenge for rendering it publicly. A membership form also gets `membership`: the name of the tier it sells and its prices per interval in minor units, which the form offers to choose from; null when the tier sells nothing now.',
   requires: 'forms:read',
   input: z.object({ id: z.string().guid() }),
   output: z.object({
@@ -51,6 +55,10 @@ export const getForm = defineUseCase({
     startedToken: z.string(),
     proof: ProofChallenge,
     version: z.string(),
+    membership: z
+      .object({ name: z.record(z.string(), z.string()), prices: TierPrices })
+      .nullable()
+      .optional(),
   }),
   resource: { uriTemplate: 'mycel://forms/{id}' },
   examples: [{ input: { id: exampleId(0xf000) } }],
@@ -58,8 +66,18 @@ export const getForm = defineUseCase({
     const form = await ctx.forms.findById(id);
     if (!form) throw notFound('form', `the id "${id}"`);
     const now = ctx.clock.now();
+    // What a membership form sells, read with the form: a visitor reads no tier otherwise.
+    const tier = form.tierId ? await ctx.accessTiers.get(form.tierId) : null;
     return {
       form,
+      ...(form.kind === 'membership'
+        ? {
+            membership:
+              tier && sellable(tier)
+                ? { name: { ...tier.name } as Record<string, string>, prices: tier.prices }
+                : null,
+          }
+        : {}),
       version: await hashInput(ctx.inputHasher, {
         domain: 'form-definition-v1',
         tenantId: ctx.principal.tenantId,
@@ -193,24 +211,44 @@ export const submitForm = defineUseCase({
       evaluated;
     if (errors.length) return { status: 'invalid', errors };
     // The gift in cents, within what one payment may move; refused before anything is stored.
-    const gift = form.kind === 'donation' ? donationAmountField(form) : undefined;
-    const cents = gift ? Math.round(Number(values[gift.name]) * 100) : 0;
-    if (gift && (cents < MIN_AMOUNT || cents > MAX_AMOUNT))
+    const amountField = form.kind === 'donation' ? donationAmountField(form) : undefined;
+    const cents = amountField ? Math.round(Number(values[amountField.name]) * 100) : 0;
+    if (amountField && (cents < MIN_AMOUNT || cents > MAX_AMOUNT))
       return {
         status: 'invalid',
-        errors: [{ field: gift.name, message: 'forms.error.donation-amount' }],
+        errors: [{ field: amountField.name, message: 'forms.error.donation-amount' }],
       };
     // Once, or monthly or yearly by mandate (MY-254): only an interval the field offers.
-    const interval = gift && gift.type === 'amount' ? chosenInterval(gift, input.values) : 'once';
+    const interval =
+      amountField && amountField.type === 'amount'
+        ? chosenInterval(amountField, input.values)
+        : 'once';
     if (!interval)
-      return { status: 'invalid', errors: [{ field: gift!.name, message: 'forms.error.value' }] };
+      return {
+        status: 'invalid',
+        errors: [{ field: amountField!.name, message: 'forms.error.value' }],
+      };
+    // What the visitor pays: a donation's gift, or the price of the membership they chose
+    // (MY-254 PR 4), which the tier sets and the visitor never types.
+    const membership =
+      form.kind === 'membership' ? await membershipOf(ctx, form, input.values) : null;
+    if (membership && 'invalid' in membership)
+      return {
+        status: 'invalid',
+        errors: [{ field: form.fields[0]!.name, message: 'forms.error.value' }],
+      };
+    const gift = amountField
+      ? { cents, interval }
+      : membership
+        ? { cents: membership.price, interval: membership.interval }
+        : undefined;
     // A subscription without an address could not be found again to erase or to manage
     // (review of MY-254 PR 1); every form requires one today, this keeps it so if that ever changes.
-    if (interval !== 'once' && !email) {
+    if (gift && gift.interval !== 'once' && !email) {
       const field = form.fields.find((f) => f.type === 'email');
       return {
         status: 'invalid',
-        errors: [{ field: field?.name ?? gift!.name, message: 'forms.error.required' }],
+        errors: [{ field: field?.name ?? form.fields[0]!.name, message: 'forms.error.required' }],
       };
     }
     // A site that cannot take a gift says so before anything is counted or stored.
@@ -230,7 +268,7 @@ export const submitForm = defineUseCase({
     const accept = async (): Promise<SubmitResult> => {
       if (!gift) return { status: 'accepted', submissionId };
       const start = {
-        amount: cents,
+        amount: gift.cents,
         currency: 'EUR',
         locale: input.locale,
         returnUrl: input.returnUrl!,
@@ -238,16 +276,25 @@ export const submitForm = defineUseCase({
         campaignId: fundraiserId,
       };
       const { checkoutUrl, token } =
-        interval === 'once'
+        gift.interval === 'once'
           ? await startDonation(ctx, {
               ...start,
               description: t(input.locale, 'forms.donation.description'),
             })
           : await startSubscription(ctx, {
               ...start,
-              interval,
+              interval: gift.interval,
               email,
-              description: t(input.locale, `forms.donation.description.${interval}`),
+              ...(membership && !('invalid' in membership)
+                ? {
+                    membership: { tierId: membership.tierId, priceVersion: membership.version },
+                    description: t(input.locale, `forms.membership.description.${gift.interval}`, {
+                      tier: pickAny(membership.name, input.locale) ?? membership.slug,
+                    }).slice(0, 140),
+                  }
+                : {
+                    description: t(input.locale, `forms.donation.description.${gift.interval}`),
+                  }),
             });
       return { status: 'accepted', submissionId, checkoutUrl, token };
     };

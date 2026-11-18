@@ -80,8 +80,6 @@ export const requestSignin = defineUseCase({
     },
   ],
   async handler(ctx, input) {
-    const { principal, clock } = ctx;
-    const now = clock.now();
     const accepted = { status: 'accepted' } as const;
     // One line per refusal with a fixed reason, never the address, the IP hash or a token.
     const refuse = (reason: string) => {
@@ -96,46 +94,62 @@ export const requestSignin = defineUseCase({
     });
     if (refusal) return refuse(refusal);
 
-    // An erased address gets no link: coming back after an erasure is an explicit signup through
-    // a form (ADR 032), not a sign-in. A readmitted supporter is their current id.
-    await ctx.supporters.lock(input.email);
-    const holder = await ctx.supporters.getProjection(input.email);
-    if (!(await ctx.erasures.allows(input.email, holder?.id))) return refuse('erased');
-
-    // One mail per address per day, after everything that may refuse: a refused attempt never
-    // closes the address for the person who owns it. The bucket holds a hash, not the address.
-    const recipient = await emailKey(principal.tenantId, input.email, 'rate-limit');
-    if (
-      !(await ctx.rateLimits.cooldown(`reader.signin:${recipient}`, SIGNIN_MAIL_COOLDOWN_SECONDS))
-    )
-      return refuse('recipient-limited');
-
-    const link = {
-      id: ctx.ids.next(),
-      email: input.email,
-      locale: input.locale,
-      returnPath: safeReturnPath(input.returnPath),
-      createdAt: now,
-      expiresAt: new Date(now.getTime() + SIGNIN_LINK_TTL_MS),
-      consumedAt: null,
-    };
-    const token = await signinToken(ctx.signer, principal.tenantId, link);
-    await ctx.signinLinks.insert({ ...link, tokenHash: await signinTokenHash(token) });
-    const props: SigninRequestedProps = { linkId: link.id };
-    await ctx.events.publish({
-      // The event of a link carries the link's id: its mail intent and reconcile job are then
-      // found from the row alone, which is how an erasure removes them with it.
-      id: link.id,
-      type: SIGNIN_REQUESTED,
-      tenantId: principal.tenantId,
-      occurredAt: now,
-      // The stored actor of a visitor, without the client hash: the event names a link, no one.
-      actor: { kind: 'anonymous', channel: 'web' },
-      props: { ...props },
-    });
-    return accepted;
+    const refused = await mailSigninLink(ctx, input.email, input.locale, input.returnPath);
+    return refused ? refuse(refused) : accepted;
   },
 });
+
+/**
+ * Mail a sign-in link for `email`, after the refusals that depend on the address: an erasure, and
+ * one mail per address per day. Returns the reason it refused, or null when the link is on its
+ * way. The caller has passed the spam defence of its own form (or holds a capability, as the
+ * return page of a membership does, `donation.signin.request`).
+ */
+export async function mailSigninLink(
+  ctx: TransactionContext,
+  email: string,
+  locale: string,
+  returnPath: string | undefined
+): Promise<'erased' | 'recipient-limited' | null> {
+  const { principal, clock } = ctx;
+  const now = clock.now();
+  // An erased address gets no link: coming back after an erasure is an explicit signup through
+  // a form (ADR 032), not a sign-in. A readmitted supporter is their current id.
+  await ctx.supporters.lock(email);
+  const holder = await ctx.supporters.getProjection(email);
+  if (!(await ctx.erasures.allows(email, holder?.id))) return 'erased';
+
+  // One mail per address per day, after everything that may refuse: a refused attempt never
+  // closes the address for the person who owns it. The bucket holds a hash, not the address.
+  const recipient = await emailKey(principal.tenantId, email, 'rate-limit');
+  if (!(await ctx.rateLimits.cooldown(`reader.signin:${recipient}`, SIGNIN_MAIL_COOLDOWN_SECONDS)))
+    return 'recipient-limited';
+
+  const link = {
+    id: ctx.ids.next(),
+    email,
+    locale,
+    returnPath: safeReturnPath(returnPath),
+    createdAt: now,
+    expiresAt: new Date(now.getTime() + SIGNIN_LINK_TTL_MS),
+    consumedAt: null,
+  };
+  const token = await signinToken(ctx.signer, principal.tenantId, link);
+  await ctx.signinLinks.insert({ ...link, tokenHash: await signinTokenHash(token) });
+  const props: SigninRequestedProps = { linkId: link.id };
+  await ctx.events.publish({
+    // The event of a link carries the link's id: its mail intent and reconcile job are then
+    // found from the row alone, which is how an erasure removes them with it.
+    id: link.id,
+    type: SIGNIN_REQUESTED,
+    tenantId: principal.tenantId,
+    occurredAt: now,
+    // The stored actor of a visitor, without the client hash: the event names a link, no one.
+    actor: { kind: 'anonymous', channel: 'web' },
+    props: { ...props },
+  });
+  return null;
+}
 
 const SigninCompleteResult = z.discriminatedUnion('status', [
   z.object({

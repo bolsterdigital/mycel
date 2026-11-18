@@ -120,11 +120,12 @@ export function subscriptionRepository(
         .where('id', '=', s.id)
         .execute();
     },
-    async list({ status, kind, supporterId }, offset, limit) {
+    async list({ status, kind, supporterId, tierId }, offset, limit) {
       let q = rows();
       if (status) q = q.where('status', '=', status);
       if (kind) q = q.where('kind', '=', kind);
       if (supporterId) q = q.where('supporter_id', '=', supporterId);
+      if (tierId) q = q.where('tier_id', '=', tierId);
       const found = await q
         .orderBy('created_at', 'desc')
         .orderBy('id', 'desc')

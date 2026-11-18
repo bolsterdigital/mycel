@@ -52,26 +52,29 @@ import {
   SubscriptionStatus,
   chargeKey,
 } from './subscription-model.js';
-import { failAttempt, finish, stepSubscription } from './subscription-steps.js';
+import { cancelAtPeriodEnd, failAttempt, finish, stepSubscription } from './subscription-steps.js';
 
 /** What starting a subscription needs beyond a one-off gift. */
 export interface SubscriptionStart extends DonationStart {
   interval: Interval;
+  /** A membership (PR 4): the paid tier it buys and the version of the price it pays. */
+  membership?: { tierId: string; priceVersion: number };
 }
 
 /**
- * Open the first payment of a monthly or yearly gift and record the subscription `pending`
- * (`form.submit` in PR 2). The return page is the one of a one-off gift, by the first payment's
- * token. Throws `conflict` when the provider cannot charge a mandate.
+ * Open the first payment of a monthly or yearly gift, or of a membership, and record the
+ * subscription `pending` (`form.submit`). The return page is the one of a one-off gift, by the
+ * first payment's token. Throws `conflict` when the provider cannot charge a mandate.
  */
 export async function startSubscription(
   ctx: TransactionContext,
   input: SubscriptionStart
 ): Promise<PaymentStart & { subscriptionId: string }> {
   const subscriptionId = ctx.ids.next();
+  const kind = input.membership ? 'membership' : 'donation';
   const started = await startPayment(ctx, input, {
     subscriptionId,
-    kind: 'donation',
+    kind,
     async record(supporterId) {
       const at = ctx.clock.now().toISOString();
       await stepSubscription(
@@ -79,7 +82,7 @@ export async function startSubscription(
         null,
         Subscription.parse({
           id: subscriptionId,
-          kind: 'donation',
+          kind,
           status: 'pending',
           amount: input.amount,
           currency: input.currency,
@@ -94,8 +97,8 @@ export async function startSubscription(
           paidThrough: null,
           nextChargeAt: null,
           cancelAtPeriodEnd: false,
-          tierId: null,
-          priceVersion: null,
+          tierId: input.membership?.tierId ?? null,
+          priceVersion: input.membership?.priceVersion ?? null,
           campaignId: input.campaignId ?? null,
           failedAttempts: 0,
           endReason: null,
@@ -410,13 +413,14 @@ export const listSubscriptions = defineUseCase({
   name: 'donation.subscription.list',
   kind: 'query',
   description:
-    'List the monthly and yearly gifts and memberships of this site, newest first, optionally only one status, one kind or one supporter. With `supporters:read` also the address of each supporter the page names, for a link to their page.',
+    'List the monthly and yearly gifts and memberships of this site, newest first, optionally only one status, one kind, one supporter or the memberships of one paid tier (`tierId`). With `supporters:read` also the address of each supporter the page names, for a link to their page.',
   requires: 'donations:read',
   input: z
     .object({
       status: SubscriptionStatus.optional(),
       kind: SubscriptionKind.optional(),
       supporterId: z.string().guid().optional(),
+      tierId: z.string().guid().optional(),
       offset: z.number().int().nonnegative().max(100_000).default(0),
       limit: z.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
     })
@@ -427,8 +431,12 @@ export const listSubscriptions = defineUseCase({
     supporters: z.array(z.object({ id: z.string().guid(), email: z.string() })),
   }),
   examples: [{ input: { status: 'active' } }],
-  async handler(ctx, { status, kind, supporterId, offset, limit }) {
-    const rows = await ctx.subscriptions.list({ status, kind, supporterId }, offset, limit + 1);
+  async handler(ctx, { status, kind, supporterId, tierId, offset, limit }) {
+    const rows = await ctx.subscriptions.list(
+      { status, kind, supporterId, tierId },
+      offset,
+      limit + 1
+    );
     const subscriptions = rows.slice(0, limit);
     const supporters: { id: string; email: string }[] = [];
     if (can(ctx.principal, 'supporters:read'))
@@ -461,15 +469,7 @@ export const cancelSubscription = defineUseCase({
     if (sub.status === 'cancelled' || sub.status === 'ended' || sub.cancelAtPeriodEnd)
       return { subscription: sub };
     if (sub.kind === 'membership' && sub.status === 'active')
-      return {
-        subscription: await stepSubscription(
-          ctx,
-          sub,
-          { ...sub, cancelAtPeriodEnd: true },
-          'cancel-at-period-end',
-          'operator'
-        ),
-      };
+      return { subscription: await cancelAtPeriodEnd(ctx, sub, 'operator') };
     return { subscription: await finish(ctx, sub, 'cancelled', 'operator', null) };
   },
 });

@@ -153,6 +153,20 @@ describe('grant fold', () => {
     expect(of(regrant).map((g) => g.grantedAt)).toEqual(['2026-11-16T12:09:00.000Z']);
   });
 
+  it('opens a paid period like any grant, and an expired or revoked one opens nothing', () => {
+    // A membership's period (MY-254 PR 4): `until` is paidThrough plus grace.
+    const until = '2026-12-30T12:00:00.000Z';
+    const paid = granted('p1', 1, TIER_A, { kind: 'paid', until, subscription_id: ID });
+    const [grant] = of([paid]);
+    expect(grant).toMatchObject({ kind: 'paid', until });
+    const holder = { supporterId: ID, grants: of([paid]) };
+    const target = { access: { level: 'tier' as const, tierIds: [TIER_A] } };
+    expect(hasAccess(holder, target, new Date(Date.parse(until) - 1))).toBe(true);
+    expect(hasAccess(holder, target, new Date(until))).toBe(false);
+    const withdrawn = { supporterId: ID, grants: of([paid, revoked('r1', 2, TIER_A)]) };
+    expect(hasAccess(withdrawn, target, new Date('2026-11-17T00:00:00.000Z'))).toBe(false);
+  });
+
   it('reads no grant from an event it cannot read', () => {
     expect(
       of([

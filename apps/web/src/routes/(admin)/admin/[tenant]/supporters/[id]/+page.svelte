@@ -90,9 +90,14 @@
     />
     {#each data.giving as g (g.id)}<p>
         <a href="{base}/donations/recurring/{g.id}"
-          >{fill(t(g.paused ? 'admin.supporter.givesPaused' : 'admin.supporter.gives'), {
-            what: perInterval(t, g.amount, g.currency, g.interval, data.locale),
-          })}</a
+          >{g.member
+            ? fill(t('admin.supporter.member'), {
+                tier: g.member.tier,
+                date: when(g.member.paidThrough).full,
+              })
+            : fill(t(g.paused ? 'admin.supporter.givesPaused' : 'admin.supporter.gives'), {
+                what: perInterval(t, g.amount, g.currency, g.interval, data.locale),
+              })}</a
         >
       </p>{/each}
   </Section>

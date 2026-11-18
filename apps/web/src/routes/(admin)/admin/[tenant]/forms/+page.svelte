@@ -32,6 +32,8 @@
       >{#snippet control(a)}<select {...a} name="kind"
           >{#each ['contact', 'signup', 'petition', 'rsvp', 'donation'] as kind}<option value={kind}
               >{t(`admin.forms.option.${kind}` as 'admin.forms.option.signup')}</option
+            >{/each}{#each data.paidTiers as tier (tier.id)}<option value="membership:{tier.id}"
+              >{t('admin.forms.option.membership')}: {tier.name}</option
             >{/each}</select
         >{/snippet}</Field
     >

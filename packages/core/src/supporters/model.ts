@@ -7,8 +7,12 @@
 import { z } from 'zod';
 import type { SupporterEvent } from './events.js';
 
-/** Why access was given without a payment (ADR 016 rule 2). */
-export const AccessGrantKind = z.enum(['comp', 'gift']);
+/**
+ * Why a supporter holds access (ADR 016 rule 2): `comp` and `gift` without a payment, given by an
+ * operator; `paid` for a period of a membership (brief MY-254 PR 4, choice 8), written by the
+ * subscription when a period is paid.
+ */
+export const AccessGrantKind = z.enum(['comp', 'gift', 'paid']);
 export type AccessGrantKind = z.infer<typeof AccessGrantKind>;
 
 /**
