@@ -10,7 +10,7 @@
 // old address forwards (`core/content/address/redirects.ts`, scenario in `content/redirect-rule.ts`), and whom a
 // supporter list shows (`core/supporters/listing.ts`, scenario in `supporters/list-rule.ts`), and what one
 // supporter's page shows (`core/supporters/timeline.ts`, scenario in `supporters/timeline-rule.ts`), and how a
-// donation is recorded (`core/money/service.ts`, scenario in `money/donation-rule.ts`). One scenario, one
+// donation and a subscription are recorded (`core/money/`, scenarios in `money/*-rule.ts`). One scenario, one
 // expected record, run once over the memory adapter and once over Postgres; a rule that one
 // adapter keeps on its own shows up as a difference here. Rejected: a suite per adapter, which
 // is how memory came to block a `resolved` intent while Postgres kept it.
@@ -53,6 +53,7 @@ import { expectedRedirects, observeRedirects } from './content/redirect-rule.js'
 import { expectedSupporterList, observeSupporterList } from './supporters/list-rule.js';
 import { expectedSupporterTimeline, observeSupporterTimeline } from './supporters/timeline-rule.js';
 import { expectedDonation, observeDonation } from './money/donation-rule.js';
+import { expectedSubscription, observeSubscription } from './money/subscription-rule.js';
 import { closeTenantWork, requireDatabase, testTenant } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -740,7 +741,9 @@ async function observe({ uow, clock, tenant, apply, provider }: Adapter) {
     clock,
     apply
   );
+  const subscription = await observeSubscription(invoker, uow, provider, clock, apply, tenant);
   return {
+    subscription,
     supporterList,
     supporterTimeline,
     donation,
@@ -882,6 +885,7 @@ const expected = {
   supporterList: expectedSupporterList,
   supporterTimeline: expectedSupporterTimeline,
   donation: expectedDonation,
+  subscription: expectedSubscription,
   redirects: expectedRedirects,
   publishedList: {
     // Not `ingetrokken:nl` (unpublished), not `gepland` (its pin has not run).

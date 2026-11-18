@@ -68,6 +68,7 @@ const checkout = {
   description: 'Gift to Probe',
   returnUrl: 'https://probe.example/donation/TOKEN',
   locale: 'nl',
+  sequence: 'oneoff' as const,
 };
 
 describe('MolliePaymentProvider.createCheckout', () => {

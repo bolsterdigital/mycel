@@ -58,6 +58,7 @@ import {
   getDonation,
   listDonations,
 } from './money/service.js';
+import { cancelSubscription, getSubscription, listSubscriptions } from './money/subscriptions.js';
 import {
   createConnection,
   disconnectConnection,
@@ -308,6 +309,9 @@ export const useCases = {
   checkDonationReturn,
   getDonation,
   listDonations,
+  getSubscription,
+  listSubscriptions,
+  cancelSubscription,
   listCampaigns,
   withdrawParticipation,
   createPersonGroup,

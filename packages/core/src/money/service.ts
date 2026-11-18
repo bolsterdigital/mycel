@@ -18,7 +18,9 @@
 // locks the address and then clears `supporter_id` on the payments).
 //
 // The donor is sent back only to a host of this site (`ownsReturnUrl`), and a provider's webhook
-// is one more reason to check (`webhook.ts`).
+// is one more reason to check (`webhook.ts`). A payment of a subscription (MY-254) walks the same
+// way; once it has walked, `onPaymentSettled` (`subscription-steps.ts`) takes the subscription
+// along, under the same locks: that one call is all this file knows of recurring giving.
 //
 // Rejected: recording `created` in a transaction of its own before the provider call (see
 // `ports.ts`: a checkout moves no money), a status in the input of `donation.check` (a caller
@@ -55,6 +57,7 @@ import {
 } from './model.js';
 import type { ProviderPayment } from './ports.js';
 import './ports.js';
+import { onPaymentSettled } from './subscription-steps.js';
 
 const TOKEN_PREFIX = 'donation:';
 /** The place in `returnUrl` where the donor's token goes. */
@@ -97,7 +100,7 @@ async function liveSupporter(
  * The same supporter under their address lock, read again after it (ADR 019 rule 3), or null
  * when they went or moved address in between: the payment then settles without an event.
  */
-async function lockSupporter(
+export async function lockSupporter(
   ctx: TransactionContext,
   supporterId: string
 ): Promise<SupporterProjection | null> {
@@ -109,7 +112,7 @@ async function lockSupporter(
 }
 
 /** Who gives: a known supporter, or the address of the form submission that started it. */
-type Giver =
+export type Giver =
   | { supporter: SupporterProjection }
   | { submission: Submission; email: string; lifecycleId: string | undefined };
 
@@ -121,7 +124,7 @@ function submittedEmail(submission: Submission): string | null {
 }
 
 /** The submission behind a payment and its address, under that address's lock, or null. */
-async function lockSubmission(
+export async function lockSubmission(
   ctx: TransactionContext,
   submissionId: string
 ): Promise<Giver | null> {
@@ -241,7 +244,58 @@ async function reconcile(
     current = next;
   }
   await ctx.payments.save(current);
+  if (current.subscriptionId) await onPaymentSettled(ctx, current, path, cause, reported);
   return current;
+}
+
+/**
+ * What a new payment is when it is recorded; status, times and checkout follow from the provider.
+ */
+export type NewPayment = Omit<
+  Payment,
+  'status' | 'providerStatus' | 'checkoutUrl' | 'createdAt' | 'updatedAt' | 'paidAt' | 'providerRef'
+>;
+
+/**
+ * Record a payment the provider just opened or made (`created`, one ledger entry) and walk it to
+ * where the provider says it stands. The caller holds the giver's lock and, for a charge, the
+ * subscription's.
+ */
+export async function recordPayment(
+  ctx: TransactionContext,
+  fields: NewPayment,
+  opened: ProviderPayment,
+  cause: 'checkout' | 'charge' | 'reconcile',
+  giver: Giver | null
+): Promise<Payment> {
+  const at = ctx.clock.now().toISOString();
+  const created = Payment.parse({
+    ...fields,
+    status: 'created',
+    providerRef: opened.ref,
+    providerStatus: opened.raw,
+    checkoutUrl: null,
+    createdAt: at,
+    updatedAt: at,
+    paidAt: null,
+  });
+  await ctx.payments.insert(created);
+  await ctx.payments.appendLedger(
+    LedgerEntry.parse({
+      id: ctx.ids.next(),
+      paymentId: created.id,
+      from: null,
+      to: 'created',
+      cause,
+      providerStatus: opened.raw,
+      amount: created.amount,
+      currency: created.currency,
+      at,
+      actor: storedActor(ctx.principal.actor),
+    })
+  );
+  // Usually one step to `open`; a provider that settles at once (or refuses) is walked there.
+  return reconcile(ctx, created, opened, cause, giver);
 }
 
 export const createDonation = defineUseCase({
@@ -319,18 +373,42 @@ export interface DonationStart {
  * `form.submit` in its own transaction, with the fundraiser it is bound to). Throws `conflict` when there is no provider or it does
  * not answer, so a form submission that cannot be paid is not stored either.
  */
-export async function startDonation(
+export function startDonation(
   ctx: TransactionContext,
   input: DonationStart
-): Promise<{
+): Promise<PaymentStart> {
+  return startPayment(ctx, input, null);
+}
+
+export interface PaymentStart {
   paymentId: string;
   status: PaymentStatus;
   checkoutUrl: string | null;
   token: string;
-}> {
+}
+
+/**
+ * A subscription's side of its first payment: its id, and the row to write once the checkout is
+ * open and the giver locked, before the payment that names it.
+ */
+export interface FirstPayment {
+  subscriptionId: string;
+  kind: Payment['kind'];
+  record(supporterId: string | null): Promise<void>;
+}
+
+/** `startDonation`, and the first payment of a subscription (`startSubscription`). */
+export async function startPayment(
+  ctx: TransactionContext,
+  input: DonationStart,
+  first: FirstPayment | null
+): Promise<PaymentStart> {
   requireEntitled(ctx.principal, 'donations.enabled');
   const provider = ctx.paymentProvider;
   if (!provider) throw new UseCaseError('conflict', 'no payment provider is configured');
+  // A first payment is worth nothing without a way to charge the mandate it leaves.
+  if (first && !provider.chargeMandate)
+    throw new UseCaseError('conflict', 'the payment provider cannot charge a mandate');
   if (!SUPPORTED_CURRENCIES.includes(input.currency))
     throw new UseCaseError('invalid_input', `currency ${input.currency} is not supported`, [
       { path: 'currency', message: 'donation.currency.unsupported' },
@@ -348,7 +426,6 @@ export async function startDonation(
 
   const id = ctx.ids.next();
   const token = await ctx.signer.sign(`${TOKEN_PREFIX}${id}`);
-  const at = ctx.clock.now().toISOString();
   // The provider first: nothing is stored for a checkout that never opened, and a transaction
   // that fails after this leaves a checkout nobody was sent to (`ports.ts`).
   let opened: ProviderPayment;
@@ -360,6 +437,7 @@ export async function startDonation(
       description: input.description,
       returnUrl: input.returnUrl.replace(RETURN_TOKEN, encodeURIComponent(token)),
       locale: input.locale,
+      sequence: first ? 'first' : 'oneoff',
     });
   } catch {
     // The provider's message may quote what we sent; the log line names only the adapter.
@@ -375,42 +453,27 @@ export async function startDonation(
     : input.submissionId
       ? await lockSubmission(ctx, input.submissionId)
       : null;
-  const created = Payment.parse({
-    id,
-    kind: 'donation',
-    status: 'created',
-    amount: input.amount,
-    currency: input.currency,
-    description: input.description,
-    locale: input.locale,
-    provider: provider.id,
-    providerRef: opened.ref,
-    providerStatus: opened.raw,
-    checkoutUrl: null,
-    supporterId: supporter?.id ?? null,
-    submissionId: input.submissionId ?? null,
-    campaignId: input.campaignId ?? null,
-    createdAt: at,
-    updatedAt: at,
-    paidAt: null,
-  });
-  await ctx.payments.insert(created);
-  await ctx.payments.appendLedger(
-    LedgerEntry.parse({
-      id: ctx.ids.next(),
-      paymentId: id,
-      from: null,
-      to: 'created',
-      cause: 'checkout',
-      providerStatus: opened.raw,
-      amount: created.amount,
-      currency: created.currency,
-      at,
-      actor: storedActor(ctx.principal.actor),
-    })
+  await first?.record(supporter?.id ?? null);
+  const payment = await recordPayment(
+    ctx,
+    {
+      id,
+      kind: first?.kind ?? 'donation',
+      amount: input.amount,
+      currency: input.currency,
+      description: input.description,
+      locale: input.locale,
+      provider: provider.id,
+      supporterId: supporter?.id ?? null,
+      submissionId: input.submissionId ?? null,
+      campaignId: input.campaignId ?? null,
+      subscriptionId: first?.subscriptionId ?? null,
+      sequence: first ? 'first' : 'oneoff',
+    },
+    opened,
+    'checkout',
+    giver
   );
-  // Usually one step to `open`; a provider that settles at once (or refuses) is walked there.
-  const payment = await reconcile(ctx, created, opened, 'checkout', giver);
   return { paymentId: id, status: payment.status, checkoutUrl: payment.checkoutUrl, token };
 }
 
@@ -424,7 +487,7 @@ export const checkDonation = defineUseCase({
     .object({
       paymentId: z.string().guid().optional(),
       token: z.string().min(1).max(500).optional(),
-      cause: LedgerCause.exclude(['checkout']).default('operator'),
+      cause: LedgerCause.exclude(['checkout', 'charge']).default('operator'),
     })
     .strict(),
   output: DonationOutcome,

@@ -23,7 +23,7 @@ import {
   tombstoneEmail,
 } from '../../../supporters/erasure.js';
 import { normalizeEmail } from '../../../util/email.js';
-import type { MemoryStore } from '../store.js';
+import type { MemoryStore, TenantStore } from '../store.js';
 import { applyPersonErasures } from './people.js';
 
 /**
@@ -176,6 +176,43 @@ async function registeredAddresses(
 }
 
 /** The scrub itself; returns the number of rows changed, like the SQL. */
+/**
+ * As 0077's apply: a live subscription of an erased supporter ends with one ledger entry, its
+ * mandate stops, and both forget who. Returns how many rows changed.
+ */
+function endSubscriptions(s: TenantStore, ids: ReadonlySet<string>): number {
+  let changed = 0;
+  for (const sub of s.subscriptions.values()) {
+    if (!sub.supporterId || !ids.has(sub.supporterId)) continue;
+    const at = new Date().toISOString();
+    if (sub.status !== 'cancelled' && sub.status !== 'ended') {
+      s.subscriptionLedger.push({
+        id: crypto.randomUUID(),
+        subscriptionId: sub.id,
+        from: sub.status,
+        to: 'ended',
+        step: 'ended',
+        cause: 'erasure',
+        paidThrough: sub.paidThrough,
+        failedAttempts: sub.failedAttempts,
+        amount: sub.amount,
+        currency: sub.currency,
+        at,
+        actor: { kind: 'system', job: 'erasures.apply' },
+      });
+      Object.assign(sub, { status: 'ended', endReason: 'erasure' });
+    }
+    Object.assign(sub, { nextChargeAt: null, supporterId: null, updatedAt: at });
+    changed++;
+  }
+  for (const mandate of s.mandates.values())
+    if (mandate.supporterId && ids.has(mandate.supporterId)) {
+      Object.assign(mandate, { status: 'invalid', supporterId: null });
+      changed++;
+    }
+  return changed;
+}
+
 async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock): Promise<number> {
   const s = store.for(tenantId);
   let changed = 0;
@@ -209,6 +246,7 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
       payment.supporterId = null;
       changed++;
     }
+  changed += endSubscriptions(s, ids);
   const registrations = registrationsOf(s.erasures);
   const live = new Map(
     [...s.supporterLifecycles.values()]

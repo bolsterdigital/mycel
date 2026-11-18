@@ -81,8 +81,15 @@ export function pathTo(from: PaymentStatus, to: PaymentStatus): PaymentStatus[] 
 }
 
 /** What a payment is for. Subscriptions and memberships add kinds, not ledgers (rule 8). */
-export const PaymentKind = z.enum(['donation']);
+export const PaymentKind = z.enum(['donation', 'membership']);
 export type PaymentKind = z.infer<typeof PaymentKind>;
+
+/**
+ * A payment on its own (`oneoff`), the first payment of a subscription that also asks the donor
+ * for a mandate (`first`), or a charge of that mandate without the donor (`recurring`).
+ */
+export const PaymentSequence = z.enum(['oneoff', 'first', 'recurring']);
+export type PaymentSequence = z.infer<typeof PaymentSequence>;
 
 const Timestamp = z.string().datetime({ offset: true });
 
@@ -115,6 +122,9 @@ export const Payment = z.object({
    * Null for a gift outside a campaign. Names no person, so an erasure leaves it.
    */
   campaignId: z.string().guid().nullable(),
+  /** The subscription this payment is the first payment or a charge of (0077); null for a gift. */
+  subscriptionId: z.string().guid().nullable(),
+  sequence: PaymentSequence,
   createdAt: Timestamp,
   updatedAt: Timestamp,
   paidAt: Timestamp.nullable(),
@@ -122,7 +132,15 @@ export const Payment = z.object({
 export type Payment = z.infer<typeof Payment>;
 
 /** Why a status changed: who told us, not what they said. */
-export const LedgerCause = z.enum(['checkout', 'return', 'webhook', 'reconcile', 'operator']);
+export const LedgerCause = z.enum([
+  'checkout',
+  'return',
+  'webhook',
+  'reconcile',
+  'operator',
+  // The charge run that charged a mandate (0077).
+  'charge',
+]);
 export type LedgerCause = z.infer<typeof LedgerCause>;
 
 export const LedgerEntry = z.object({

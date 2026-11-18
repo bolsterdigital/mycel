@@ -16,7 +16,10 @@ export const SupporterEventType = z.enum([
   'donation.started',
   'donation.payment.succeeded',
   'donation.payment.failed',
+  // A monthly or yearly gift began, was stopped by a person, or ended otherwise (MY-254).
+  'donation.subscription.started',
   'donation.subscription.cancelled',
+  'donation.subscription.ended',
   'event.rsvp',
   'membership.started',
   'membership.renewed',
