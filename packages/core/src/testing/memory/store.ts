@@ -91,6 +91,12 @@ export interface TenantStore {
   payments: Map<string, import('../../money/model.js').Payment>;
   /** `ledger_entries` (0072), in the order they were appended. */
   ledgerEntries: import('../../money/model.js').LedgerEntry[];
+  /** `subscriptions`, `mandates` and `charge_attempts` (0077), keyed by id and attempt key. */
+  subscriptions: Map<string, import('../../money/subscription-model.js').Subscription>;
+  mandates: Map<string, import('../../money/subscription-model.js').Mandate>;
+  chargeAttempts: Map<string, import('../../money/subscription-model.js').ChargeAttempt>;
+  /** The subscription entries of `ledger_entries` (0077), in the order they were appended. */
+  subscriptionLedger: import('../../money/subscription-model.js').SubscriptionLedgerEntry[];
   /** `campaign_participations` (0049), keyed by `<campaign id> <supporter id>`. */
   participations: Map<string, import('../../campaigns/model.js').CampaignParticipation>;
   authors: Map<string, Author>;
@@ -190,6 +196,10 @@ const emptyTenant = (): TenantStore => ({
   participations: new Map(),
   payments: new Map(),
   ledgerEntries: [],
+  subscriptions: new Map(),
+  mandates: new Map(),
+  chargeAttempts: new Map(),
+  subscriptionLedger: [],
   authors: new Map(),
   sections: new Map(),
   accessTiers: new Map(),

@@ -283,7 +283,11 @@ export async function pendingHashes(trx: Trx, tenantId: string): Promise<string[
     union
     select supporter_id from campaign_participations where supporter_id = any(${ids}::uuid[])
     union
-    select supporter_id from payments where supporter_id = any(${ids}::uuid[])`.execute(trx);
+    select supporter_id from payments where supporter_id = any(${ids}::uuid[])
+    union
+    select supporter_id from subscriptions where supporter_id = any(${ids}::uuid[])
+    union
+    select supporter_id from mandates where supporter_id = any(${ids}::uuid[])`.execute(trx);
   const open = new Set(byId.rows.map((r) => r.id));
   const pending = new Set(
     register.filter((r) => open.has(r.supporter_id)).map((r) => r.email_hash)
@@ -506,6 +510,35 @@ async function eraseRows(
   count(
     await sql`
       update payments set supporter_id = null
+      where supporter_id = any(${supporterIds}::uuid[])`.execute(trx)
+  );
+  // An erased donor is never charged again (0077): a live subscription ends first, with its one
+  // ledger entry (as `finish` in core writes it), then its mandate stops and both forget who.
+  await sql`
+    insert into ledger_entries
+      (id, tenant_id, subscription_id, seq, from_status, to_status, step, cause, provider_status,
+       paid_through, failed_attempts, amount, currency, at, actor)
+    select gen_random_uuid(), s.tenant_id, s.id,
+           (select coalesce(max(l.seq), 0) + 1 from ledger_entries l
+             where l.tenant_id = s.tenant_id and l.subscription_id = s.id),
+           s.status, 'ended', 'ended', 'erasure', '', s.paid_through, s.failed_attempts,
+           s.amount, s.currency, now(), ${JSON.stringify({ kind: 'system', job: 'erasures.apply' })}::jsonb
+    from subscriptions s
+    where s.supporter_id = any(${supporterIds}::uuid[])
+      and s.status not in ('cancelled', 'ended')`.execute(trx);
+  await sql`
+    update subscriptions
+    set status = 'ended', end_reason = 'erasure', next_charge_at = null, updated_at = now()
+    where supporter_id = any(${supporterIds}::uuid[])
+      and status not in ('cancelled', 'ended')`.execute(trx);
+  count(
+    await sql`
+      update subscriptions set supporter_id = null
+      where supporter_id = any(${supporterIds}::uuid[])`.execute(trx)
+  );
+  count(
+    await sql`
+      update mandates set status = 'invalid', supporter_id = null, updated_at = now()
       where supporter_id = any(${supporterIds}::uuid[])`.execute(trx)
   );
   // A reader session of an erased supporter ends here, before its clock runs out (ADR 016 rule 1).

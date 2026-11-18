@@ -91,6 +91,8 @@ const VERBS = [
   // A reader's sign-in: `request` (above) asks for the link, `complete` uses it, `signout` ends
   // the session it made.
   ...['complete', 'signout'],
+  // ADR 005 rule 6: a subscription is cancelled, never deleted; its ledger stays.
+  'cancel',
 ];
 
 function checkVocabulary(name: string, fail: (rule: string) => void): void {

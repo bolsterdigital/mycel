@@ -1,9 +1,12 @@
 // Payments and their ledger in memory (ADR 005), with the same order and filters as 0072. The
 // fake provider is the other side of a payment for tests and for a trial installation: a test
-// settles a payment by its reference and the next `donation.check` finds it.
+// settles a payment by its reference and the next `donation.check` finds it. A paid first payment
+// leaves a mandate, and a charge of it succeeds unless the test says otherwise (`chargesAs`,
+// `failNext`, `loseNext` for a call that charged but never answered).
 
 import type { LedgerEntry, Payment } from '../../../money/model.js';
 import type {
+  ChargeRequest,
   CheckoutRequest,
   PaymentProvider,
   PaymentRepository,
@@ -23,12 +26,14 @@ export function memoryPayments(s: TenantStore): PaymentRepository {
     async save(payment) {
       if (rows.has(payment.id)) rows.set(payment.id, structuredClone(payment));
     },
-    list: async ({ status, supporterId }, offset, limit) =>
+    list: async ({ status, supporterId, subscriptionId }, offset, limit) =>
       structuredClone(
         [...rows.values()]
           .filter(
             (p) =>
-              (!status || p.status === status) && (!supporterId || p.supporterId === supporterId)
+              (!status || p.status === status) &&
+              (!supporterId || p.supporterId === supporterId) &&
+              (!subscriptionId || p.subscriptionId === subscriptionId)
           )
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
           .slice(offset, offset + limit)
@@ -66,10 +71,18 @@ export function memoryPayments(s: TenantStore): PaymentRepository {
 export class FakePaymentProvider implements PaymentProvider {
   readonly id = 'fake';
   readonly requests: CheckoutRequest[] = [];
+  readonly charges: ChargeRequest[] = [];
   readonly #payments = new Map<string, ProviderPayment>();
+  /** Charges by their key, as a provider keeps its idempotency key. */
+  readonly #charges = new Map<string, string>();
+  /** First payments, whose `paid` leaves a mandate. */
+  readonly #firsts = new Set<string>();
   #failing = false;
+  #losing = false;
   /** What a new checkout starts as; `paid` plays a provider that settles at once. */
   opensAs: ProviderOutcome = 'open';
+  /** What a new charge starts as: settled at once, or `open` until `settle`. */
+  chargesAs: ProviderOutcome = 'paid';
 
   async createCheckout(request: CheckoutRequest): Promise<ProviderPayment> {
     if (this.#failing) {
@@ -87,7 +100,8 @@ export class FakePaymentProvider implements PaymentProvider {
       checkoutUrl: this.opensAs === 'open' ? `https://pay.example/checkout/${ref}` : null,
     };
     this.#payments.set(ref, payment);
-    return { ...payment };
+    if (request.sequence === 'first') this.#firsts.add(ref);
+    return this.#answer(ref);
   }
 
   async fetchPayment(ref: string): Promise<ProviderPayment | null> {
@@ -95,8 +109,52 @@ export class FakePaymentProvider implements PaymentProvider {
       this.#failing = false;
       throw new Error('fake provider outage');
     }
-    const payment = this.#payments.get(ref);
-    return payment ? { ...payment } : null;
+    return this.#payments.has(ref) ? this.#answer(ref) : null;
+  }
+
+  async chargeMandate(request: ChargeRequest): Promise<ProviderPayment> {
+    if (this.#failing) {
+      this.#failing = false;
+      throw new Error('fake provider outage');
+    }
+    const known = this.#charges.get(request.key);
+    if (known) return this.#answer(known);
+    this.charges.push(request);
+    const ref = `fake_${request.paymentId}`;
+    this.#payments.set(ref, {
+      ref,
+      outcome: this.chargesAs,
+      raw: this.chargesAs,
+      checkoutUrl: null,
+    });
+    this.#charges.set(request.key, ref);
+    if (this.#losing) {
+      this.#losing = false;
+      throw new Error('fake provider timeout after charging');
+    }
+    return this.#answer(ref);
+  }
+
+  async findCharge(key: string): Promise<ProviderPayment | null> {
+    if (this.#failing) {
+      this.#failing = false;
+      throw new Error('fake provider outage');
+    }
+    const ref = this.#charges.get(key);
+    return ref ? this.#answer(ref) : null;
+  }
+
+  /** The payment, with the mandate a paid first payment leaves. */
+  #answer(ref: string): ProviderPayment {
+    const payment = { ...this.#payments.get(ref)! };
+    if (this.#firsts.has(ref) && payment.outcome === 'paid')
+      payment.mandate = {
+        customerRef: `cst_${ref}`,
+        mandateRef: `mdt_${ref}`,
+        method: 'directdebit',
+        valid: true,
+      };
+    return payment;
   }
 
   /** The provider's side moves; `raw` is its own word when that differs from ours. */
@@ -118,5 +176,10 @@ export class FakePaymentProvider implements PaymentProvider {
 
   failNext(): void {
     this.#failing = true;
+  }
+
+  /** The next charge goes through at the provider, but its answer never arrives. */
+  loseNext(): void {
+    this.#losing = true;
   }
 }

@@ -1,15 +1,15 @@
 # Donations
 
-How Mycel records money (ADR 005). This page describes what is built: one-off donations over an owned ledger, with the payment provider behind a port (Mollie per site, or a fake one for trials), a public donation form, a return page, a webhook and **Donations** in the admin. Recurring giving, mandates, dunning, donor self-service, refunds and memberships are decided in the ADR and not built yet.
+How Mycel records money (ADR 005). This page describes what is built: one-off donations over an owned ledger, with the payment provider behind a port (Mollie per site, or a fake one for trials), a public donation form, a return page, a webhook and **Donations** in the admin; and, in core and the database, monthly and yearly giving with mandates, a charge run and dunning ([Subscriptions](#subscriptions), MY-254 PR 1). The form option, the worker job, the admin list, donor self-service, the mails, memberships and Mollie's recurring API follow in MY-254 PR 2-5; refunds are decided in the ADR and not built yet.
 
 ## What is stored
 
-| Table            | Holds                                                                                                                                                                   | Changes                                                                                                                                     |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `payments`       | One row per attempt: amount in minor units, ISO currency, our status, the provider's reference and its own status word, supporter, form submission, fundraiser campaign | The use cases move `status`, `provider_status`, `checkout_url`, `paid_at` and, when it settles, `supporter_id`; the rest is fixed at insert |
-| `ledger_entries` | One row per change of status: its place in the payment's history (`seq`), from, to, cause, the provider's word, amount, moment and the stored actor                     | Append-only: the application role may insert and select, nothing else                                                                       |
+| Table            | Holds                                                                                                                                                                                | Changes                                                                                                                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `payments`       | One row per attempt: amount in minor units, ISO currency, our status, the provider's reference and its own status word, supporter, form submission, fundraiser campaign              | The use cases move `status`, `provider_status`, `checkout_url`, `paid_at` and, when it settles, `supporter_id`; the rest is fixed at insert |
+| `ledger_entries` | One row per change of a payment or a subscription (exactly one of the two ids): place in that history (`seq`), from, to, cause, the provider's word, amount, moment and stored actor | Append-only: the application role may insert and select, nothing else                                                                       |
 
-Both sit behind forced row-level security on `tenant_id` (migration 0072). A ledger reads in `seq` order, the order of writing: one walk writes several entries with the same moment, so neither the moment nor the id orders them. A payment names its supporter by id and holds no address. Amounts are integers; one payment moves between 100 and 5 000 000 minor units. One currency is accepted (`EUR`) until a tenant chooses its own; the code travels with every row and event.
+Both sit behind forced row-level security on `tenant_id` (migration 0072). A subscription's entry also records its `step`, `paid_through` and `failed_attempts` (0077). A ledger reads in `seq` order, the order of writing: one walk writes several entries with the same moment, so neither the moment nor the id orders them. A payment names its supporter by id and holds no address. Amounts are integers; one payment moves between 100 and 5 000 000 minor units. One currency is accepted (`EUR`) until a tenant chooses its own; the code travels with every row and event.
 
 ## The state machine
 
@@ -55,9 +55,9 @@ An erasure (ADR 019 rule 8) clears `supporter_id` and keeps the payment and its 
 
 ## The provider port
 
-`PaymentProvider` (`money/ports.ts`) has two methods: `createCheckout` with our payment id as the idempotency key, and `fetchPayment` by reference. Both answer in the state machine's outcomes plus the provider's own word, so the core never reads a provider's vocabulary and compiles without any provider package. The port sits on the transaction context: opening a checkout moves no money and asking for a status is a read. Charging a mandate, when recurring giving is built, is an effect that cannot be taken back and gets an intent row and a key first (ADR 019 rule 6).
+`PaymentProvider` (`money/ports.ts`) has two methods every adapter implements: `createCheckout` with our payment id as the idempotency key (and `sequence` `oneoff` or `first`), and `fetchPayment` by reference. Two more are optional and make an adapter fit for recurring giving: `chargeMandate` and `findCharge` ([Subscriptions](#subscriptions)). All answer in the state machine's outcomes plus the provider's own word, so the core never reads a provider's vocabulary and compiles without any provider package. The port sits on the transaction context: opening a checkout moves no money and asking for a status is a read. Charging a mandate is an effect that cannot be taken back and gets an intent row and a key first (ADR 019 rule 6).
 
-`FakePaymentProvider` in `@mycel/core/testing` is the provider for unit tests: `settle(ref, outcome)` plays the donor. The runtime takes `PAYMENT_PROVIDER`: `none` (the default; `donation.create` and a donation form answer `conflict`, "no payment provider is configured") or `fake`, refused in production: `DirectoryPaymentProvider` (`packages/api/src/runtime/fake-payments.ts`) keeps each payment as a JSON file in `PAYMENT_FAKE_DIR`, which web, API and worker share, and its checkout is a page of the site, `[[locale]]/_pay/<ref>`, with the buttons paid, failed and expired. The e2e runner and a trial installation use it.
+`FakePaymentProvider` in `@mycel/core/testing` is the provider for unit tests: `settle(ref, outcome)` plays the donor, a paid first payment leaves a mandate, and a charge settles as `chargesAs` says (`paid` by default); `failNext` plays an outage and `loseNext` a charge whose answer never arrives. The runtime takes `PAYMENT_PROVIDER`: `none` (the default; `donation.create` and a donation form answer `conflict`, "no payment provider is configured") or `fake`, refused in production: `DirectoryPaymentProvider` (`packages/api/src/runtime/fake-payments.ts`) keeps each payment as a JSON file in `PAYMENT_FAKE_DIR`, which web, API and worker share, and its checkout is a page of the site, `[[locale]]/_pay/<ref>`, with the buttons paid, failed and expired. The e2e runner and a trial installation use it.
 
 ### Mollie
 
@@ -78,3 +78,42 @@ The checkout itself needs nothing from the site's Content-Security-Policy: the f
 ## Admin
 
 **Donations** under Manage (`/admin/<site>/donations`, `donations:read`) lists amount, status, date and who gave, newest first, filtered by status, fifty a page; who gave links to the supporter's page for a reader who may also read supporters. That page's history says "Gave €25" for `donation.payment.succeeded`.
+
+## Subscriptions
+
+Monthly and yearly giving (ADR 005 rules 1-7, brief MY-254 PR 1), in `packages/core/src/money/subscription-model.ts`, `subscription-steps.ts` and `subscriptions.ts`, migration 0077. Built in core and the database; the form, the worker job, the admin and the donor's own page follow in PR 2-4, and Mollie's adapter refuses a subscription until PR 5.
+
+`subscriptions` holds what was promised and where it stands: kind (`donation`, `membership`), amount, interval (`month`, `year`), status, supporter, mandate, `started_at`, `periods_paid`, `paid_through`, `next_charge_at`, `cancel_at_period_end`, tier and price version, fundraiser, `failed_attempts` and `end_reason`. `mandates` holds the donor's authorisation at the provider by reference (customer and mandate reference, method, `valid` or `invalid`, supporter). `charge_attempts` holds the intent row written before each charge: key, subscription, the payment id it gets, and `pending`, `sent`, `unknown` or `done`.
+
+A subscription's payments are ordinary `payments` with `subscription_id` and `sequence` (`first` for the payment the donor makes, `recurring` for a charge); a one-off gift is `oneoff`. Everything that hangs on a payment (the fundraiser's counter, the supporter's events, the reconciliation, the webhook) works for them unchanged.
+
+### The state machine
+
+```
+pending → active ⇄ paused
+   │        │        │
+   └────────┴────────┴──→ cancelled | ended
+```
+
+`cancelled` is a person's decision, `ended` everything else (`end_reason`: `first-payment`, `dunning`, `erasure`, `period-end`). Each step, and each step that keeps the status (`renewed`, `charge-failed`, `cancel-at-period-end`), is one ledger entry with its cause (`checkout`, `return`, `webhook`, `reconcile`, `operator`, `charge`, `donor`, `erasure`).
+
+- **Start.** `startSubscription` opens a checkout with `sequence: 'first'` and records the subscription `pending` and its first payment, through the same path as a one-off gift (`startPayment`): same checks, same return page and token. A provider without `chargeMandate` refuses with `conflict`.
+- **First payment.** When it is `paid`, `onPaymentSettled` records the mandate the provider reports, makes the subscription `active`, starts the first period at `paidAt` and sets `next_charge_at = paid_through`; `donation.subscription.started` goes into the giver's log. When it fails or expires, the subscription is `ended` (`first-payment`) without an event.
+- **Charges.** A paid charge adds one period, counted from `started_at` so the day of the month stays (31 January, end of February, 31 March), and resets `failed_attempts`. A failed or expired charge, or a chargeback of any payment, counts one failed attempt; the dunning policy (`DEFAULT_DUNNING`: retries on day 3 and day 7 after the charge was due, grace 14 days) sets the next charge, and after the third failure the subscription `ended` (`dunning`) with `donation.subscription.ended`. A chargeback leaves `paid_through` and the next charge where they were.
+- **Cancel.** `donation.subscription.cancel` stops a gift at once (`cancelled`, `donation.subscription.cancelled`). A membership instead gets `cancel_at_period_end` and becomes `cancelled` when the charge run reaches its `paid_through`.
+
+### The charge run
+
+`chargeSubscription(uow, principal, id)` charges one subscription in three transactions (ADR 019 rule 6). The first locks it, checks that it is `active` and due and has no attempt in flight, and writes the attempt `pending` with key `subscription:<id>:<paid_through>:<n>`, the n-th attempt for that period. The second only calls `chargeMandate` with that key as the provider's idempotency key and the attempt's payment id. The third records the payment the provider made (`sent`) and walks it like any other, which moves the subscription; when the call threw it marks the attempt `unknown` instead. A subscription with an attempt that is not `done` is not charged. `reconcileChargeAttempt` asks `findCharge` about an `unknown` attempt, or a `pending` one older than a quarter of an hour (`staleChargeAttempts`): it records the payment it finds, or closes the attempt when the provider made none, so the next run charges with a new key. Nothing charges twice and nothing retries without asking first. `dueSubscriptions` lists what is due; the hourly worker job that runs both is PR 2.
+
+### Use cases
+
+| Use case                       | Requires          | Does                                                                                                     |
+| ------------------------------ | ----------------- | -------------------------------------------------------------------------------------------------------- |
+| `donation.subscription.get`    | `donations:read`  | One subscription with its ledger (oldest first) and its payments (newest first)                          |
+| `donation.subscription.list`   | `donations:read`  | Newest first, optionally one status, kind or supporter; with `supporters:read` also the addresses        |
+| `donation.subscription.cancel` | `donations:write` | Stops a gift at once, a membership at the end of its period; cancelling what has stopped changes nothing |
+
+### Erasure
+
+An erasure ends a live subscription first (`ended`, reason `erasure`, one ledger entry with cause `erasure`, no next charge), so an erased donor is never charged again; it marks the mandate `invalid` and then clears `supporter_id` on both. The amounts, the payments and both ledgers stay for the books. A charge already in flight is still recorded when it settles, without a supporter.

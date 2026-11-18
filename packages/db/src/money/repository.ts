@@ -1,8 +1,10 @@
-// Payments and their ledger over Postgres (0072, 0074, 0075). The application role cannot update or
+// Payments and their ledger over Postgres (0072, 0074, 0075, 0077). The application role cannot update or
 // delete a ledger entry, so `appendLedger` is the only write there is; it numbers the entry after
 // the last of its payment (`seq`), and `ledger` reads in that order, which is the order of
 // writing. `save` writes exactly what a step of the state machine changes, and the supporter a
-// settling step found; amount, currency, provider, reference, submission and campaign are fixed at insert.
+// settling step found; amount, currency, provider, reference, submission, campaign, subscription
+// and sequence are fixed at insert. The subscription entries of `ledger_entries` are read and
+// written by `subscriptions.ts`.
 // Rejected: `save` as an upsert (a payment that vanished must not come back as a new row).
 import { sql, type Kysely, type Selectable } from 'kysely';
 import { LedgerEntry, Payment, type PaymentRepository } from '@mycel/core';
@@ -25,6 +27,8 @@ const read = (row: Selectable<Database['payments']>): Payment =>
     supporterId: row.supporter_id,
     submissionId: row.submission_id,
     campaignId: row.campaign_id,
+    subscriptionId: row.subscription_id,
+    sequence: row.sequence,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
     paidAt: toIso(row.paid_at),
@@ -56,6 +60,8 @@ export function paymentRepository(trx: Kysely<Database>, tenantId: string): Paym
           supporter_id: p.supporterId,
           submission_id: p.submissionId,
           campaign_id: p.campaignId,
+          subscription_id: p.subscriptionId,
+          sequence: p.sequence,
           created_at: p.createdAt,
           updated_at: p.updatedAt,
           paid_at: p.paidAt,
@@ -78,10 +84,11 @@ export function paymentRepository(trx: Kysely<Database>, tenantId: string): Paym
         .where('id', '=', p.id)
         .execute();
     },
-    async list({ status, supporterId }, offset, limit) {
+    async list({ status, supporterId, subscriptionId }, offset, limit) {
       let q = rows();
       if (status) q = q.where('status', '=', status);
       if (supporterId) q = q.where('supporter_id', '=', supporterId);
+      if (subscriptionId) q = q.where('subscription_id', '=', subscriptionId);
       const found = await q
         .orderBy('created_at', 'desc')
         .orderBy('id', 'desc')

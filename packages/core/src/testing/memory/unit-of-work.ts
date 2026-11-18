@@ -35,6 +35,7 @@ import { memoryErasures } from './erasures/repository.js';
 import { memoryPersonErasures } from './erasures/people.js';
 import { memoryCampaigns } from './campaigns.js';
 import { memoryPayments } from './money/payments.js';
+import { memorySubscriptions } from './money/subscriptions.js';
 import type { PaymentProvider } from '../../money/ports.js';
 import {
   FakeClock,
@@ -152,6 +153,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         content: memoryContent(s),
         campaigns: memoryCampaigns(s),
         payments: memoryPayments(s),
+        subscriptions: memorySubscriptions(s),
         paymentProvider: this.paymentProvider,
         bulkPlans: memoryBulkPlans(s, bulkLock.lock),
         presence: memoryPresence(s),

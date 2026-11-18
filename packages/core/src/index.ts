@@ -13,6 +13,8 @@ export * from './campaigns/card.js';
 export * from './money/model.js';
 export * from './money/ports.js';
 export * from './money/service.js';
+export * from './money/subscription-model.js';
+export * from './money/subscriptions.js';
 export * from './money/webhook.js';
 export * from './assist/ports.js';
 export * from './assist/model.js';

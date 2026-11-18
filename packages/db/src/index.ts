@@ -13,6 +13,7 @@ import { mailchimpReceipts } from './connections/mailchimp-receipts.js';
 import { personGroupRepository } from './people/groups.js';
 import { campaignRepository } from './campaigns/repository.js';
 import { paymentRepository } from './money/repository.js';
+import { subscriptionRepository } from './money/subscriptions.js';
 import { bulkPlanRepository } from './content-bulk.js';
 import { presenceRepository } from './presence/content-presence.js';
 
@@ -276,6 +277,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           content: contentRepository(trx, tenantId),
           campaigns: campaignRepository(trx, tenantId),
           payments: paymentRepository(trx, tenantId),
+          subscriptions: subscriptionRepository(trx, tenantId),
           paymentProvider: providerFor(trx, tenantId),
           bulkPlans: bulkPlanRepository(trx, tenantId),
           presence: presenceRepository(trx, tenantId),

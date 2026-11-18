@@ -414,6 +414,9 @@ export interface Database {
     submission_id: string | null;
     /** 0075: the fundraiser the gift was given to. */
     campaign_id: string | null;
+    /** 0077: the subscription this is the first payment or a charge of. */
+    subscription_id: string | null;
+    sequence: Generated<string>;
     created_at: Timestamp;
     updated_at: Timestamp;
     paid_at: Timestamp | null;
@@ -421,7 +424,13 @@ export interface Database {
   ledger_entries: {
     id: string;
     tenant_id: string;
-    payment_id: string;
+    /** 0077: exactly one of `payment_id` and `subscription_id`. */
+    payment_id: string | null;
+    subscription_id: string | null;
+    /** 0077: what a subscription step did, and where it stands after it; null for a payment. */
+    step: string | null;
+    paid_through: Timestamp | null;
+    failed_attempts: number | null;
     seq: number;
     from_status: string | null;
     to_status: string;
@@ -431,6 +440,53 @@ export interface Database {
     currency: string;
     at: Timestamp;
     actor: Json<unknown>;
+  };
+  mandates: {
+    id: string;
+    tenant_id: string;
+    provider: string;
+    customer_ref: string;
+    mandate_ref: string;
+    status: string;
+    method: string;
+    supporter_id: string | null;
+    created_at: Timestamp;
+    updated_at: Timestamp;
+  };
+  subscriptions: {
+    id: string;
+    tenant_id: string;
+    kind: string;
+    status: string;
+    amount: number;
+    currency: string;
+    interval: string;
+    description: string;
+    locale: string;
+    provider: string;
+    supporter_id: string | null;
+    mandate_id: string | null;
+    started_at: Timestamp | null;
+    periods_paid: number;
+    paid_through: Timestamp | null;
+    next_charge_at: Timestamp | null;
+    cancel_at_period_end: boolean;
+    tier_id: string | null;
+    price_version: number | null;
+    campaign_id: string | null;
+    failed_attempts: number;
+    end_reason: string | null;
+    created_at: Timestamp;
+    updated_at: Timestamp;
+  };
+  charge_attempts: {
+    tenant_id: string;
+    key: string;
+    subscription_id: string;
+    payment_id: string;
+    status: string;
+    created_at: Timestamp;
+    updated_at: Timestamp;
   };
   person_group_members: {
     tenant_id: string;
