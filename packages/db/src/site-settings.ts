@@ -1,10 +1,13 @@
 // The row stays tenant scoped under forced RLS. Every setting on it (theme, chrome, general,
-// images, retention, logo, font) is a value with its own version, written through one compare-and-set (`writeVersioned`). A
+// images, retention, analytics, logo, font) is a value with its own version, written through one compare-and-set (`writeVersioned`). A
 // column that was never written is null and reads as the current default, so the first write of
 // one setting does not freeze the defaults of the others (TODO #53). Rejected: read, then
 // unconditional update; and one upsert per setting, which drifted into three copies.
 import type { Kysely, Updateable } from 'kysely';
 import {
+  AnalyticsSettings,
+  DEFAULT_ANALYTICS,
+  type AnalyticsSettingsRepository,
   DEFAULT_CHROME,
   DEFAULT_GENERAL,
   DEFAULT_IMAGES,
@@ -29,6 +32,7 @@ type VersionColumn =
   | 'general_version'
   | 'images_version'
   | 'retention_version'
+  | 'analytics_version'
   | 'logo_version'
   | 'font_version';
 
@@ -151,6 +155,34 @@ export function siteSettingsRepository(
     updateRetention: (baseVersion, value) =>
       writeVersioned(db, tenantId, 'retention_version', baseVersion, {
         retention: JSON.stringify(value),
+      }),
+  };
+}
+
+/**
+ * The measurement setting (docs/reference/analytics.md) on the same row. A stored value this version no longer
+ * accepts reads as off: a document that fails to parse must never switch a tracker on.
+ */
+export function analyticsSettingsRepository(
+  db: Kysely<Database>,
+  tenantId: string
+): AnalyticsSettingsRepository {
+  return {
+    async get() {
+      const row = await db
+        .selectFrom('site_settings')
+        .select(['analytics', 'analytics_version'])
+        .where('tenant_id', '=', tenantId)
+        .executeTakeFirst();
+      const parsed = row?.analytics == null ? null : AnalyticsSettings.safeParse(row.analytics);
+      return {
+        version: row?.analytics_version ?? 0,
+        value: parsed?.success ? parsed.data : DEFAULT_ANALYTICS,
+      };
+    },
+    update: (baseVersion, value) =>
+      writeVersioned(db, tenantId, 'analytics_version', baseVersion, {
+        analytics: JSON.stringify(value),
       }),
   };
 }

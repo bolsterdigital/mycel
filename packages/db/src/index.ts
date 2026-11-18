@@ -41,7 +41,11 @@ import {
 } from '@mycel/core';
 import { auditRepository } from './audit.js';
 import { applicationName } from './infra/sessions.js';
-import { siteSettingsRepository, brandAssetsRepository } from './site-settings.js';
+import {
+  analyticsSettingsRepository,
+  siteSettingsRepository,
+  brandAssetsRepository,
+} from './site-settings.js';
 import { connectionIntentsRepository } from './connections/connection-intents.js';
 import {
   connectionRepository,
@@ -283,6 +287,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           presence: presenceRepository(trx, tenantId),
           navigation: navigationRepository(trx, tenantId),
           siteSettings: siteSettingsRepository(trx, tenantId),
+          analyticsSettings: analyticsSettingsRepository(trx, tenantId),
           brandAssets: brandAssetsRepository(trx, tenantId),
           brandProcessor:
             deps.brandProcessor ??

@@ -87,6 +87,9 @@ export interface UseCase<
  * repeat.
  */
 export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
+  // Measurement (docs/reference/analytics.md): whether the public site counts pageviews, as the Plausible site identifier that
+  // every counted page carries anyway; the rest of the setting stays `analytics.settings.get`'s.
+  'analytics.tracker.get',
   // A campaign card on a public page (ADR 033 rule 4): only published, public landing pages and
   // aggregates; the reason a card is empty is no more than the page itself already withholds.
   'campaign.card.get',

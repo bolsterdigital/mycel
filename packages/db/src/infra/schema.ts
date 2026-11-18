@@ -80,6 +80,8 @@ export interface Database {
     images_version: Generated<number>;
     retention: Json<unknown> | null;
     retention_version: Generated<number>;
+    analytics: Json<unknown> | null;
+    analytics_version: Generated<number>;
   };
   connection_intents: {
     id: string;

@@ -11,7 +11,8 @@
      no sub-navigation of its own and only names its subject. The brand subject also picks the
      default image items inherit (#81-rest), and the theme whether articles open with a drop cap.
      API access (#101) is the site's API keys, moved from Members (lib/admin/ApiAccess.svelte).
-     General also holds, for `tenant:admin` only, how long form submissions are kept. -->
+     General also holds, for `tenant:admin` only, how long form submissions are kept and which
+     Plausible site counts its pageviews and signups. -->
 <script lang="ts">
   import {
     AI_USES,
@@ -281,6 +282,54 @@
             ? value('readerActivityDays', String(retention.value.readerActivityDays))
             : String(retention.value.readerActivityDays)}
           options={readerDayOptions(retention.value.readerActivityDays)}
+        />
+      </SettingsSection>
+    {/if}
+    {#if data.analytics}
+      <!-- Only for `tenant:admin`, like the retention terms. An empty field is off; a configured
+           site that no longer matches the primary hostname is shown, never rewritten. -->
+      {@const analytics = data.analytics}
+      <SettingsSection
+        id="site-analytics"
+        title={t('admin.site.analytics.title')}
+        description={analytics.value.plausibleDomain
+          ? fill(t('admin.site.analytics.on'), { domain: analytics.value.plausibleDomain })
+          : t('admin.site.analytics.off')}
+        action={action('analytics')}
+        submit={t('admin.site.analytics.save')}
+        saved={saved('analytics')}
+        unsaved={t('admin.site.unsaved')}
+      >
+        {#if analytics.hostnameMismatch && analytics.primaryHostname}
+          <Notice tone="warning">
+            <p>
+              {fill(t('admin.site.analytics.mismatch'), {
+                domain: analytics.value.plausibleDomain ?? '',
+                hostname: analytics.primaryHostname,
+              })}
+            </p>
+          </Notice>
+        {/if}
+        <input
+          type="hidden"
+          name="baseVersion"
+          value={form?.action === 'analytics'
+            ? value('baseVersion', String(analytics.version))
+            : String(analytics.version)}
+        />
+        <Field
+          id="site-analytics-domain"
+          name="plausibleDomain"
+          label={t('admin.site.analytics.domain')}
+          locale={data.locale}
+          hint={t('admin.site.analytics.hint')}
+          value={form?.action === 'analytics'
+            ? value('plausibleDomain', analytics.value.plausibleDomain ?? '')
+            : (analytics.value.plausibleDomain ?? '')}
+          maxlength={253}
+          autocomplete="off"
+          spellcheck="false"
+          inputmode="url"
         />
       </SettingsSection>
     {/if}

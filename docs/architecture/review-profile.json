@@ -52,6 +52,7 @@
         "apps/web/src/routes/internal/**",
         "packages/core/src/supporters/**",
         "packages/core/src/readers/**",
+        "packages/core/src/analytics/**",
         "packages/core/src/forms/**",
         "packages/core/src/campaigns/**",
         "packages/db/src/campaigns/**",

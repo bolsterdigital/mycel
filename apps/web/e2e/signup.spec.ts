@@ -1,6 +1,7 @@
 // flow: consent
 import { expect, test, type APIRequestContext, type Page, type Response } from '@playwright/test';
 import { createHash } from 'node:crypto';
+import { exerciseAnalyticsSettings } from './lib/analytics/settings';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expectNoAxeViolations } from './lib/axe';
@@ -1614,3 +1615,7 @@ test.describe('hero, CTA and form keep their rails', () => {
           if (width === 1440 && size === '100%') await expectNoAxeViolations(page);
         });
 });
+
+// Who counts the visitors is the administrator's choice, beside the retention terms above.
+test('an administrator names the Plausible site; an editor cannot', ({ page, baseURL }) =>
+  exerciseAnalyticsSettings(page, baseURL!));

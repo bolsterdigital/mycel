@@ -1468,6 +1468,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.site.navigation.unpublish': 'Navigatie offline gehaald',
   'admin.audit.op.site.general.update': 'Algemene instellingen gewijzigd',
   'admin.audit.op.site.image.update': 'Standaardbeeld gewijzigd',
+  'admin.audit.op.analytics.settings.update': 'Statistiekinstelling gewijzigd',
   'admin.audit.op.site.retention.update': 'Bewaartermijnen gewijzigd',
   'admin.audit.op.site.theme.update': 'Huisstijl gewijzigd',
   'admin.audit.op.reader.signin.request': 'Inloglink aangevraagd',
@@ -3183,6 +3184,17 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.retention.day.one': '{n} dag',
   'admin.site.retention.day.other': '{n} dagen',
   'admin.site.retention.save': 'Termijnen opslaan',
+  'admin.site.analytics.title': 'Statistiek',
+  'admin.site.analytics.off':
+    'Deze site telt niets. Vul een Plausible-site in om bezoeken aan gepubliceerde openbare pagina’s en geaccepteerde aanmeldingen te tellen.',
+  'admin.site.analytics.on':
+    'Deze site telt bezoeken en geaccepteerde aanmeldingen in de Plausible-site {domain}.',
+  'admin.site.analytics.domain': 'Plausible-site',
+  'admin.site.analytics.hint':
+    'De naam van de site zoals die in Plausible staat, bijvoorbeeld example.org. Laat leeg om te stoppen met tellen; wat Plausible al heeft blijft daar tot je het in Plausible verwijdert.',
+  'admin.site.analytics.mismatch':
+    'De Plausible-site {domain} hoort niet bij het adres van deze site, {hostname}. Mycel past hem niet aan: verbeter hem hier als het adres is veranderd.',
+  'admin.site.analytics.save': 'Statistiek opslaan',
   'admin.content.state.short.live': 'Gepubliceerd',
   'admin.content.state.short.changed': 'Gepubliceerd · ongepubliceerde wijzigingen',
   'admin.content.state.short.pinned': 'Ingepland',
