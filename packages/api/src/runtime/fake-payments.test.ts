@@ -1,6 +1,6 @@
 // The trial installation's payment provider (MY-254 PR 2, brief choice 17): a paid first payment
 // leaves a mandate, a charge of it settles at once, fails for an address with `+fail`, and is
-// found again by its key, so a repeated call charges once.
+// found again by its key, so a repeated call charges once; an unknown mandate is refused.
 
 import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -60,20 +60,28 @@ describe('DirectoryPaymentProvider', () => {
       expect(readFileSync(join(dir, file), 'utf8')).not.toContain('example.org');
   });
 
-  it('charges once per key, paid by default and failed for +fail', async () => {
+  it('charges once per key, paid by default, failed for +fail, refused without a mandate', async () => {
     const provider = new DirectoryPaymentProvider(mkdtempSync(join(tmpdir(), 'mycel-fake-pay-')));
     const paying = await mandateOf(provider, 1, 'noor@example.org');
     const failing = await mandateOf(provider, 2, 'noor+fail@example.org');
     const key = 'subscription:x:2026-12-18T10:00:00.000Z:1';
     const asked = { key, customerRef: paying.customerRef, mandateRef: paying.mandateRef };
     expect(await provider.findCharge(asked)).toBeNull();
-    const made = await charge(provider, paying.mandateRef, key, 3);
-    expect(made).toMatchObject({ ref: `fake_${ID(3)}`, outcome: 'paid' });
-    expect(await charge(provider, paying.mandateRef, key, 4)).toMatchObject({ ref: made.ref });
-    expect(await provider.findCharge(asked)).toMatchObject({ ref: made.ref, outcome: 'paid' });
+    const ref = `fake_${ID(3)}`;
+    expect(await charge(provider, paying.mandateRef, key, 3)).toMatchObject({
+      ref,
+      outcome: 'paid',
+    });
+    expect(await charge(provider, paying.mandateRef, key, 4)).toMatchObject({ ref });
+    expect(await provider.findCharge(asked)).toMatchObject({ ref, outcome: 'paid' });
     expect(await charge(provider, failing.mandateRef, `${key}x`, 5)).toMatchObject({
       outcome: 'failed',
     });
-    await expect(charge(provider, 'mdt_fake_nothing', 'other', 6)).rejects.toThrow();
+    // As Mollie answers 422 for a revoked mandate (MY-255): nothing is made.
+    expect(await charge(provider, 'mdt_fake_nothing', 'other', 6)).toEqual({
+      refused: true,
+      raw: 'no_mandate',
+    });
+    expect(await provider.findCharge({ ...asked, key: 'other' })).toBeNull();
   });
 });

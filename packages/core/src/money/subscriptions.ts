@@ -4,15 +4,17 @@
 // and every later one. The charge run charges the mandate when a period ends, without the donor:
 // money moves that nobody approves at that moment, so every charge follows ADR 019 rule 6.
 //
-// One charge (`chargeSubscription`) is three transactions. The first locks the subscription,
-// checks it is due and has no attempt in flight, and writes the intent row (`charge_attempts`,
-// `pending`) with a key that is also the provider's idempotency key. The second only makes the
-// call: the provider is built per transaction (a site's key is read in it), and it holds no lock
-// while it waits. The third records the payment the provider made (`sent`) and walks it, or, when
-// the call threw, marks the attempt `unknown`. Nothing charges a subscription with an attempt in
-// flight; the reconciliation (`reconcileChargeAttempt`) asks the provider by key about an
-// attempt, `unknown` or `pending`, once it is a quarter of an hour old, and records what it finds,
-// or closes the attempt when the provider made nothing, so the next run charges with a new key.
+// One charge (`chargeSubscription`) is three transactions. The first locks the subscription, checks
+// it is due and has no attempt in flight, and writes the intent row (`charge_attempts`, `pending`)
+// with a key that is also the provider's idempotency key. The second only makes the call: the
+// provider is built per transaction (a site's key is read in it), and it holds no lock while it
+// waits. The third records the payment the provider made (`sent`) and walks it, or, when the call
+// threw, marks the attempt `unknown`; a refusal (the provider declined with certainty and made
+// nothing, MY-255) closes the attempt and counts as a failed one, so dunning runs. Nothing charges
+// a subscription with an attempt in flight; the reconciliation (`reconcileChargeAttempt`) asks the
+// provider by key about an attempt, `unknown` or `pending`, once it is a quarter of an hour old,
+// and records what it finds, or closes the attempt when the provider made nothing, so the next run
+// charges with a new key.
 //
 // The key is `subscription:<id>:<paidThrough>:<n>`, the n-th attempt for the period that ends at
 // `paidThrough`: a dunning retry and a retry after "made nothing" each get a new one, and a repeat
@@ -32,7 +34,7 @@ import { isTombstone } from '../supporters/erasure.js';
 import { exampleId } from '../util/ids.js';
 import { MAX_PAGE_SIZE } from '../util/page-size.js';
 import { Payment } from './model.js';
-import type { ProviderPayment } from './ports.js';
+import type { ChargeRefusal, ProviderPayment } from './ports.js';
 import './ports.js';
 import {
   lockSupporter,
@@ -128,7 +130,14 @@ export async function staleChargeAttempts(ctx: TransactionContext, limit = 100):
 
 /** What one charge run did with one subscription. */
 export type ChargeResult =
-  'charged' | 'unknown' | 'not-due' | 'in-flight' | 'no-provider' | 'failed' | 'cancelled';
+  | 'charged'
+  | 'refused'
+  | 'unknown'
+  | 'not-due'
+  | 'in-flight'
+  | 'no-provider'
+  | 'failed'
+  | 'cancelled';
 
 interface Planned {
   attempt: ChargeAttempt;
@@ -141,7 +150,7 @@ interface Planned {
 async function plan(
   ctx: TransactionContext,
   id: string
-): Promise<Planned | Exclude<ChargeResult, 'charged' | 'unknown'>> {
+): Promise<Planned | Exclude<ChargeResult, 'charged' | 'refused' | 'unknown'>> {
   const seen = await ctx.subscriptions.get(id);
   if (seen?.supporterId) await lockSupporter(ctx, seen.supporterId);
   const sub = await ctx.subscriptions.lock(id);
@@ -224,6 +233,32 @@ async function recordCharge(
   );
 }
 
+/**
+ * The third transaction after a refusal: the provider made nothing, so the attempt is closed and
+ * the subscription counts a failed attempt, as a failed charge does (dunning, `ended` after the
+ * last). Nothing when the attempt was settled already.
+ */
+async function recordRefusal(
+  ctx: TransactionContext,
+  key: string,
+  refusal: ChargeRefusal
+): Promise<void> {
+  const seenAttempt = await ctx.subscriptions.getAttempt(key);
+  if (!seenAttempt) return;
+  const seen = await ctx.subscriptions.get(seenAttempt.subscriptionId);
+  if (seen?.supporterId) await lockSupporter(ctx, seen.supporterId);
+  const sub = await ctx.subscriptions.lock(seenAttempt.subscriptionId);
+  const attempt = await ctx.subscriptions.getAttempt(key);
+  if (!sub || !attempt || attempt.status !== 'pending') return;
+  ctx.log.warn('subscription.charge.refused', { subscriptionId: sub.id, raw: refusal.raw });
+  await ctx.subscriptions.saveAttempt({
+    ...attempt,
+    status: 'done',
+    updatedAt: ctx.clock.now().toISOString(),
+  });
+  if (sub.status === 'active') await failAttempt(ctx, sub, 'charge', true);
+}
+
 async function markUnknown(ctx: TransactionContext, key: string): Promise<void> {
   const attempt = await ctx.subscriptions.getAttempt(key);
   if (attempt?.status === 'pending')
@@ -247,7 +282,7 @@ export async function chargeSubscription(
   const planned = await uow.run(principal, (ctx) => plan(ctx, id));
   if (typeof planned === 'string') return planned;
   const { attempt, sub } = planned;
-  let made: ProviderPayment;
+  let made: ProviderPayment | ChargeRefusal;
   try {
     made = await uow.run(principal, (ctx) => {
       const provider = ctx.paymentProvider;
@@ -272,7 +307,13 @@ export async function chargeSubscription(
     });
     return 'unknown';
   }
-  await uow.run(principal, (ctx) => recordCharge(ctx, attempt.key, made, 'charge'));
+  if ('refused' in made) {
+    const refusal = made;
+    await uow.run(principal, (ctx) => recordRefusal(ctx, attempt.key, refusal));
+    return 'refused';
+  }
+  const payment = made;
+  await uow.run(principal, (ctx) => recordCharge(ctx, attempt.key, payment, 'charge'));
   return 'charged';
 }
 
