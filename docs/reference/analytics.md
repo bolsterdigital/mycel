@@ -2,7 +2,7 @@
 
 Measurement is optional and off for every site until an administrator names a Plausible site. Mycel then counts pageviews of published public pages and accepted public signups in that Plausible site, and nothing else. There is no Mycel cookie, no visitor id and no event history of its own. The contract below is fixed in core (`packages/core/src/analytics/`) and shared by the browser script and the server events, so neither can send a field the other does not know (TODO #12).
 
-**Status.** The setting, the closed catalogue, the delivery shape, the no-op transport, the pageview decision and the public pageview script are in place. The accepted-signup event and the Plausible transport for server events follow in two later pull requests; until then a configured site counts pageviews only.
+**Status.** The setting, the closed catalogue, the delivery shape, the no-op transport, the pageview decision, the public pageview script, the accepted-signup intent and its subscriber are in place. The Plausible transport for server events and its wiring in the worker follow in a later pull request; until then the subscriber is not composed, so a configured site counts pageviews only.
 
 ## The setting
 
@@ -33,6 +33,18 @@ Not in the catalogue, on purpose: `form.confirmed` (a consent confirmation is no
 A delivery (`AnalyticsDelivery`) carries the validated site identifier, the site root as a queryless URL built with `siteUrl`, and the catalogue event. It never carries a request, header, principal, supporter, submission, form value, visitor IP or user agent. Server events are therefore counts, not visitors, and Plausible may discard some of them as bot traffic. `NoopAnalytics` is the transport wherever no provider is configured and in every test.
 
 A transport reports `accepted`, `rejected`, `retryable` (failed before anything was sent; one more bounded attempt cannot count twice), `unknown` (may have arrived; the Events API has no idempotency key, so this is never retried blindly) or `disabled`. A failed or slow provider never changes a form's outcome: delivery runs after the commit, from the outbox.
+
+### How an accepted signup is counted
+
+`form.submit` publishes one `analytics.intent` outbox event when it accepts a submission to a `signup` form from an anonymous visitor on a site that measures (`countForAnalytics`, `analytics/events.ts`). It is published in the submission's own transaction, so a rollback takes it along. Its props are exactly the catalogue event, `{ name: 'form.submitted', props: { kind: 'signup' } }`, and its actor is `{ kind: 'anonymous', channel }` without the IP hash: no address, form, submission, list or page URL. Nothing is published for an invalid or rejected submission, another form kind, an integration's post (API key, import), a site without a Plausible site, or a confirmation: `mailing.opt_in.confirm` publishes no intent. The existing `form.submitted` domain event of a confirmed campaign signup is a different thing and is never sent.
+
+The subscriber `analytics.delivery` (`analytics/delivery.ts`) handles each intent at most once:
+
+1. It drops an intent that does not parse as a catalogue event (`malformed`, also a reserved `donation.paid`) or is older than an hour (`expired`, because Plausible dates an event on receipt).
+2. In one transaction under the intent's tenant it rereads the setting (`off` when cleared since the signup), claims the event id in the rate-limit windows (`duplicate` when already claimed) and reads the primary hostname. The claim commits before anything is sent, so a redelivered event, a crashed drain or a second worker sends nothing. The claim lives a day; the hour's window keeps every deliverable intent inside it.
+3. It sends the site root (`siteUrl(tenant, '/')`), the identifier and the event. `retryable` gets one more attempt, then stops; `unknown`, and a transport that throws, is never retried.
+
+It never throws after the claim, so the outbox marks the intent handled and keeps no retry or dead row for it. A count lost to a crash between claim and send is the accepted side of at-most-once. Each intent logs one `analytics.delivery` line with tenant, event id, catalogue name and result; `unknown`, `malformed` and a missing tenant are warnings. The line never carries the identifier, a URL or the provider's answer.
 
 ## Pageviews
 
