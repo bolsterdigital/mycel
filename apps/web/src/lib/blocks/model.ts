@@ -171,6 +171,8 @@ export interface RenderForm {
     presets?: { value: string; label: string }[];
     /** With presets: the label of the visitor's own amount, posted as `<name>-other`; absent when not offered. */
     otherLabel?: string;
+    /** A gift's choice of once, monthly or yearly, posted as `<name>-interval` (MY-254). */
+    intervals?: { legend: string; options: { value: string; label: string }[] };
   }[];
 }
 

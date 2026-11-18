@@ -260,12 +260,10 @@ export function subscriptionRepository(
     attemptOfPayment: (paymentId) => oneAttempt(attempts().where('payment_id', '=', paymentId)),
     async stale(before, limit) {
       const found = await attempts()
-        .where((eb) =>
-          eb.or([
-            eb('status', '=', 'unknown'),
-            eb.and([eb('status', '=', 'pending'), eb('updated_at', '<', new Date(before))]),
-          ])
-        )
+        // An `unknown` attempt waits as long as a `pending` one: a request that timed out may
+        // still land at the provider, and asking at once would read "made nothing" too early.
+        .where('status', 'in', ['pending', 'unknown'])
+        .where('updated_at', '<', new Date(before))
         .orderBy('updated_at')
         .orderBy('key')
         .limit(limit)

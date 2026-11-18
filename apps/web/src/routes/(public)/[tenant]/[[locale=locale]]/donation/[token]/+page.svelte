@@ -1,5 +1,5 @@
-<!-- The donor's return page: one heading that says where the gift stands, the amount, and the
-     one thing to do next. On the hop from the form it sends the visitor on to the checkout at
+<!-- The donor's return page: one heading that says where the gift stands, the amount (for a
+     monthly or yearly gift, how often it is given from now on), and the one thing to do next. On the hop from the form it sends the visitor on to the checkout at
      once (a refresh without delay, WCAG 2.2.1 allows it) and offers the same link. -->
 <script lang="ts">
   import { ui } from '../../../../../../i18n/index.js';
@@ -29,7 +29,10 @@
     <p><a href={data.pay}>{t('public.donation.payLink')}</a></p>
   {:else}
     <h1>{title}</h1>
-    {#if data.amount}<p>
+    {#if data.amount && data.interval && data.state === 'paid'}<p>
+        {t(`public.donation.recurring.${data.interval}`).replace('{amount}', () => data.amount!)}
+      </p>
+    {:else if data.amount}<p>
         {t('public.donation.amount').replace('{amount}', () => data.amount!)}
       </p>{/if}
     {#if data.state === 'paid'}

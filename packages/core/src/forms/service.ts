@@ -21,6 +21,7 @@ import {
   type FormField,
 } from './model.js';
 import { startDonation } from '../money/service.js';
+import { startSubscription } from '../money/subscriptions.js';
 import { MAX_AMOUNT, MIN_AMOUNT } from '../money/model.js';
 import { UseCaseError } from '../errors.js';
 import { t } from '../i18n/index.js';
@@ -34,7 +35,7 @@ import {
 import './ports.js';
 import { pinFormFeeds } from './feed/delivery.js';
 import { planFormMail } from './mail-planning.js';
-import { evaluateFields } from './fields.js';
+import { chosenInterval, evaluateFields } from './fields.js';
 import { hashInput } from '../audit/model.js';
 import { exampleId } from '../util/ids.js';
 
@@ -83,7 +84,7 @@ export const submitForm = defineUseCase({
   name: 'form.submit',
   kind: 'command',
   description:
-    'Submit a form. Stores the submission and, with consent, publishes newsletter.subscribed; a form bound to a campaign also needs that campaign open (else the error campaign.closed) and mails a confirmation that makes the signature count. A donation form also needs `returnUrl` (with `{token}`), starts the payment and answers with the `checkoutUrl` where the visitor pays. Returns accepted, invalid (field errors as i18n keys) or rejected (spam defence).',
+    'Submit a form. Stores the submission and, with consent, publishes newsletter.subscribed; a form bound to a campaign also needs that campaign open (else the error campaign.closed) and mails a confirmation that makes the signature count. A donation form also needs `returnUrl` (with `{token}`), starts the payment and answers with the `checkoutUrl` where the visitor pays; when its amount field offers `intervals`, `<amount>-interval` (`once`, `month`, `year`) chooses one, and monthly or yearly starts a subscription whose first payment leaves a mandate. Returns accepted, invalid (field errors as i18n keys) or rejected (spam defence).',
   requires: 'forms:write',
   consumes: 'supporters.max',
   input: SubmitInput,
@@ -199,6 +200,19 @@ export const submitForm = defineUseCase({
         status: 'invalid',
         errors: [{ field: gift.name, message: 'forms.error.donation-amount' }],
       };
+    // Once, or monthly or yearly by mandate (MY-254): only an interval the field offers.
+    const interval = gift && gift.type === 'amount' ? chosenInterval(gift, input.values) : 'once';
+    if (!interval)
+      return { status: 'invalid', errors: [{ field: gift!.name, message: 'forms.error.value' }] };
+    // A subscription without an address could not be found again to erase or to manage
+    // (review of MY-254 PR 1); every form requires one today, this keeps it so if that ever changes.
+    if (interval !== 'once' && !email) {
+      const field = form.fields.find((f) => f.type === 'email');
+      return {
+        status: 'invalid',
+        errors: [{ field: field?.name ?? gift!.name, message: 'forms.error.required' }],
+      };
+    }
     // A site that cannot take a gift says so before anything is counted or stored.
     if (gift) {
       requireEntitled(principal, 'donations.enabled');
@@ -215,15 +229,26 @@ export const submitForm = defineUseCase({
     let fundraiserId: string | undefined;
     const accept = async (): Promise<SubmitResult> => {
       if (!gift) return { status: 'accepted', submissionId };
-      const { checkoutUrl, token } = await startDonation(ctx, {
+      const start = {
         amount: cents,
         currency: 'EUR',
-        description: t(input.locale, 'forms.donation.description'),
         locale: input.locale,
         returnUrl: input.returnUrl!,
         submissionId,
         campaignId: fundraiserId,
-      });
+      };
+      const { checkoutUrl, token } =
+        interval === 'once'
+          ? await startDonation(ctx, {
+              ...start,
+              description: t(input.locale, 'forms.donation.description'),
+            })
+          : await startSubscription(ctx, {
+              ...start,
+              interval,
+              email,
+              description: t(input.locale, `forms.donation.description.${interval}`),
+            });
       return { status: 'accepted', submissionId, checkoutUrl, token };
     };
 

@@ -61,6 +61,11 @@ export interface CheckoutRequest {
   locale: string;
   /** `first` asks the donor for a mandate as well (a subscription's first payment). */
   sequence: 'oneoff' | 'first';
+  /**
+   * The donor's address, on a first payment only: a mandate belongs to a customer at the
+   * provider, which knows them by it (MY-254). A one-off gift sends none.
+   */
+  email?: string | undefined;
 }
 
 export interface ChargeRequest {
@@ -163,7 +168,10 @@ export interface SubscriptionRepository {
   attempts(subscriptionId: string): Promise<ChargeAttempt[]>;
   /** The attempt whose payment this is, if a charge made it. */
   attemptOfPayment(paymentId: string): Promise<ChargeAttempt | null>;
-  /** Attempts `unknown`, or `pending` and unchanged since `before`: the reconciliation's work. */
+  /**
+   * Attempts `pending` or `unknown` and unchanged since `before`: the reconciliation's work. An
+   * `unknown` one waits too, so a charge that lands late is found rather than charged again.
+   */
   stale(before: string, limit: number): Promise<ChargeAttempt[]>;
 }
 

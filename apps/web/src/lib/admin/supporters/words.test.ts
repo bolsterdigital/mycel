@@ -32,6 +32,9 @@ describe('supporter timeline words', () => {
       'reader.signed_in',
       'donation.payment.succeeded',
       'donation.payment.failed',
+      'donation.subscription.started',
+      'donation.subscription.cancelled',
+      'donation.subscription.ended',
     ] as const;
     expect(written.filter((type) => eventKey({ type }) === null)).toEqual([]);
   });
@@ -65,6 +68,19 @@ describe('supporter timeline words', () => {
         'en'
       )
     ).toBe('Gave €12.50');
+    // A monthly or yearly gift by its amount per interval (MY-254).
+    const monthly = { amount: { value: 1000, currency: 'EUR' }, interval: 'month' as const };
+    expect(say(entry({ type: 'donation.subscription.started', ...monthly }))).toBe(
+      'Begon €\u00a010 per maand te geven'
+    );
+    expect(
+      eventSentence(
+        ui('en'),
+        entry({ type: 'donation.subscription.ended', ...monthly, interval: 'year' }),
+        names,
+        'en'
+      )
+    ).toBe('Gift of €10 a year ended');
   });
 
   it('fall back to the list id, general words and the type name', () => {

@@ -25,15 +25,18 @@ interface Clock {
 interface Provider {
   settle(ref: string, outcome: 'paid' | 'failed'): void;
   chargesAs: 'open' | 'paid' | 'failed' | 'expired' | 'refunded' | 'charged_back';
-  loseNext(): void;
+  loseNext(late?: boolean): void;
+  land(): void;
   readonly charges: readonly { key: string }[];
 }
 
 const DAY = 24 * 60 * 60 * 1000;
+const MINUTE = 60 * 1000;
 
 /**
  * Starting, the first payment paid → active, a charge paid → one period on, a charge whose answer
- * never came reconciled by key without a second charge, failed charges → retries → `ended`,
+ * never came and whose request reached the provider late reconciled by key, after the wait, without
+ * a second charge, failed charges → retries → `ended`,
  * cancelling, an erased giver whose subscription ends and whose mandate stops, and another tenant
  * that sees none of it (brief MY-254 PR 1).
  */
@@ -107,11 +110,21 @@ export async function observeSubscription(
   const charged = await charge(monthly.subscriptionId);
   const again = await charge(monthly.subscriptionId);
   const renewed = await sub(monthly.subscriptionId);
-  provider.loseNext();
+  // The answer is lost and the request has not reached the provider yet: asking at once would
+  // hear "made nothing" and charge the period again with a new key (review of MY-254 PR 1).
+  provider.loseNext(true);
   const lost = await charge(leaving.subscriptionId);
   const inFlight = await charge(leaving.subscriptionId);
+  const staleAtOnce = (await uow.run(run, (ctx) => staleChargeAttempts(ctx))).length;
+  const [lostAttempt] = await uow.run(admin, (ctx) =>
+    ctx.subscriptions.attempts(leaving.subscriptionId)
+  );
+  const early = await reconcileChargeAttempt(uow, run, lostAttempt!.key);
+  provider.land();
+  clock.advance(16 * MINUTE);
   const stale = await uow.run(run, (ctx) => staleChargeAttempts(ctx));
   const reconciled = stale.length ? await reconcileChargeAttempt(uow, run, stale[0]!) : null;
+  const afterwards = await charge(leaving.subscriptionId);
 
   provider.chargesAs = 'failed';
   until(renewed.paidThrough!);
@@ -158,8 +171,11 @@ export async function observeSubscription(
     lost: {
       lost,
       inFlight,
+      staleAtOnce,
+      early,
       stale: stale.length,
       reconciled,
+      afterwards,
       charges: chargesOf(leaving.subscriptionId),
     },
     dunned: {
@@ -211,7 +227,16 @@ export const expectedSubscription = {
   charged: 'charged',
   again: 'not-due',
   renewed: { periodsPaid: 2, oneMonthOn: true },
-  lost: { lost: 'unknown', inFlight: 'in-flight', stale: 1, reconciled: 'recorded', charges: 1 },
+  lost: {
+    lost: 'unknown',
+    inFlight: 'in-flight',
+    staleAtOnce: 0,
+    early: 'waiting',
+    stale: 1,
+    reconciled: 'recorded',
+    afterwards: 'not-due',
+    charges: 1,
+  },
   dunned: {
     status: 'ended',
     endReason: 'dunning',

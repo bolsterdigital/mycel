@@ -71,7 +71,7 @@ export function memorySubscriptions(s: TenantStore): SubscriptionRepository {
     stale: async (before, limit) =>
       structuredClone(
         attempts()
-          .filter((a) => a.status === 'unknown' || (a.status === 'pending' && a.updatedAt < before))
+          .filter((a) => (a.status === 'unknown' || a.status === 'pending') && a.updatedAt < before)
           .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt) || a.key.localeCompare(b.key))
           .slice(0, limit)
       ),
