@@ -75,8 +75,8 @@ import { READER_COOKIE, READER_PATH, readerOfRequest } from './reader.js';
 import { ogLocales } from './share-locale.js';
 import { sitePath, siteTenant, siteUrls, type Site } from '../site.js';
 import { siteBrand, siteChrome, siteNavigation, siteTheme } from './theme.js';
-import { siteTracker } from './analytics.js';
-import { sitePlacement } from './integrations.js';
+import { siteTracker } from './scripts/analytics.js';
+import { sitePlacement } from './scripts/integrations.js';
 import { refuse } from '#lib/server/http/refuse.js';
 
 export interface PublicHead {

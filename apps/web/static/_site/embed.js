@@ -1,4 +1,4 @@
-// Click to load a video player (docs/reference/integrations.md, #41 PR 2). The server placed a
+// Click to load a video player (docs/reference/integrations.md § Video). The server placed a
 // hidden play button only for a provider the site switched on, with the player's address on its
 // wrapper (`VideoEmbed.svelte`); this file shows those buttons and, on a click, puts the player in
 // the button's place and moves focus to it. Nothing reaches the provider before that click, and

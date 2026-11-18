@@ -20,8 +20,8 @@ import {
   type PublishedItem,
 } from '@mycel/core';
 import type { RenderBlock } from '#lib/blocks/model.js';
-import { runtime } from '../runtime.js';
-import { siteTenant, type Site } from '../site.js';
+import { runtime } from '../../runtime.js';
+import { siteTenant, type Site } from '../../site.js';
 import { publishedRequest, type PublishedResponse } from './analytics.js';
 
 const placementBySite = new WeakMap<Site, Promise<IntegrationPlacement>>();

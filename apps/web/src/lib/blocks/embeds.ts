@@ -1,5 +1,5 @@
-// Which video providers the public page may turn into a player (docs/reference/integrations.md,
-// #41 PR 2). The route decides once per response with core's `integrationDecision` and sets the
+// Which video providers the public page may turn into a player (docs/reference/integrations.md
+// § Video). The route decides once per response with core's `integrationDecision` and sets the
 // list here; `VideoEmbed` reads it. Anything rendered without it, the live draft, an e-mail or a
 // test, gets an empty list and keeps the plain link, so no preview loads a third party.
 // Rejected: a prop through `Blocks` and `Prefooter`, which would thread one page fact through every

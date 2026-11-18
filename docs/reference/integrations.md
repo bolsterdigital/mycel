@@ -29,7 +29,7 @@ A tag manager's container is edited outside Mycel, so Mycel cannot review its ta
 
 The server never reads the visitor's consent: pages stay cacheable, and the browser applies the choice before anything loads.
 
-The published content route asks once per response (`apps/web/src/lib/server/public/integrations.ts`), over the item's blocks and the pre-footer's, and the placement is part of the item's ETag, so switching an entry off is not hidden behind a 304.
+The published content route asks once per response (`apps/web/src/lib/server/public/scripts/integrations.ts`), over the item's blocks and the pre-footer's, and the placement is part of the item's ETag, so switching an entry off is not hidden behind a 304.
 
 ## Video
 

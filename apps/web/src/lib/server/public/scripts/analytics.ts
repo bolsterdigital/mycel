@@ -20,8 +20,8 @@ import {
   type PageviewRequest,
   type PublishedItem,
 } from '@mycel/core';
-import { runtime } from '../runtime.js';
-import { siteTenant, siteUrls, type Site } from '../site.js';
+import { runtime } from '../../runtime.js';
+import { siteTenant, siteUrls, type Site } from '../../site.js';
 
 const trackerBySite = new WeakMap<Site, Promise<string | null>>();
 

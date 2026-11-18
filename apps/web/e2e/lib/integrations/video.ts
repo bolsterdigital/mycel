@@ -1,4 +1,4 @@
-// Click-to-load video (docs/reference/integrations.md, #41 PR 2) on a site of its own, so no other
+// Click-to-load video (docs/reference/integrations.md § Video) on a site of its own, so no other
 // test meets a player. Off, a page with a YouTube and a Vimeo video has links only, no script and
 // no `frame-src`. With YouTube on, the same page frames exactly the nocookie origin, its ETag
 // changes, the Vimeo video stays a link, and the browser asks no provider anything until the
