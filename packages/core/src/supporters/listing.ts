@@ -99,6 +99,25 @@ export const ListedSupporter = z.object({
 });
 export type ListedSupporter = z.infer<typeof ListedSupporter>;
 
+/**
+ * The filter of `supporter.list` as input fields, with its one rule: `supporter.export`
+ * (`export.ts`) narrows the same way, so a download holds exactly the list in view.
+ */
+export const SUPPORTER_FILTER_FIELDS = {
+  list: z.string().trim().min(1).max(100).optional(),
+  status: SupporterListStatus.optional(),
+  q: z.string().trim().min(1).max(254).transform(normalizeEmail).optional(),
+};
+/** `status` narrows a list, so it needs one. */
+export const statusNeedsList = (input: {
+  list?: string | undefined;
+  status?: string | undefined;
+}) => !input.status || Boolean(input.list);
+export const STATUS_NEEDS_LIST_ERROR = {
+  message: 'supporter.list.status.needs-list',
+  path: ['status'],
+};
+
 export const listSupporters = defineUseCase({
   name: 'supporter.list',
   kind: 'query',
@@ -107,17 +126,12 @@ export const listSupporters = defineUseCase({
   requires: 'supporters:read',
   input: z
     .object({
-      list: z.string().trim().min(1).max(100).optional(),
-      status: SupporterListStatus.optional(),
-      q: z.string().trim().min(1).max(254).transform(normalizeEmail).optional(),
+      ...SUPPORTER_FILTER_FIELDS,
       after: SupporterCursor.optional(),
       limit: z.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
     })
     .strict()
-    .refine((input) => !input.status || input.list, {
-      message: 'supporter.list.status.needs-list',
-      path: ['status'],
-    }),
+    .refine(statusNeedsList, STATUS_NEEDS_LIST_ERROR),
   output: z.object({
     supporters: z.array(ListedSupporter),
     next: z.string().nullable(),

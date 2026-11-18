@@ -45,8 +45,6 @@ export type Capability = z.infer<typeof Capability>;
  * leaving them on offer with a warning (a choice that does nothing should not be a choice).
  */
 export const PLANNED_CAPABILITIES: Readonly<Partial<Record<Capability, string>>> = {
-  'supporters:export':
-    'no supporter export exists; tenant.export.create requires tenant:admin (ADR 018 rule 5)',
   'money:refund': 'refunding a donation (ADR 005) is not built',
 };
 

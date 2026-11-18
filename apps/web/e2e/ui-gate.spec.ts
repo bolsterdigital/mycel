@@ -22,6 +22,7 @@ import { tenantId, withInvoker, asOwner } from './lib/invoker';
 import { NARROW, TEXT_SIZES, focusObscuredProblems, layoutGate, setTextSize } from './lib/layout';
 import { forwarded, login } from './lib/login';
 import { exerciseSupporterGrants } from './lib/access/grants';
+import { exerciseSupporterExport } from './lib/supporters/export';
 import { ADMIN_LOCALES, ADMIN_ROUTES, type GateRoute, PUBLIC_ROUTES } from './routes';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { testTenant } from '@mycel/db/testing';
@@ -1605,6 +1606,9 @@ test.describe('supporters', () => {
 
   test('an administrator gives access to a tier and takes it back', ({ page }) =>
     exerciseSupporterGrants(page, gunstId, fixtures[5][0]));
+
+  test('an administrator downloads the list in view as CSV, an editor cannot', ({ page }) =>
+    exerciseSupporterExport(page, 'gate-list', [fixtures[1][0], fixtures[0][0]], editor('en')));
 
   test('an author has no Supporters entry and the list refuses them', async ({ page }) => {
     await login(page, '/admin/probe/beheer', author);
