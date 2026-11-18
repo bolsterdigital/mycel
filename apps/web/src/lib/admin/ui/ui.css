@@ -103,9 +103,66 @@
     color: var(--color-muted-fg);
     overflow-wrap: break-word;
   }
+  /* The label and its ⓘ on one line; the ⓘ's margin keeps the line one line of text tall. */
+  .ui-field-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 var(--space-0);
+    min-width: 0;
+  }
+  .ui-field-head > label {
+    min-width: 0;
+    max-inline-size: 100%;
+  }
+  /* The label gives up the room beside its ⓘ, not the ⓘ, so an ⓘ on a line of its own starts at
+     the field's edge. Rejected: the ⓘ's own negative start margin, which pulled it past the left
+     edge of a 320 CSS px screen at 200% text in CI's wider font. */
+  .ui-field-head > label:has(+ .ui-hint-toggle) {
+    margin-inline-end: calc(var(--space-0) - (var(--tap) - 1.25em) / 2);
+  }
+  .ui-field-head > .ui-hint-toggle {
+    margin-inline-start: 0;
+  }
+  /* A 44px target never gives up width to a neighbour (beside a long list title it shrank below
+     44px). Rejected: wrapping alone, which moves the ⓘ only once the title took the line. */
+  .ui-hint-toggle {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--tap);
+    block-size: var(--tap);
+    margin-block: calc((1lh - var(--tap)) / 2);
+    margin-inline-start: calc(var(--space-0) - (var(--tap) - 1.25em) / 2);
+    padding: 0;
+    color: var(--color-muted-fg);
+    background: none;
+    border: 0;
+    border-radius: 999px;
+    font: inherit;
+    vertical-align: middle;
+    cursor: pointer;
+  }
+  .ui-hint-toggle:hover,
+  .ui-hint-toggle:focus-visible {
+    color: var(--color-link);
+  }
+  .ui-hint-toggle:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: -4px;
+  }
+  .ui-hint-toggle .ui-icon {
+    width: 1.125em;
+    height: 1.125em;
+  }
+  /* A legend keeps room for the ⓘ's overhang, so it never comes within 24px of the first option
+     below (axe target-size once a wrapped legend put the ⓘ on its own line, CI font only). */
+  :is(.ui-fieldset, .ui-media-picker) > legend:has(> .ui-hint-toggle) {
+    padding-block-end: max(0px, (var(--tap) - 1lh) / 2);
+  }
   /* Open, the hint is a small card under its ⓘ where the browser can anchor it (the invoker is
-     the popover's implicit anchor), centred on the screen elsewhere; either way it never widens
-     the page at 320 CSS px. */
+     the popover's implicit anchor), centred on screen elsewhere; never wider than 320 CSS px. */
   .ui-hint[popover] {
     max-inline-size: min(24rem, 100vw - 2 * var(--gutter));
     margin: auto;
