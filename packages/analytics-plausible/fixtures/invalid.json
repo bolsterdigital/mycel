@@ -1,0 +1,6 @@
+{
+  "source": "Recorded 2026-11-18 from https://analytics.dreamkit.eu/api/event for a body without a name; date and request id removed.",
+  "status": 400,
+  "headers": { "content-type": "application/json; charset=utf-8" },
+  "body": "{\"errors\":{\"event_name\":[\"can't be blank\"]}}"
+}

@@ -18,7 +18,7 @@ Short map; the reasoning is in [`../adr/`](../adr/).
                  │ use-case registry                                          │
                  │ ports: UnitOfWork, Clock, Ids, Signer, EventBus, Scheduler,│
                  │        Mailer, EmailRenderer, BlobStore, ImageProcessor,   │
-                 │        MediaDelivery, PaymentProvider,                     │
+                 │        MediaDelivery, PaymentProvider, Analytics,          │
                  │        TextModel, IdentityStore, SiteDirectory, Logger,    │
                  │        ErrorReporter (repositories in each ports.ts)       │
                  └───────────────┬───────────────────────┬────────────────────┘
@@ -30,6 +30,7 @@ Short map; the reasoning is in [`../adr/`](../adr/).
                  │                      │   │ packages/assist-openai       │
                  │                      │   │ packages/render-email        │
                  │                      │   │ packages/pay-mollie          │
+                 │                      │   │ packages/analytics-plausible │
                  └──────────────────────┘   └──────────────────────────────┘
 
    beside        packages/observability: logs, request context, error
@@ -42,8 +43,6 @@ Short map; the reasoning is in [`../adr/`](../adr/).
 - Fronts call use cases from `core`'s registry. They do not call adapters directly; they receive adapter instances through composition in `packages/api/src/runtime/compose.ts` (and the equivalent in `apps/web`).
 - Adapters implement ports from `core`. They do not import each other.
 - `packages/observability` (logs, request context, error reporting, metrics) imports only `core`; the fronts import it, `core` never does. Core code logs through `ctx.log` (the `Logger` port) and scrubs error text it stores with `scrubText` (`core/util/scrub.ts`), which the package reuses.
-
-**Planned, not in the code.** Recurring giving ([ADR 005](../adr/005-money-ledger.md) rules 5 and 7); one-off donations are built ([donations](../reference/donations.md)).
 
 **Accepted extension direction, not current implementation** ([ADRs 022 to 024](extensibility.md)). A trusted operator-installed extension will declare its core/schema compatibility, owner, capabilities, render and admin contracts, locale, preview, export, fallback and migrations. Activation and browser asset loading can be scoped to a site or page, but do not isolate code executing in the host process. Core remains framework-free and exposes typed ports; untrusted backend execution stays across an authenticated external service boundary. Site-only tenants may keep an external CRM, mail platform or subscription owner through registered connections. The composition root, block registry, theme and outbox do not implement a general extension loader. Configurable forms and managed webhook/Mailchimp connections use their existing typed ports and tenant-scoped registries.
 

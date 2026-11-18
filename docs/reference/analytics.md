@@ -2,7 +2,7 @@
 
 Measurement is optional and off for every site until an administrator names a Plausible site. Mycel then counts pageviews of published public pages and accepted public signups in that Plausible site, and nothing else. There is no Mycel cookie, no visitor id and no event history of its own. The contract below is fixed in core (`packages/core/src/analytics/`) and shared by the browser script and the server events, so neither can send a field the other does not know (TODO #12).
 
-**Status.** The setting, the closed catalogue, the delivery shape, the no-op transport, the pageview decision, the public pageview script, the accepted-signup intent and its subscriber are in place. The Plausible transport for server events and its wiring in the worker follow in a later pull request; until then the subscriber is not composed, so a configured site counts pageviews only.
+**Status.** The setting, the closed catalogue, the delivery shape, the pageview decision, the public pageview script, the accepted-signup intent, its subscriber and the Plausible transport are in place. The worker sends server events when the installation sets `ANALYTICS_PROVIDER=plausible`; with the default `none` a configured site counts pageviews only.
 
 ## The setting
 
@@ -45,6 +45,35 @@ The subscriber `analytics.delivery` (`analytics/delivery.ts`) handles each inten
 3. It sends the site root (`siteUrl(tenant, '/')`), the identifier and the event. `retryable` gets one more attempt, then stops; `unknown`, and a transport that throws, is never retried.
 
 It never throws after the claim, so the outbox marks the intent handled and keeps no retry or dead row for it. A count lost to a crash between claim and send is the accepted side of at-most-once. Each intent logs one `analytics.delivery` line with tenant, event id, catalogue name and result; `unknown`, `malformed` and a missing tenant are warnings. The line never carries the identifier, a URL or the provider's answer.
+
+### The Plausible transport
+
+`PlausibleAnalytics` (`packages/analytics-plausible`) is the transport the worker composes when `ANALYTICS_PROVIDER=plausible` (default `none`: `NoopAnalytics`, every result `disabled`). It posts one request per delivery to `PLAUSIBLE_EVENT_ENDPOINT`, the same core constant as the browser script and the CSP; the endpoint is not configurable, and only a test may point it at a loopback server (`PLAUSIBLE_FIXTURE_ORIGIN`, refused in production). The body is the delivery and nothing else:
+
+```json
+{
+  "name": "form.submitted",
+  "url": "https://example.org/",
+  "domain": "example.org",
+  "props": { "kind": "signup" }
+}
+```
+
+The request carries Mycel's own user agent (`Mycel (server event)`, which the Events API requires) and `content-type`, and nothing of the visitor: no `X-Forwarded-For`, cookie, referrer or origin. Plausible therefore sees the worker's address, so all server events of a day count as one visitor of the site; read them as event counts. Each attempt gives up after three seconds, because the outbox delivers a batch serially and a slow provider would hold up the mails behind it; with the one retry a dead provider costs a drain six seconds.
+
+| Plausible's answer                                          | Outcome     | Sent again |
+| ----------------------------------------------------------- | ----------- | ---------- |
+| 2xx                                                         | `accepted`  | no         |
+| 202 with `x-plausible-dropped: 1` (a site it does not know) | `rejected`  | no         |
+| other 3xx or 4xx; a redirect is not followed                | `rejected`  | no         |
+| 429, 503, a refused or unresolvable connection              | `retryable` | once       |
+| other 5xx, a timeout, a reset or any other failure          | `unknown`   | no         |
+
+The response body is never read. The adapter's tests run against recorded and documented answers in `packages/analytics-plausible/fixtures`; the e2e run posts to a loopback Plausible and checks what arrived.
+
+### Retention and alerting
+
+Mycel keeps no delivery history. What exists about one intent: the outbox row, kept like every outbox event for 30 days after processing; the claim, a rate-limit window the hourly sweep removes after a day; and one log line. The worker also counts each transport answer in `mycel_analytics_deliveries_total{outcome}` on its metrics endpoint, without site, URL or payload. Alert on a rising `unknown` (Plausible slow or failing after receipt) or `rejected` (a site identifier Plausible does not know, which the admin shows as a mismatch); the log line names the tenant and event id to follow up.
 
 ## Pageviews
 

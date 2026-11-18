@@ -1,0 +1,6 @@
+{
+  "source": "Recorded 2026-11-18 from https://analytics.dreamkit.eu/api/event for the site proef.mycel.invalid, which Plausible does not know; date and request id removed.",
+  "status": 202,
+  "headers": { "content-type": "text/plain; charset=utf-8", "x-plausible-dropped": "1" },
+  "body": "ok"
+}
