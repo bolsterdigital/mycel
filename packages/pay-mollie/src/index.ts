@@ -24,6 +24,7 @@
 // reading `amount` back from Mollie (ours is what the donor was shown; see core `money/service.ts`).
 
 import type {
+  ChargeRefusal,
   ChargeRequest,
   CheckoutRequest,
   FindChargeRequest,
@@ -97,6 +98,10 @@ function chargeKeyOf(payment: MolliePayment): string | null {
   const key = (meta as Record<string, unknown>).mycel_charge;
   return typeof key === 'string' ? key : null;
 }
+
+/** A 4xx about the charge itself, not the site's key, a rate limit or a key still in use. */
+const REFUSES_CHARGE = (status: number) =>
+  status >= 400 && status < 500 && ![401, 403, 408, 409, 429].includes(status);
 
 /** Thrown for every failure; the message names what failed, never what Mollie said. */
 export class MollieError extends Error {
@@ -315,10 +320,13 @@ export class MolliePaymentProvider implements PaymentProvider {
   }
 
   /**
-   * A recurring payment against the mandate. A 409 is Mollie still handling the same key: it
-   * throws like a timeout, and the reconciliation finds the charge by its key later.
+   * A recurring payment against the mandate. A firm 4xx (422 `No suitable mandates found` for a
+   * revoked mandate, 400, 404, 410) is a refusal: Mollie made nothing, the giver's charge failed
+   * (MY-255). The site's own trouble throws instead, so the giver is not dunned for it: 401 and 403
+   * (a wrong or revoked key), no connection, 5xx. So do 408 and 429, which say nothing about the
+   * charge, and 409, Mollie still handling the same key: the reconciliation finds it by key later.
    */
-  async chargeMandate(request: ChargeRequest): Promise<ProviderPayment> {
+  async chargeMandate(request: ChargeRequest): Promise<ProviderPayment | ChargeRefusal> {
     if (!CUSTOMER_ID.test(request.customerRef) || !MANDATE_ID.test(request.mandateRef))
       throw new MollieError('the mandate is not a Mollie mandate');
     const webhookUrl = (await this.options.webhookUrl?.(request.paymentId)) ?? null;
@@ -331,9 +339,10 @@ export class MolliePaymentProvider implements PaymentProvider {
       ...(webhookUrl ? { webhookUrl } : {}),
       metadata: { mycel_payment: request.paymentId, mycel_charge: request.key },
     });
-    if (response.status !== 201 && response.status !== 200)
-      throw new MollieError('Mollie refused the charge', response.status);
-    return outcomeOf(await this.#read(response, MolliePayment));
+    if (response.status === 201 || response.status === 200)
+      return outcomeOf(await this.#read(response, MolliePayment));
+    if (REFUSES_CHARGE(response.status)) return { refused: true, raw: `http_${response.status}` };
+    throw new MollieError('Mollie refused the charge', response.status);
   }
 
   /**
