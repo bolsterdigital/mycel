@@ -23,7 +23,8 @@
   } from '#lib/admin/ui/index.js';
   import { formatWhen } from '#lib/admin/format.js';
   import { eventSentence } from '#lib/admin/supporters/words.js';
-  import { plural, refusalCopy, ui } from '../../../../../../i18n/index.js';
+  import { perInterval } from '#lib/admin/donations/giving.js';
+  import { fill, plural, refusalCopy, ui } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -87,6 +88,13 @@
           : []),
       ]}
     />
+    {#each data.giving as g (g.id)}<p>
+        <a href="{base}/donations/recurring/{g.id}"
+          >{fill(t(g.paused ? 'admin.supporter.givesPaused' : 'admin.supporter.gives'), {
+            what: perInterval(t, g.amount, g.currency, g.interval, data.locale),
+          })}</a
+        >
+      </p>{/each}
   </Section>
 
   <Section id="supporter-lists" title={t('admin.supporter.lists')} locale={data.locale}>

@@ -23,6 +23,8 @@ const PLAIN_PATH = /^\/(?!\/)[a-z0-9/_-]*$/i;
 export interface DonationReturn {
   state: 'paid' | 'pending' | 'failed';
   amount: string | null;
+  /** A monthly or yearly gift: its first payment says how often it is given from now on. */
+  interval: 'month' | 'year' | null;
   /** The page to go back or try again on. */
   back: string;
   /** This page again, to look whether a pending payment settled. */
@@ -41,10 +43,12 @@ export async function loadDonationReturn(
   let state: DonationReturn['state'] = 'pending';
   let amount: string | null = null;
   let checkout: string | null = null;
+  let interval: DonationReturn['interval'] = null;
   try {
     const outcome = await runtime().invoker.run(useCases.checkDonationReturn, visitor, { token });
     amount = formatMoney(outcome.amount, outcome.currency, locale);
     checkout = outcome.checkoutUrl;
+    interval = outcome.interval;
     state =
       outcome.status === 'paid'
         ? 'paid'
@@ -61,6 +65,7 @@ export async function loadDonationReturn(
   return {
     state,
     amount,
+    interval,
     back: sitePath(site, back ?? '/'),
     again: back ? `${url.pathname}?back=${encodeURIComponent(back)}` : url.pathname,
     pay: url.searchParams.has('pay') && state === 'pending' ? checkout : null,

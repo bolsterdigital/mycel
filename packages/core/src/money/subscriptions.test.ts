@@ -21,6 +21,7 @@ import { buildRegistry, useCases } from '../use-cases.js';
 import type { PaymentProvider } from './ports.js';
 import { Subscription } from './subscription-model.js';
 import {
+  ATTEMPT_RECONCILE_AFTER_MS,
   chargeSubscription,
   dueSubscriptions,
   reconcileChargeAttempt,
@@ -233,6 +234,9 @@ describe('a monthly gift (ADR 005)', () => {
     provider.loseNext();
     expect(await charge(subscriptionId)).toBe('unknown');
     expect(await charge(subscriptionId)).toBe('in-flight');
+    // Not at once: the request may still be on its way to the provider.
+    expect(await uow.run(run, (ctx) => staleChargeAttempts(ctx))).toEqual([]);
+    clock.advance(ATTEMPT_RECONCILE_AFTER_MS + 1);
     const stale = await uow.run(run, (ctx) => staleChargeAttempts(ctx));
     expect(stale).toEqual([`subscription:${subscriptionId}:${subscription.paidThrough}:1`]);
     expect(await reconcileChargeAttempt(uow, run, stale[0]!)).toBe('recorded');
@@ -244,13 +248,16 @@ describe('a monthly gift (ADR 005)', () => {
   });
 
   it('closes an attempt the provider never made, and charges the next run with a new key', async () => {
-    const { active, charge, provider, to, uow, run } = setup();
+    const { active, charge, provider, to, uow, run, clock } = setup();
     const { subscriptionId, subscription } = await active();
     to(subscription.paidThrough!);
     provider.failNext();
     expect(await charge(subscriptionId)).toBe('unknown');
-    const [key] = await uow.run(run, (ctx) => staleChargeAttempts(ctx));
-    expect(await reconcileChargeAttempt(uow, run, key!)).toBe('none-made');
+    const key = `subscription:${subscriptionId}:${subscription.paidThrough}:1`;
+    expect(await reconcileChargeAttempt(uow, run, key)).toBe('waiting');
+    clock.advance(ATTEMPT_RECONCILE_AFTER_MS + 1);
+    expect(await uow.run(run, (ctx) => staleChargeAttempts(ctx))).toEqual([key]);
+    expect(await reconcileChargeAttempt(uow, run, key)).toBe('none-made');
     expect(await charge(subscriptionId)).toBe('charged');
     expect(provider.charges.map((c) => c.key.split(':').at(-1))).toEqual(['2']);
   });

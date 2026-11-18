@@ -45,13 +45,14 @@ export async function give(
   page: Page,
   slug: string,
   email: string,
-  amount: { preset: RegExp } | { own: string },
+  amount: ({ preset: RegExp } | { own: string }) & { interval?: string },
   outcome: 'Betaald' | 'Mislukt'
 ) {
   // A client address of its own: the spec's other posts share the file's one, and a post
   // without JavaScript has a small hourly bucket per address (`forms/spam.ts`).
   await page.context().setExtraHTTPHeaders(forwarded());
   await page.goto(`/probe/${slug}`);
+  if (amount.interval) await page.getByRole('radio', { name: amount.interval }).check();
   if ('preset' in amount) await page.getByRole('radio', { name: amount.preset }).check();
   else await page.getByLabel('Ander bedrag (€)').fill(amount.own);
   await page.getByLabel('E-mailadres').fill(email);

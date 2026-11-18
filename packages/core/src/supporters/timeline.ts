@@ -52,6 +52,8 @@ export const TimelineEntry = z.object({
   tierId: z.string().guid().optional(),
   /** The gift of a donation event, in minor units with its currency (ADR 005 rule 1). */
   amount: z.object({ value: z.number().int().positive(), currency: z.string() }).optional(),
+  /** How often a monthly or yearly gift of a subscription event is given (MY-254). */
+  interval: z.enum(['month', 'year']).optional(),
 });
 export type TimelineEntry = z.infer<typeof TimelineEntry>;
 
@@ -87,7 +89,15 @@ const uuid = z.string().guid();
 
 /** The references of one event, each only when it reads as what it should be. */
 export function timelineEntry(event: SupporterEvent): TimelineEntry {
-  const { list, confirmed, campaign_id: campaign, tier_id: tier, amount, currency } = event.props;
+  const {
+    list,
+    confirmed,
+    campaign_id: campaign,
+    tier_id: tier,
+    amount,
+    currency,
+    interval,
+  } = event.props;
   return {
     id: event.id,
     type: event.type,
@@ -101,6 +111,10 @@ export function timelineEntry(event: SupporterEvent): TimelineEntry {
     (amount as number) > 0 &&
     typeof currency === 'string'
       ? { amount: { value: amount as number, currency } }
+      : {}),
+    ...(event.type.startsWith('donation.subscription.') &&
+    (interval === 'month' || interval === 'year')
+      ? { interval }
       : {}),
   };
 }

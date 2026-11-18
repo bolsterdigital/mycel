@@ -11,8 +11,8 @@
 // while it waits. The third records the payment the provider made (`sent`) and walks it, or, when
 // the call threw, marks the attempt `unknown`. Nothing charges a subscription with an attempt in
 // flight; the reconciliation (`reconcileChargeAttempt`) asks the provider by key about an
-// `unknown` attempt, or a `pending` one that outlived its call, and records what it finds, or
-// closes the attempt when the provider made nothing, so the next run charges with a new key.
+// attempt, `unknown` or `pending`, once it is a quarter of an hour old, and records what it finds,
+// or closes the attempt when the provider made nothing, so the next run charges with a new key.
 //
 // The key is `subscription:<id>:<paidThrough>:<n>`, the n-th attempt for the period that ends at
 // `paidThrough`: a dunning retry and a retry after "made nothing" each get a new one, and a repeat
@@ -113,7 +113,11 @@ export async function dueSubscriptions(ctx: TransactionContext, limit = 100): Pr
   return (await ctx.subscriptions.due(ctx.clock.now().toISOString(), limit)).map((s) => s.id);
 }
 
-/** How long a `pending` attempt may wait for its call before the reconciliation asks after it. */
+/**
+ * How long an attempt, `pending` or `unknown`, waits before the reconciliation asks after it: a
+ * request whose answer was lost may still land at the provider, and "made nothing" read before it
+ * landed would charge the period a second time with a new key (review of MY-254 PR 1).
+ */
 export const ATTEMPT_RECONCILE_AFTER_MS = 15 * 60 * 1000;
 
 /** The attempts the reconciliation asks after now, at most `limit`. */
@@ -273,19 +277,25 @@ export async function chargeSubscription(
 }
 
 /** What the reconciliation did with one attempt. */
-export type AttemptResult = 'recorded' | 'none-made' | 'settled' | 'unreachable';
+export type AttemptResult = 'recorded' | 'none-made' | 'settled' | 'unreachable' | 'waiting';
 
 /**
  * Ask the provider about an attempt whose call did not come back (ADR 019 rule 6): record the
  * payment it made, or close the attempt when it made none so the next run charges with a new key.
+ * An attempt younger than `ATTEMPT_RECONCILE_AFTER_MS` is left `waiting`, whoever asks: its
+ * request may not have reached the provider yet.
  */
 export async function reconcileChargeAttempt(
   uow: UnitOfWork,
   principal: Principal,
   key: string
 ): Promise<AttemptResult> {
-  const attempt = await uow.run(principal, (ctx) => ctx.subscriptions.getAttempt(key));
+  const { attempt, before } = await uow.run(principal, async (ctx) => ({
+    attempt: await ctx.subscriptions.getAttempt(key),
+    before: new Date(ctx.clock.now().getTime() - ATTEMPT_RECONCILE_AFTER_MS).toISOString(),
+  }));
   if (!attempt || attempt.status === 'sent' || attempt.status === 'done') return 'settled';
+  if (attempt.updatedAt >= before) return 'waiting';
   let found: ProviderPayment | null;
   try {
     found = await uow.run(principal, async (ctx) => {
@@ -321,22 +331,28 @@ export const getSubscription = defineUseCase({
   name: 'donation.subscription.get',
   kind: 'query',
   description:
-    'Read one monthly or yearly gift (or membership) by id: amount, interval, status, until when it is paid (`paidThrough`), the next charge, failed attempts, its ledger (oldest entry first) and its payments (newest first).',
+    'Read one monthly or yearly gift (or membership) by id: amount, interval, status, until when it is paid (`paidThrough`), the next charge, failed attempts, its ledger (oldest entry first) and its payments (newest first). With `supporters:read` also the giver’s address, for a link to their page.',
   requires: 'donations:read',
   input: z.object({ subscriptionId: z.string().guid() }).strict(),
   output: z.object({
     subscription: Subscription,
     ledger: z.array(SubscriptionLedgerEntry),
     payments: z.array(Payment),
+    supporter: z.object({ id: z.string().guid(), email: z.string() }).nullable(),
   }),
   examples: [{ input: { subscriptionId: exampleId(0x1) } }],
   async handler(ctx, { subscriptionId }) {
     const subscription = await ctx.subscriptions.get(subscriptionId);
     if (!subscription) throw notFound('subscription');
+    const giver =
+      subscription.supporterId && can(ctx.principal, 'supporters:read')
+        ? await ctx.supporters.getProjectionById(subscription.supporterId)
+        : null;
     return {
       subscription,
       ledger: await ctx.subscriptions.ledger(subscriptionId),
       payments: await ctx.payments.list({ subscriptionId }, 0, MAX_PAGE_SIZE),
+      supporter: giver && !isTombstone(giver.email) ? { id: giver.id, email: giver.email } : null,
     };
   },
 });

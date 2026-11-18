@@ -2,7 +2,7 @@
 // fake provider is the other side of a payment for tests and for a trial installation: a test
 // settles a payment by its reference and the next `donation.check` finds it. A paid first payment
 // leaves a mandate, and a charge of it succeeds unless the test says otherwise (`chargesAs`,
-// `failNext`, `loseNext` for a call that charged but never answered).
+// `failNext`, `loseNext` for a call that charged but never answered, or whose charge lands late).
 
 import type { LedgerEntry, Payment } from '../../../money/model.js';
 import type {
@@ -78,7 +78,9 @@ export class FakePaymentProvider implements PaymentProvider {
   /** First payments, whose `paid` leaves a mandate. */
   readonly #firsts = new Set<string>();
   #failing = false;
-  #losing = false;
+  #losing: false | 'answer' | 'late' = false;
+  /** A charge sent but not yet arrived at the provider (`loseNext(true)`), until `land`. */
+  #landing: ChargeRequest | null = null;
   /** What a new checkout starts as; `paid` plays a provider that settles at once. */
   opensAs: ProviderOutcome = 'open';
   /** What a new charge starts as: settled at once, or `open` until `settle`. */
@@ -119,6 +121,20 @@ export class FakePaymentProvider implements PaymentProvider {
     }
     const known = this.#charges.get(request.key);
     if (known) return this.#answer(known);
+    if (this.#losing === 'late') {
+      this.#losing = false;
+      this.#landing = request;
+      throw new Error('fake provider timeout before the charge arrived');
+    }
+    this.#record(request);
+    if (this.#losing) {
+      this.#losing = false;
+      throw new Error('fake provider timeout after charging');
+    }
+    return this.#answer(this.#charges.get(request.key)!);
+  }
+
+  #record(request: ChargeRequest): void {
     this.charges.push(request);
     const ref = `fake_${request.paymentId}`;
     this.#payments.set(ref, {
@@ -128,11 +144,6 @@ export class FakePaymentProvider implements PaymentProvider {
       checkoutUrl: null,
     });
     this.#charges.set(request.key, ref);
-    if (this.#losing) {
-      this.#losing = false;
-      throw new Error('fake provider timeout after charging');
-    }
-    return this.#answer(ref);
   }
 
   async findCharge(key: string): Promise<ProviderPayment | null> {
@@ -178,8 +189,18 @@ export class FakePaymentProvider implements PaymentProvider {
     this.#failing = true;
   }
 
-  /** The next charge goes through at the provider, but its answer never arrives. */
-  loseNext(): void {
-    this.#losing = true;
+  /**
+   * The next charge goes through at the provider, but its answer never arrives. `late`: the
+   * request itself is still on its way, so the provider knows nothing of it until `land`.
+   */
+  loseNext(late = false): void {
+    this.#losing = late ? 'late' : 'answer';
+  }
+
+  /** The charge `loseNext(true)` held back reaches the provider and is made. */
+  land(): void {
+    const request = this.#landing;
+    this.#landing = null;
+    if (request && !this.#charges.has(request.key)) this.#record(request);
   }
 }

@@ -56,6 +56,13 @@ export const FormDefinition = z
         f.fields.some((x) => x.type === 'amount' && x.required && !x.activeWhen)),
     { message: 'forms.donation.needs-one-amount-field' }
   )
+  // Giving monthly or yearly starts a subscription, which only a donation form does.
+  .refine(
+    (f) =>
+      f.kind === 'donation' ||
+      !f.fields.some((x) => x.type === 'amount' && x.intervals?.some((i) => i !== 'once')),
+    { message: 'forms.amount.intervals-donation-only' }
+  )
   .refine((f) => f.fields.some((x) => x.type === 'email' && x.required && !x.activeWhen), {
     message: 'forms.needs-active-required-email',
   });

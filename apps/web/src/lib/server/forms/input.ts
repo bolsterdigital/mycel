@@ -77,6 +77,17 @@ export function fieldInput(data: FormData, old?: FormField): FormField {
             : { presets: undefined, custom: undefined };
         })()
       : {}),
+    // How often a gift may be given (MY-254), in a fixed order; once only is the default and is
+    // stored as nothing, so a form that offers no choice keeps its definition and fingerprint.
+    ...(type === 'amount'
+      ? (() => {
+          const ticked = data.getAll('intervals');
+          const intervals = (['once', 'month', 'year'] as const).filter((i) => ticked.includes(i));
+          return {
+            intervals: intervals.length && intervals.join() !== 'once' ? intervals : undefined,
+          };
+        })()
+      : {}),
     ...(['text', 'textarea', 'phone'].includes(type)
       ? { maxLength: text(data, 'maxLength') ? Number(text(data, 'maxLength')) : undefined }
       : {}),

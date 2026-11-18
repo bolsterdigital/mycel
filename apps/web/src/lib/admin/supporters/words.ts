@@ -9,6 +9,7 @@ import type { TimelineEntry } from '@mycel/core';
 import { en, type UiKey } from '../../../i18n/en.js';
 import { fill } from '../../../i18n/index.js';
 import { formatMoney } from '../../money.js';
+import { perInterval } from '../donations/giving.js';
 
 const has = (key: string): key is UiKey => key in en;
 
@@ -47,10 +48,13 @@ export function eventSentence(
 ): string {
   const key = eventKey(entry);
   if (!key) return entry.type;
-  // A gift reads by its amount ("Gaf € 25"); the page's locale formats it.
+  // A gift reads by its amount ("Gaf € 25"), a recurring one per interval ("€ 10 per maand");
+  // the page's locale formats it.
   if (entry.amount)
     return fill(t(key), {
-      what: formatMoney(entry.amount.value, entry.amount.currency, locale),
+      what: entry.interval
+        ? perInterval(t, entry.amount.value, entry.amount.currency, entry.interval, locale)
+        : formatMoney(entry.amount.value, entry.amount.currency, locale),
     });
   return fill(t(key), { what: subject(t, entry, names) });
 }
