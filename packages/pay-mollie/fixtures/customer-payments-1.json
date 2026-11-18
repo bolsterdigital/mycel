@@ -1,0 +1,90 @@
+{
+  "count": 2,
+  "_embedded": {
+    "payments": [
+      {
+        "resource": "payment",
+        "id": "tr_Oth1x",
+        "mode": "test",
+        "createdAt": "2026-11-17T21:05:00+00:00",
+        "amount": {
+          "value": "10.00",
+          "currency": "EUR"
+        },
+        "description": "Monthly gift to Probe",
+        "method": null,
+        "metadata": {
+          "mycel_payment": "0194c2a0-0000-7000-8000-000000000101",
+          "mycel_charge": "subscription:0194c2a0-0000-7000-8000-0000000000aa:2026-01-17T21:02:00.000Z:1"
+        },
+        "status": "paid",
+        "profileId": "pfl_QkEhN94Ba",
+        "sequenceType": "recurring",
+        "customerId": "cst_8wmqcHMN4U",
+        "_links": {
+          "self": {
+            "href": "https://api.mollie.com/v2/payments/tr_Oth1x",
+            "type": "application/hal+json"
+          },
+          "customer": {
+            "href": "https://api.mollie.com/v2/customers/cst_8wmqcHMN4U",
+            "type": "application/hal+json"
+          },
+          "documentation": {
+            "href": "https://docs.mollie.com/reference/create-payment",
+            "type": "text/html"
+          }
+        }
+      },
+      {
+        "resource": "payment",
+        "id": "tr_Oth2x",
+        "mode": "test",
+        "createdAt": "2026-12-17T21:05:00+00:00",
+        "amount": {
+          "value": "10.00",
+          "currency": "EUR"
+        },
+        "description": "Monthly gift to Probe",
+        "method": null,
+        "metadata": {
+          "mycel_payment": "0194c2a0-0000-7000-8000-000000000102",
+          "mycel_charge": "subscription:0194c2a0-0000-7000-8000-0000000000aa:2026-02-17T21:02:00.000Z:1"
+        },
+        "status": "paid",
+        "profileId": "pfl_QkEhN94Ba",
+        "sequenceType": "recurring",
+        "customerId": "cst_8wmqcHMN4U",
+        "_links": {
+          "self": {
+            "href": "https://api.mollie.com/v2/payments/tr_Oth2x",
+            "type": "application/hal+json"
+          },
+          "customer": {
+            "href": "https://api.mollie.com/v2/customers/cst_8wmqcHMN4U",
+            "type": "application/hal+json"
+          },
+          "documentation": {
+            "href": "https://docs.mollie.com/reference/create-payment",
+            "type": "text/html"
+          }
+        }
+      }
+    ]
+  },
+  "_links": {
+    "self": {
+      "href": "https://api.mollie.com/v2/customers/cst_8wmqcHMN4U/payments?limit=250",
+      "type": "application/hal+json"
+    },
+    "previous": null,
+    "next": {
+      "href": "https://api.mollie.com/v2/customers/cst_8wmqcHMN4U/payments?from=tr_Oth3x&limit=250",
+      "type": "application/hal+json"
+    },
+    "documentation": {
+      "href": "https://docs.mollie.com/reference/list-customer-payments",
+      "type": "text/html"
+    }
+  }
+}

@@ -19,6 +19,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
   ChargeRequest,
+  FindChargeRequest,
   CheckoutRequest,
   PaymentProvider,
   ProviderOutcome,
@@ -129,7 +130,7 @@ export class DirectoryPaymentProvider implements PaymentProvider {
   }
 
   async chargeMandate(request: ChargeRequest): Promise<ProviderPayment> {
-    const known = await this.findCharge(request.key);
+    const known = await this.findCharge(request);
     if (known) return known;
     // The mandate is `mdt_<ref of the first payment>`; nothing else charges.
     const first = this.read(request.mandateRef.replace(/^mdt_/, ''));
@@ -149,7 +150,7 @@ export class DirectoryPaymentProvider implements PaymentProvider {
     return this.#answer(payment);
   }
 
-  async findCharge(key: string): Promise<ProviderPayment | null> {
+  async findCharge({ key }: FindChargeRequest): Promise<ProviderPayment | null> {
     let ref: string;
     try {
       ref = (JSON.parse(readFileSync(this.#chargePath(key), 'utf8')) as { ref: string }).ref;

@@ -301,7 +301,15 @@ export async function reconcileChargeAttempt(
     found = await uow.run(principal, async (ctx) => {
       const provider = ctx.paymentProvider;
       if (!provider?.findCharge) throw new Error('no provider to ask');
-      return provider.findCharge(key);
+      // An attempt is only written against a valid mandate (`plan`), and a mandate row stays.
+      const sub = await ctx.subscriptions.get(attempt.subscriptionId);
+      const mandate = sub?.mandateId ? await ctx.subscriptions.getMandate(sub.mandateId) : null;
+      if (!mandate) throw new Error('the attempt has no mandate to ask by');
+      return provider.findCharge({
+        key,
+        customerRef: mandate.customerRef,
+        mandateRef: mandate.mandateRef,
+      });
     });
   } catch {
     await uow.run(principal, async (ctx) => {

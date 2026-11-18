@@ -1,0 +1,22 @@
+{
+  "resource": "customer",
+  "id": "cst_8wmqcHMN4U",
+  "mode": "test",
+  "name": null,
+  "email": null,
+  "locale": null,
+  "metadata": {
+    "mycel_payment": "0194c2a0-0000-7000-8000-000000000002"
+  },
+  "createdAt": "2026-11-17T20:59:59+00:00",
+  "_links": {
+    "self": {
+      "href": "https://api.mollie.com/v2/customers/cst_8wmqcHMN4U",
+      "type": "application/hal+json"
+    },
+    "documentation": {
+      "href": "https://docs.mollie.com/reference/create-customer",
+      "type": "text/html"
+    }
+  }
+}

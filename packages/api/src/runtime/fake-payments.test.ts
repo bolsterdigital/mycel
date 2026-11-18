@@ -65,11 +65,12 @@ describe('DirectoryPaymentProvider', () => {
     const paying = await mandateOf(provider, 1, 'noor@example.org');
     const failing = await mandateOf(provider, 2, 'noor+fail@example.org');
     const key = 'subscription:x:2026-12-18T10:00:00.000Z:1';
-    expect(await provider.findCharge(key)).toBeNull();
+    const asked = { key, customerRef: paying.customerRef, mandateRef: paying.mandateRef };
+    expect(await provider.findCharge(asked)).toBeNull();
     const made = await charge(provider, paying.mandateRef, key, 3);
     expect(made).toMatchObject({ ref: `fake_${ID(3)}`, outcome: 'paid' });
     expect(await charge(provider, paying.mandateRef, key, 4)).toMatchObject({ ref: made.ref });
-    expect(await provider.findCharge(key)).toMatchObject({ ref: made.ref, outcome: 'paid' });
+    expect(await provider.findCharge(asked)).toMatchObject({ ref: made.ref, outcome: 'paid' });
     expect(await charge(provider, failing.mandateRef, `${key}x`, 5)).toMatchObject({
       outcome: 'failed',
     });

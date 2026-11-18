@@ -1,0 +1,49 @@
+{
+  "resource": "payment",
+  "id": "tr_Fx4nW2kq9P",
+  "mode": "test",
+  "createdAt": "2026-11-17T21:00:00+00:00",
+  "amount": {
+    "value": "10.00",
+    "currency": "EUR"
+  },
+  "description": "Monthly gift to Probe",
+  "method": "ideal",
+  "metadata": {
+    "mycel_payment": "0194c2a0-0000-7000-8000-000000000002"
+  },
+  "status": "paid",
+  "profileId": "pfl_QkEhN94Ba",
+  "sequenceType": "first",
+  "customerId": "cst_8wmqcHMN4U",
+  "_links": {
+    "self": {
+      "href": "https://api.mollie.com/v2/payments/tr_Fx4nW2kq9P",
+      "type": "application/hal+json"
+    },
+    "customer": {
+      "href": "https://api.mollie.com/v2/customers/cst_8wmqcHMN4U",
+      "type": "application/hal+json"
+    },
+    "documentation": {
+      "href": "https://docs.mollie.com/reference/create-payment",
+      "type": "text/html"
+    },
+    "mandate": {
+      "href": "https://api.mollie.com/v2/customers/cst_8wmqcHMN4U/mandates/mdt_h3gAaD5zP",
+      "type": "application/hal+json"
+    }
+  },
+  "mandateId": "mdt_h3gAaD5zP",
+  "paidAt": "2026-11-17T21:02:00+00:00",
+  "locale": "nl_NL",
+  "redirectUrl": "https://probe.example/donation/TOKEN",
+  "amountRefunded": {
+    "value": "0.00",
+    "currency": "EUR"
+  },
+  "amountRemaining": {
+    "value": "10.00",
+    "currency": "EUR"
+  }
+}

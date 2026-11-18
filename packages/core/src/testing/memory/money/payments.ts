@@ -7,6 +7,7 @@
 import type { LedgerEntry, Payment } from '../../../money/model.js';
 import type {
   ChargeRequest,
+  FindChargeRequest,
   CheckoutRequest,
   PaymentProvider,
   PaymentRepository,
@@ -146,7 +147,7 @@ export class FakePaymentProvider implements PaymentProvider {
     this.#charges.set(request.key, ref);
   }
 
-  async findCharge(key: string): Promise<ProviderPayment | null> {
+  async findCharge({ key }: FindChargeRequest): Promise<ProviderPayment | null> {
     if (this.#failing) {
       this.#failing = false;
       throw new Error('fake provider outage');
