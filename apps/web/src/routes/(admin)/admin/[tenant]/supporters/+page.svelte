@@ -2,7 +2,9 @@
      on the shared overview pattern and stacked table, so nothing scrolls sideways at 320 CSS px.
      The filter is a plain GET form and paging is links: the page works without JavaScript. A list
      someone signed up for but has not confirmed is marked in words, not by colour alone. The
-     filter's two actions stand in one wrapping group (skill ui-action-layout). -->
+     filter's two actions stand in one wrapping group (skill ui-action-layout). The export is a
+     form of its own below the count, apart from the filter's actions: it posts the filter in view,
+     so it says what it takes. -->
 <script lang="ts">
   import {
     Actions,
@@ -14,7 +16,7 @@
     Table,
   } from '#lib/admin/ui/index.js';
   import { formatWhen } from '#lib/admin/format.js';
-  import { plural, ui } from '../../../../../i18n/index.js';
+  import { fill, plural, ui } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();
@@ -87,7 +89,18 @@
     </form>
     <p class="supporters-count" role="status">
       {plural(t, 'admin.supporters.count', data.total)}
-    </p>{/snippet}
+    </p>
+    {#if data.canExport && data.total}<form method="post" action="{base}/export">
+        <input type="hidden" name="q" value={data.q} />
+        <input type="hidden" name="list" value={data.list} />
+        <input type="hidden" name="status" value={data.status} />
+        <Button variant="secondary">{t('admin.supporters.export')}</Button>
+        {#if data.total > data.exportMax}<p class="ui-hint">
+            {fill(t('admin.supporters.export.max'), {
+              n: data.exportMax.toLocaleString(data.locale),
+            })}
+          </p>{/if}
+      </form>{/if}{/snippet}
   <Table
     id="supporters"
     caption={t('admin.supporters.title')}

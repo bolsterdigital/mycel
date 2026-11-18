@@ -388,6 +388,9 @@ export const en = {
   'admin.supporters.clear': 'Clear filters',
   'admin.supporters.count.one': '{n} supporter',
   'admin.supporters.count.other': '{n} supporters',
+  'admin.supporters.export': 'Export as CSV',
+  'admin.supporters.export.max':
+    'The file holds the first {n}. Filter by a list or address for the rest.',
   'admin.supporters.email': 'E-mail address',
   'admin.supporters.lists': 'Lists',
   'admin.supporters.firstSeen': 'First seen',
@@ -1435,6 +1438,7 @@ export const en = {
   'admin.audit.op.reader.subscription.withdraw': 'Reader unsubscribed from a newsletter',
   'admin.audit.op.supporter.access_grant.create': 'Access granted to supporter',
   'admin.audit.op.supporter.access_grant.revoke': 'Access of supporter revoked',
+  'admin.audit.op.supporter.export': 'Supporters exported',
   'admin.audit.op.supporter.email.update': 'Supporter e-mail address changed',
   'admin.audit.op.content.person.erase': 'Person erasure requested',
   'admin.audit.op.supporter.erase': 'Supporter erasure requested',

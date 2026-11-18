@@ -389,6 +389,9 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.supporters.clear': 'Filters wissen',
   'admin.supporters.count.one': '{n} supporter',
   'admin.supporters.count.other': '{n} supporters',
+  'admin.supporters.export': 'Exporteer als CSV',
+  'admin.supporters.export.max':
+    'Het bestand bevat de eerste {n}. Filter op een lijst of adres voor de rest.',
   'admin.supporters.email': 'E-mailadres',
   'admin.supporters.lists': 'Lijsten',
   'admin.supporters.firstSeen': 'Eerst gezien',
@@ -1456,6 +1459,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.reader.subscription.withdraw': 'Lezer afgemeld voor een nieuwsbrief',
   'admin.audit.op.supporter.access_grant.create': 'Toegang aan supporter gegeven',
   'admin.audit.op.supporter.access_grant.revoke': 'Toegang van supporter ingetrokken',
+  'admin.audit.op.supporter.export': 'Supporters geëxporteerd',
   'admin.audit.op.supporter.email.update': 'E-mailadres van supporter gewijzigd',
   'admin.audit.op.content.person.erase': 'Wissen van persoon aangevraagd',
   'admin.audit.op.supporter.erase': 'Wissen van supporter aangevraagd',
