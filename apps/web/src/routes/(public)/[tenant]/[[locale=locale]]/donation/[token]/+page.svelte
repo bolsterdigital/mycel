@@ -37,6 +37,7 @@
       </p>{/if}
     {#if data.state === 'paid'}
       <p>{t('public.donation.paidText')}</p>
+      {#if data.interval}<p>{t('public.donation.recurring.manage')}</p>{/if}
       <p><a href={data.back}>{t('thanks.back')}</a></p>
     {:else if data.state === 'pending'}
       <p>{t('public.donation.pendingText')}</p>

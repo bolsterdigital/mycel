@@ -13,8 +13,10 @@
 //   dunning policy says when to try again, and after the last one the subscription `ended`
 //   (`dunning`). `paidThrough` never goes back.
 //
-// Each of these is one subscription ledger entry with the payment's cause (rules 1 and 5), and a
-// started or ended subscription is one event in the giver's log (choice 15).
+// Each of these is one subscription ledger entry with the payment's cause (rules 1 and 5), a
+// started or ended subscription is one event in the giver's log (choice 15), and the giver gets a
+// mail when it started, when a charge failed, when dunning ended it and when it was cancelled
+// (`noticeGiver`, PR 3).
 //
 // Rejected: a second reconcile for subscriptions that asks the provider again (the payment's walk
 // is the fact; this only follows it), and ending a subscription on a chargeback at once (a donor
@@ -30,6 +32,7 @@ import { sha1Hex } from '../util/digest.js';
 import type { LedgerCause, Payment, PaymentStatus } from './model.js';
 import type { ProviderPayment } from './ports.js';
 import './ports.js';
+import { noticeGiver } from './self-service-model.js';
 import {
   DEFAULT_DUNNING,
   Mandate,
@@ -134,13 +137,17 @@ export async function finish(
     to,
     cause
   );
-  if (sub.status !== 'pending')
+  if (sub.status !== 'pending') {
     await appendSubscriptionEvent(
       ctx,
       done,
       to === 'cancelled' ? 'donation.subscription.cancelled' : 'donation.subscription.ended',
       reason ? { reason } : {}
     );
+    // The giver hears that it stopped, unless an erasure stopped it.
+    if (to === 'cancelled') await noticeGiver(ctx, done, 'cancelled');
+    else if (reason === 'dunning') await noticeGiver(ctx, done, 'ended');
+  }
   return done;
 }
 
@@ -161,7 +168,7 @@ export async function failAttempt(
     : null;
   if (failedAttempts > DEFAULT_DUNNING.retryAfterDays.length)
     return finish(ctx, { ...sub, failedAttempts }, 'ended', cause, 'dunning');
-  return stepSubscription(
+  const failed = await stepSubscription(
     ctx,
     sub,
     // A chargeback leaves the next charge where it was; a failed charge moves it to the retry.
@@ -169,6 +176,8 @@ export async function failAttempt(
     'charge-failed',
     cause
   );
+  await noticeGiver(ctx, failed, 'charge-failed');
+  return failed;
 }
 
 async function activate(
@@ -217,6 +226,7 @@ async function activate(
     cause
   );
   await appendSubscriptionEvent(ctx, active, 'donation.subscription.started');
+  await noticeGiver(ctx, active, 'started');
 }
 
 async function renew(

@@ -2,7 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-10-21
-- **Amended**: 2026-10-21, rule 7 added after the second-opinion review (subscription semantics for paid access)
+- **Amended**: 2026-10-21, rule 7 added after the second-opinion review (subscription semantics for paid access); 2026-11-18, rule 6 in operation (below)
 - **Ownership scope**: 2026-10-24 [ADR 024](024-managed-integrations-and-external-ownership.md) permits an external subscription owner for a tenant; this ledger remains authoritative only where Mycel owns charging. No dual charging authority is permitted.
 
 ## Context
@@ -19,6 +19,10 @@ In Dreamkit, recurring donations live in Pronamic Pay's tables inside each WordP
 6. **Donor self-service is a core use case**: a donor can see, change amount, pause, resume and cancel their own subscription through a signed, expiring link sent to their e-mail address. No account required.
 7. **A subscription records what was bought and until when it is paid.** `offer_id` and `price_version` (the offer catalogue is tenant data; prices stay out of this repository, ADR 015), `current_period_end` (`paidThrough`), `cancel_at_period_end`, and a tenant-configurable grace period after a failed charge. Paid access (ADR 016) derives from `paidThrough` plus grace, never from `status` alone: a yearly member who cancels today keeps access until the period ends. Newsletter consent (ADR 003), subscription status and content access are three separate facts and never imply one another.
 8. **Out of scope, deliberately**: proration, multi-currency per tenant, invoicing and VAT (that is bookkeeping software's job; Mycel exports), split payments, marketplaces. Membership fees reuse the subscription model with a `kind` discriminator; they are not a separate ledger.
+
+### Rule 6 in operation (2026-11-18, MY-254 PR 3)
+
+The link is a stateless signed payload of tenant, supporter and expiry, good for seven days and many uses; the outbox event of a mail carries ids and the facts the mail states, never an address or a token, and the mail source signs the link again from the event's time, so a reconcile rebuilds the same mail. Without a link, a reader signed in on the site reaches their own gifts the same way (ADR 016 rule 6). A forged, expired, foreign or erased giver's link and a gift of someone else are one `not_found`. Asking for a link answers the same for every address; one mail per address per day. Resuming after the paid period starts a new run of periods that day instead of charging the skipped ones. Contract: `docs/reference/donations.md` § Self-service and mails. Rejected: a link row per mail like the reader's sign-in (a one-use, fifteen-minute link fits a sign-in, not a page a donor returns to from last week's mail), the subscription id in the token (a donor with two gifts would need two links), and charging the paused months on resume.
 
 ## Rejected alternatives
 

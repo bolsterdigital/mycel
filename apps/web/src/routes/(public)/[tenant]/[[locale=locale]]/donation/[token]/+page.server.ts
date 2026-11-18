@@ -1,9 +1,9 @@
 // The donor's return from the payment provider and the hop to its checkout (brief MY-252 PR 2);
-// what it shows and why: lib/server/public/donation-return.ts. `no-store` and `noindex`: the
+// what it shows and why: lib/server/public/giving/donation-return.ts. `no-store` and `noindex`: the
 // address is one person's.
 
 import { localeOf } from '#lib/server/public/content-route.js';
-import { loadDonationReturn } from '#lib/server/public/donation-return.js';
+import { loadDonationReturn } from '#lib/server/public/giving/donation-return.js';
 import { NO_STORE } from '#lib/server/http/http-cache.js';
 import { refuse } from '#lib/server/http/refuse.js';
 import { requireSite } from '#lib/server/site.js';

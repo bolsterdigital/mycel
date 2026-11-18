@@ -80,6 +80,7 @@ function copy(site: Site, request: Request, locals: App.Locals) {
       submit: t('reader.signin.submit'),
       honeypot: t('form.honeypot.label'),
       signout: t('reader.signout.submit'),
+      giving: t('reader.account.giving'),
       suspended: t('site.suspended.body'),
     },
   };
@@ -110,6 +111,7 @@ export const load: PageServerLoad = async ({ url, request, locals, cookies, setH
     labels,
     account,
     signoutAction: `${sitePath(site, READER_PATH)}?/signout`,
+    givingHref: sitePath(site, '/my-giving'),
     // A suspended site stays readable but changes nothing (ADR 015 rule 7): no form to post.
     form:
       reader || suspended
