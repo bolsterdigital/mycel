@@ -282,7 +282,7 @@
           ]}
         />
         <!-- A narrow question with an ⓘ: its legend wraps in every font, and the ⓘ stays clear of
-             the first box (#41 PR 1). -->
+             the first box. -->
         <Choices
           id="ui-vendors"
           name="vendors"

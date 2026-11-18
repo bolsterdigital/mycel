@@ -63,7 +63,7 @@
   "apps/web/src/lib/admin/ui/page/Section.svelte": 1,
   "apps/web/src/lib/admin/ui/page/SettingsPage.svelte": 1,
   "apps/web/src/lib/admin/ui/page/SettingsSection.svelte": 3,
-  "apps/web/src/lib/admin/ui/ui.css": 29,
+  "apps/web/src/lib/admin/ui/ui.css": 27,
   "apps/web/src/lib/admin/ui/ui.test.ts": 7,
   "apps/web/src/lib/blocks/Blocks.svelte": 2,
   "apps/web/src/lib/blocks/Form.svelte": 1,

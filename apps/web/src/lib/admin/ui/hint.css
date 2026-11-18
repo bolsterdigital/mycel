@@ -1,0 +1,71 @@
+/* The ⓘ of HintButton beside a label or legend: a whole 44px target that keeps its line one line
+   of text tall. A file of its own because ui.css is at its ceiling (scripts/gates/file-size);
+   same layer and the same tokens, loaded right after ui.css. */
+@layer components {
+  /* The label and its ⓘ on one line; the ⓘ keeps a whole target without making the line taller
+     (its margin takes back what the target adds beyond one line of text). */
+  .ui-field-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 var(--space-0);
+    min-width: 0;
+  }
+  .ui-field-head > label {
+    min-width: 0;
+    max-inline-size: 100%;
+  }
+  /* The ⓘ sits close to its label while both fit on a line. The label gives up the room (a
+     negative end margin), not the ⓘ: when a wide label pushes the ⓘ onto its own line, it then
+     starts at the field's edge. Rejected: the ⓘ's own negative start margin, which on that new
+     line pulled its 44px box past the left edge of a 320 CSS px screen at 200% text in CI's
+     wider font. */
+  .ui-field-head > label:has(+ .ui-hint-toggle) {
+    margin-inline-end: calc(var(--space-0) - (var(--tap) - 1.25em) / 2);
+  }
+  .ui-field-head > .ui-hint-toggle {
+    margin-inline-start: 0;
+  }
+  /* A 44px tap target in a flex row never gives up width to its neighbour: next to a long list
+     title in CI's wider font it shrank below 44px. Rejected: wrapping alone, which only
+     moves the ⓘ once the title has already taken the line. */
+  .ui-hint-toggle {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--tap);
+    block-size: var(--tap);
+    margin-block: calc((1lh - var(--tap)) / 2);
+    margin-inline-start: calc(var(--space-0) - (var(--tap) - 1.25em) / 2);
+    padding: 0;
+    color: var(--color-muted-fg);
+    background: none;
+    border: 0;
+    border-radius: 999px;
+    font: inherit;
+    vertical-align: middle;
+    cursor: pointer;
+  }
+  .ui-hint-toggle:hover,
+  .ui-hint-toggle:focus-visible {
+    color: var(--color-link);
+  }
+  .ui-hint-toggle:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: -4px;
+  }
+  .ui-hint-toggle .ui-icon {
+    width: 1.125em;
+    height: 1.125em;
+  }
+  /* In a legend the ⓘ's 44px box hangs below its line by what it adds beyond one line of text.
+     Next to a Choices group's first 20px box that overhang came within 24px of it once the legend
+     wrapped and the ⓘ started a line of its own (axe target-size in CI's wider font).
+     The legend reserves the overhang, so the ⓘ never reaches into what follows, wrapped or not.
+     Rejected: shortening the one legend that wrapped, and a margin on the ⓘ, which makes every
+     legend line with an ⓘ a full target tall. */
+  :is(.ui-fieldset, .ui-media-picker) > legend:has(> .ui-hint-toggle) {
+    padding-block-end: max(0px, (var(--tap) - 1lh) / 2);
+  }
+}

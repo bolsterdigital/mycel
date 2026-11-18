@@ -209,7 +209,7 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
         if (r.height < 44 || r.width < 44) out.push(`field under 44px: ${name}`);
       }
     // An ⓘ never hangs out of its legend: below it, its 44px box reached the first option of a
-    // Choices group once the legend wrapped, which only CI's wider font showed (#41 PR 1). This
+    // Choices group once the legend wrapped, which only CI's wider font showed. This
     // measures the cause on any machine, wrapped or not.
     for (const root of document.querySelectorAll(scope))
       for (const hint of root.querySelectorAll('legend > .ui-hint-toggle')) {
