@@ -75,6 +75,7 @@ import { READER_COOKIE, READER_PATH, readerOfRequest } from './reader.js';
 import { ogLocales } from './share-locale.js';
 import { sitePath, siteTenant, siteUrls, type Site } from '../site.js';
 import { siteBrand, siteChrome, siteNavigation, siteTheme } from './theme.js';
+import { siteTracker } from './analytics.js';
 import { refuse } from '#lib/server/http/refuse.js';
 
 export interface PublicHead {
@@ -312,6 +313,8 @@ export async function loadPublicItem(
   // The resolved menus, not only their revision (ADR 036 rule 11): a republished target title or
   // slug changes the header without a navigation revision.
   const navigation = await siteNavigation(site, locale);
+  // Measurement on or off adds or removes the pageview tag (analytics.ts).
+  const tracker = await siteTracker(site);
   const digest = createHash('sha256')
     .update(
       JSON.stringify({
@@ -327,6 +330,7 @@ export async function loadPublicItem(
         brand,
         prefooter,
         gate,
+        tracker,
       })
     )
     .digest('base64url')

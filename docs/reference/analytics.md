@@ -2,7 +2,7 @@
 
 Measurement is optional and off for every site until an administrator names a Plausible site. Mycel then counts pageviews of published public pages and accepted public signups in that Plausible site, and nothing else. There is no Mycel cookie, no visitor id and no event history of its own. The contract below is fixed in core (`packages/core/src/analytics/`) and shared by the browser script and the server events, so neither can send a field the other does not know (TODO #12).
 
-**Status.** The setting, the closed catalogue, the delivery shape, the no-op transport and the pageview decision are in place. The public script, the accepted-signup event and the Plausible transport follow in three later pull requests; until then a configured site still sends nothing.
+**Status.** The setting, the closed catalogue, the delivery shape, the no-op transport, the pageview decision and the public pageview script are in place. The accepted-signup event and the Plausible transport for server events follow in two later pull requests; until then a configured site counts pageviews only.
 
 ## The setting
 
@@ -47,4 +47,14 @@ The reported path is rebuilt from the published item with `contentPath`, never t
 
 ## What the browser sends
 
-When the script lands, the visitor's browser contacts Plausible directly. Plausible then sees what any network request carries: the visitor's IP address and user agent, which it uses for its own daily visitor count without storing them. Whether a site needs consent for this depends on its deployment and is the operator's legal assessment; Mycel makes no claim that a banner is unnecessary. A site that adds a consent manager or tag manager does so through the managed-integration route (ADR 022, ADR 024), not through this setting.
+Only the published content route asks for the decision, after the item has loaded; every other public route (confirmation, reader, giving, donation, search, people, media, feeds, errors) has no published item and gets nothing. An eligible page carries one tag, `<script defer src="/_site/pageview.js">`, with three data attributes: the fixed Plausible endpoint, the site identifier and the absolute URL of the decided path on the site's primary hostname. The script reads those attributes and nothing else of the page: not the browser's address, title, referrer, cookies or storage. It posts one request:
+
+```json
+{ "n": "pageview", "u": "https://example.org/articles/over-ons", "d": "example.org", "r": null }
+```
+
+The request carries no referrer and no credentials. Plausible's own script is not used: it reports the browser's address and referrer and would be a third-party script on the page. The identifier is part of the page's ETag, so switching measurement on or off is never hidden behind a cached `304`.
+
+All sites count to one Plausible installation, `PLAUSIBLE_ORIGIN` in core (`https://analytics.dreamkit.eu`, EU-hosted). It is the only origin added to the Content-Security-Policy, as `connect-src`; `script-src` stays `'self'`. A tenant never chooses where its visitors' browsers send requests: an installation with its own Plausible changes the constant and the policy together, in review.
+
+When the script runs, the visitor's browser contacts Plausible directly. Plausible then sees what any network request carries: the visitor's IP address and user agent, which it uses for its own daily visitor count without storing them. Whether a site needs consent for this depends on its deployment and is the operator's legal assessment; Mycel makes no claim that a banner is unnecessary. A site that adds a consent manager or tag manager does so through the managed-integration route (ADR 022, ADR 024), not through this setting.
