@@ -2,9 +2,19 @@
      shared overview pattern and stacked table, so nothing scrolls sideways at 320 CSS px. The
      filter is a plain GET form and paging is links: the page works without JavaScript. A status
      is a word, never colour alone. The filter's two actions stand in one wrapping group (skill
-     ui-action-layout). -->
+     ui-action-layout). Beside it the second list, the gifts that recur (`recurring/`), behind a
+     SubNav of links. -->
 <script lang="ts">
-  import { Actions, Badge, Button, OverviewPage, Select, Table } from '#lib/admin/ui/index.js';
+  import {
+    Actions,
+    Badge,
+    Button,
+    OverviewPage,
+    Select,
+    SubNav,
+    Table,
+  } from '#lib/admin/ui/index.js';
+  import { donationTabs } from '#lib/admin/donations/giving.js';
   import type { PaymentStatus } from '@mycel/core';
   import { formatWhen } from '#lib/admin/format.js';
   import { formatMoney } from '#lib/money.js';
@@ -50,6 +60,10 @@
       }}
   paging={data.paging}
 >
+  {#snippet intro()}<SubNav
+      label={t('admin.donations.title')}
+      items={donationTabs(t, base, 'payments')}
+    />{/snippet}
   {#snippet filters()}<form method="get" class="ui-fields">
       <Select
         id="donations-status"

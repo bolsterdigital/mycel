@@ -975,6 +975,18 @@ function toRenderForm(
             ...(f.custom !== false ? { otherLabel: translate(locale, 'forms.amount.other') } : {}),
           }
         : {}),
+      // Once only needs no question; anything else is asked, the first offered checked.
+      ...(f.type === 'amount' && f.intervals && f.intervals.join() !== 'once'
+        ? {
+            intervals: {
+              legend: translate(locale, 'forms.amount.interval'),
+              options: f.intervals.map((value) => ({
+                value,
+                label: translate(locale, `forms.amount.interval.${value}`),
+              })),
+            },
+          }
+        : {}),
     })),
   };
 }

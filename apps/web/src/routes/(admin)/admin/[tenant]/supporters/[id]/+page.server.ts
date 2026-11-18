@@ -1,5 +1,6 @@
 // One supporter of the site (`supporter.timeline.get`, brief MY-251 PR 2): who they are, their
-// lists, the campaigns they took part in, the access they hold and what they did. Only readers of
+// lists, the campaigns they took part in, the access they hold, what they give every month or year
+// (MY-254, with `donations:read`) and what they did. Only readers of
 // `supporters:read` get here, and the page changes one thing: an administrator gives or takes
 // back access to a tier (`supporter.access_grant.create|revoke`, ADR 016). Those use cases hold the
 // authorization (`tenant:admin`) and the tenant boundary; the load only decides whether to show
@@ -59,9 +60,29 @@ export const load: PageServerLoad = async ({ parent, locals, params }) => {
           name: pickAny(tier.name, locale, tenant.defaultLocale) ?? tier.slug,
         }))
     : [];
+  // What they give every month or year (MY-254), for a reader who may read donations.
+  const giving = can(principal, 'donations:read')
+    ? (
+        await loaded(
+          runtime().invoker.run(useCases.listSubscriptions, principal, {
+            supporterId: params.id,
+            limit: 20,
+          })
+        )
+      ).subscriptions
+        .filter((s) => s.status === 'active' || s.status === 'paused')
+        .map((s) => ({
+          id: s.id,
+          amount: s.amount,
+          currency: s.currency,
+          interval: s.interval,
+          paused: s.status === 'paused',
+        }))
+    : [];
   return {
     canGrant,
     tiers,
+    giving,
     supporter: timeline.supporter,
     participations,
     access,

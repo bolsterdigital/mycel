@@ -1,6 +1,6 @@
 <!-- Native per-field saves retain stable ids and all untouched locales. Shared controls own layout. -->
 <script lang="ts">
-  import { Actions, Button, Checkbox, Field, Fieldset } from '../ui/index.js';
+  import { Actions, Button, Checkbox, Choices, Field, Fieldset } from '../ui/index.js';
   import { ui, type UiKey } from '../../../i18n/index.js';
   import type { FormDefinition, FormField } from '@mycel/core';
   import Condition from './Condition.svelte';
@@ -131,6 +131,19 @@
       name="custom"
       label={t('admin.forms.custom')}
       checked={field?.type === 'amount' ? field.custom !== false : true}
+    />
+    <Choices
+      id="{key}-intervals"
+      name="intervals"
+      type="checkbox"
+      legend={t('admin.forms.intervals')}
+      hint={t('admin.forms.intervals.hint')}
+      {locale}
+      options={(['once', 'month', 'year'] as const).map((value) => ({
+        value,
+        label: t(`admin.forms.intervals.${value}`),
+      }))}
+      selected={field?.type === 'amount' && field.intervals ? field.intervals : ['once']}
     />
     <CopyFields
       id="{key}-label"

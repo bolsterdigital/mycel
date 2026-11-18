@@ -331,22 +331,28 @@ export const getSubscription = defineUseCase({
   name: 'donation.subscription.get',
   kind: 'query',
   description:
-    'Read one monthly or yearly gift (or membership) by id: amount, interval, status, until when it is paid (`paidThrough`), the next charge, failed attempts, its ledger (oldest entry first) and its payments (newest first).',
+    'Read one monthly or yearly gift (or membership) by id: amount, interval, status, until when it is paid (`paidThrough`), the next charge, failed attempts, its ledger (oldest entry first) and its payments (newest first). With `supporters:read` also the giver’s address, for a link to their page.',
   requires: 'donations:read',
   input: z.object({ subscriptionId: z.string().guid() }).strict(),
   output: z.object({
     subscription: Subscription,
     ledger: z.array(SubscriptionLedgerEntry),
     payments: z.array(Payment),
+    supporter: z.object({ id: z.string().guid(), email: z.string() }).nullable(),
   }),
   examples: [{ input: { subscriptionId: exampleId(0x1) } }],
   async handler(ctx, { subscriptionId }) {
     const subscription = await ctx.subscriptions.get(subscriptionId);
     if (!subscription) throw notFound('subscription');
+    const giver =
+      subscription.supporterId && can(ctx.principal, 'supporters:read')
+        ? await ctx.supporters.getProjectionById(subscription.supporterId)
+        : null;
     return {
       subscription,
       ledger: await ctx.subscriptions.ledger(subscriptionId),
       payments: await ctx.payments.list({ subscriptionId }, 0, MAX_PAGE_SIZE),
+      supporter: giver && !isTombstone(giver.email) ? { id: giver.id, email: giver.email } : null,
     };
   },
 });

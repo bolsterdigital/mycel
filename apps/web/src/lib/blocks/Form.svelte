@@ -103,6 +103,27 @@
     {@const describedBy =
       [error ? `${id}-error` : '', field.help ? `${id}-help` : ''].filter(Boolean).join(' ') ||
       undefined}
+    {#if field.intervals}
+      <!-- How often (MY-254): radio buttons above the amounts, posted as `<name>-interval`; the
+           first offered is checked, so a visitor who skips it gives as the form proposes. -->
+      {@const chosen = textValue(`${field.name}-interval`) || field.intervals.options[0]?.value}
+      <fieldset class="field amount interval">
+        <legend>{field.intervals.legend}</legend>
+        <div class="presets">
+          {#each field.intervals.options as option, i (option.value)}
+            <label class="preset"
+              ><input
+                id="{id}-interval{i ? `-${i}` : ''}"
+                type="radio"
+                name="{field.name}-interval"
+                value={option.value}
+                checked={chosen === option.value}
+              />{option.label}</label
+            >
+          {/each}
+        </div>
+      </fieldset>
+    {/if}
     {#if field.type === 'hidden'}
       <input type="hidden" name={field.name} value={field.value ?? ''} />
     {:else if field.type === 'amount' && field.presets}
