@@ -24,7 +24,7 @@ A tag manager's container is edited outside Mycel, so Mycel cannot review its ta
 
 1. Only a response that `pageviewDecision` would count qualifies: a successful GET of a published `public` HTML page. Admin, preview, reader, callback, confirm, token, form-action, error and redirect responses place nothing whatever the setting says ([analytics](analytics.md) § Pageviews).
 2. An embed is placed only where the page renders a video of that provider.
-3. The tag manager is not placed on a page with a `form`, `signup-form` or `paywall` block: tags can read what a visitor types (ADR 022 rule 6). Measuring conversions on such pages needs its own route review first.
+3. The tag manager is not placed on a page with a `form`, `signup-form`, `paywall` or `campaign-card` block (a card's `full` variant carries the petition or fundraiser form; the rule reads the block type, not its variant): tags can read what a visitor types (ADR 022 rule 6). Measuring conversions on such pages needs its own route review first.
 4. The response's CSP gains exactly the origins of what is placed, never a wildcard and never a tenant parameter.
 
 The server never reads the visitor's consent: pages stay cacheable, and the browser applies the choice before anything loads.

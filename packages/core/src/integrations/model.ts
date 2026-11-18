@@ -38,13 +38,23 @@ export type IntegrationConsent = 'click' | ConsentCategory;
 /**
  * Where an integration may run, on top of the published-public rule every integration shares
  * (`integrationDecision`). `public-content`: any eligible page. `public-content-without-input`: not
- * on a page where a visitor types personal data (a form, a signup, a reader sign-in), because a tag
- * manager's tags can read whatever the page shows and holds (ADR 022 rule 6).
+ * on a page where a visitor types personal data (a form, a signup, a campaign card, a reader
+ * sign-in), because a tag manager's tags can read whatever the page shows and holds (ADR 022 rule 6).
  */
 export type IntegrationRoutes = 'public-content' | 'public-content-without-input';
 
-/** Block types through which a visitor enters personal data on a public page. */
-export const PERSONAL_INPUT_BLOCKS: readonly string[] = ['form', 'signup-form', 'paywall'];
+/**
+ * Block types through which a visitor enters personal data on a public page. A `campaign-card`
+ * counts as a whole type: its `full` variant carries the petition or fundraiser form, and the
+ * decision reads block types only, never props (a card that later gains a form must not open a
+ * page to tags). Rejected: deciding per variant, which would tie the consent rule to block props.
+ */
+export const PERSONAL_INPUT_BLOCKS: readonly string[] = [
+  'form',
+  'signup-form',
+  'paywall',
+  'campaign-card',
+];
 
 /** The fields every manifest declares (ADR 022 rule 6). Text is English reference text; the admin shows its own copy. */
 export interface IntegrationManifest {

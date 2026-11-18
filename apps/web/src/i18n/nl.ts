@@ -3257,7 +3257,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.integrations.embed.hint':
     'De speler laadt pas van {hosts} als de bezoeker op de video klikt. Uit, of zonder JavaScript, is de video een link naar {name}.',
   'admin.site.integrations.gtm.warning':
-    'Tags in je container kunnen alles op de pagina lezen en naar hun makers sturen. Met een tagmanager geldt de belofte van deze site, geen cookies en geen bezoekersprofielen, niet meer; de tags in je container bepalen wat bezoekers delen. Op pagina’s met een formulier draait hij nooit.',
+    'Tags in je container kunnen alles op de pagina lezen en naar hun makers sturen. Met een tagmanager geldt de belofte van deze site, geen cookies en geen bezoekersprofielen, niet meer; de tags in je container bepalen wat bezoekers delen. Op pagina’s met een formulier of campagnekaart draait hij nooit.',
   'admin.site.integrations.gtm.enable': 'Google Tag Manager laden na toestemming',
   'admin.site.integrations.gtm.hint':
     'Laadt van {hosts}, pas als de bezoeker instemt met de categorie hieronder. Uitzetten bewaart de waarden hier.',

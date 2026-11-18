@@ -3224,7 +3224,7 @@ export const en = {
   'admin.site.integrations.embed.hint':
     'The player loads from {hosts} only after the visitor clicks the video. Off, or without JavaScript, the video is a link to {name}.',
   'admin.site.integrations.gtm.warning':
-    'Tags in your container can read everything on the page and send it to their makers. With a tag manager this site no longer keeps its promise of no cookies and no visitor profiles; the tags in your container decide what visitors share. It never runs on pages with a form.',
+    'Tags in your container can read everything on the page and send it to their makers. With a tag manager this site no longer keeps its promise of no cookies and no visitor profiles; the tags in your container decide what visitors share. It never runs on pages with a form or a campaign card.',
   'admin.site.integrations.gtm.enable': 'Load Google Tag Manager after consent',
   'admin.site.integrations.gtm.hint':
     'Loads from {hosts}, only after the visitor agrees to the category below. Switching it off keeps the values here.',

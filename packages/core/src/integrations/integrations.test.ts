@@ -220,7 +220,7 @@ describe('integration decision', () => {
   });
 
   it('places an embed but no tag manager where a visitor enters personal data', () => {
-    for (const input of ['form', 'signup-form', 'paywall']) {
+    for (const input of ['form', 'signup-form', 'paywall', 'campaign-card']) {
       const decision = integrationDecision(
         request,
         { blockTypes: ['video-embed', input], embeds: ['vimeo'] },

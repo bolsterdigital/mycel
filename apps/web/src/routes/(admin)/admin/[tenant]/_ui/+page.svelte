@@ -281,6 +281,21 @@
             { value: 'feed', label: t('admin.ui.catalogue.form.feed') },
           ]}
         />
+        <!-- A narrow question with an ⓘ: its legend wraps in every font, and the ⓘ stays clear of
+             the first box (#41 PR 1). -->
+        <Choices
+          id="ui-vendors"
+          name="vendors"
+          type="checkbox"
+          size="xs"
+          legend={t('admin.site.integrations.gtm.vendors')}
+          hint={t('admin.site.integrations.gtm.vendors.hint')}
+          locale={data.locale}
+          options={[
+            { value: 'ga4', label: 'GA4' },
+            { value: 'meta', label: 'Meta' },
+          ]}
+        />
         <Choices
           id="ui-long"
           name="long"

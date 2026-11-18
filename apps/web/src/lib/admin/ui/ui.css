@@ -160,6 +160,15 @@
     width: 1.125em;
     height: 1.125em;
   }
+  /* In a legend the ⓘ's 44px box hangs below its line by what it adds beyond one line of text.
+     Next to a Choices group's first 20px box that overhang came within 24px of it once the legend
+     wrapped and the ⓘ started a line of its own (axe target-size in CI's wider font, #41 PR 1).
+     The legend reserves the overhang, so the ⓘ never reaches into what follows, wrapped or not.
+     Rejected: shortening the one legend that wrapped, and a margin on the ⓘ, which makes every
+     legend line with an ⓘ a full target tall. */
+  :is(.ui-fieldset, .ui-media-picker) > legend:has(> .ui-hint-toggle) {
+    padding-block-end: max(0px, (var(--tap) - 1lh) / 2);
+  }
   /* Open, the hint is a small card under its ⓘ where the browser can anchor it (the invoker is
      the popover's implicit anchor), centred on the screen elsewhere; either way it never widens
      the page at 320 CSS px. */
