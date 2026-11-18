@@ -58,6 +58,7 @@ import {
 import type { ProviderPayment } from './ports.js';
 import './ports.js';
 import { onPaymentSettled } from './subscription-steps.js';
+import { Interval } from './subscription-model.js';
 
 const TOKEN_PREFIX = 'donation:';
 /** The place in `returnUrl` where the donor's token goes. */
@@ -366,6 +367,8 @@ export interface DonationStart {
   submissionId?: string | undefined;
   /** The fundraiser the donation form is bound to; `form.submit` decided it accepts now. */
   campaignId?: string | undefined;
+  /** The address the form was filled in with; passed to the provider on a first payment only. */
+  email?: string | undefined;
 }
 
 /**
@@ -421,8 +424,9 @@ export async function startPayment(
     throw new UseCaseError('invalid_input', 'returnUrl is not on this site', [
       { path: 'returnUrl', message: 'donation.return-url.foreign' },
     ]);
-  if (input.supporterId && !(await liveSupporter(ctx, input.supporterId)))
-    throw notFound('supporter');
+  const named = input.supporterId ? await liveSupporter(ctx, input.supporterId) : null;
+  if (input.supporterId && !named) throw notFound('supporter');
+  const email = first ? (input.email ?? named?.email) : undefined;
 
   const id = ctx.ids.next();
   const token = await ctx.signer.sign(`${TOKEN_PREFIX}${id}`);
@@ -438,6 +442,7 @@ export async function startPayment(
       returnUrl: input.returnUrl.replace(RETURN_TOKEN, encodeURIComponent(token)),
       locale: input.locale,
       sequence: first ? 'first' : 'oneoff',
+      ...(email ? { email } : {}),
     });
   } catch {
     // The provider's message may quote what we sent; the log line names only the adapter.
@@ -512,12 +517,21 @@ export const checkDonationReturn = defineUseCase({
   name: 'donation.return.check',
   kind: 'command',
   description:
-    'The donor’s return page: ask the payment provider where the donation of this return `token` stands and record it (cause `return`). Returns the status, amount, currency and, while it is open, where to pay; nothing about the donor. The one donation use case a public visitor reaches.',
+    'The donor’s return page: ask the payment provider where the donation of this return `token` stands and record it (cause `return`). Returns the status, amount, currency, how often it is given (`interval`, null for a one-off gift) and, while it is open, where to pay; nothing about the donor. The one donation use case a public visitor reaches.',
   requires: 'donations:write',
   input: z.object({ token: z.string().min(1).max(500) }).strict(),
-  output: DonationOutcome,
+  output: DonationOutcome.extend({ interval: Interval.nullable() }),
   examples: [{ input: { token: 'donation:example~signature' } }],
-  handler: async (ctx, { token }) => checkPayment(ctx, await paymentOfToken(ctx, token), 'return'),
+  async handler(ctx, { token }) {
+    const id = await paymentOfToken(ctx, token);
+    const outcome = await checkPayment(ctx, id, 'return');
+    // The first payment of a monthly or yearly gift says so ("€ 10 per month").
+    const payment = await ctx.payments.get(id);
+    const sub = payment?.subscriptionId
+      ? await ctx.subscriptions.get(payment.subscriptionId)
+      : null;
+    return { ...outcome, interval: sub?.interval ?? null };
+  },
 });
 
 /**

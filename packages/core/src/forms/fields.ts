@@ -28,6 +28,29 @@ const Amount = z
 
 /** The name under which an amount field with presets posts its own amount. */
 export const otherAmountName = (name: string): string => `${name}-other`;
+
+/** How often a gift is given (MY-254): once, or every month or year by mandate. */
+export const GiftInterval = z.enum(['once', 'month', 'year']);
+export type GiftInterval = z.infer<typeof GiftInterval>;
+
+/** The name under which an amount field with `intervals` posts the chosen one. */
+export const intervalName = (name: string): string => `${name}-interval`;
+
+/**
+ * The interval a visitor chose on `field`: the posted one when the field offers it, the first
+ * offered when nothing was posted, null for anything else. Without `intervals` a gift is once.
+ */
+export function chosenInterval(
+  field: { name: string; intervals?: readonly GiftInterval[] | undefined },
+  raw: Readonly<Record<string, FieldValue>>
+): GiftInterval | null {
+  const offered = field.intervals ?? ['once'];
+  const posted = raw[intervalName(field.name)];
+  if (posted === undefined || posted === '') return offered[0]!;
+  return typeof posted === 'string' && (offered as readonly string[]).includes(posted)
+    ? (posted as GiftInterval)
+    : null;
+}
 const Atom = z.discriminatedUnion('op', [
   z.object({
     op: z.enum(['equals', 'not-equals']),
@@ -93,6 +116,17 @@ export const FormField = z.discriminatedUnion('type', [
      * for them.
      */
     custom: z.boolean().optional(),
+    /**
+     * On a donation form: how often the visitor may give, in the order offered, the first chosen
+     * by default (MY-254). Posted as `<name>-interval`; absent means once only. Monthly and
+     * yearly start a subscription, so they exist only where Mycel charges (brief choice 16).
+     */
+    intervals: z
+      .array(GiftInterval)
+      .min(1)
+      .max(3)
+      .refine((a) => new Set(a).size === a.length)
+      .optional(),
   }),
   z.object({ ...common, type: z.literal('date') }),
   z.object({ ...common, type: z.enum(['choice', 'multiple-choice']), options }),

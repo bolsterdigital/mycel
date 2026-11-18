@@ -256,6 +256,87 @@ describe('the donor’s return page', () => {
   });
 });
 
+describe('giving monthly or yearly (MY-254 PR 2)', () => {
+  async function offering(intervals: ('once' | 'month' | 'year')[] | undefined) {
+    const env = await setup();
+    const { version } = await env.invoker.run(useCases.getForm, env.admin, { id: env.form.id });
+    await env.invoker.run(useCases.updateForm, env.admin, {
+      baseVersion: version,
+      value: {
+        ...env.form,
+        fields: env.form.fields.map((f) => (f.type === 'amount' ? { ...f, intervals } : f)),
+      },
+    });
+    return env;
+  }
+
+  it('starts a subscription with a first payment that asks for a mandate', async () => {
+    const { give, invoker, admin, provider } = await offering(['once', 'month', 'year']);
+    const result = await give({ amount: '10', 'amount-interval': 'month' });
+    expect(result).toMatchObject({ status: 'accepted' });
+    if (result.status !== 'accepted') throw new Error('not accepted');
+    expect(provider!.requests.at(-1)).toMatchObject({
+      sequence: 'first',
+      amount: 1000,
+      description: 'Maandelijkse donatie',
+      email: 'gever@example.org',
+    });
+    const [sub] = (await invoker.run(useCases.listSubscriptions, admin, {})).subscriptions;
+    expect(sub).toMatchObject({ status: 'pending', interval: 'month', amount: 1000 });
+    const visitor = anonymousPrincipal(TENANT, ['donations:write']);
+    const back = () => invoker.run(useCases.checkDonationReturn, visitor, { token: result.token! });
+    provider!.settle(`fake_${provider!.requests.at(-1)!.key}`, 'paid');
+    expect(await back()).toMatchObject({ status: 'paid', interval: 'month' });
+    const { subscription } = await invoker.run(useCases.getSubscription, admin, {
+      subscriptionId: sub!.id,
+    });
+    expect(subscription).toMatchObject({ status: 'active', periodsPaid: 1 });
+    expect(subscription.supporterId).not.toBeNull();
+  });
+
+  it('gives once by default, and only at an interval the field offers', async () => {
+    const plain = await offering(undefined);
+    expect(await plain.give({ amount: '10', 'amount-interval': 'month' })).toEqual({
+      status: 'invalid',
+      errors: [{ field: 'amount', message: 'forms.error.value' }],
+    });
+    const monthly = await offering(['month', 'once']);
+    expect(await monthly.give({ amount: '10', 'amount-interval': 'year' })).toMatchObject({
+      status: 'invalid',
+    });
+    // Nothing posted: the first one offered, as the radio the page checks.
+    await monthly.give({ amount: '10' });
+    expect(monthly.provider!.requests.at(-1)).toMatchObject({ sequence: 'first' });
+    await monthly.give({ amount: '10', 'amount-interval': 'once' });
+    expect(monthly.provider!.requests.at(-1)).toMatchObject({ sequence: 'oneoff' });
+    expect(monthly.provider!.requests.at(-1)).not.toHaveProperty('email');
+    const { payments } = monthly;
+    expect((await payments()).donations.map((d) => d.kind)).toEqual(['donation', 'donation']);
+  });
+
+  it('offers monthly only on a donation form', async () => {
+    const { form } = await setup();
+    const signup = {
+      ...form,
+      kind: 'signup',
+      fields: [
+        ...form.fields.map((f) =>
+          f.type === 'amount' ? { ...f, intervals: ['once', 'month'] } : f
+        ),
+      ],
+    };
+    expect(FormSchema.safeParse(signup).success).toBe(false);
+    expect(FormSchema.safeParse({ ...signup, kind: 'donation' }).success).toBe(true);
+  });
+
+  it('refuses monthly when the provider cannot charge a mandate, and stores nothing', async () => {
+    const { give, invoker, admin, provider } = await offering(['once', 'month']);
+    (provider as { chargeMandate?: unknown }).chargeMandate = undefined;
+    await expectCode(give({ amount: '10', 'amount-interval': 'month' }), 'conflict');
+    expect((await invoker.run(useCases.listSubscriptions, admin, {})).subscriptions).toEqual([]);
+  });
+});
+
 describe('the scheduled reconciliation', () => {
   it('asks after payments left open longer than a quarter of an hour', async () => {
     const { give, uow, admin, clock, provider, invoker } = await setup();

@@ -24,6 +24,11 @@ export const JobPayloads = {
    * donor's return. Each payment in its own transaction.
    */
   'donations.reconcile': z.object({}).strict(),
+  /**
+   * Platform job: per tenant, ask after charge attempts left without an answer, then charge every
+   * monthly or yearly gift whose period ended (MY-254, `dueSubscriptions`); hourly.
+   */
+  'subscriptions.charge': z.object({}).strict(),
   /** Platform job: delete expired rate-limit windows as mycel_janitor (ADR 011 rule 2). */
   'rate_limits.sweep': z.object({}).strict(),
   /** Tenant job from before the trash: remove an asset the trash no longer offers back. */

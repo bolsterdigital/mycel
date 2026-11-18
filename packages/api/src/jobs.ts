@@ -30,8 +30,12 @@ import {
   runAssistSuggestion,
   retainAssistSuggestions,
   retentionCutoffs,
+  chargeSubscription,
   checkPayment,
   dueDonations,
+  dueSubscriptions,
+  reconcileChargeAttempt,
+  staleChargeAttempts,
   type Clock,
   type DomainEvent,
   type ErrorReporter,
@@ -91,6 +95,7 @@ export const RECURRING_JOBS: readonly RecurringJob[] = [
   { type: 'erasures.apply', cadence: 'daily' },
   { type: 'retention.apply', cadence: 'daily' },
   { type: 'donations.reconcile', cadence: 'hourly' },
+  { type: 'subscriptions.charge', cadence: 'hourly' },
 ];
 
 /**
@@ -253,6 +258,47 @@ export function reconcileAllDonations(
   );
 }
 
+/**
+ * `subscriptions.charge` (ADR 005 rules 4 and 5, MY-254): per tenant, first the charge attempts
+ * whose answer never came and that waited a quarter of an hour (asked after by key, ADR 019 rule
+ * 6), then every subscription whose period ended, each charged in its own transactions
+ * (`chargeSubscription`). Hourly, so a charge is at most an hour late; the cycle does not move
+ * with it (brief choice 4). A subscription that throws is left for the next hour. Called without
+ * the registry, like the reconciliation: the subscription's ledger is the record. Returns how
+ * many attempts it settled and subscriptions it charged, failed or ended; one still in flight or
+ * waiting is not counted.
+ */
+export function chargeAllSubscriptions(
+  uow: UnitOfWork,
+  tenantIds: () => Promise<string[]>,
+  errors?: ErrorReporter
+): Promise<number> {
+  return forEachTenant(
+    'subscriptions.charge',
+    tenantIds,
+    async (id) => {
+      const principal = systemPrincipal(id, 'jobs:subscriptions.charge');
+      let handled = 0;
+      for (const key of await uow.run(principal, (ctx) => staleChargeAttempts(ctx)))
+        try {
+          const result = await reconcileChargeAttempt(uow, principal, key);
+          if (result === 'recorded' || result === 'none-made') handled++;
+        } catch {
+          // The provider or the database did not answer about this one; next hour asks again.
+        }
+      for (const subscriptionId of await uow.run(principal, (ctx) => dueSubscriptions(ctx)))
+        try {
+          const result = await chargeSubscription(uow, principal, subscriptionId);
+          if (result !== 'not-due' && result !== 'in-flight' && result !== 'no-provider') handled++;
+        } catch {
+          // `chargeSubscription` leaves an attempt it could not settle `unknown`; next hour.
+        }
+      return handled;
+    },
+    errors
+  );
+}
+
 /** What the export jobs need: the store the archives go to and the version in the manifest. */
 export interface ExportJobConfig {
   blobs: BlobStore;
@@ -410,6 +456,9 @@ export function jobHandlers({
     'events.partitions': platformJob('events.partitions', () => createEventPartitions(operatorDb)),
     'donations.reconcile': platformJob('donations.reconcile', () =>
       reconcileAllDonations(uow, tenantIds, errors)
+    ),
+    'subscriptions.charge': platformJob('subscriptions.charge', () =>
+      chargeAllSubscriptions(uow, tenantIds, errors)
     ),
     'rate_limits.sweep': platformJob('rate_limits.sweep', () => sweepRateLimits(operatorDb)),
     // Deleting files is not publishing: a suspended tenant's purge still runs.

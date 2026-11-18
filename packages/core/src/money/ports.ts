@@ -59,6 +59,11 @@ export interface CheckoutRequest {
   locale: string;
   /** `first` asks the donor for a mandate as well (a subscription's first payment). */
   sequence: 'oneoff' | 'first';
+  /**
+   * The donor's address, on a first payment only: a mandate belongs to a customer at the
+   * provider, which knows them by it (MY-254). A one-off gift sends none.
+   */
+  email?: string | undefined;
 }
 
 export interface ChargeRequest {
