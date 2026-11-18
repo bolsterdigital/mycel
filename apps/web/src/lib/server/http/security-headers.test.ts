@@ -1,12 +1,13 @@
 // The header values per kind of response (brief #20c decision 1). Negative cases: HSTS never
 // over plain HTTP and never with includeSubDomains/preload; a route's own value is kept; the
-// admin's CSP loses only its frame-ancestors source list; a public page frames only placed players.
+// admin's CSP loses only its frame-ancestors source list; a public page gains only its placed
+// integrations' origins.
 import { describe, expect, it } from 'vitest';
 import {
   applySecurityHeaders,
   CLEAR_ON_LOGOUT,
   denyFraming,
-  frameSources,
+  pageSources,
   refusedCrossSite,
   securityHeaders,
   shareable,
@@ -124,22 +125,42 @@ describe('applySecurityHeaders', () => {
     );
   });
 
-  it('frames exactly the placed players on a public page, never on admin', () => {
-    const policy = "default-src 'self'; script-src 'self' 'nonce-abc'; frame-ancestors 'self'";
+  it('adds exactly the placed origins on a public page, never on admin', () => {
+    const policy =
+      "default-src 'self'; script-src 'self' 'nonce-abc'; connect-src 'self' https://a.example; frame-ancestors 'self'; trusted-types mycel-inert-html";
+    const none = { script: [], connect: [], img: [], frame: [], defaultPolicy: false };
     const players = ['https://www.youtube-nocookie.com', 'https://player.vimeo.com'];
     const pub = new Headers({ 'content-security-policy': policy });
-    applySecurityHeaders(pub, 'public', false, false, players);
+    applySecurityHeaders(pub, 'public', false, false, { ...none, frame: players });
     expect(pub.get('content-security-policy')).toBe(
       `${policy}; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com`
     );
     // An existing frame-src is replaced, not widened; nothing placed leaves the policy as it was.
-    expect(frameSources(`${policy}; frame-src https://evil.example`, players.slice(0, 1))).toBe(
-      `${policy}; frame-src 'self' https://www.youtube-nocookie.com`
-    );
-    expect(frameSources(policy, [])).toBe(policy);
+    expect(
+      pageSources(`${policy}; frame-src https://evil.example`, {
+        ...none,
+        frame: players.slice(0, 1),
+      })
+    ).toBe(`${policy}; frame-src 'self' https://www.youtube-nocookie.com`);
+    expect(pageSources(policy, none)).toBe(policy);
+    // A tag manager: the nonce and the config's own sources stay, the origins join them once, a
+    // missing directive starts from 'self', and the `default` policy name joins the allowed ones.
+    const gtm = 'https://www.googletagmanager.com';
+    const tags = pageSources(policy, {
+      script: [gtm],
+      connect: [gtm, 'https://a.example'],
+      img: [gtm],
+      frame: [],
+      defaultPolicy: true,
+    });
+    expect(tags).toContain(`script-src 'self' 'nonce-abc' ${gtm}`);
+    expect(tags).toContain(`connect-src 'self' https://a.example ${gtm};`);
+    expect(tags).toContain(`img-src 'self' ${gtm}`);
+    expect(tags).toContain('trusted-types mycel-inert-html default');
+    expect(tags).not.toContain('frame-src');
     const admin = new Headers({ 'content-security-policy': policy });
-    applySecurityHeaders(admin, 'admin', false, false, players);
-    expect(admin.get('content-security-policy')).not.toContain('frame-src');
+    applySecurityHeaders(admin, 'admin', false, false, { ...none, frame: players, script: [gtm] });
+    expect(admin.get('content-security-policy')).not.toMatch(/frame-src|googletagmanager/);
   });
 
   it('adds no CSP where SvelteKit generated none', () => {

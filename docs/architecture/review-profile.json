@@ -73,6 +73,8 @@
         "apps/web/src/lib/server/public/confirm*",
         "apps/web/src/lib/server/public/reader*",
         "apps/web/src/lib/server/public/scripts/**",
+        "apps/web/src/routes/(public)/[tenant]/_consent/**",
+        "apps/web/static/_site/consent.js",
         "apps/web/src/lib/server/public/form-post*",
         "apps/web/src/lib/server/public/giving/**",
         "apps/web/src/lib/server/public/has-form*",

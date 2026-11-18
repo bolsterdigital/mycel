@@ -12,6 +12,7 @@
   import Intro from '#lib/blocks/Intro.svelte';
   import Prefooter from '#lib/components/public/Prefooter.svelte';
   import ReaderGate from '#lib/components/public/ReaderGate.svelte';
+  import ConsentBanner from '#lib/components/public/ConsentBanner.svelte';
   import { placeEmbeds } from '#lib/blocks/embeds.js';
   import type { PageProps } from './$types';
 
@@ -75,6 +76,17 @@
         data-url={data.pageview.url}
       ></script>{/if}
     {#if data.embeds.length > 0}<script defer src="/_site/embed.js"></script>{/if}
+    {#if data.consent}
+      <link rel="stylesheet" href="/_site/consent.css" />
+      <script
+        defer
+        src="/_site/consent.js"
+        data-container={data.consent.container}
+        data-category={data.consent.category}
+        data-scripts={data.consent.scripts.join(' ')}
+        data-path={data.consent.cookiePath}
+      ></script>
+    {/if}
   {/if}
 </svelte:head>
 
@@ -87,6 +99,7 @@
     <p><a href={data.back.href}>{data.back.label}</a></p>
   </main>
 {:else}
+  {#if data.consent}<ConsentBanner consent={data.consent} />{/if}
   <main class="page" data-drop-cap={data.dropCap ? '' : undefined}>
     <Intro intro={data.intro} model={data.model} />
     {#if orphanMessage}

@@ -91,14 +91,47 @@ export function frameAncestors(policy: string, source: "'none'" | "'self'"): str
 }
 
 /**
- * A public page that places a video player may frame its own origin and exactly the players'
- * origins its integration decision named (docs/reference/integrations.md); without it, frames
- * fall back to `default-src 'self'`. The origins come from core's catalogue, never from a tenant.
+ * The sources one public response adds to the policy SvelteKit generated, from its integration
+ * decision (docs/reference/integrations.md): the catalogue's origins per direction, never a
+ * tenant's value, and whether the page may create the `default` Trusted Types policy that lets a
+ * tag manager's script URLs through (`static/_site/consent.js`).
  */
-export function frameSources(policy: string, origins: readonly string[]): string {
-  return origins.length === 0
-    ? policy
-    : directive(policy, 'frame-src', ["'self'", ...origins].join(' '));
+export interface PageSources {
+  script: readonly string[];
+  connect: readonly string[];
+  img: readonly string[];
+  frame: readonly string[];
+  defaultPolicy: boolean;
+}
+
+/**
+ * The policy with the page's sources added. A source list the config already has (script,
+ * connect, img) keeps its values, nonce included, and gains the origins; frames get `'self'` plus
+ * exactly the origins, replacing any earlier `frame-src`, because without one they fall back to
+ * `default-src 'self'`. Nothing to add leaves the policy as it was.
+ */
+export function pageSources(policy: string, sources: PageSources): string {
+  let out = policy;
+  for (const name of ['script', 'connect', 'img'] as const)
+    if (sources[name].length > 0) out = widen(out, `${name}-src`, sources[name]);
+  if (sources.frame.length > 0)
+    out = directive(out, 'frame-src', ["'self'", ...sources.frame].join(' '));
+  if (sources.defaultPolicy) out = widen(out, 'trusted-types', ['default']);
+  return out;
+}
+
+const valuesOf = (policy: string, name: string): string[] | null => {
+  const found = policy
+    .split(';')
+    .map((d) => d.trim().split(/\s+/))
+    .find(([n]) => n?.toLowerCase() === name);
+  return found ? found.slice(1) : null;
+};
+
+/** One directive gains values it does not have yet; a missing one starts from `'self'`. */
+function widen(policy: string, name: string, values: readonly string[]): string {
+  const current = valuesOf(policy, name) ?? (name === 'trusted-types' ? [] : ["'self'"]);
+  return directive(policy, name, [...new Set([...current, ...values])].join(' '));
 }
 
 /** The policy with one directive replaced, or appended when it had none; the rest untouched. */
@@ -117,13 +150,13 @@ export function applySecurityHeaders(
   kind: ResponseKind,
   https: boolean,
   liveDraft = false,
-  frames: readonly string[] = []
+  sources: PageSources | null = null
 ): void {
   for (const [name, value] of Object.entries(securityHeaders(kind, https)))
     if (!headers.has(name)) headers.set(name, value);
   const policy = headers.get('content-security-policy');
-  if (kind === 'public' && policy && frames.length > 0)
-    headers.set('content-security-policy', frameSources(policy, frames));
+  if (kind === 'public' && policy && sources)
+    headers.set('content-security-policy', pageSources(policy, sources));
   if (kind === 'admin' && policy)
     headers.set('content-security-policy', frameAncestors(policy, liveDraft ? "'self'" : "'none'"));
 }

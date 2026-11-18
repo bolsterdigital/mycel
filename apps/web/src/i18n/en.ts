@@ -633,6 +633,27 @@ export const en = {
   'public.menu.close': 'Close',
   'public.menu.sublinks': '{label}: sublinks',
   'public.footerNavigation': 'Footer',
+  'consent.banner.title': 'Tags on this site',
+  'consent.banner.body':
+    'With your consent this site loads {loads}. Without it, nothing of theirs loads.',
+  'consent.banner.accept': 'Accept all',
+  'consent.banner.necessary': 'Necessary only',
+  'consent.banner.choose': 'Choose',
+  'consent.vendor': '{name} by {vendor}',
+  'consent.footer': 'Cookie settings',
+  'consent.page.title': 'Cookie settings',
+  'consent.page.intro':
+    'Choose what this site may load besides what it needs to work. You can change your choice at any time through the link at the bottom of a page.',
+  'consent.page.necessary':
+    'Necessary: what the site needs to work, such as remembering this choice. Always on.',
+  'consent.page.save': 'Save choice',
+  'consent.page.back': 'Back to the page',
+  'consent.category.analytics': 'Statistics',
+  'consent.category.analytics.hint': 'Counting and analysing visits.',
+  'consent.category.marketing': 'Marketing',
+  'consent.category.marketing.hint': 'Measuring campaigns and showing ads elsewhere.',
+  'consent.category.loads': 'Loads: {loads}.',
+  'consent.category.nothing': 'This site loads nothing in this category.',
   'public.navigation.home': 'Home',
   'public.navigation.search': 'Search',
   'admin.site.conflict':

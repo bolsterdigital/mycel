@@ -639,6 +639,27 @@ export const nl: Partial<Record<UiKey, string>> = {
   'public.menu.close': 'Sluiten',
   'public.menu.sublinks': "{label}: onderliggende pagina's",
   'public.footerNavigation': 'Voettekst',
+  'consent.banner.title': 'Tags op deze site',
+  'consent.banner.body':
+    'Met je toestemming laadt deze site {loads}. Zonder toestemming laadt er niets van hen.',
+  'consent.banner.accept': 'Alles accepteren',
+  'consent.banner.necessary': 'Alleen noodzakelijk',
+  'consent.banner.choose': 'Kiezen',
+  'consent.vendor': '{name} van {vendor}',
+  'consent.footer': 'Cookie-instellingen',
+  'consent.page.title': 'Cookie-instellingen',
+  'consent.page.intro':
+    'Kies wat deze site mag laden naast wat nodig is om te werken. Je kunt je keuze altijd wijzigen via de link onderaan een pagina.',
+  'consent.page.necessary':
+    'Noodzakelijk: wat de site nodig heeft om te werken, zoals het onthouden van deze keuze. Altijd aan.',
+  'consent.page.save': 'Keuze opslaan',
+  'consent.page.back': 'Terug naar de pagina',
+  'consent.category.analytics': 'Statistiek',
+  'consent.category.analytics.hint': 'Bezoeken tellen en analyseren.',
+  'consent.category.marketing': 'Marketing',
+  'consent.category.marketing.hint': 'Campagnes meten en elders advertenties tonen.',
+  'consent.category.loads': 'Laadt: {loads}.',
+  'consent.category.nothing': 'Deze site laadt niets in deze categorie.',
   'public.navigation.home': 'Home',
   'public.navigation.search': 'Zoeken',
   'admin.site.conflict':

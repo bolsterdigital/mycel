@@ -65,4 +65,5 @@
     credit={data.credit}
     locale={data.locale}
     {current}
+    consentHref={page.data.consent?.choiceHref ?? null}
   />{/if}
