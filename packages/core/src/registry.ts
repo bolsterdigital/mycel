@@ -116,6 +116,9 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   'donation.self.get',
   'donation.self.request',
   'donation.self.update',
+  // The return page of a paid membership (MY-254 PR 4): the return token names the payment, and
+  // the sign-in link goes to the address that paid, never to the page.
+  'donation.signin.request',
   'form.get',
   'form.submit',
   'mailing.opt_in.confirm',

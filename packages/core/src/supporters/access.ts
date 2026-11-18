@@ -16,11 +16,14 @@ import { exampleId } from '../util/ids.js';
 import '../content/ports.js';
 import { isTombstone } from './erasure.js';
 import { SupporterEvent } from './events.js';
-import { AccessGrantKind, SupporterProjection } from './model.js';
+import { SupporterProjection } from './model.js';
 import { SOURCE, appendAndFold } from './service.js';
 import './ports.js';
 
 const Reason = z.string().trim().min(1).max(500);
+
+/** What an operator may give by hand: a `paid` grant only comes from a paid membership period. */
+const ManualGrantKind = z.enum(['comp', 'gift']);
 
 /**
  * The live supporter under its address lock (ADR 019 rule 3), read again after the lock so the
@@ -81,7 +84,7 @@ export const createAccessGrant = defineUseCase({
   input: z.object({
     supporterId: z.string().guid(),
     tierId: z.string().guid(),
-    kind: AccessGrantKind,
+    kind: ManualGrantKind,
     reason: Reason,
     until: z.string().datetime({ offset: true }).optional(),
   }),

@@ -16,6 +16,7 @@ import {
   type Invoker,
   type UnitOfWork,
 } from '@mycel/core';
+import { expectedMembership, observeMembership } from './membership-rule.js';
 
 /** The fake clock of the suite: the scenario moves it to the end of each period. */
 interface Clock {
@@ -99,6 +100,8 @@ export async function observeSubscription(
   const until = (at: string) => clock.advance(Date.parse(at) - clock.now().getTime());
   const chargesOf = (id: string) => provider.charges.filter((c) => c.key.includes(id)).length;
 
+  // A membership (PR 4) charges like a gift and grants its tier per paid period.
+  const membership = await observeMembership(invoker, uow, provider, clock, tenant);
   const noor = await supporter('noor-monthly@example.org');
   const gone = await supporter('gone-monthly@example.org');
   const monthly = await start(1000, noor.id);
@@ -182,6 +185,7 @@ export async function observeSubscription(
     );
 
   return {
+    membership,
     started: {
       status: pending,
       firstSequence: (await read(monthly.subscriptionId)).payments.at(-1)?.sequence,
@@ -263,6 +267,7 @@ export async function observeSubscription(
 }
 
 export const expectedSubscription = {
+  membership: expectedMembership,
   started: { status: 'pending', firstSequence: 'first' },
   active: { status: 'active', periodsPaid: 1, mandate: true, dueAtPeriodEnd: true },
   charged: 'charged',

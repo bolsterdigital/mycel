@@ -741,7 +741,7 @@ export function sectionRepository(trx: Trx, tenantId: string): SluggedRepository
   };
 }
 
-/** Access tiers (0068): the shape of `sectionRepository`, plus the fixed `kind`. No delete. */
+/** Access tiers (0068, prices 0079): the shape of `sectionRepository`, plus the fixed `kind`. No delete. */
 export function accessTierRepository(trx: Trx, tenantId: string): SluggedRepository<AccessTier> {
   const toTier = (r: Selectable<Database['access_tiers']>): AccessTier =>
     AccessTier.parse({
@@ -751,6 +751,9 @@ export function accessTierRepository(trx: Trx, tenantId: string): SluggedReposit
       ...(r.description ? { description: r.description } : {}),
       order: r.sort_order,
       kind: r.kind,
+      prices: r.prices,
+      priceVersion: r.price_version,
+      signupPath: r.signup_path,
       createdAt: toIso(r.created_at),
       updatedAt: toIso(r.updated_at),
     });
@@ -758,6 +761,9 @@ export function accessTierRepository(trx: Trx, tenantId: string): SluggedReposit
     name: JSON.stringify(t.name),
     description: t.description ? JSON.stringify(t.description) : null,
     sort_order: t.order,
+    prices: JSON.stringify(t.prices),
+    price_version: t.priceVersion,
+    signup_path: t.signupPath,
     updated_at: t.updatedAt,
   });
   const rows = () => trx.selectFrom('access_tiers').selectAll();

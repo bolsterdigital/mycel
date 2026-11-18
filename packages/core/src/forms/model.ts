@@ -9,13 +9,18 @@ export { FormField } from './fields.js';
 
 /**
  * What a form is for. `donation` (MY-252 PR 2) also starts a payment: its one `amount` field is
- * the gift, and an accepted submission returns where the visitor pays.
+ * the gift, and an accepted submission returns where the visitor pays. `membership` (MY-254 PR 4)
+ * buys the paid tier it names (`tierId`) at the tier's price for the interval the visitor picks;
+ * it has no amount field, since nobody types the price of a membership.
  */
-export const FormKind = z.enum(['signup', 'contact', 'petition', 'rsvp', 'donation']);
+export const FormKind = z.enum(['signup', 'contact', 'petition', 'rsvp', 'donation', 'membership']);
 export type FormKind = z.infer<typeof FormKind>;
 
 /** Kinds whose ticked consent field joins the form's list (a donor may also subscribe). */
-export const JOINING_KINDS: readonly FormKind[] = ['signup', 'petition', 'donation'];
+export const JOINING_KINDS: readonly FormKind[] = ['signup', 'petition', 'donation', 'membership'];
+
+/** Kinds whose accepted submission opens a payment. */
+export const PAYING_KINDS: readonly FormKind[] = ['donation', 'membership'];
 
 /** The field that holds the gift of a donation form. */
 export const donationAmountField = (form: Pick<FormDefinition, 'fields'>) =>
@@ -36,6 +41,8 @@ export const FormDefinition = z
     consentTextVersion: z.string().min(1),
     /** Minimum seconds between rendering and submitting; faster is treated as a bot. */
     minFillSeconds: z.number().int().min(0).max(60).default(3),
+    /** A membership form only: the paid tier it sells (MY-254 PR 4). */
+    tierId: z.string().guid().optional(),
   })
   .refine((f) => f.fields.filter((x) => x.type === 'email').length === 1, {
     message: 'forms.signup.needs-one-email-field',
@@ -63,6 +70,13 @@ export const FormDefinition = z
       !f.fields.some((x) => x.type === 'amount' && x.intervals?.some((i) => i !== 'once')),
     { message: 'forms.amount.intervals-donation-only' }
   )
+  // A membership form names the tier it sells, and only it does; its price is the tier's.
+  .refine((f) => (f.kind === 'membership') === (f.tierId !== undefined), {
+    message: 'forms.membership.needs-tier',
+  })
+  .refine((f) => f.kind !== 'membership' || !f.fields.some((x) => x.type === 'amount'), {
+    message: 'forms.membership.no-amount-field',
+  })
   .refine((f) => f.fields.some((x) => x.type === 'email' && x.required && !x.activeWhen), {
     message: 'forms.needs-active-required-email',
   });

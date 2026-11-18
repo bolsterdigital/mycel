@@ -507,7 +507,8 @@ export const checkDonation = defineUseCase({
 });
 
 /** The payment a donor's return token names; a forged token and an unknown payment alike. */
-async function paymentOfToken(ctx: TransactionContext, token: string): Promise<string> {
+/** The payment a return token names; `not_found` for a forged one or another site's. */
+export async function paymentOfToken(ctx: TransactionContext, token: string): Promise<string> {
   const payload = await ctx.signer.verify(token);
   if (!payload?.startsWith(TOKEN_PREFIX)) throw notFound('donation');
   return payload.slice(TOKEN_PREFIX.length);
@@ -517,10 +518,10 @@ export const checkDonationReturn = defineUseCase({
   name: 'donation.return.check',
   kind: 'command',
   description:
-    'The donor’s return page: ask the payment provider where the donation of this return `token` stands and record it (cause `return`). Returns the status, amount, currency, how often it is given (`interval`, null for a one-off gift) and, while it is open, where to pay; nothing about the donor. The one donation use case a public visitor reaches.',
+    'The donor’s return page: ask the payment provider where the donation of this return `token` stands and record it (cause `return`). Returns the status, amount, currency, how often it is given (`interval`, null for a one-off gift), whether it pays a membership (`membership`) and, while it is open, where to pay; nothing about the donor.',
   requires: 'donations:write',
   input: z.object({ token: z.string().min(1).max(500) }).strict(),
-  output: DonationOutcome.extend({ interval: Interval.nullable() }),
+  output: DonationOutcome.extend({ interval: Interval.nullable(), membership: z.boolean() }),
   examples: [{ input: { token: 'donation:example~signature' } }],
   async handler(ctx, { token }) {
     const id = await paymentOfToken(ctx, token);
@@ -530,7 +531,7 @@ export const checkDonationReturn = defineUseCase({
     const sub = payment?.subscriptionId
       ? await ctx.subscriptions.get(payment.subscriptionId)
       : null;
-    return { ...outcome, interval: sub?.interval ?? null };
+    return { ...outcome, interval: sub?.interval ?? null, membership: sub?.kind === 'membership' };
   },
 });
 

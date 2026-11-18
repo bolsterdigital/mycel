@@ -512,6 +512,9 @@ export interface Database {
     description: Json<Record<string, string>> | null;
     sort_order: number;
     kind: 'free' | 'paid';
+    prices: Json<{ month?: number; year?: number }>;
+    price_version: number;
+    signup_path: string | null;
     created_at: Timestamp;
     updated_at: Timestamp;
   };
