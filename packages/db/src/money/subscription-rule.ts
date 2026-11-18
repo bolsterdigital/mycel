@@ -28,6 +28,7 @@ interface Provider {
   settle(ref: string, outcome: 'paid' | 'failed'): void;
   chargesAs: 'open' | 'paid' | 'failed' | 'expired' | 'refunded' | 'charged_back';
   loseNext(late?: boolean): void;
+  refuseNext(): void;
   land(): void;
   readonly charges: readonly { key: string }[];
 }
@@ -37,12 +38,12 @@ const MINUTE = 60 * 1000;
 
 /**
  * Starting, the first payment paid → active, a charge paid → one period on, a charge whose answer
- * never came and whose request reached the provider late reconciled by key, after the wait, without
- * a second charge, failed charges → retries → `ended`,
- * cancelling, an erased giver whose subscription ends and whose mandate stops, and another tenant
- * that sees none of it (brief MY-254 PR 1). Then the giver's own link (PR 3): a new amount, a pause
- * and a resume, each one ledger step with cause `donor`; the same supporter's link for another
- * site reaches nothing.
+ * never came and whose request reached the provider late reconciled by key, after the wait,
+ * without a second charge, failed charges → retries → `ended`, charges the provider refuses (made
+ * nothing) → the same dunning → `ended` (MY-255), cancelling, an erased giver whose subscription
+ * ends and whose mandate stops, and another tenant that sees none of it (brief MY-254 PR 1). Then
+ * the giver's own link (PR 3): a new amount, a pause and a resume, each one ledger step with cause
+ * `donor`; the same supporter's link for another site reaches nothing.
  */
 export async function observeSubscription(
   invoker: Invoker,
@@ -105,8 +106,9 @@ export async function observeSubscription(
   const leaving = await start(2000, gone.id);
   const lapsed = await start(500);
   const stopping = await start(700);
+  const refusedSub = await start(900);
   const pending = (await sub(monthly.subscriptionId)).status;
-  for (const s of [monthly, leaving, stopping]) await settle(s.paymentId, 'paid');
+  for (const s of [monthly, leaving, stopping, refusedSub]) await settle(s.paymentId, 'paid');
   await settle(lapsed.paymentId, 'failed');
   const first = await sub(monthly.subscriptionId);
 
@@ -139,6 +141,18 @@ export async function observeSubscription(
   await charge(monthly.subscriptionId);
   provider.chargesAs = 'paid';
   const dunned = await sub(monthly.subscriptionId);
+
+  // A refusal (Mollie's 422 for a revoked mandate) is a failed attempt, not a lost answer: no
+  // `unknown` attempt waits for the reconciliation, and the dunning ends it like failed charges.
+  const refusals: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    provider.refuseNext();
+    refusals.push(await charge(refusedSub.subscriptionId));
+  }
+  const refused = await sub(refusedSub.subscriptionId);
+  const refusedAttempts = await uow.run(admin, (ctx) =>
+    ctx.subscriptions.attempts(refusedSub.subscriptionId)
+  );
 
   const cancelled = await invoker.run(useCases.cancelSubscription, admin, {
     subscriptionId: stopping.subscriptionId,
@@ -215,6 +229,15 @@ export async function observeSubscription(
       paidThroughKept: dunned.paidThrough === renewed.paidThrough,
       charges: chargesOf(monthly.subscriptionId),
     },
+    refused: {
+      results: refusals,
+      status: refused.status,
+      endReason: refused.endReason,
+      failedAttempts: refused.failedAttempts,
+      attempts: refusedAttempts.map((a) => a.status),
+      payments: (await read(refusedSub.subscriptionId)).payments.length,
+      lastStep: (await steps(refusedSub.subscriptionId)).at(-1),
+    },
     monthlySteps: await steps(monthly.subscriptionId),
     lapsed: {
       status: (await sub(lapsed.subscriptionId)).endReason,
@@ -285,6 +308,15 @@ export const expectedSubscription = {
     paidThroughKept: true,
     charges: 4,
   },
+  refused: {
+    results: ['refused', 'refused', 'refused'],
+    status: 'ended',
+    endReason: 'dunning',
+    failedAttempts: 3,
+    attempts: ['done', 'done', 'done'],
+    payments: 1,
+    lastStep: 'active>ended:ended:charge',
+  },
   monthlySteps: [
     '->pending:started:checkout',
     'pending>active:activated:webhook',
@@ -316,7 +348,7 @@ export const expectedSubscription = {
     ],
     mandate: { status: 'invalid', supporterId: null },
   },
-  listed: ['1500 active', '700 cancelled', '500 ended', '2000 ended', '1000 ended'],
+  listed: ['1500 active', '900 ended', '700 cancelled', '500 ended', '2000 ended', '1000 ended'],
   activeOnly: 1,
   otherTenantList: 0,
   otherTenantGet: 'not_found',

@@ -2,10 +2,12 @@
 // fake provider is the other side of a payment for tests and for a trial installation: a test
 // settles a payment by its reference and the next `donation.check` finds it. A paid first payment
 // leaves a mandate, and a charge of it succeeds unless the test says otherwise (`chargesAs`,
-// `failNext`, `loseNext` for a call that charged but never answered, or whose charge lands late).
+// `failNext`, `loseNext` for a call that charged but never answered, or whose charge lands late,
+// `refuseNext` for a charge the provider declines and makes nothing for).
 
 import type { LedgerEntry, Payment } from '../../../money/model.js';
 import type {
+  ChargeRefusal,
   ChargeRequest,
   FindChargeRequest,
   CheckoutRequest,
@@ -80,6 +82,7 @@ export class FakePaymentProvider implements PaymentProvider {
   readonly #firsts = new Set<string>();
   #failing = false;
   #losing: false | 'answer' | 'late' = false;
+  #refusing = false;
   /** A charge sent but not yet arrived at the provider (`loseNext(true)`), until `land`. */
   #landing: ChargeRequest | null = null;
   /** What a new checkout starts as; `paid` plays a provider that settles at once. */
@@ -115,13 +118,18 @@ export class FakePaymentProvider implements PaymentProvider {
     return this.#payments.has(ref) ? this.#answer(ref) : null;
   }
 
-  async chargeMandate(request: ChargeRequest): Promise<ProviderPayment> {
+  async chargeMandate(request: ChargeRequest): Promise<ProviderPayment | ChargeRefusal> {
     if (this.#failing) {
       this.#failing = false;
       throw new Error('fake provider outage');
     }
     const known = this.#charges.get(request.key);
     if (known) return this.#answer(known);
+    if (this.#refusing) {
+      this.#refusing = false;
+      this.charges.push(request);
+      return { refused: true, raw: 'no_mandate' };
+    }
     if (this.#losing === 'late') {
       this.#losing = false;
       this.#landing = request;
@@ -188,6 +196,11 @@ export class FakePaymentProvider implements PaymentProvider {
 
   failNext(): void {
     this.#failing = true;
+  }
+
+  /** The next new charge is declined with certainty; nothing is made. */
+  refuseNext(): void {
+    this.#refusing = true;
   }
 
   /**

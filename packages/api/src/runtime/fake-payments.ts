@@ -8,7 +8,9 @@
 // Monthly and yearly giving (MY-254 PR 2, brief choice 17): a first payment paid on the screen
 // leaves a mandate, and a charge of it is settled at once, `paid`, or `failed` when the donor's
 // address has `+fail` in it, so the dunning shows without buttons. The address itself is not
-// kept, only that verdict. A charge is found again by its key through an index file per key.
+// kept, only that verdict. A mandate it does not know (its first payment's file gone) is refused,
+// as Mollie refuses a revoked one (MY-255). A charge is found again by its key through an index
+// file per key.
 //
 // Refused in production by the config. Rejected: the in-memory `FakePaymentProvider` of
 // `@mycel/core/testing` (one process only), and a separate fake-provider service with its own
@@ -18,6 +20,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
+  ChargeRefusal,
   ChargeRequest,
   FindChargeRequest,
   CheckoutRequest,
@@ -129,13 +132,12 @@ export class DirectoryPaymentProvider implements PaymentProvider {
     return payment ? this.#answer(payment) : null;
   }
 
-  async chargeMandate(request: ChargeRequest): Promise<ProviderPayment> {
+  async chargeMandate(request: ChargeRequest): Promise<ProviderPayment | ChargeRefusal> {
     const known = await this.findCharge(request);
     if (known) return known;
     // The mandate is `mdt_<ref of the first payment>`; nothing else charges.
     const first = this.read(request.mandateRef.replace(/^mdt_/, ''));
-    if (!first?.first || first.outcome !== 'paid')
-      throw new Error('fake provider knows no such mandate');
+    if (!first?.first || first.outcome !== 'paid') return { refused: true, raw: 'no_mandate' };
     const payment: FakePayment = {
       ref: `fake_${request.paymentId}`,
       amount: request.amount,

@@ -6,6 +6,11 @@
 // adapter without them takes one-off gifts and refuses a subscription. `findCharge` gets the
 // mandate's references beside the key, because a provider that cannot look a payment up by our
 // key (Mollie) can only be certain it made none by reading every payment of that customer.
+// `chargeMandate` has three answers: a payment, a refusal (the provider declined with certainty
+// and made nothing, so the attempt is a failed one and dunning runs, MY-255), or a throw (it may
+// or may not have charged). The refusal is a value, not an error class, so the caller's type
+// forces it to handle it. Rejected: a `ChargeRefusedError` the adapter throws (a missed
+// `instanceof` silently turns a refusal back into the endless `unknown` it replaced).
 //
 // The provider sits on the transaction context, like the DNS resolver: opening a checkout moves
 // no money (the donor does that, at the provider, later), so a transaction that fails after the
@@ -81,6 +86,15 @@ export interface ChargeRequest {
   locale: string;
 }
 
+/**
+ * The provider declined a charge with certainty and made no payment for it: about the giver's
+ * mandate, never the site's key or connection (those throw). `raw` is the provider's word.
+ */
+export interface ChargeRefusal {
+  refused: true;
+  raw: string;
+}
+
 /** What a charge attempt is found by: its key, and the mandate it was charged against. */
 export type FindChargeRequest = Pick<ChargeRequest, 'key' | 'customerRef' | 'mandateRef'>;
 
@@ -92,10 +106,11 @@ export interface PaymentProvider {
   /** Null when the provider does not know the reference. Throws when it cannot be reached. */
   fetchPayment(ref: string): Promise<ProviderPayment | null>;
   /**
-   * Charge a mandate without the donor. Throws when the provider refuses or cannot be reached;
-   * the caller cannot tell whether it charged and asks `findCharge` before trying again.
+   * Charge a mandate without the donor. A `ChargeRefusal` when the provider declined with
+   * certainty and made nothing. Throws when it cannot be reached, cannot be certain, or refuses
+   * the site itself (a wrong key); the caller then asks `findCharge` before trying again.
    */
-  chargeMandate?(request: ChargeRequest): Promise<ProviderPayment>;
+  chargeMandate?(request: ChargeRequest): Promise<ProviderPayment | ChargeRefusal>;
   /**
    * The charge made with `key`, or null only when the provider is certain it made none for it.
    * Throws when it cannot be reached or cannot be certain; the attempt then waits for a later run.

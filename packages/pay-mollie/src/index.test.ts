@@ -346,8 +346,24 @@ describe('MolliePaymentProvider.chargeMandate', () => {
     });
   });
 
-  it('throws on 409, Mollie still handling the same key, as on a timeout', async () => {
-    const m = await mollie(() => ({ status: 409, body: '{"status":409,"title":"Conflict"}' }));
+  it('answers a refusal on 422, a mandate Mollie no longer charges (MY-255)', async () => {
+    // What the test-mode run of 2026-11-18 got for a revoked mandate.
+    const m = await mollie(() => ({
+      status: 422,
+      body: '{"status":422,"title":"Unprocessable Entity","detail":"No suitable mandates found for customer"}',
+    }));
+    expect(await provider(m.origin).chargeMandate(charge)).toEqual({
+      refused: true,
+      raw: 'http_422',
+    });
+  });
+
+  it.each([
+    [401, 'a wrong key is the site, not the giver'],
+    [409, 'Mollie still handling the same key, as on a timeout'],
+    [503, 'Mollie itself'],
+  ])('throws on %i: %s', async (status) => {
+    const m = await mollie(() => ({ status, body: `{"status":${status}}` }));
     await expect(provider(m.origin).chargeMandate(charge)).rejects.toThrow(MollieError);
   });
 

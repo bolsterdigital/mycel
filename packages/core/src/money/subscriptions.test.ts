@@ -262,6 +262,28 @@ describe('a monthly gift (ADR 005)', () => {
     expect(provider.charges.map((c) => c.key.split(':').at(-1))).toEqual(['2']);
   });
 
+  it('counts a charge the provider refuses as a failed attempt, not an unknown one (MY-255)', async () => {
+    const { active, charge, read, provider, to, uow, run } = setup();
+    const { subscriptionId, subscription } = await active();
+    to(subscription.paidThrough!);
+    provider.refuseNext();
+    expect(await charge(subscriptionId)).toBe('refused');
+    const after = await read(subscriptionId);
+    expect(after.subscription).toMatchObject({
+      status: 'active',
+      failedAttempts: 1,
+      paidThrough: subscription.paidThrough,
+      nextChargeAt: '2026-11-24T12:00:00.000Z',
+    });
+    expect(after.payments).toHaveLength(1);
+    // Nothing waits for the reconciliation: the attempt is closed, the retry gets a new key.
+    const attempts = await uow.run(run, (ctx) => ctx.subscriptions.attempts(subscriptionId));
+    expect(attempts.map((a) => a.status)).toEqual(['done']);
+    to('2026-11-24T12:00:00.000Z');
+    expect(await charge(subscriptionId)).toBe('charged');
+    expect(provider.charges.map((c) => c.key.split(':').at(-1))).toEqual(['1', '2']);
+  });
+
   it('counts a chargeback as a failed attempt and does not take the period back', async () => {
     const { active, check, read, provider } = setup();
     const { subscriptionId, paymentId, subscription } = await active();
