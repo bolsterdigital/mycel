@@ -19,9 +19,6 @@ export type FormKind = z.infer<typeof FormKind>;
 /** Kinds whose ticked consent field joins the form's list (a donor may also subscribe). */
 export const JOINING_KINDS: readonly FormKind[] = ['signup', 'petition', 'donation', 'membership'];
 
-/** Kinds whose accepted submission opens a payment. */
-export const PAYING_KINDS: readonly FormKind[] = ['donation', 'membership'];
-
 /** The field that holds the gift of a donation form. */
 export const donationAmountField = (form: Pick<FormDefinition, 'fields'>) =>
   form.fields.find((f) => f.type === 'amount');

@@ -141,6 +141,8 @@ export interface SubscriptionFilter {
   status?: SubscriptionStatus | undefined;
   kind?: SubscriptionKind | undefined;
   supporterId?: string | undefined;
+  /** The memberships of one paid tier (MY-254 PR 4). */
+  tierId?: string | undefined;
 }
 
 export interface SubscriptionRepository {

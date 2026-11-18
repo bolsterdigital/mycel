@@ -5,6 +5,7 @@
 // Rejected: reading only the first page (a site with many tiers would silently lose the older
 // ones as a choice, and a save would then drop them from the item).
 import {
+  can,
   pickAny,
   slugFromTitle,
   useCases,
@@ -53,13 +54,33 @@ function localizedEdit(
   return next;
 }
 
-/** What a tier form changes: name, description and order, in the content locale shown. */
+/** "12,50", "12.50", "€ 12" → 1250 cents; null for empty, NaN for anything unreadable. */
+function centsOf(input: string): number | null {
+  const cleaned = input.replace(/[€\s]/g, '').replace(',', '.');
+  if (!cleaned) return null;
+  return /^\d{1,7}(\.\d{1,2})?$/.test(cleaned) ? Math.round(Number(cleaned) * 100) : NaN;
+}
+
+/**
+ * What a tier form changes: name, description and order, in the content locale shown; for a paid
+ * tier also its prices per interval (in euros on the form, minor units in the core) and the path
+ * of its signup page (MY-254 PR 4). An empty price is an interval the tier does not sell; an
+ * unreadable one goes to the core as it is, which refuses it with the field named.
+ */
 export function tierFields(data: FormData, locale: string, current?: AccessTier) {
   const description = localizedEdit(current?.description, locale, text(data, 'description'));
+  const prices: { month?: number; year?: number } = {};
+  for (const interval of ['month', 'year'] as const) {
+    const cents = centsOf(text(data, `price-${interval}`));
+    if (cents !== null) prices[interval] = cents;
+  }
+  const signupPath = text(data, 'signupPath').trim();
   return {
     name: localizedEdit(current?.name, locale, text(data, 'name')),
     ...(Object.keys(description).length ? { description } : {}),
     order: Number(text(data, 'order') || 0),
+    prices,
+    signupPath: signupPath || null,
   };
 }
 
@@ -69,4 +90,33 @@ export function newTierFields(data: FormData) {
     slug: text(data, 'slug').trim() || slugFromTitle(text(data, 'name')),
     kind: text(data, 'kind') === 'paid' ? ('paid' as const) : ('free' as const),
   };
+}
+
+/**
+ * The memberships of a paid tier that still give access or will (MY-254 PR 4), newest first, at
+ * most one page: who, how much per interval, until when paid, and whether it stops. Null for a
+ * member of the team without `donations:read`. The grants are the access; the memberships are
+ * what the team manages, so this lists those (comped and gifted readers are on each person's page).
+ */
+export async function tierMembers(principal: Principal, tierId: string) {
+  if (!can(principal, 'donations:read')) return null;
+  const page = await runtime().invoker.run(useCases.listSubscriptions, principal, {
+    kind: 'membership',
+    tierId,
+    limit: 100,
+  });
+  const emails = new Map(page.supporters.map((s) => [s.id, s.email]));
+  return page.subscriptions
+    .filter((s) => s.status === 'active' || s.status === 'pending')
+    .map((s) => ({
+      id: s.id,
+      amount: s.amount,
+      currency: s.currency,
+      interval: s.interval,
+      status: s.status,
+      paidThrough: s.paidThrough,
+      cancelAtPeriodEnd: s.cancelAtPeriodEnd,
+      supporterId: s.supporterId,
+      email: s.supporterId ? (emails.get(s.supporterId) ?? null) : null,
+    }));
 }

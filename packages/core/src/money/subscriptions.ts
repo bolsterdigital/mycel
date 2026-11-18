@@ -372,13 +372,14 @@ export const listSubscriptions = defineUseCase({
   name: 'donation.subscription.list',
   kind: 'query',
   description:
-    'List the monthly and yearly gifts and memberships of this site, newest first, optionally only one status, one kind or one supporter. With `supporters:read` also the address of each supporter the page names, for a link to their page.',
+    'List the monthly and yearly gifts and memberships of this site, newest first, optionally only one status, one kind, one supporter or the memberships of one paid tier (`tierId`). With `supporters:read` also the address of each supporter the page names, for a link to their page.',
   requires: 'donations:read',
   input: z
     .object({
       status: SubscriptionStatus.optional(),
       kind: SubscriptionKind.optional(),
       supporterId: z.string().guid().optional(),
+      tierId: z.string().guid().optional(),
       offset: z.number().int().nonnegative().max(100_000).default(0),
       limit: z.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
     })
@@ -389,8 +390,12 @@ export const listSubscriptions = defineUseCase({
     supporters: z.array(z.object({ id: z.string().guid(), email: z.string() })),
   }),
   examples: [{ input: { status: 'active' } }],
-  async handler(ctx, { status, kind, supporterId, offset, limit }) {
-    const rows = await ctx.subscriptions.list({ status, kind, supporterId }, offset, limit + 1);
+  async handler(ctx, { status, kind, supporterId, tierId, offset, limit }) {
+    const rows = await ctx.subscriptions.list(
+      { status, kind, supporterId, tierId },
+      offset,
+      limit + 1
+    );
     const subscriptions = rows.slice(0, limit);
     const supporters: { id: string; email: string }[] = [];
     if (can(ctx.principal, 'supporters:read'))

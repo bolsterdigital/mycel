@@ -36,6 +36,7 @@ import { exerciseRestrictedArticle } from './lib/published/restricted';
 import { exerciseDonation } from './lib/forms/donation';
 import { exerciseRecurring } from './lib/forms/recurring';
 import { exerciseOwnGifts } from './lib/forms/own-gifts';
+import { exerciseMembership } from './lib/forms/membership';
 import { exerciseMollieConnection } from './lib/forms/mollie';
 import { exerciseFundraiser } from './lib/forms/fundraiser';
 
@@ -775,6 +776,11 @@ test('a monthly gift: choose monthly, pay once, Recurring, the person, and stop'
 test('a monthly gift managed by its giver: link, amount, pause, resume, stop', async ({
   page,
 }, testInfo) => exerciseOwnGifts(page, testInfo.project.name));
+
+// MY-254 PR 4: the prompt, the membership form, the sign-in link, reading, and cancelling.
+test('a membership: prompt, join, sign-in link, read, cancel, and read through the grace', async ({
+  page,
+}, testInfo) => exerciseMembership(page, testInfo.project.name));
 
 // MY-252 PR 3: the site's Mollie key under Connections (lib/forms/mollie.ts).
 test.describe('a Mollie key', () => {

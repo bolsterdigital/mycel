@@ -23,6 +23,8 @@ import {
 import { startDonation } from '../money/service.js';
 import { startSubscription } from '../money/subscriptions.js';
 import { membershipOf } from '../money/membership.js';
+import { TierPrices, sellable } from '../content/access/model.js';
+import '../content/ports.js';
 import { pickAny } from '../i18n/locale.js';
 import { MAX_AMOUNT, MIN_AMOUNT } from '../money/model.js';
 import { UseCaseError } from '../errors.js';
@@ -45,7 +47,7 @@ export const getForm = defineUseCase({
   name: 'form.get',
   kind: 'query',
   description:
-    'Get a form definition by id, plus a fresh signed timing token and proof-of-work challenge for rendering it publicly.',
+    'Get a form definition by id, plus a fresh signed timing token and proof-of-work challenge for rendering it publicly. A membership form also gets `membership`: the name of the tier it sells and its prices per interval in minor units, which the form offers to choose from; null when the tier sells nothing now.',
   requires: 'forms:read',
   input: z.object({ id: z.string().guid() }),
   output: z.object({
@@ -53,6 +55,10 @@ export const getForm = defineUseCase({
     startedToken: z.string(),
     proof: ProofChallenge,
     version: z.string(),
+    membership: z
+      .object({ name: z.record(z.string(), z.string()), prices: TierPrices })
+      .nullable()
+      .optional(),
   }),
   resource: { uriTemplate: 'mycel://forms/{id}' },
   examples: [{ input: { id: exampleId(0xf000) } }],
@@ -60,8 +66,18 @@ export const getForm = defineUseCase({
     const form = await ctx.forms.findById(id);
     if (!form) throw notFound('form', `the id "${id}"`);
     const now = ctx.clock.now();
+    // What a membership form sells, read with the form: a visitor reads no tier otherwise.
+    const tier = form.tierId ? await ctx.accessTiers.get(form.tierId) : null;
     return {
       form,
+      ...(form.kind === 'membership'
+        ? {
+            membership:
+              tier && sellable(tier)
+                ? { name: { ...tier.name } as Record<string, string>, prices: tier.prices }
+                : null,
+          }
+        : {}),
       version: await hashInput(ctx.inputHasher, {
         domain: 'form-definition-v1',
         tenantId: ctx.principal.tenantId,

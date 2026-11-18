@@ -49,6 +49,8 @@ export interface BlockCopy {
   };
   honeypotLabel: string;
   summaryTitle: string;
+  /** Where a membership form's tier sells nothing now (MY-254 PR 4). */
+  membershipUnavailable: string;
   /** A campaign card's and a closed campaign form's words (ADR 033 rule 4). */
   campaign: {
     kind: Record<CampaignKind, string>;
@@ -142,6 +144,11 @@ export interface RenderAction {
 
 export interface RenderForm {
   formId: string;
+  /**
+   * A membership form (MY-254 PR 4): the tier's prices to choose from, posted as
+   * `membership-interval`; null when the tier sells nothing now, absent on every other form.
+   */
+  membership?: { legend: string; options: { value: string; label: string }[] } | null;
   startedToken: string;
   /** The ALTCHA challenge the form script solves (`forms/proof.ts`); fresh per render. */
   proof: ProofChallenge;

@@ -22,6 +22,7 @@ import { LIVE_ADMIN, LIVE_READER, ensureLiveAdmin } from './lib/content-admin/li
 import { freshContext, stranger } from './lib/content-admin/fresh-context';
 import { isA11y, onlyA11y, NAVIGATION_SCRIPT } from './lib/project';
 import { callApi, postUseCase, requireApi } from './lib/api';
+import { exerciseRestrictedNotice } from './lib/content-admin/restricted-notice';
 import {
   openPublication,
   takeOffline,
@@ -1409,58 +1410,8 @@ test.describe('content-admin', () => {
     });
   });
 
-  test('a restricted item says what visitors get before any publish button', async ({
-    page,
-    request,
-  }) => {
-    requireApi();
-    await login(page, '/admin/probe');
-    const edit = await newPage(page, slugFor('restricted'), 'Voor leden');
-    await expect(page.getByLabel('Wie het mag lezen')).toHaveValue('public');
-    const itemId = edit.split('/').at(-1)!;
-    const { revision } = await callApi<{
-      revision: { id: string; document: Record<string, unknown> };
-    }>(request, 'content.item.get', { itemId });
-    await callApi(request, 'content.item.update', {
-      itemId,
-      baseRevisionId: revision.id,
-      document: {
-        ...revision.document,
-        access: { level: 'members', teaser: 'marker' },
-        blocks: [{ type: 'paywall', version: 1, props: {} }],
-      },
-    });
-    await page.goto(edit);
-    await expect(page.getByLabel('Wie het mag lezen')).toHaveValue('members');
-    const boundary = page.locator('.ui-block-text-boundary');
-    await expect(boundary).toContainText('Toegangsgrens');
-    await expect(boundary).not.toContainText('openbaar');
-    await openPublication(page);
-    const notice = card(page, 'nl').getByText(
-      'Dit item is besloten: bezoekers zonder toegang zien de teaser'
-    );
-    await expect(notice).toBeVisible();
-    // Before the first button in document order, and no button closes it.
-    const before = await notice.evaluate((el) => {
-      const button = document.querySelector('.ui-status-card button')!;
-      return !!(el.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING);
-    });
-    expect(before).toBe(true);
-    await expectNoAxeViolations(page);
-    // Another teaser beside the paywall is refused at the teaser choice, and nothing is stored.
-    await closePublication(page);
-    const teaser = page.locator('#teaser');
-    await teaser.selectOption('lead', { force: true });
-    await save(page);
-    const alert = page.getByRole('alert');
-    await expect(alert).toContainText('Dit item heeft een betaalmuurblok, en dat werkt alleen');
-    await alert.getByRole('link', { name: 'Wat alle anderen zien' }).click();
-    await expect(teaser).toBeFocused();
-    await expect(teaser).toHaveAttribute('aria-invalid', 'true');
-    await expectNoAxeViolations(page);
-    const now = await callApi(request, 'content.item.get', { itemId });
-    expect(now.revision.document.access).toEqual({ level: 'members', teaser: 'marker' });
-  });
+  test('a restricted item says what visitors get before any publish button', ({ page, request }) =>
+    exerciseRestrictedNotice(page, request, slugFor('restricted')));
 
   test('a legacy hero moves into the header, or says why not (ADR 025, MY-110 B4)', async ({
     page,

@@ -72,12 +72,31 @@ describe('access tiers in the admin (ADR 016 rule 2)', () => {
       name: { nl: 'Vrienden', en: 'Members' },
       description: { en: 'For members' },
       order: 4,
+      prices: {},
+      signupPath: null,
     });
     // An emptied description in its only locale is no description at all.
     expect(tierFields(form({ name: 'Members', description: '', order: '0' }), 'en', tier)).toEqual({
       name: { nl: 'Leden', en: 'Members' },
       order: 0,
+      prices: {},
+      signupPath: null,
     });
+  });
+
+  it('reads the prices of a paid tier in euros and its signup page', () => {
+    const read = tierFields(
+      form({
+        name: 'Vrienden',
+        order: '0',
+        'price-month': '5',
+        'price-year': '€ 50,50',
+        signupPath: ' /word-lid ',
+      }),
+      'nl'
+    );
+    expect(read).toMatchObject({ prices: { month: 500, year: 5050 }, signupPath: '/word-lid' });
+    expect(tierFields(form({ name: 'x', 'price-month': 'vijf' }), 'nl').prices.month).toBeNaN();
   });
 
   it('gives a new tier a slug from its name and a free kind unless paid is chosen', () => {

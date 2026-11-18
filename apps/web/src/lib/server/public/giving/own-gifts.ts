@@ -1,4 +1,4 @@
-// The donor's own page (ADR 005 rule 6, brief MY-254 PR 3), shared by `/my-giving` (a signed-in
+// The donor's own page (ADR 005 rule 6, brief MY-254 PR 3; memberships PR 4), shared by `/my-giving` (a signed-in
 // reader, or the form to ask for a link) and `/my-giving/<token>` (the link from a mail). Who the
 // gifts belong to is the core's to decide from the token or the reader session; this module only
 // puts the answer in the page's language and turns the four buttons into `donation.self.update`.
@@ -12,7 +12,7 @@
 // (four small forms each say what their button does).
 
 import { fail, redirect, type RequestEvent } from '@sveltejs/kit';
-import { useCases, type OwnGift, type Principal } from '@mycel/core';
+import { pickAny, useCases, type OwnGift, type Principal } from '@mycel/core';
 import { fill, ui } from '../../../../i18n/index.js';
 import { formatMoney } from '../../../money.js';
 import { refusalOf, refuse } from '../../http/refuse.js';
@@ -35,6 +35,11 @@ export interface OwnGiftView {
   paused: boolean;
   /** The amount in euros as the amount field shows it (`12.50`). */
   euros: string;
+  /**
+   * A running membership (MY-254 PR 4): only "cancel for <date>", the end of the paid period;
+   * null for a gift and for a membership that stops already.
+   */
+  cancelFor: { summary: string; hint: string; confirm: string } | null;
 }
 
 /** The language of the page: the `lang` the mail's link carries, else the browser's. */
@@ -47,21 +52,42 @@ export function viewOf(gift: OwnGift, locale: string, timeZone: string): OwnGift
   const day = new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone });
   const at = (iso: string) => day.format(new Date(iso));
   const amount = formatMoney(gift.amount, gift.currency, locale);
+  const member = gift.kind === 'membership';
+  const stopping = member && gift.cancelAtPeriodEnd && !!gift.paidThrough;
   const facts = [
-    { term: t('public.ownGifts.status'), value: t(`public.ownGifts.status.${gift.status}`) },
+    {
+      term: t('public.ownGifts.status'),
+      value: stopping
+        ? t('public.ownGifts.status.cancelling')
+        : t(`public.ownGifts.status.${gift.status}`),
+    },
   ];
-  if (gift.nextChargeAt)
+  if (stopping)
+    facts.push({ term: t('public.ownGifts.membership.until'), value: at(gift.paidThrough!) });
+  else if (gift.nextChargeAt)
     facts.push({ term: t('public.ownGifts.next'), value: at(gift.nextChargeAt) });
   if (gift.status === 'active' && gift.failedAttempts)
     facts.push({ term: t('public.ownGifts.failed'), value: String(gift.failedAttempts) });
   if (gift.startedAt) facts.push({ term: t('public.ownGifts.since'), value: at(gift.startedAt) });
+  const tier = gift.tier ? (pickAny(gift.tier.name, locale) ?? '') : '';
+  const end = gift.paidThrough ? at(gift.paidThrough) : '';
   return {
     id: gift.id,
-    title: fill(t(`public.ownGifts.title.${gift.interval}`), { amount }),
+    title: member
+      ? fill(t(`public.ownGifts.membership.title.${gift.interval}`), { amount, tier })
+      : fill(t(`public.ownGifts.title.${gift.interval}`), { amount }),
     facts,
-    open: gift.status === 'active' || gift.status === 'paused',
+    open: !member && (gift.status === 'active' || gift.status === 'paused'),
     paused: gift.status === 'paused',
     euros: (gift.amount / 100).toFixed(gift.amount % 100 ? 2 : 0),
+    cancelFor:
+      member && gift.status === 'active' && !gift.cancelAtPeriodEnd && end
+        ? {
+            summary: fill(t('public.ownGifts.membership.cancel'), { date: end }),
+            hint: fill(t('public.ownGifts.membership.cancelHint'), { date: end }),
+            confirm: fill(t('public.ownGifts.membership.cancelConfirm'), { date: end }),
+          }
+        : null,
   };
 }
 
@@ -148,13 +174,16 @@ export function ownGiftActions(tokenOf: (event: RequestEvent) => string | undefi
           return fail(400, { gift: subscriptionId, message: t('public.ownGifts.amountInvalid') });
         amount = cents;
       }
+      let done: string = action;
       try {
-        await rt.invoker.run(useCases.updateOwnGift, principal, {
+        const { gift } = await rt.invoker.run(useCases.updateOwnGift, principal, {
           ...(token ? { token } : {}),
           subscriptionId,
           action,
           ...(amount === undefined ? {} : { amount }),
         });
+        // A member who cancels stays a member until the end of the period: another message.
+        if (gift.kind === 'membership') done = `${action}-membership`;
       } catch (e) {
         const { code } = refusalOf(e);
         if (code === 'not_found' || code === 'invalid_input') refuse(404);
@@ -165,7 +194,7 @@ export function ownGiftActions(tokenOf: (event: RequestEvent) => string | undefi
         throw e;
       }
       setHeaders(READER_HEADERS);
-      const query = new URLSearchParams({ done: action });
+      const query = new URLSearchParams({ done });
       const lang = url.searchParams.get('lang');
       if (lang) query.set('lang', lang);
       redirect(303, `${url.pathname}?${query}`);
@@ -179,6 +208,7 @@ export function ownGiftActions(tokenOf: (event: RequestEvent) => string | undefi
 /** The status line after a change, from `?done=`. */
 export function doneMessage(url: URL, locale: string): string | null {
   const done = url.searchParams.get('done');
+  if (done === 'cancel-membership') return ui(locale)('public.ownGifts.done.cancel-membership');
   return done && (CHANGES as readonly string[]).includes(done)
     ? ui(locale)(`public.ownGifts.done.${done as OwnGiftChange}`)
     : null;

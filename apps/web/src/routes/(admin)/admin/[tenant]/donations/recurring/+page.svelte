@@ -1,5 +1,5 @@
-<!-- The site's monthly and yearly gifts (MY-254 PR 2): who gives, how much per interval, the
-     status, the next charge and failed charges, on the shared overview pattern and stacked table,
+<!-- The site's monthly and yearly gifts and memberships (MY-254 PR 2 and 4): who gives, how much
+     per interval, a gift or which membership, the status, the next charge and failed charges, on the shared overview pattern and stacked table,
      so nothing scrolls sideways at 320 CSS px. The amount is the link to the gift's page. The
      filter is a plain GET form and paging is links: the page works without JavaScript. A status
      is a word, never colour alone. The filter's two actions stand in one wrapping group (skill
@@ -68,6 +68,17 @@
           ...data.filters.map((s) => ({ value: s, label: givingStatus(t, s) })),
         ]}
       />
+      <Select
+        id="giving-kind"
+        name="kind"
+        label={t('admin.giving.kind')}
+        locale={data.locale}
+        value={data.kind}
+        options={[
+          { value: '', label: t('admin.giving.kind.all') },
+          ...data.kinds.map((k) => ({ value: k, label: t(`admin.giving.kind.${k}`) })),
+        ]}
+      />
       <Actions
         ><Button>{t('admin.donations.filter')}</Button><Button variant="link" href={base}
           >{t('admin.donations.clear')}</Button
@@ -82,6 +93,7 @@
     card
     columns={[
       { key: 'amount', label: t('admin.donations.amount') },
+      { key: 'kind', label: t('admin.giving.kind') },
       { key: 'status', label: t('admin.donations.status') },
       { key: 'next', label: t('admin.giving.next') },
       { key: 'failed', label: t('admin.giving.failed') },
@@ -94,6 +106,11 @@
             ><a href="{base}/{s.id}"
               >{perInterval(t, s.amount, s.currency, s.interval, data.locale)}</a
             ></th
+          >
+          <td data-label={t('admin.giving.kind')}
+            >{s.kind === 'membership' && s.tier
+              ? `${t('admin.giving.kind.membership')}: ${s.tier}`
+              : t(`admin.giving.kind.${s.kind}`)}</td
           >
           <td data-label={t('admin.donations.status')}
             ><Badge tone={givingTone(s.status)}>{givingStatus(t, s.status)}</Badge></td

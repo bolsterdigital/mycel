@@ -1,5 +1,6 @@
 <!-- The donor's return page: one heading that says where the gift stands, the amount (for a
-     monthly or yearly gift, how often it is given from now on), and the one thing to do next. On the hop from the form it sends the visitor on to the checkout at
+     monthly or yearly gift, how often it is given from now on), and the one thing to do next;
+     for a new member, a button that mails a sign-in link to the address that paid. On the hop from the form it sends the visitor on to the checkout at
      once (a refresh without delay, WCAG 2.2.1 allows it) and offers the same link. -->
 <script lang="ts">
   import { ui } from '../../../../../../i18n/index.js';
@@ -8,7 +9,7 @@
   const t = $derived(ui(data.locale));
   const title = $derived(
     data.state === 'paid'
-      ? t('public.donation.paid')
+      ? t(data.membership ? 'public.membership.paid' : 'public.donation.paid')
       : data.state === 'pending'
         ? t('public.donation.pending')
         : t('public.donation.failed')
@@ -30,12 +31,28 @@
   {:else}
     <h1>{title}</h1>
     {#if data.amount && data.interval && data.state === 'paid'}<p>
-        {t(`public.donation.recurring.${data.interval}`).replace('{amount}', () => data.amount!)}
+        {t(
+          data.membership
+            ? `public.membership.recurring.${data.interval}`
+            : `public.donation.recurring.${data.interval}`
+        ).replace('{amount}', () => data.amount!)}
       </p>
     {:else if data.amount}<p>
         {t('public.donation.amount').replace('{amount}', () => data.amount!)}
       </p>{/if}
-    {#if data.state === 'paid'}
+    {#if data.state === 'paid' && data.membership}
+      <!-- A payment never signs anyone in: the link goes to the address that paid (MY-254 PR 4). -->
+      {#if data.signinSent}
+        <p role="status">{t('public.membership.signinSent')}</p>
+      {:else}
+        <p>{t('public.membership.paidText')}</p>
+        <form method="post" action="?/signin{data.backQuery}">
+          <button type="submit">{t('public.membership.signin')}</button>
+        </form>
+      {/if}
+      <p>{t('public.membership.manage')}</p>
+      <p><a href={data.back}>{t('thanks.back')}</a></p>
+    {:else if data.state === 'paid'}
       <p>{t('public.donation.paidText')}</p>
       {#if data.interval}<p>{t('public.donation.recurring.manage')}</p>{/if}
       <p><a href={data.back}>{t('thanks.back')}</a></p>

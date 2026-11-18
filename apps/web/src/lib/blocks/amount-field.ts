@@ -1,8 +1,9 @@
 // What a form block shows of a gift's amount field (MY-252 PR 2, MY-254 PR 2): the presets as
 // "€ 25", the label of an amount of one's own, and the question how often, each in the page's
-// locale. Apart from resolve.ts, which is at its size ceiling; the field is the same data there.
+// locale. And a membership form's prices (PR 4): "€ 5 per month" per interval the tier sells.
+// Apart from resolve.ts, which is at its size ceiling; the field is the same data there.
 
-import { translate, type FormField } from '@mycel/core';
+import { pick, tierIntervals, translate, type FormField, type TierPrices } from '@mycel/core';
 import { formatEuros } from '../money.js';
 import type { RenderForm } from './model.js';
 
@@ -29,5 +30,27 @@ export function amountChoices(f: FormField, locale: string): Choices {
           },
         }
       : {}),
+  };
+}
+
+/** A membership form's choice of price, or nothing for another form (`form.get`'s `membership`). */
+export function membershipChoices(
+  membership: { name: Record<string, string>; prices: TierPrices } | null | undefined,
+  locale: string,
+  fallback: string
+): Pick<RenderForm, 'membership'> {
+  if (membership === undefined) return {};
+  if (membership === null) return { membership: null };
+  const name = pick(membership.name, locale, fallback) ?? '';
+  return {
+    membership: {
+      legend: translate(locale, 'forms.membership.legend', { tier: name }),
+      options: tierIntervals(membership.prices).map((interval) => ({
+        value: interval,
+        label: translate(locale, `forms.membership.price.${interval}`, {
+          amount: formatEuros(membership.prices[interval]! / 100, locale),
+        }),
+      })),
+    },
   };
 }
