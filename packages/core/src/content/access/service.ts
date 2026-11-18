@@ -4,35 +4,58 @@
 // and a tier decides who reads what is published. Reading is `content:read`, which the editor
 // needs to pick a tier. No delete (content/ports.ts), and slug and kind are fixed at create, so no tier
 // write can widen access to something already published.
+//
+// A paid tier carries its prices (brief MY-254 PR 4, choice 9). A change of price raises
+// `priceVersion`, which a membership records when it starts, so nobody's running membership is
+// charged a price they did not agree to (moving members to a new price is a note).
 
 import { z } from 'zod';
-import { notFound } from '../../errors.js';
+import { UseCaseError, notFound } from '../../errors.js';
 import { defineUseCase } from '../../registry.js';
 import { exampleId } from '../../util/ids.js';
 import { MAX_PAGE_SIZE } from '../../util/page-size.js';
 import { BaseUpdatedAt, assertFreeSlug, slugTaken, updateEntity } from '../entities.js';
 import { Slug } from '../model.js';
 import { DEFAULT_PAGE_SIZE } from '../service.js';
-import { AccessTier, AccessTierInput, AccessTierKind } from './model.js';
+import {
+  AccessTier,
+  AccessTierInput,
+  AccessTierKind,
+  tierIntervals,
+  type TierPrices,
+} from './model.js';
 import '../ports.js';
+
+/** Only a paid tier has prices. */
+function assertPrices(kind: AccessTierKind, prices: TierPrices): void {
+  if (kind === 'free' && tierIntervals(prices).length)
+    throw new UseCaseError('invalid_input', 'only a paid tier has prices', [
+      { path: 'prices', message: 'content.access_tier.prices-paid-only' },
+    ]);
+}
+
+const samePrices = (a: TierPrices, b: TierPrices): boolean =>
+  a.month === b.month && a.year === b.year;
 
 export const createAccessTier = defineUseCase({
   name: 'content.access_tier.create',
   kind: 'command',
   description:
-    'Create an access tier that restricted articles can ask for and that supporters can be granted. Slug and kind are fixed afterwards; a paid tier opens through a grant until memberships exist.',
+    'Create an access tier that restricted articles can ask for and that supporters can be granted. Slug and kind are fixed afterwards. A paid tier may carry prices per interval in minor units (`prices.month`, `prices.year`), which a membership form sells, and a `signupPath` where a visitor becomes a member.',
   requires: 'content:publish',
   consumes: null,
   input: AccessTierInput.extend({ slug: Slug, kind: AccessTierKind.default('free') }),
   output: AccessTier,
   examples: [{ input: { slug: 'leden', name: { nl: 'Leden', en: 'Members' } } }],
   async handler(ctx, { slug, ...fields }) {
+    assertPrices(fields.kind, fields.prices);
     await assertFreeSlug(ctx.accessTiers, slug, 'an access tier');
     const now = ctx.clock.now().toISOString();
     const tier: AccessTier = {
       ...fields,
       id: ctx.ids.next(),
       slug,
+      priceVersion: 1,
       createdAt: now,
       updatedAt: now,
     };
@@ -45,7 +68,7 @@ export const updateAccessTier = defineUseCase({
   name: 'content.access_tier.update',
   kind: 'command',
   description:
-    'Replace the name, description and order of an access tier; slug and kind stay as they are. baseUpdatedAt is the updatedAt you read: when the tier changed since, the update fails with conflict naming when.',
+    'Replace the name, description, order, prices and signup page of an access tier; slug and kind stay as they are. A change of prices raises `priceVersion`; running memberships keep the price they started with. baseUpdatedAt is the updatedAt you read: when the tier changed since, the update fails with conflict naming when.',
   requires: 'content:publish',
   input: AccessTierInput.extend({ tierId: z.string().guid(), baseUpdatedAt: BaseUpdatedAt }),
   output: AccessTier,
@@ -65,14 +88,20 @@ export const updateAccessTier = defineUseCase({
       'access tier',
       tierId,
       baseUpdatedAt,
-      (current, updatedAt) => ({
-        ...fields,
-        id: current.id,
-        slug: current.slug,
-        kind: current.kind,
-        createdAt: current.createdAt,
-        updatedAt,
-      })
+      (current, updatedAt) => {
+        assertPrices(current.kind, fields.prices);
+        return {
+          ...fields,
+          id: current.id,
+          slug: current.slug,
+          kind: current.kind,
+          priceVersion: samePrices(current.prices, fields.prices)
+            ? current.priceVersion
+            : current.priceVersion + 1,
+          createdAt: current.createdAt,
+          updatedAt,
+        };
+      }
     ),
 });
 

@@ -1,8 +1,8 @@
 // The words for one event on a supporter's page (brief MY-251 PR 2): the log stores a type and a
 // reference, the administrator reads "Signed up for Newsletter" and "Signed Petition X". Each
-// event type the platform writes today has its sentence in the catalogue, a gift with its amount;
-// a type without one (a membership event of a backfill, a type of a newer release) shows its name,
-// which says more than an empty row. Pure and client-safe, like ../audit-words.ts; rejected: the
+// event type the platform writes today has its sentence in the catalogue, a gift and a membership
+// with its amount; a type without one (a type of a newer release) shows its name, which says more
+// than an empty row. Pure and client-safe, like ../audit-words.ts; rejected: the
 // sentences in core (copy belongs in the web catalogue, ADR 007).
 
 import type { TimelineEntry } from '@mycel/core';

@@ -1,5 +1,6 @@
 <!-- The donor's gifts (ADR 005 rule 6): one section per gift with what it is and where it stands,
-     and for a running or paused gift three native forms stacked under each other: a new amount,
+     and for a running membership only "cancel for <date>" (MY-254 PR 4). For a running or paused
+     gift three native forms stacked under each other: a new amount,
      pause or resume, and stop. Stopping sits behind a native disclosure with its own button, so
      one stray tap stops nothing and no JavaScript is needed (ADR 009). The forms are stacked,
      never a row, so no label has to fit beside another at 320 px or 200 % zoom. -->
@@ -12,6 +13,7 @@
     open: boolean;
     paused: boolean;
     euros: string;
+    cancelFor: { summary: string; hint: string; confirm: string } | null;
   }
 
   interface Labels {
@@ -55,6 +57,17 @@
       </dl>
       {#if failed && failed.gift === gift.id}
         <div class="error-summary" role="alert"><p>{failed.message}</p></div>
+      {/if}
+      {#if gift.cancelFor}
+        <!-- A membership: only cancelling, for the end of the period it is paid for. -->
+        <details class="own-gift-stop">
+          <summary>{gift.cancelFor.summary}</summary>
+          <form method="post" action={action('cancel')} class="own-gift-form">
+            <input type="hidden" name="gift" value={gift.id} />
+            <p>{gift.cancelFor.hint}</p>
+            <button type="submit">{gift.cancelFor.confirm}</button>
+          </form>
+        </details>
       {/if}
       {#if gift.open}
         <form method="post" action={action('amount')} class="signup own-gift-form">

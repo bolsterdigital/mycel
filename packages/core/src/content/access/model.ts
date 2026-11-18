@@ -15,12 +15,37 @@ import { Slug, type Access } from '../model.js';
 export const AccessTierKind = z.enum(['free', 'paid']);
 export type AccessTierKind = z.infer<typeof AccessTierKind>;
 
-/** What an update may change: the copy and the order. Slug and kind are fixed at create. */
+/**
+ * What a membership of a paid tier costs per interval, in minor units (brief MY-254 PR 4, choice
+ * 9): tenant data, never a price in this repository. An interval without a price is not offered.
+ */
+export const TierPrices = z
+  .object({
+    month: z.number().int().min(100).max(1_000_000).optional(),
+    year: z.number().int().min(100).max(10_000_000).optional(),
+  })
+  .strict();
+export type TierPrices = z.infer<typeof TierPrices>;
+
+/** The intervals a tier sells, in the order a form offers them. */
+export const tierIntervals = (prices: TierPrices): ('month' | 'year')[] =>
+  (['month', 'year'] as const).filter((i) => prices[i] !== undefined);
+
+/** A site path of slugs only, like `/word-lid`: no scheme, host, query or `//`. */
+export const SitePath = z.string().regex(/^\/[a-z0-9/_-]{0,199}$/);
+
+/**
+ * What an update may change: the copy, the order, the prices and the signup page. Slug and kind
+ * are fixed at create; only a paid tier has prices.
+ */
 export const AccessTierInput = z
   .object({
     name: localized(z.string().min(1).max(200)),
     description: localized(z.string().min(1).max(2000)).optional(),
     order: z.number().int().min(0).max(10_000).default(0),
+    prices: TierPrices.default({}),
+    /** Where a visitor becomes a member; the prompt on a restricted item links here. */
+    signupPath: SitePath.nullable().default(null),
   })
   .strict();
 
@@ -30,14 +55,20 @@ export const AccessTier = AccessTierInput.extend({
   id: z.string().guid(),
   slug: Slug,
   /**
-   * `paid` says a membership will back the tier once the ledger exists (ADR 005); until then a
-   * paid tier opens only through a grant, exactly like a free one.
+   * `paid`: a membership can buy the tier (ADR 005 rule 8); each paid period is a grant of kind
+   * `paid`. A free tier opens only through a comp or gift grant.
    */
   kind: AccessTierKind,
+  /** Goes up by one whenever `prices` changes; a membership records the version it pays. */
+  priceVersion: z.number().int().positive(),
   createdAt: Timestamp,
   updatedAt: Timestamp,
 });
 export type AccessTier = z.infer<typeof AccessTier>;
+
+/** Whether a tier can be bought: paid, with at least one price. */
+export const sellable = (tier: Pick<AccessTier, 'kind' | 'prices'>): boolean =>
+  tier.kind === 'paid' && tierIntervals(tier.prices).length > 0;
 
 /**
  * The reader as the policy sees them: a supporter of this tenant and their standing grants. The

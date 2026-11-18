@@ -77,6 +77,14 @@ export const load: PageServerLoad = async ({ parent, locals, params }) => {
           currency: s.currency,
           interval: s.interval,
           paused: s.status === 'paused',
+          // A membership reads "Lid (Vrienden) tot 1 maart" (MY-254 PR 4).
+          member:
+            s.kind === 'membership' && s.paidThrough
+              ? {
+                  tier: access.find((a) => a.tierId === s.tierId)?.name ?? '',
+                  paidThrough: s.paidThrough,
+                }
+              : null,
         }))
     : [];
   return {

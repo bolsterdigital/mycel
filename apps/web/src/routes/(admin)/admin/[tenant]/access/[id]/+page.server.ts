@@ -1,6 +1,8 @@
 // One form creates or changes an access tier through `content.access_tier.create|update`; the
 // use cases hold the authorization (`content:publish`) and the tenant boundary, this route only
 // refuses the form early so a member without the capability does not fill it in for nothing.
+// A paid tier also shows its members (MY-254 PR 4): the memberships that buy it, for a member of
+// the team who may read donations.
 // Rejected: a separate create route (the two forms differ by two fields, slug and kind, which
 // core fixes at create).
 import { can, useCases } from '@mycel/core';
@@ -10,21 +12,20 @@ import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { refusalOf, refuse } from '#lib/server/http/refuse.js';
 import { runtime } from '#lib/server/runtime.js';
 import { contentLocale } from '#lib/server/content/content-locale.js';
-import { newTierFields, tierFields } from '#lib/server/access/tiers.js';
+import { newTierFields, tierFields, tierMembers } from '#lib/server/access/tiers.js';
 import { fields } from '#lib/server/people/form.js';
 import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ parent, locals, params }) => {
   await parent();
   const principal = locals.principal!;
   if (!can(principal, 'content:publish')) refuse(403);
-  return {
-    tier:
-      params.id === 'new'
-        ? null
-        : await loaded(
-            runtime().invoker.run(useCases.getAccessTier, principal, { tierId: params.id })
-          ),
-  };
+  const tier =
+    params.id === 'new'
+      ? null
+      : await loaded(
+          runtime().invoker.run(useCases.getAccessTier, principal, { tierId: params.id })
+        );
+  return { tier, members: tier?.kind === 'paid' ? await tierMembers(principal, tier.id) : null };
 };
 export const actions: Actions = {
   default: async ({ request, locals, url, params, cookies }) => {

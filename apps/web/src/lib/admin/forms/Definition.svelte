@@ -31,7 +31,7 @@
     />
     <Field id="kind" label={t('admin.forms.kind')} {locale}
       >{#snippet control(a)}<select {...a} name="kind"
-          >{#each ['signup', 'contact', 'petition', 'rsvp', 'donation'] as kind}<option
+          >{#each form.kind === 'membership' ? ['membership'] : ['signup', 'contact', 'petition', 'rsvp', 'donation'] as kind}<option
               value={kind}
               selected={kind === form.kind}
               >{t(`admin.forms.option.${kind}` as 'admin.forms.option.signup')}</option

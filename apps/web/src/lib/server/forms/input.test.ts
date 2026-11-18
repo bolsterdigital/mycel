@@ -94,4 +94,26 @@ describe('native form authoring input', () => {
     expect(value.id).toBe(form.id);
     expect(value.minFillSeconds).toBe(form.minFillSeconds);
   });
+  it('keeps the tier of a membership form and drops it for any other kind (MY-254 PR 4)', () => {
+    const tierId = '01900000-0000-7000-8000-0000000000a1';
+    const form = {
+      ...conditionalProbeForm('01900000-0000-7000-8000-00000000f000'),
+      kind: 'membership' as const,
+      tierId,
+    };
+    const settings = (kind: string) =>
+      updateDefinition(
+        data({
+          command: 'settings',
+          kind,
+          list: form.list,
+          consentTextVersion: form.consentTextVersion,
+          'submitLabel.en': form.submitLabel.en!,
+          'thankYou.en': form.thankYou.en!,
+        }),
+        form
+      );
+    expect(settings('membership')).toMatchObject({ kind: 'membership', tierId });
+    expect(settings('contact').tierId).toBeUndefined();
+  });
 });

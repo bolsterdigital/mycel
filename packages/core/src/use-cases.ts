@@ -61,6 +61,7 @@ import {
 } from './money/service.js';
 import { cancelSubscription, getSubscription, listSubscriptions } from './money/subscriptions.js';
 import { getOwnGifts, requestOwnGiftsLink, updateOwnGift } from './money/self-service.js';
+import { requestMemberSignin } from './money/member-signin.js';
 import {
   createConnection,
   disconnectConnection,
@@ -317,6 +318,7 @@ export const useCases = {
   cancelSubscription,
   getOwnGifts,
   updateOwnGift,
+  requestMemberSignin,
   requestOwnGiftsLink,
   listCampaigns,
   withdrawParticipation,

@@ -45,17 +45,25 @@ import {
 import { lockSupporter } from './service.js';
 import {
   Interval,
+  SubscriptionKind,
   SubscriptionStatus,
   isSubscriptionFinal,
   type Subscription,
 } from './subscription-model.js';
-import { finish, stepSubscription } from './subscription-steps.js';
+import { cancelAtPeriodEnd, finish, stepSubscription } from './subscription-steps.js';
+import type { AccessTier } from '../content/access/model.js';
+import '../content/ports.js';
 
 const Timestamp = z.string().datetime({ offset: true });
 
-/** A gift as its giver sees it: no provider, mandate, supporter or ledger. */
+/** A gift or membership as its giver sees it: no provider, mandate, supporter or ledger. */
 export const OwnGift = z.object({
   id: z.string().guid(),
+  kind: SubscriptionKind,
+  /** A membership: the tier it buys, named in every locale it has (PR 4). */
+  tier: z.object({ id: z.string().guid(), name: z.record(z.string(), z.string()) }).nullable(),
+  /** A membership that stops at `paidThrough` (choice 10). */
+  cancelAtPeriodEnd: z.boolean(),
   status: SubscriptionStatus,
   amount: MinorUnits,
   currency: Currency,
@@ -67,8 +75,11 @@ export const OwnGift = z.object({
 });
 export type OwnGift = z.infer<typeof OwnGift>;
 
-const ownGift = (s: Subscription): OwnGift => ({
+const ownGift = (s: Subscription, tier: AccessTier | null = null): OwnGift => ({
   id: s.id,
+  kind: s.kind,
+  tier: tier ? { id: tier.id, name: { ...tier.name } as Record<string, string> } : null,
+  cancelAtPeriodEnd: s.cancelAtPeriodEnd,
   status: s.status,
   amount: s.amount,
   currency: s.currency,
@@ -79,8 +90,13 @@ const ownGift = (s: Subscription): OwnGift => ({
   failedAttempts: s.failedAttempts,
 });
 
-/** The gifts the page shows: a membership comes with memberships (PR 4), a pending one never paid. */
-const shown = (s: Subscription): boolean => s.kind === 'donation' && s.status !== 'pending';
+/** The gifts and memberships the page shows: a pending one was never paid. */
+const shown = (s: Subscription): boolean => s.status !== 'pending';
+
+/** `sub` as its giver sees it, with the tier of a membership. */
+async function viewOf(ctx: TransactionContext, sub: Subscription): Promise<OwnGift> {
+  return ownGift(sub, sub.tierId ? await ctx.accessTiers.get(sub.tierId) : null);
+}
 
 /**
  * The supporter this request acts for: the one a link names, or the signed-in reader's. Throws
@@ -119,7 +135,9 @@ export const getOwnGifts = defineUseCase({
   async handler(ctx, { token }) {
     const supporterId = await giverOf(ctx, token);
     const rows = await ctx.subscriptions.list({ supporterId }, 0, MAX_PAGE_SIZE);
-    return { gifts: rows.filter(shown).map(ownGift) };
+    const gifts: OwnGift[] = [];
+    for (const row of rows.filter(shown)) gifts.push(await viewOf(ctx, row));
+    return { gifts };
   },
 });
 
@@ -129,7 +147,7 @@ export const updateOwnGift = defineUseCase({
   name: 'donation.self.update',
   kind: 'command',
   description:
-    'Change your own monthly or yearly gift, with a link token from a mail or as the signed-in reader: a new amount from the next charge, pause (nothing is charged until you resume), resume, or cancel (nothing is charged any more). A gift that is not yours, and a token that is no link of this site now, give not_found.',
+    'Change your own monthly or yearly gift, with a link token from a mail or as the signed-in reader: a new amount from the next charge, pause (nothing is charged until you resume), resume, or cancel (nothing is charged any more). A membership can only be cancelled, and then stops at the end of the period it is paid for, with access until then. A gift that is not yours, and a token that is no link of this site now, give not_found.',
   requires: 'content:read',
   actors: ['anonymous', 'reader'],
   consumes: null,
@@ -165,12 +183,18 @@ export const updateOwnGift = defineUseCase({
     const sub = await ctx.subscriptions.lock(input.subscriptionId);
     if (!sub || sub.supporterId !== supporterId || !shown(sub)) throw notFound('gift');
     const now = ctx.clock.now().toISOString();
-    const done = (s: Subscription) => ({ gift: ownGift(s) });
+    const done = async (s: Subscription) => ({ gift: await viewOf(ctx, s) });
 
     if (input.action === 'cancel') {
-      if (isSubscriptionFinal(sub.status)) return done(sub);
+      if (isSubscriptionFinal(sub.status) || sub.cancelAtPeriodEnd) return done(sub);
+      // A member has paid for the rest of the period: it stops at its end (choice 10).
+      if (sub.kind === 'membership' && sub.status === 'active')
+        return done(await cancelAtPeriodEnd(ctx, sub, 'donor'));
       return done(await finish(ctx, sub, 'cancelled', 'donor', null));
     }
+    // A membership has one price, the tier's, and no pause (choice 12).
+    if (sub.kind === 'membership')
+      throw new UseCaseError('conflict', 'a membership can only be cancelled');
     if (isSubscriptionFinal(sub.status))
       throw new UseCaseError('conflict', 'this gift has stopped');
 

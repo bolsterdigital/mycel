@@ -16,7 +16,8 @@
 // Each of these is one subscription ledger entry with the payment's cause (rules 1 and 5), a
 // started or ended subscription is one event in the giver's log (choice 15), and the giver gets a
 // mail when it started, when a charge failed, when dunning ended it and when it was cancelled
-// (`noticeGiver`, PR 3).
+// (`noticeGiver`, PR 3). A membership says `membership.*` instead and grants its tier for every
+// paid period (`membership.ts`, PR 4).
 //
 // Rejected: a second reconcile for subscriptions that asks the provider again (the payment's walk
 // is the fact; this only follows it), and ending a subscription on a chargeback at once (a donor
@@ -32,6 +33,7 @@ import { sha1Hex } from '../util/digest.js';
 import type { LedgerCause, Payment, PaymentStatus } from './model.js';
 import type { ProviderPayment } from './ports.js';
 import './ports.js';
+import { appendMembershipEvent } from './membership.js';
 import { noticeGiver } from './self-service-model.js';
 import {
   DEFAULT_DUNNING,
@@ -138,14 +140,20 @@ export async function finish(
     cause
   );
   if (sub.status !== 'pending') {
-    await appendSubscriptionEvent(
-      ctx,
-      done,
-      to === 'cancelled' ? 'donation.subscription.cancelled' : 'donation.subscription.ended',
-      reason ? { reason } : {}
-    );
-    // The giver hears that it stopped, unless an erasure stopped it.
-    if (to === 'cancelled') await noticeGiver(ctx, done, 'cancelled');
+    if (sub.kind === 'membership')
+      await appendMembershipEvent(ctx, done, 'membership.ended', {
+        reason: to === 'cancelled' ? 'cancelled' : reason,
+      });
+    else
+      await appendSubscriptionEvent(
+        ctx,
+        done,
+        to === 'cancelled' ? 'donation.subscription.cancelled' : 'donation.subscription.ended',
+        reason ? { reason } : {}
+      );
+    // The giver hears that it stopped, unless an erasure stopped it. A member who cancelled for
+    // the end of the period heard it when they cancelled (`cancelAtPeriodEnd`).
+    if (to === 'cancelled' && !sub.cancelAtPeriodEnd) await noticeGiver(ctx, done, 'cancelled');
     else if (reason === 'dunning') await noticeGiver(ctx, done, 'ended');
   }
   return done;
@@ -225,8 +233,30 @@ async function activate(
     'activated',
     cause
   );
-  await appendSubscriptionEvent(ctx, active, 'donation.subscription.started');
+  if (active.kind === 'membership') await appendMembershipEvent(ctx, active, 'membership.started');
+  else await appendSubscriptionEvent(ctx, active, 'donation.subscription.started');
   await noticeGiver(ctx, active, 'started');
+}
+
+/**
+ * Stop a membership at the end of its paid period (choice 10): the charge run ends it at
+ * `paidThrough`, and the last grant opens the tier until then plus grace. The member hears it
+ * now. The caller holds the subscription's lock; it is `active`.
+ */
+export async function cancelAtPeriodEnd(
+  ctx: TransactionContext,
+  sub: Subscription,
+  cause: SubscriptionCause
+): Promise<Subscription> {
+  const marked = await stepSubscription(
+    ctx,
+    sub,
+    { ...sub, cancelAtPeriodEnd: true },
+    'cancel-at-period-end',
+    cause
+  );
+  await noticeGiver(ctx, marked, 'cancelled');
+  return marked;
 }
 
 async function renew(
@@ -237,7 +267,7 @@ async function renew(
   if (!sub.startedAt) return;
   const periodsPaid = sub.periodsPaid + 1;
   const paidThrough = addInterval(sub.startedAt, periodsPaid, sub.interval);
-  await stepSubscription(
+  const renewed = await stepSubscription(
     ctx,
     sub,
     {
@@ -250,6 +280,8 @@ async function renew(
     'renewed',
     cause
   );
+  if (renewed.kind === 'membership')
+    await appendMembershipEvent(ctx, renewed, 'membership.renewed');
 }
 
 const FAILS: readonly PaymentStatus[] = ['failed', 'expired', 'charged_back'];

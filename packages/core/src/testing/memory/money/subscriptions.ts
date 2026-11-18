@@ -16,14 +16,15 @@ export function memorySubscriptions(s: TenantStore): SubscriptionRepository {
     async save(sub) {
       if (rows.has(sub.id)) rows.set(sub.id, structuredClone(sub));
     },
-    list: async ({ status, kind, supporterId }, offset, limit) =>
+    list: async ({ status, kind, supporterId, tierId }, offset, limit) =>
       structuredClone(
         [...rows.values()]
           .filter(
             (r) =>
               (!status || r.status === status) &&
               (!kind || r.kind === kind) &&
-              (!supporterId || r.supporterId === supporterId)
+              (!supporterId || r.supporterId === supporterId) &&
+              (!tierId || r.tierId === tierId)
           )
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
           .slice(offset, offset + limit)

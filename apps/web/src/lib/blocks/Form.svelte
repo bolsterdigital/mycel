@@ -46,19 +46,24 @@
 </svelte:head>
 
 <div id={anchor} class="block form form-{variant} width-{width}">
-  <form
-    method="post"
-    class="signup"
-    data-proof={JSON.stringify(def.proof)}
-    data-conditions={def.conditionalHelp ? JSON.stringify(def.fields) : undefined}
-  >
-    {#if preview}
-      <p class="muted">{preview}</p>
-      <fieldset disabled class="preview">{@render body()}</fieldset>
-    {:else}
-      {@render body()}
-    {/if}
-  </form>
+  {#if def.membership === null}
+    <!-- A membership form whose tier sells nothing now takes no member: no form to fill in. -->
+    <p>{model.copy.membershipUnavailable}</p>
+  {:else}
+    <form
+      method="post"
+      class="signup"
+      data-proof={JSON.stringify(def.proof)}
+      data-conditions={def.conditionalHelp ? JSON.stringify(def.fields) : undefined}
+    >
+      {#if preview}
+        <p class="muted">{preview}</p>
+        <fieldset disabled class="preview">{@render body()}</fieldset>
+      {:else}
+        {@render body()}
+      {/if}
+    </form>
+  {/if}
 </div>
 
 {#snippet body()}
@@ -96,6 +101,28 @@
       data-form-type="other"
     />
   </div>
+
+  {#if def.membership}
+    <!-- What a membership costs (MY-254 PR 4): one radio button per interval the tier sells,
+         posted as `membership-interval`; the first is checked, so the price is never typed. -->
+    {@const chosen = textValue('membership-interval') || def.membership.options[0]?.value}
+    <fieldset class="field amount interval">
+      <legend>{def.membership.legend}</legend>
+      <div class="presets">
+        {#each def.membership.options as option, i (option.value)}
+          <label class="preset"
+            ><input
+              id="f-{def.formId}-membership{i ? `-${i}` : ''}"
+              type="radio"
+              name="membership-interval"
+              value={option.value}
+              checked={chosen === option.value}
+            />{option.label}</label
+          >
+        {/each}
+      </div>
+    </fieldset>
+  {/if}
 
   {#each def.fields as field (field.name)}
     {@const id = `f-${def.formId}-${field.name}`}

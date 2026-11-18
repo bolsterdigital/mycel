@@ -20,6 +20,8 @@ export * from './money/webhook.js';
 export * from './money/self-service-model.js';
 export * from './money/self-service.js';
 export * from './money/giving-mail.js';
+export * from './money/membership.js';
+export * from './money/member-signin.js';
 export * from './assist/ports.js';
 export * from './assist/model.js';
 export * from './assist/service.js';

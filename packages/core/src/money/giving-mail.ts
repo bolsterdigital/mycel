@@ -72,7 +72,17 @@ export interface GivingMailInput {
   gift: { amount: string; interval: 'month' | 'year' } | null;
   /** The next attempt, as a date in the site's time zone, for `charge-failed`. */
   nextAttempt: string | null;
+  /** A membership's notice (PR 4): its own words, and for a cancelled one the day it stops. */
+  membership?: { until: string | null } | null;
 }
+
+/** A membership says "membership" where a gift says "gift". */
+const MEMBER_SUBJECT: Record<GivingNoticeKind, MessageKey> = {
+  started: 'mail.membership.started.subject',
+  'charge-failed': 'mail.membership.failed.subject',
+  ended: 'mail.membership.ended.subject',
+  cancelled: 'mail.membership.cancelled.subject',
+};
 
 export function renderGivingMail(input: GivingMailInput): MailMessage {
   const { kind, locale } = input;
@@ -81,31 +91,51 @@ export function renderGivingMail(input: GivingMailInput): MailMessage {
     amount: input.gift?.amount ?? '',
     per: input.gift ? t(locale, `mail.giving.per.${input.gift.interval}`) : '',
     date: input.nextAttempt ?? '',
+    until: input.membership?.until ?? '',
     url: input.requestUrl,
   };
   const m = (key: MessageKey) => t(locale, key, params);
-  const subject = m(SUBJECT[kind]);
+  const member = input.membership && kind !== 'link' ? kind : null;
+  const subject = m(member ? MEMBER_SUBJECT[member] : SUBJECT[kind]);
   const paragraphs: string[] = [];
-  switch (kind) {
-    case 'link':
-      paragraphs.push(m('mail.giving.link.intro'));
-      break;
-    case 'started':
-      paragraphs.push(m('mail.giving.started.intro'));
-      break;
-    case 'charge-failed':
-      paragraphs.push(
-        m('mail.giving.failed.intro'),
-        m(input.nextAttempt ? 'mail.giving.failed.retry' : 'mail.giving.failed.later')
-      );
-      break;
-    case 'ended':
-      paragraphs.push(m('mail.giving.ended.intro'), m('mail.giving.again'));
-      break;
-    case 'cancelled':
-      paragraphs.push(m('mail.giving.cancelled.intro'), m('mail.giving.thanks'));
-      break;
-  }
+  if (member === 'started') paragraphs.push(m('mail.membership.started.intro'));
+  else if (member === 'charge-failed')
+    paragraphs.push(
+      m('mail.membership.failed.intro'),
+      m(input.nextAttempt ? 'mail.giving.failed.retry' : 'mail.giving.failed.later')
+    );
+  else if (member === 'ended')
+    paragraphs.push(m('mail.membership.ended.intro'), m('mail.membership.again'));
+  else if (member === 'cancelled')
+    paragraphs.push(
+      m(
+        input.membership?.until
+          ? 'mail.membership.cancelled.until'
+          : 'mail.membership.cancelled.intro'
+      ),
+      m('mail.giving.thanks')
+    );
+  else
+    switch (kind) {
+      case 'link':
+        paragraphs.push(m('mail.giving.link.intro'));
+        break;
+      case 'started':
+        paragraphs.push(m('mail.giving.started.intro'));
+        break;
+      case 'charge-failed':
+        paragraphs.push(
+          m('mail.giving.failed.intro'),
+          m(input.nextAttempt ? 'mail.giving.failed.retry' : 'mail.giving.failed.later')
+        );
+        break;
+      case 'ended':
+        paragraphs.push(m('mail.giving.ended.intro'), m('mail.giving.again'));
+        break;
+      case 'cancelled':
+        paragraphs.push(m('mail.giving.cancelled.intro'), m('mail.giving.thanks'));
+        break;
+    }
   const after: string[] = [];
   if (input.manageUrl) after.push(m('mail.giving.expires'));
   if (kind === 'link') after.push(m('mail.signin.ignore'));
@@ -126,7 +156,7 @@ export function renderGivingMail(input: GivingMailInput): MailMessage {
 ${paragraphs.map((p) => `    <p>${escapeHtml(p)}</p>`).join('\n')}
 ${
   url
-    ? `    <p><a href="${url}" style="display:inline-block;background:#18181b;color:#fff;padding:.75rem 1.25rem;border-radius:.5rem;text-decoration:none">${escapeHtml(m('mail.giving.button'))}</a></p>
+    ? `    <p><a href="${url}" style="display:inline-block;background:#18181b;color:#fff;padding:.75rem 1.25rem;border-radius:.5rem;text-decoration:none">${escapeHtml(m(member ? 'mail.membership.button' : 'mail.giving.button'))}</a></p>
     <p style="font-size:.875rem;color:#52525b">${escapeHtml(m('mail.confirm.fallback'))}<br><a href="${url}" style="color:#52525b">${url}</a></p>`
     : ''
 }
@@ -203,11 +233,11 @@ export function givingMailSource(deps: ConfirmationMailDeps): MailSource {
           `${SELF_PATH}/${encodeURIComponent(await selfToken(deps.signer, tenant.id, giver.id, expiresAt))}?lang=${encodeURIComponent(locale)}`
         )
       : null;
-    const nextAttempt = notice?.nextChargeAt
-      ? new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone: read.timeZone }).format(
-          new Date(notice.nextChargeAt)
-        )
-      : null;
+    const day = (iso: string) =>
+      new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone: read.timeZone }).format(
+        new Date(iso)
+      );
+    const nextAttempt = notice?.nextChargeAt ? day(notice.nextChargeAt) : null;
     return renderGivingMail({
       kind,
       locale,
@@ -223,6 +253,10 @@ export function givingMailSource(deps: ConfirmationMailDeps): MailSource {
           }
         : null,
       nextAttempt,
+      membership:
+        notice?.kind === 'membership'
+          ? { until: notice.paidThrough ? day(notice.paidThrough) : null }
+          : null,
     });
   };
 }

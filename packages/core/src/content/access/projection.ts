@@ -36,14 +36,30 @@ import { liveSession } from '../../readers/service.js';
 import '../../supporters/ports.js';
 import { blockReferenceRows } from '../blocks.js';
 import type { ContentDocument } from '../model.js';
-import { accessEndsAt, hasAccess, readerOf, type ReaderAccess } from './model.js';
+import { accessEndsAt, hasAccess, readerOf, sellable, type ReaderAccess } from './model.js';
+import '../ports.js';
 
 /**
  * Why the body was left out, as the one thing a visitor can do about it: `signin` for nobody
- * signed in, `tier` for a reader whose grants do not open this item.
+ * signed in, `tier` for a reader whose grants do not open this item. `join` is the site path where
+ * a membership that opens it is sold (MY-254 PR 4): the signup page of the first of the item's
+ * tiers that is paid, has a price and names one; absent otherwise.
  */
-export const AccessGate = z.object({ prompt: z.enum(['signin', 'tier']) });
+export const AccessGate = z.object({
+  prompt: z.enum(['signin', 'tier']),
+  join: z.string().optional(),
+});
 export type AccessGate = z.infer<typeof AccessGate>;
+
+/** The signup page of the first tier of `doc` that sells a membership, if any. */
+async function joinPath(ctx: TransactionContext, doc: ContentDocument): Promise<string | null> {
+  if (doc.access.level !== 'tier') return null;
+  for (const id of doc.access.tierIds ?? []) {
+    const tier = await ctx.accessTiers.get(id);
+    if (tier && sellable(tier) && tier.signupPath) return tier.signupPath;
+  }
+  return null;
+}
 
 /**
  * The blocks in front of the teaser boundary (ADR 018 rule 6): none for `lead`, those above the
@@ -114,9 +130,10 @@ export async function accessProjection(
     const until = grants && grants < reader.sessionEndsAt ? grants : reader.sessionEndsAt;
     return { document: doc, gate: null, until };
   }
+  const join = await joinPath(ctx, doc);
   return {
     document: teaserDocument(doc),
-    gate: { prompt: reader ? 'tier' : 'signin' },
+    gate: { prompt: reader ? 'tier' : 'signin', ...(join ? { join } : {}) },
     until: null,
   };
 }
