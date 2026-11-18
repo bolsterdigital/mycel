@@ -17,6 +17,8 @@
 // section of General for `tenant:admin` only, its own form and version: a shorter term deletes submissions, which is
 // not an editor's decision. Rejected: a subject of its own for one field, or the Forms screen,
 // which an editor with `forms:read` opens too.
+// Measurement (`analytics.settings.*`, docs/reference/analytics.md) sits beside it for
+// the same reason and the same reader: which third party counts visitors is `tenant:admin`'s.
 import {
   BRAND_LIMITS,
   can,
@@ -105,6 +107,10 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
     section === 'general' && can(principal, 'tenant:admin')
       ? await runtime().invoker.run(useCases.getSiteRetention, principal, {})
       : null;
+  const analytics =
+    section === 'general' && can(principal, 'tenant:admin')
+      ? await runtime().invoker.run(useCases.getAnalyticsSettings, principal, {})
+      : null;
   const chosen = images?.value.defaultImageId;
   const t = ui(langOf(locals));
   return {
@@ -113,6 +119,7 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
     general,
     zones: section === 'general' ? timeZoneOptions(langOf(locals)) : [],
     retention,
+    analytics,
     theme,
     chrome,
     logo,
@@ -198,6 +205,22 @@ export const actions: Actions = {
       return { saved: 'retention', version: result.version };
     } catch (e) {
       return refused(e, 'retention', data);
+    }
+  },
+  analytics: async ({ request, locals, url, params }) => {
+    const data = await request.formData();
+    const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
+    if (!can(principal, 'tenant:admin')) refuse(403);
+    // An empty field switches measurement off; core validates and normalises anything else.
+    const domain = text(data, 'plausibleDomain');
+    try {
+      const result = await runtime().invoker.run(useCases.updateAnalyticsSettings, principal, {
+        baseVersion: baseVersion(data),
+        settings: { plausibleDomain: domain || null },
+      });
+      return { saved: 'analytics', version: result.version };
+    } catch (e) {
+      return refused(e, 'analytics', data);
     }
   },
   brand: async ({ request, locals, url, params }) => {

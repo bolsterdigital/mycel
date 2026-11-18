@@ -199,6 +199,11 @@ import {
   updateSiteRetention,
 } from './theme/settings.js';
 import {
+  getAnalyticsSettings,
+  getAnalyticsTracker,
+  updateAnalyticsSettings,
+} from './analytics/service.js';
+import {
   addHostname,
   listHostnames,
   removeHostname,
@@ -423,6 +428,9 @@ export const useCases = {
   updateSiteImages,
   getSiteRetention,
   updateSiteRetention,
+  getAnalyticsSettings,
+  updateAnalyticsSettings,
+  getAnalyticsTracker,
   getBrandAsset,
   putBrandAsset,
   removeBrandAsset,

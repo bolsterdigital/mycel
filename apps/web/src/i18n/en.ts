@@ -1495,6 +1495,7 @@ export const en = {
   'admin.audit.op.site.navigation.unpublish': 'Navigation taken offline',
   'admin.audit.op.site.general.update': 'General settings changed',
   'admin.audit.op.site.image.update': 'Default image changed',
+  'admin.audit.op.analytics.settings.update': 'Statistics setting changed',
   'admin.audit.op.site.retention.update': 'Retention terms changed',
   'admin.audit.op.site.theme.update': 'House style changed',
   'admin.audit.op.reader.signin.request': 'Sign-in link requested',
@@ -3202,6 +3203,17 @@ export const en = {
   'admin.site.retention.day.one': '{n} day',
   'admin.site.retention.day.other': '{n} days',
   'admin.site.retention.save': 'Save terms',
+  'admin.site.analytics.title': 'Statistics',
+  'admin.site.analytics.off':
+    'This site counts nothing. Enter a Plausible site to count pageviews of published public pages and accepted signups.',
+  'admin.site.analytics.on':
+    'This site counts pageviews and accepted signups in the Plausible site {domain}.',
+  'admin.site.analytics.domain': 'Plausible site',
+  'admin.site.analytics.hint':
+    'The site name as it is in Plausible, such as example.org. Leave empty to stop counting; what Plausible already holds stays there until you delete it in Plausible.',
+  'admin.site.analytics.mismatch':
+    'The Plausible site {domain} does not match this site’s address {hostname}. Mycel does not change it: correct it here if the address changed.',
+  'admin.site.analytics.save': 'Save statistics',
   'admin.content.state.short.live': 'Published',
   'admin.content.state.short.changed': 'Published · unpublished changes',
   'admin.content.state.short.pinned': 'Scheduled',

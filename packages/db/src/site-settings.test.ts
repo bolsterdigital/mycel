@@ -183,6 +183,54 @@ describe.skipIf(skip)('site settings conformance', () => {
       value: { submissionMonths: 24, readerActivityDays: 90 },
     });
   });
+  it('keeps the measurement setting per tenant, off by default and off when unreadable (#12)', async () => {
+    const principal = systemPrincipal(a, 'test');
+    const off = { plausibleDomain: null };
+    expect(await invoker.run(useCases.getAnalyticsSettings, principal, {})).toMatchObject({
+      version: 0,
+      value: off,
+    });
+    const writes = await Promise.allSettled(
+      ['a.example', 'b.example'].map((plausibleDomain) =>
+        invoker.run(useCases.updateAnalyticsSettings, principal, {
+          baseVersion: 0,
+          settings: { plausibleDomain },
+        })
+      )
+    );
+    expect(writes.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const tracker = await invoker.run(useCases.getAnalyticsTracker, principal, {});
+    expect(['a.example', 'b.example']).toContain(tracker.plausibleDomain);
+    expect(await invoker.run(useCases.getAnalyticsTracker, systemPrincipal(b, 'test'), {})).toEqual(
+      { plausibleDomain: null }
+    );
+    // The app role sees no other tenant's row, whatever it asks for.
+    const leaked = await app.transaction().execute(async (trx) => {
+      await enterTenant(trx, b);
+      return trx
+        .selectFrom('site_settings')
+        .select('analytics')
+        .where('tenant_id', '=', a)
+        .execute();
+    });
+    expect(leaked).toEqual([]);
+    await owner.transaction().execute(async (trx) => {
+      await enterTenant(trx, a);
+      await trx
+        .updateTable('site_settings')
+        .set({ analytics: JSON.stringify({ plausibleDomain: 'https://evil.example/x.js' }) })
+        .where('tenant_id', '=', a)
+        .execute();
+    });
+    expect(await invoker.run(useCases.getAnalyticsTracker, principal, {})).toEqual(off);
+    // Clearing it at the current version stops the tracker read at once.
+    const { version } = await invoker.run(useCases.getAnalyticsSettings, principal, {});
+    await invoker.run(useCases.updateAnalyticsSettings, principal, {
+      baseVersion: version,
+      settings: off,
+    });
+    expect(await invoker.run(useCases.getAnalyticsTracker, principal, {})).toEqual(off);
+  });
   it('isolates brand bytes and versions under the same forced RLS row', async () => {
     const aPrincipal = systemPrincipal(a, 'test');
     const bPrincipal = systemPrincipal(b, 'test');

@@ -38,6 +38,8 @@ const GROWTH_VERBS = ['create', 'duplicate', 'invite', 'add', 'submit', 'upload'
  * alone, which cannot tell `connections` from `connection` or `put` from `update`.
  */
 const MODULES = [
+  // Optional measurement owns its setting, catalogue and port, like `assist.settings`.
+  'analytics',
   'assist',
   'attention',
   'audit',
