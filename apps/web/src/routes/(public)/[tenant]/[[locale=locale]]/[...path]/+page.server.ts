@@ -33,6 +33,7 @@ import { failureFor } from '#lib/server/public/form-post.js';
 import { NO_STORE, itemCacheHeaders } from '#lib/server/http/http-cache.js';
 import { forwardOldAddress } from '#lib/server/public/old-address.js';
 import { loadPublicItem } from '#lib/server/public/public-page.js';
+import { pageviewTag } from '#lib/server/public/analytics.js';
 import { runtime } from '#lib/server/runtime.js';
 import { absoluteSiteUrl, requireSite, sitePath, siteTenant } from '#lib/server/site.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -114,6 +115,13 @@ export const load: PageServerLoad = async ({
     dropCap: view.dropCap,
     head: view.head,
     structured: view.structured,
+    // Only a successful GET of a published public item counts (analytics.ts).
+    pageview: await pageviewTag(
+      site,
+      { method: request.method, status: 200, url, thanks: false },
+      view.item,
+      locale
+    ),
     errorPrefix: t('error.prefix'),
   };
 };

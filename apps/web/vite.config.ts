@@ -43,6 +43,10 @@ export default defineConfig({
             'sha256-S8qMpvofolR8Mpjy4kQvEm7m1q8clzU4dfDH0AmvZjo=',
           ],
           'img-src': ['self', 'data:'],
+          // Measurement: the one Plausible origin a counted public page posts its pageview
+          // to (static/_site/pageview.js). It must equal PLAUSIBLE_ORIGIN in core's
+          // analytics/model.ts (csp.test.ts); a tenant's Plausible site name never enters here.
+          'connect-src': ['self', 'https://analytics.dreamkit.eu'],
           'form-action': ['self'],
           'base-uri': ['none'],
           'object-src': ['none'],

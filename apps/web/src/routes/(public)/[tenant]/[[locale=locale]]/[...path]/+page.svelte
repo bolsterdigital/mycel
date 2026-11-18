@@ -63,6 +63,13 @@
     {:else}
       <meta name="twitter:card" content="summary" />
     {/if}
+    {#if data.pageview}<script
+        defer
+        src="/_site/pageview.js"
+        data-endpoint={data.pageview.endpoint}
+        data-domain={data.pageview.domain}
+        data-url={data.pageview.url}
+      ></script>{/if}
   {/if}
 </svelte:head>
 

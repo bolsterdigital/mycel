@@ -42,8 +42,9 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   // The same flows run twice. `no-js` proves the product promise (everything works with
   // JavaScript disabled); `a11y` runs axe, which has to inject a script to analyse the page.
-  // The pages ship no script but a form's proof-of-work module (asserted), so both projects see
-  // identical documents; only `a11y` runs that module.
+  // The pages ship no script but a form's proof-of-work module (asserted) and, on a site that
+  // opted into measurement, the pageview script, so both projects see identical documents; only
+  // `a11y` runs those.
   projects: [
     { name: 'no-js', use: { javaScriptEnabled: false } },
     { name: 'a11y', use: { javaScriptEnabled: true } },

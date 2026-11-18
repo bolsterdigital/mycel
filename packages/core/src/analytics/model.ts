@@ -27,6 +27,17 @@ export const PlausibleDomain = z
   );
 
 /**
+ * The one Plausible installation every site counts to: the EU-hosted instance of the platform.
+ * It is a reviewed constant, not a setting, because it is the only third-party origin the public
+ * pages may contact (`connect-src` in apps/web/vite.config.ts, which must name exactly this) and a
+ * tenant must never choose where its visitors' browsers send requests. An installation that runs
+ * its own Plausible changes this constant and the CSP together, in review.
+ */
+export const PLAUSIBLE_ORIGIN = 'https://analytics.dreamkit.eu';
+/** Plausible's collection endpoint on that origin (Events API). */
+export const PLAUSIBLE_EVENT_ENDPOINT = `${PLAUSIBLE_ORIGIN}/api/event`;
+
+/**
  * What a site decides about measurement: the Plausible site its counts go to, or null for none
  * (the default). Null stops every pageview script and server event of the site from the next
  * request on; it does not erase what Plausible already holds.
