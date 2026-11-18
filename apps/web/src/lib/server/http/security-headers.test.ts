@@ -1,11 +1,12 @@
 // The header values per kind of response (brief #20c decision 1). Negative cases: HSTS never
 // over plain HTTP and never with includeSubDomains/preload; a route's own value is kept; the
-// admin's CSP loses only its frame-ancestors source list.
+// admin's CSP loses only its frame-ancestors source list; a public page frames only placed players.
 import { describe, expect, it } from 'vitest';
 import {
   applySecurityHeaders,
   CLEAR_ON_LOGOUT,
   denyFraming,
+  frameSources,
   refusedCrossSite,
   securityHeaders,
   shareable,
@@ -121,6 +122,24 @@ describe('applySecurityHeaders', () => {
     expect(live.get('content-security-policy')).toBe(
       "default-src 'self'; script-src 'self' 'nonce-abc'; frame-ancestors 'self'"
     );
+  });
+
+  it('frames exactly the placed players on a public page, never on admin', () => {
+    const policy = "default-src 'self'; script-src 'self' 'nonce-abc'; frame-ancestors 'self'";
+    const players = ['https://www.youtube-nocookie.com', 'https://player.vimeo.com'];
+    const pub = new Headers({ 'content-security-policy': policy });
+    applySecurityHeaders(pub, 'public', false, false, players);
+    expect(pub.get('content-security-policy')).toBe(
+      `${policy}; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com`
+    );
+    // An existing frame-src is replaced, not widened; nothing placed leaves the policy as it was.
+    expect(frameSources(`${policy}; frame-src https://evil.example`, players.slice(0, 1))).toBe(
+      `${policy}; frame-src 'self' https://www.youtube-nocookie.com`
+    );
+    expect(frameSources(policy, [])).toBe(policy);
+    const admin = new Headers({ 'content-security-policy': policy });
+    applySecurityHeaders(admin, 'admin', false, false, players);
+    expect(admin.get('content-security-policy')).not.toContain('frame-src');
   });
 
   it('adds no CSP where SvelteKit generated none', () => {

@@ -22,6 +22,8 @@ declare global {
        * Europe/Amsterdam. Set by `adminTimeZone` (lib/server/admin/admin.ts), the one place deciding it.
        */
       timeZone?: string;
+      /** Player origins a public page may frame, from its integration decision (hooks.server.ts). */
+      frameSources?: readonly string[];
     }
   }
 }
