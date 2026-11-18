@@ -145,6 +145,7 @@
         "apps/web/src/routes/(public)/**",
         "apps/web/src/lib/server/public/content-route*",
         "docs/reference/content-model.md",
+        "packages/import-wordpress/**",
         "apps/web/src/lib/public/person-path.ts",
         "apps/web/src/lib/public/wall-clock.ts",
         "apps/web/src/lib/public/search-path.ts",
