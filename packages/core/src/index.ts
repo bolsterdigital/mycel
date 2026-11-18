@@ -181,13 +181,7 @@ export * from './content/people/erasure.js';
 export * from './content/people/erase.js';
 
 export type { FieldPredicate } from './forms/fields.js';
-export {
-  predicateMatches,
-  fieldPattern,
-  GiftInterval,
-  chosenInterval,
-  intervalName,
-} from './forms/fields.js';
+export { predicateMatches, fieldPattern } from './forms/fields.js';
 
 export * from './connections/mailchimp/ports.js';
 export * from './connections/mailchimp/service.js';

@@ -205,7 +205,7 @@ export const submitForm = defineUseCase({
     if (!interval)
       return { status: 'invalid', errors: [{ field: gift!.name, message: 'forms.error.value' }] };
     // A subscription without an address could not be found again to erase or to manage
-    // (review of #503); every form requires one today, this keeps it so if that ever changes.
+    // (review of MY-254 PR 1); every form requires one today, this keeps it so if that ever changes.
     if (interval !== 'once' && !email) {
       const field = form.fields.find((f) => f.type === 'email');
       return {

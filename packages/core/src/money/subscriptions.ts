@@ -116,7 +116,7 @@ export async function dueSubscriptions(ctx: TransactionContext, limit = 100): Pr
 /**
  * How long an attempt, `pending` or `unknown`, waits before the reconciliation asks after it: a
  * request whose answer was lost may still land at the provider, and "made nothing" read before it
- * landed would charge the period a second time with a new key (review of #503).
+ * landed would charge the period a second time with a new key (review of MY-254 PR 1).
  */
 export const ATTEMPT_RECONCILE_AFTER_MS = 15 * 60 * 1000;
 

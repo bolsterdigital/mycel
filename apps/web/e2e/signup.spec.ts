@@ -34,6 +34,7 @@ import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { campaignCardFixture } from './lib/blocks/campaigns';
 import { exerciseRestrictedArticle } from './lib/published/restricted';
 import { exerciseDonation } from './lib/forms/donation';
+import { exerciseRecurring } from './lib/forms/recurring';
 import { exerciseMollieConnection } from './lib/forms/mollie';
 import { exerciseFundraiser } from './lib/forms/fundraiser';
 
@@ -763,6 +764,11 @@ test.describe('in English', () => {
 test('a donation: an amount, the test provider, thanks or failure, Donations and the person', async ({
   page,
 }, testInfo) => exerciseDonation(page, testInfo.project.name));
+
+// MY-254 PR 2: give monthly, the first payment, Recurring, the giver's page and Stop.
+test('a monthly gift: choose monthly, pay once, Recurring, the person, and stop', async ({
+  page,
+}, testInfo) => exerciseRecurring(page, testInfo.project.name));
 
 // MY-252 PR 3: the site's Mollie key under Connections (lib/forms/mollie.ts).
 test.describe('a Mollie key', () => {

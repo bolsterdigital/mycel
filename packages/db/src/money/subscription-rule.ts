@@ -111,7 +111,7 @@ export async function observeSubscription(
   const again = await charge(monthly.subscriptionId);
   const renewed = await sub(monthly.subscriptionId);
   // The answer is lost and the request has not reached the provider yet: asking at once would
-  // hear "made nothing" and charge the period again with a new key (review of #503).
+  // hear "made nothing" and charge the period again with a new key (review of MY-254 PR 1).
   provider.loseNext(true);
   const lost = await charge(leaving.subscriptionId);
   const inFlight = await charge(leaving.subscriptionId);

@@ -28,7 +28,6 @@
 
 import { personPath } from '../public/person-path.js';
 import { formatBytes } from '../admin/format.js';
-import { formatEuros } from '../money.js';
 import {
   fieldPattern,
   type FormDefinition,
@@ -59,6 +58,7 @@ import {
   LICENCE_URLS,
 } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
+import { amountChoices } from './amount-field.js';
 import { creditWords } from './credit.js';
 import { headingsAboveFloats } from './float-order.js';
 import type {
@@ -969,24 +969,7 @@ function toRenderForm(
       ...('value' in f ? { value: f.value } : {}),
       ...('min' in f ? { min: f.min, max: f.max } : {}),
       ...('maxLength' in f ? { maxLength: f.maxLength } : {}),
-      ...(f.type === 'amount' && f.presets
-        ? {
-            presets: f.presets.map((p) => ({ value: String(p), label: formatEuros(p, locale) })),
-            ...(f.custom !== false ? { otherLabel: translate(locale, 'forms.amount.other') } : {}),
-          }
-        : {}),
-      // Once only needs no question; anything else is asked, the first offered checked.
-      ...(f.type === 'amount' && f.intervals && f.intervals.join() !== 'once'
-        ? {
-            intervals: {
-              legend: translate(locale, 'forms.amount.interval'),
-              options: f.intervals.map((value) => ({
-                value,
-                label: translate(locale, `forms.amount.interval.${value}`),
-              })),
-            },
-          }
-        : {}),
+      ...amountChoices(f, locale),
     })),
   };
 }
