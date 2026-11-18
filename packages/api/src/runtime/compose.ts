@@ -31,6 +31,9 @@ import {
   siteUrl,
   paymentWebhookToken,
   supporterIngestSubscriber,
+  analyticsSubscriber,
+  NoopAnalytics,
+  type Analytics,
   type BlobStore,
   type Clock,
   SYNTHETIC_SOURCE,
@@ -104,6 +107,7 @@ import { createAuthenticator, type Authenticator } from '../auth.js';
 import { createDnsResolver } from './dns.js';
 import { DirectoryPaymentProvider } from './fake-payments.js';
 import { MolliePaymentProvider } from '@mycel/pay-mollie';
+import { PlausibleAnalytics } from '@mycel/analytics-plausible';
 export { FAKE_CHOICES, type FakeChoice } from './fake-payments.js';
 import type { HttpObservability } from '../app.js';
 import { assessWorker, type WorkerReadiness } from '../health.js';
@@ -148,6 +152,32 @@ function workerMetrics(metrics: Metrics) {
       jobsExhausted: metrics.gauge('mycel_jobs_exhausted', 'Open jobs that used up their attempts'),
     },
     runs: metrics.counter('mycel_jobs_runs_total', 'Job runs by type and result'),
+  };
+}
+
+/**
+ * The server-event transport (docs/reference/analytics.md § Server events), counting each answer
+ * by outcome: an operator alerts on `unknown` and `rejected` from the series, which carries no
+ * site, URL or payload. Defined on first send, so a process that sends nothing has no series.
+ */
+function analyticsOf(config: RuntimeConfig, metrics: Metrics): Analytics {
+  if (config.ANALYTICS_PROVIDER === 'none') return new NoopAnalytics();
+  const transport = new PlausibleAnalytics(
+    config.PLAUSIBLE_FIXTURE_ORIGIN
+      ? { endpoint: `${config.PLAUSIBLE_FIXTURE_ORIGIN}/api/event` }
+      : {}
+  );
+  let sent: ReturnType<Metrics['counter']> | undefined;
+  return {
+    async send(delivery) {
+      const outcome = await transport.send(delivery);
+      sent ??= metrics.counter(
+        'mycel_analytics_deliveries_total',
+        'Server events sent to Plausible, by outcome'
+      );
+      sent.inc({ outcome });
+      return outcome;
+    },
   };
 }
 
@@ -368,6 +398,14 @@ export function createRuntime(
     signinMailSubscriber(confirmation),
     givingMailSubscriber(confirmation),
     editionTestMailSubscriber(confirmation),
+    analyticsSubscriber({
+      uow,
+      tenants,
+      platform,
+      analytics: analyticsOf(config, metrics),
+      clock,
+      log,
+    }),
   ];
   // What `mail.reconcile` rebuilds a message with, per mail subscriber above.
   const mailSources = {

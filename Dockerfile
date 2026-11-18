@@ -20,6 +20,7 @@ COPY packages/api/package.json packages/api/
 COPY packages/mail-tem/package.json packages/mail-tem/
 COPY packages/assist-openai/package.json packages/assist-openai/
 COPY packages/pay-mollie/package.json packages/pay-mollie/
+COPY packages/analytics-plausible/package.json packages/analytics-plausible/
 COPY packages/render-email/package.json packages/render-email/
 COPY packages/blob/package.json packages/blob/
 COPY packages/media-sharp/package.json packages/media-sharp/
@@ -46,6 +47,7 @@ COPY --from=build /app/packages/api/package.json packages/api/
 COPY --from=build /app/packages/mail-tem/package.json packages/mail-tem/
 COPY --from=build /app/packages/assist-openai/package.json packages/assist-openai/
 COPY --from=build /app/packages/pay-mollie/package.json packages/pay-mollie/
+COPY --from=build /app/packages/analytics-plausible/package.json packages/analytics-plausible/
 COPY --from=build /app/packages/render-email/package.json packages/render-email/
 COPY --from=build /app/packages/blob/package.json packages/blob/
 COPY --from=build /app/packages/media-sharp/package.json packages/media-sharp/
@@ -63,6 +65,7 @@ COPY --from=build /app/packages/api/dist packages/api/dist
 COPY --from=build /app/packages/mail-tem/dist packages/mail-tem/dist
 COPY --from=build /app/packages/assist-openai/dist packages/assist-openai/dist
 COPY --from=build /app/packages/pay-mollie/dist packages/pay-mollie/dist
+COPY --from=build /app/packages/analytics-plausible/dist packages/analytics-plausible/dist
 COPY --from=build /app/packages/render-email/dist packages/render-email/dist
 COPY --from=build /app/packages/blob/dist packages/blob/dist
 COPY --from=build /app/packages/media-sharp/dist packages/media-sharp/dist

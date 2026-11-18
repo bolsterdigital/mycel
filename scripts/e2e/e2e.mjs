@@ -73,6 +73,7 @@ const run = (cmd, args, cwd = root, env = process.env) => {
 const API_PORT = process.env.E2E_API_PORT ?? '8797';
 const OIDC_PORT = process.env.E2E_OIDC_PORT ?? '8798';
 const MAILCHIMP_PORT = process.env.E2E_MAILCHIMP_PORT ?? '8795';
+const PLAUSIBLE_PORT = process.env.E2E_PLAUSIBLE_PORT ?? '8794';
 const WORKER_PORT = process.env.E2E_WORKER_PORT ?? '8796';
 const ISSUER = `http://127.0.0.1:${OIDC_PORT}`;
 for (const [name, port] of [
@@ -81,6 +82,7 @@ for (const [name, port] of [
   ['mock IdP', OIDC_PORT],
   ['worker', WORKER_PORT],
   ['Mailchimp fixture', MAILCHIMP_PORT],
+  ['Plausible fixture', PLAUSIBLE_PORT],
 ]) {
   const free = await new Promise((resolve) => {
     const probe = createServer()
@@ -885,6 +887,8 @@ const env = {
   PAYMENT_PROVIDER: 'fake',
   PAYMENT_FAKE_DIR: payments,
   MAILCHIMP_FIXTURE_ORIGIN: `http://127.0.0.1:${MAILCHIMP_PORT}`,
+  ANALYTICS_PROVIDER: 'plausible',
+  PLAUSIBLE_FIXTURE_ORIGIN: `http://127.0.0.1:${PLAUSIBLE_PORT}`,
   MYCEL_API_KEY: apiKey,
   OIDC_ISSUER: `http://127.0.0.1:${OIDC_PORT}`,
   OIDC_CLIENT_ID: 'mycel-e2e',
@@ -903,6 +907,11 @@ const mailchimpFixture = spawn('node', ['scripts/e2e/mailchimp-fixture.mjs'], {
   stdio: ['ignore', 'inherit', 'inherit'],
   env: { ...env, MAILCHIMP_FIXTURE_PORT: MAILCHIMP_PORT },
 });
+const plausibleFixture = spawn('node', ['scripts/e2e/plausible-fixture.mjs'], {
+  cwd: root,
+  stdio: ['ignore', 'inherit', 'inherit'],
+  env: { ...env, PLAUSIBLE_FIXTURE_PORT: PLAUSIBLE_PORT },
+});
 const idp = spawn('node', ['scripts/e2e/mock-oidc.mjs'], {
   cwd: root,
   stdio: ['ignore', 'inherit', 'inherit'],
@@ -920,6 +929,7 @@ const worker = spawn('node', ['packages/api/dist/runtime/worker.js'], {
 });
 const stop = () => {
   if (mailchimpFixture.exitCode === null) mailchimpFixture.kill('SIGTERM');
+  if (plausibleFixture.exitCode === null) plausibleFixture.kill('SIGTERM');
   if (api.exitCode === null) api.kill('SIGTERM');
   if (worker.exitCode === null) worker.kill('SIGTERM');
   if (idp.exitCode === null) idp.kill('SIGTERM');
@@ -948,6 +958,7 @@ async function waitFor(name, child, url) {
   }
 }
 await waitFor('Mailchimp fixture', mailchimpFixture, `${env.MAILCHIMP_FIXTURE_ORIGIN}/healthz`);
+await waitFor('Plausible fixture', plausibleFixture, `${env.PLAUSIBLE_FIXTURE_ORIGIN}/healthz`);
 await waitFor('API process', api, `${env.E2E_API_URL}/healthz`);
 await waitFor('worker', worker, `http://127.0.0.1:${WORKER_PORT}/healthz`);
 await waitFor('mock IdP', idp, `${env.OIDC_ISSUER}/.well-known/openid-configuration`);
