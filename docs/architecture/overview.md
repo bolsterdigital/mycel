@@ -31,6 +31,7 @@ Short map; the reasoning is in [`../adr/`](../adr/).
                  │                      │   │ packages/render-email        │
                  │                      │   │ packages/pay-mollie          │
                  │                      │   │ packages/analytics-plausible │
+                 │                      │   │ packages/import-wordpress    │
                  └──────────────────────┘   └──────────────────────────────┘
 
    beside        packages/observability: logs, request context, error

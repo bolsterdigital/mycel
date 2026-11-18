@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Synthetic WordPress export of a made-up Dreamkit site, written by hand for the importer's
+     tests: two pages and three articles, a Polylang pair with the same structure and one with a
+     different structure, every mapped block, an unknown block, a shortcode, two authors, two
+     categories and five attachments (one image without alt text). No client content. -->
+<rss version="2.0"
+	xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:wp="http://wordpress.org/export/1.2/"
+>
+<channel>
+	<title>Voorbeeldbeweging</title>
+	<link>https://voorbeeld.example</link>
+	<description>Een verzonnen beweging om de import mee te testen</description>
+	<language>nl-NL</language>
+	<wp:wxr_version>1.2</wp:wxr_version>
+	<wp:base_site_url>https://voorbeeld.example</wp:base_site_url>
+	<wp:base_blog_url>https://voorbeeld.example</wp:base_blog_url>
+
+	<wp:author><wp:author_id>1</wp:author_id><wp:author_login><![CDATA[anna]]></wp:author_login><wp:author_email><![CDATA[anna@voorbeeld.example]]></wp:author_email><wp:author_display_name><![CDATA[Anna de Wit]]></wp:author_display_name><wp:author_first_name><![CDATA[Anna]]></wp:author_first_name><wp:author_last_name><![CDATA[de Wit]]></wp:author_last_name></wp:author>
+	<wp:author><wp:author_id>2</wp:author_id><wp:author_login><![CDATA[bram]]></wp:author_login><wp:author_email><![CDATA[bram@voorbeeld.example]]></wp:author_email><wp:author_display_name><![CDATA[Bram Jansen]]></wp:author_display_name><wp:author_first_name><![CDATA[Bram]]></wp:author_first_name><wp:author_last_name><![CDATA[Jansen]]></wp:author_last_name></wp:author>
+
+	<wp:category><wp:term_id>1</wp:term_id><wp:category_nicename><![CDATA[uncategorized]]></wp:category_nicename><wp:category_parent><![CDATA[]]></wp:category_parent><wp:cat_name><![CDATA[Uncategorized]]></wp:cat_name></wp:category>
+	<wp:category><wp:term_id>2</wp:term_id><wp:category_nicename><![CDATA[nieuws]]></wp:category_nicename><wp:category_parent><![CDATA[]]></wp:category_parent><wp:cat_name><![CDATA[Nieuws]]></wp:cat_name></wp:category>
+	<wp:category><wp:term_id>3</wp:term_id><wp:category_nicename><![CDATA[acties]]></wp:category_nicename><wp:category_parent><![CDATA[]]></wp:category_parent><wp:cat_name><![CDATA[Acties &amp; campagnes]]></wp:cat_name></wp:category>
+	<wp:tag><wp:term_id>4</wp:term_id><wp:tag_slug><![CDATA[klimaat]]></wp:tag_slug><wp:tag_name><![CDATA[klimaat]]></wp:tag_name></wp:tag>
+	<wp:term><wp:term_id>10</wp:term_id><wp:term_taxonomy><![CDATA[language]]></wp:term_taxonomy><wp:term_slug><![CDATA[nl]]></wp:term_slug><wp:term_parent><![CDATA[]]></wp:term_parent><wp:term_name><![CDATA[Nederlands]]></wp:term_name></wp:term>
+	<wp:term><wp:term_id>11</wp:term_id><wp:term_taxonomy><![CDATA[language]]></wp:term_taxonomy><wp:term_slug><![CDATA[en]]></wp:term_slug><wp:term_parent><![CDATA[]]></wp:term_parent><wp:term_name><![CDATA[English]]></wp:term_name></wp:term>
+	<wp:term><wp:term_id>20</wp:term_id><wp:term_taxonomy><![CDATA[post_translations]]></wp:term_taxonomy><wp:term_slug><![CDATA[pll_page_over]]></wp:term_slug><wp:term_parent><![CDATA[]]></wp:term_parent><wp:term_name><![CDATA[pll_page_over]]></wp:term_name><wp:term_description><![CDATA[a:2:{s:2:"nl";i:201;s:2:"en";i:202;}]]></wp:term_description></wp:term>
+	<wp:term><wp:term_id>21</wp:term_id><wp:term_taxonomy><![CDATA[post_translations]]></wp:term_taxonomy><wp:term_slug><![CDATA[pll_post_mars]]></wp:term_slug><wp:term_parent><![CDATA[]]></wp:term_parent><wp:term_name><![CDATA[pll_post_mars]]></wp:term_name><wp:term_description><![CDATA[a:2:{s:2:"nl";i:301;s:2:"en";i:302;}]]></wp:term_description></wp:term>
+
+	<item>
+		<title><![CDATA[Demonstratie op het plein]]></title>
+		<link>https://voorbeeld.example/demonstratie/</link>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[]]></content:encoded>
+		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<wp:post_id>101</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-01 10:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[demonstratie]]></wp:post_name>
+		<wp:status><![CDATA[inherit]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[attachment]]></wp:post_type>
+		<wp:attachment_url><![CDATA[https://voorbeeld.example/wp-content/uploads/2025/03/demonstratie.jpg]]></wp:attachment_url>
+		<wp:postmeta><wp:meta_key><![CDATA[_wp_attached_file]]></wp:meta_key><wp:meta_value><![CDATA[2025/03/demonstratie.jpg]]></wp:meta_value></wp:postmeta>
+		<wp:postmeta><wp:meta_key><![CDATA[_wp_attachment_image_alt]]></wp:meta_key><wp:meta_value><![CDATA[Mensen met spandoeken op een vol plein]]></wp:meta_value></wp:postmeta>
+	</item>
+	<item>
+		<title><![CDATA[Ledenvergadering]]></title>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[]]></content:encoded>
+		<wp:post_id>102</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-02 10:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[vergadering]]></wp:post_name>
+		<wp:status><![CDATA[inherit]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[attachment]]></wp:post_type>
+		<wp:attachment_url><![CDATA[https://voorbeeld.example/wp-content/uploads/2025/03/vergadering.jpg]]></wp:attachment_url>
+		<wp:postmeta><wp:meta_key><![CDATA[_wp_attachment_image_alt]]></wp:meta_key><wp:meta_value><![CDATA[Een volle zaal tijdens de ledenvergadering]]></wp:meta_value></wp:postmeta>
+	</item>
+	<item>
+		<title><![CDATA[Bos]]></title>
+		<dc:creator><![CDATA[bram]]></dc:creator>
+		<content:encoded><![CDATA[]]></content:encoded>
+		<wp:post_id>103</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-03 10:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[bos]]></wp:post_name>
+		<wp:status><![CDATA[inherit]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[attachment]]></wp:post_type>
+		<wp:attachment_url><![CDATA[https://voorbeeld.example/wp-content/uploads/2025/03/bos.jpg]]></wp:attachment_url>
+	</item>
+	<item>
+		<title><![CDATA[Jaarverslag 2025]]></title>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[]]></content:encoded>
+		<wp:post_id>104</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-04 10:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[jaarverslag-2025]]></wp:post_name>
+		<wp:status><![CDATA[inherit]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[attachment]]></wp:post_type>
+		<wp:attachment_url><![CDATA[https://voorbeeld.example/wp-content/uploads/2025/03/jaarverslag-2025.pdf]]></wp:attachment_url>
+	</item>
+	<item>
+		<title><![CDATA[Gesprek met de voorzitter]]></title>
+		<dc:creator><![CDATA[bram]]></dc:creator>
+		<content:encoded><![CDATA[]]></content:encoded>
+		<wp:post_id>105</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-05 10:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[gesprek]]></wp:post_name>
+		<wp:status><![CDATA[inherit]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[attachment]]></wp:post_type>
+		<wp:attachment_url><![CDATA[https://voorbeeld.example/wp-content/uploads/2025/03/gesprek.mp3]]></wp:attachment_url>
+	</item>
+
+	<item>
+		<title><![CDATA[Over ons]]></title>
+		<link>https://voorbeeld.example/over-ons/</link>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:wings/hero {"title":"Over ons","introText":"Wij zijn een beweging van <strong>gewone mensen</strong>.","ctaText":"Doe mee","heroImage":{"id":101,"url":"https://voorbeeld.example/wp-content/uploads/2025/03/demonstratie.jpg","alt":""}} /-->
+
+<!-- wp:paragraph -->
+<p>Sinds 2019 werken we samen aan een <em>leefbare</em> buurt.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">Wat we doen</h2>
+<!-- /wp:heading -->
+
+<!-- wp:list -->
+<ul class="wp-block-list"><!-- wp:list-item -->
+<li>Acties voeren<ul><li>op straat</li><li>online</li></ul></li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li>Mensen <strong>verbinden</strong></li>
+<!-- /wp:list-item --></ul>
+<!-- /wp:list -->
+
+<!-- wp:wings/image {"id":102,"alt":"","decorative":false,"caption":"De ledenvergadering van maart","layout":"large"} /-->
+
+<!-- wp:wings/callout {"content":"<p>Lid worden kost <strong>vijf euro</strong> per jaar.</p>","emoji":"💡"} /-->
+
+<!-- wp:wings/faq {"title":"Veelgestelde vragen","faqItems":[{"question":"Wie mag meedoen?","answer":"<p>Iedereen die in de buurt woont.</p>"},{"question":"Wat kost het?","answer":"<p>Niets, behalve je tijd.</p>"}]} /-->
+
+<!-- wp:wings/timeline {"title":"Onze geschiedenis","events":[{"date":"2019","datePrecision":"year","title":"Oprichting","description":"Met tien mensen in een buurthuis."},{"date":"2022-05","datePrecision":"month","title":"Eerste grote actie"},{"date":"2025-03-01","datePrecision":"day","title":"Demonstratie op het plein","description":"Ruim tweeduizend mensen."},{"date":"","datePrecision":"unknown","title":"Ergens tussendoor"}]} /-->
+
+<!-- wp:wings/nodes-grid {"postType":"post","count":3} /-->
+
+<!-- wp:paragraph -->
+<p>Vragen? Mail ons via <a href="mailto:info@voorbeeld.example">info@voorbeeld.example</a>.</p>
+<!-- /wp:paragraph -->]]></content:encoded>
+		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<wp:post_id>201</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2024-01-10 09:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[over-ons]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[page]]></wp:post_type>
+		<category domain="language" nicename="nl"><![CDATA[Nederlands]]></category>
+		<category domain="post_translations" nicename="pll_page_over"><![CDATA[pll_page_over]]></category>
+	</item>
+	<item>
+		<title><![CDATA[About us]]></title>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:wings/hero {"title":"About us","introText":"We are a movement of ordinary people.","heroImage":{"id":101,"alt":""}} /-->
+
+<!-- wp:paragraph -->
+<p>Since 2019 we have worked together on a liveable neighbourhood.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">What we do</h2>
+<!-- /wp:heading -->]]></content:encoded>
+		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<wp:post_id>202</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2024-01-11 09:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[about-us]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[page]]></wp:post_type>
+		<category domain="language" nicename="en"><![CDATA[English]]></category>
+		<category domain="post_translations" nicename="pll_page_over"><![CDATA[pll_page_over]]></category>
+	</item>
+	<item>
+		<title><![CDATA[Contact]]></title>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>Lees eerst <a href="https://voorbeeld.example/over-ons/">wie we zijn</a>, of schrijf ons.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:shortcode -->
+[contact-form-7 id="5" title="Contact"]
+<!-- /wp:shortcode -->
+
+<!-- wp:wings/cta {"title":"Steun ons werk","description":"Elke bijdrage helpt.","buttonText":"Lees over ons","link":{"id":201,"url":"https://voorbeeld.example/over-ons/","title":"Over ons"},"secondaryButtonText":"Doneer","secondaryUrl":"https://doneren.example/voorbeeld"} /-->
+
+<!-- wp:file {"id":104,"href":"https://voorbeeld.example/wp-content/uploads/2025/03/jaarverslag-2025.pdf"} -->
+<div class="wp-block-file"><a href="https://voorbeeld.example/wp-content/uploads/2025/03/jaarverslag-2025.pdf">Ons jaarverslag over 2025</a><a href="https://voorbeeld.example/wp-content/uploads/2025/03/jaarverslag-2025.pdf" class="wp-block-file__button" download>Download</a></div>
+<!-- /wp:file -->]]></content:encoded>
+		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<wp:post_id>203</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2024-01-12 09:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[contact]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[page]]></wp:post_type>
+		<category domain="language" nicename="nl"><![CDATA[Nederlands]]></category>
+	</item>
+
+	<item>
+		<title><![CDATA[Grote opkomst bij klimaatmars]]></title>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>Zaterdag liepen <strong>ruim tweeduizend</strong> mensen mee. Lees <a href="https://elders.example/verslag">het verslag</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:image {"id":101,"sizeSlug":"large","align":"wide"} -->
+<figure class="wp-block-image alignwide size-large"><img src="https://voorbeeld.example/wp-content/uploads/2025/03/demonstratie.jpg" alt="Spandoeken op het plein" class="wp-image-101"/><figcaption class="wp-element-caption">Het plein om twaalf uur</figcaption></figure>
+<!-- /wp:image -->
+
+<!-- wp:gallery {"linkTo":"none"} -->
+<figure class="wp-block-gallery has-nested-images columns-default"><!-- wp:image {"id":101} -->
+<figure class="wp-block-image"><img src="https://voorbeeld.example/wp-content/uploads/2025/03/demonstratie.jpg" alt="" class="wp-image-101"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:image {"id":102} -->
+<figure class="wp-block-image"><img src="https://voorbeeld.example/wp-content/uploads/2025/03/vergadering.jpg" alt="De zaal na afloop" class="wp-image-102"/></figure>
+<!-- /wp:image --></figure>
+<!-- /wp:gallery -->
+
+<!-- wp:quote -->
+<blockquote class="wp-block-quote"><!-- wp:paragraph -->
+<p>Dit was pas het begin.</p>
+<!-- /wp:paragraph --><cite>Anna de Wit</cite></blockquote>
+<!-- /wp:quote -->
+
+<!-- wp:embed {"url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","type":"video","providerNameSlug":"youtube"} -->
+<figure class="wp-block-embed is-type-video is-provider-youtube wp-block-embed-youtube"><div class="wp-block-embed__wrapper">
+https://www.youtube.com/watch?v=dQw4w9WgXcQ
+</div><figcaption class="wp-element-caption">Beelden van de mars</figcaption></figure>
+<!-- /wp:embed -->]]></content:encoded>
+		<excerpt:encoded><![CDATA[Ruim tweeduizend mensen liepen mee voor het klimaat.]]></excerpt:encoded>
+		<wp:post_id>301</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-02 14:30:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[grote-opkomst-bij-klimaatmars]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[post]]></wp:post_type>
+		<category domain="category" nicename="nieuws"><![CDATA[Nieuws]]></category>
+		<category domain="category" nicename="acties"><![CDATA[Acties &amp; campagnes]]></category>
+		<category domain="post_tag" nicename="klimaat"><![CDATA[klimaat]]></category>
+		<category domain="language" nicename="nl"><![CDATA[Nederlands]]></category>
+		<category domain="post_translations" nicename="pll_post_mars"><![CDATA[pll_post_mars]]></category>
+		<wp:postmeta><wp:meta_key><![CDATA[_thumbnail_id]]></wp:meta_key><wp:meta_value><![CDATA[101]]></wp:meta_value></wp:postmeta>
+	</item>
+	<item>
+		<title><![CDATA[Big turnout at climate march]]></title>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>On Saturday <strong>over two thousand</strong> people joined. Read <a href="https://elders.example/report">the report</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:image {"id":101,"sizeSlug":"large","align":"wide"} -->
+<figure class="wp-block-image alignwide size-large"><img src="https://voorbeeld.example/wp-content/uploads/2025/03/demonstratie.jpg" alt="Banners on the square" class="wp-image-101"/><figcaption class="wp-element-caption">The square at noon</figcaption></figure>
+<!-- /wp:image -->
+
+<!-- wp:gallery {"linkTo":"none"} -->
+<figure class="wp-block-gallery has-nested-images columns-default"><!-- wp:image {"id":101} -->
+<figure class="wp-block-image"><img src="https://voorbeeld.example/wp-content/uploads/2025/03/demonstratie.jpg" alt="Banners" class="wp-image-101"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:image {"id":102} -->
+<figure class="wp-block-image"><img src="https://voorbeeld.example/wp-content/uploads/2025/03/vergadering.jpg" alt="The hall afterwards" class="wp-image-102"/></figure>
+<!-- /wp:image --></figure>
+<!-- /wp:gallery -->
+
+<!-- wp:quote -->
+<blockquote class="wp-block-quote"><!-- wp:paragraph -->
+<p>This was only the beginning.</p>
+<!-- /wp:paragraph --><cite>Anna de Wit</cite></blockquote>
+<!-- /wp:quote -->
+
+<!-- wp:embed {"url":"https://youtu.be/dQw4w9WgXcQ","type":"video","providerNameSlug":"youtube"} -->
+<figure class="wp-block-embed is-type-video is-provider-youtube wp-block-embed-youtube"><div class="wp-block-embed__wrapper">
+https://youtu.be/dQw4w9WgXcQ
+</div><figcaption class="wp-element-caption">Footage of the march</figcaption></figure>
+<!-- /wp:embed -->]]></content:encoded>
+		<excerpt:encoded><![CDATA[Over two thousand people marched for the climate.]]></excerpt:encoded>
+		<wp:post_id>302</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-02 15:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[big-turnout-at-climate-march]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[post]]></wp:post_type>
+		<category domain="category" nicename="nieuws"><![CDATA[Nieuws]]></category>
+		<category domain="language" nicename="en"><![CDATA[English]]></category>
+		<category domain="post_translations" nicename="pll_post_mars"><![CDATA[pll_post_mars]]></category>
+		<wp:postmeta><wp:meta_key><![CDATA[_thumbnail_id]]></wp:meta_key><wp:meta_value><![CDATA[101]]></wp:meta_value></wp:postmeta>
+	</item>
+	<item>
+		<title><![CDATA[Interview met de voorzitter]]></title>
+		<dc:creator><![CDATA[bram]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>Bram sprak met onze voorzitter over de plannen.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:audio {"id":105} -->
+<figure class="wp-block-audio"><audio controls src="https://voorbeeld.example/wp-content/uploads/2025/03/gesprek.mp3"></audio><figcaption class="wp-element-caption">Het hele gesprek</figcaption></figure>
+<!-- /wp:audio -->
+
+<!-- wp:wings/blockquote {"quote":"We blijven doorgaan tot het geregeld is.","source":"De voorzitter","sourceUrl":"https://voorbeeld.example/over-ons/"} /-->
+
+<!-- wp:wings/privacy-video {"url":"https://vimeo.com/76979871","provider":"vimeo","videoId":"76979871"} /-->
+
+<!-- wp:image {"id":103} -->
+<figure class="wp-block-image"><img src="https://voorbeeld.example/wp-content/uploads/2025/03/bos.jpg" alt="" class="wp-image-103"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:wings/image-gallery {"images":[{"id":101,"url":"https://voorbeeld.example/wp-content/uploads/2025/03/demonstratie.jpg","alt":"","caption":"Op het plein"},{"id":102,"url":"https://voorbeeld.example/wp-content/uploads/2025/03/vergadering.jpg","alt":"","caption":""},{"id":103,"url":"https://voorbeeld.example/wp-content/uploads/2025/03/bos.jpg","alt":"","caption":""}]} /-->]]></content:encoded>
+		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<wp:post_id>303</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-04-15 08:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[interview-met-de-voorzitter]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[post]]></wp:post_type>
+		<category domain="category" nicename="acties"><![CDATA[Acties &amp; campagnes]]></category>
+		<category domain="language" nicename="nl"><![CDATA[Nederlands]]></category>
+	</item>
+	<item>
+		<title><![CDATA[Plannen voor 2027]]></title>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>Dit stuk is nog niet af.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:paragraph -->
+<p>[gallery ids="101,102"]</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Meer volgt.</p>
+<!-- /wp:paragraph -->]]></content:encoded>
+		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<wp:post_id>304</wp:post_id>
+		<wp:post_date_gmt><![CDATA[0000-00-00 00:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[]]></wp:post_name>
+		<wp:status><![CDATA[draft]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[post]]></wp:post_type>
+		<category domain="category" nicename="uncategorized"><![CDATA[Uncategorized]]></category>
+		<category domain="language" nicename="nl"><![CDATA[Nederlands]]></category>
+	</item>
+	<item>
+		<title><![CDATA[Home]]></title>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[]]></content:encoded>
+		<wp:post_id>401</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2024-01-01 00:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[home]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[nav_menu_item]]></wp:post_type>
+	</item>
+</channel>
+</rss>

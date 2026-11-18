@@ -1,0 +1,45 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the plan of the fixture export > reports what does not come over 1`] = `
+"WordPress import plan for Voorbeeldbeweging
+Default locale nl; locales nl, en
+
+Pages      2 (0 draft)
+Articles   3 (1 draft)
+Media      5
+People     2
+Sections   2
+Remarks    13
+
+Blocks left out (no Mycel equivalent) (2)
+  - post 201 "Over ons" [nl] wings/nodes-grid #9
+  - post 304 "Plannen voor 2027" [nl] core/separator #2
+
+Shortcodes left out (2)
+  - post 203 "Contact" [nl] core/shortcode #2
+  - post 304 "Plannen voor 2027" [nl] core/paragraph #3
+
+Images without alt text (not placed) (2)
+  - post 303 "Interview met de voorzitter" [nl] core/image #5
+  - post 303 "Interview met de voorzitter" [nl] wings/image-gallery #6: 103
+
+Hero buttons not carried over (1)
+  - post 201 "Over ons" [nl] wings/hero #1: Doe mee
+
+Videos titled after their post (1)
+  - post 303 "Interview met de voorzitter" [nl] wings/privacy-video #4
+
+Timeline dates completed to a full date (2)
+  - post 201 "Over ons" [nl] wings/timeline #8: 2019
+  - post 201 "Over ons" [nl] wings/timeline #8: 2022-05
+
+Timeline events without a date (left out) (1)
+  - post 201 "Over ons" [nl] wings/timeline #8: Ergens tussendoor
+
+Extra categories (only the first is the section) (1)
+  - post 301 "Grote opkomst bij klimaatmars" [nl]: acties
+
+Translations not merged: structure differs (not imported) (1)
+  - post 202 "About us" [en]: item 201
+"
+`;

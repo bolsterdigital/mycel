@@ -1,0 +1,69 @@
+// The dry-run report as text for a terminal (brief wordpress-import-execution, PR 1 "Klaar als"):
+// counts per kind first, then the blocks left out and the missing alt texts, which are what a
+// client migration brief has to redo by hand, then every other remark grouped by its code. The
+// report lines themselves stay structured (`ReportLine`), so the admin screen of PR 3 can show
+// them through the i18n catalogue instead of this English text.
+
+import type { ImportPlan, ReportCode, ReportLine } from './plan.js';
+
+const HEADINGS: Record<ReportCode, string> = {
+  'block.skipped': 'Blocks left out (no Mycel equivalent)',
+  'block.shortcode': 'Shortcodes left out',
+  'image.alt-missing': 'Images without alt text (not placed)',
+  'block.invalid': 'Blocks that did not validate (left out)',
+  'block.media-missing': 'Blocks whose file is not in the export (left out)',
+  'hero.extra': 'Second hero on one post (left out)',
+  'hero.action-dropped': 'Hero buttons not carried over',
+  'video.title-from-item': 'Videos titled after their post',
+  'timeline.date-completed': 'Timeline dates completed to a full date',
+  'timeline.event-without-date': 'Timeline events without a date (left out)',
+  'item.invalid': 'Items that did not validate (not imported)',
+  'item.private': 'Private items (imported as draft)',
+  'item.scheduled': 'Scheduled items (imported as draft)',
+  'item.slug-changed': 'Slugs changed',
+  'item.parent-flattened': 'Child pages (parent not kept)',
+  'item.section-extra': 'Extra categories (only the first is the section)',
+  'item.tag-invalid': 'Tags refused',
+  'item.excerpt-too-long': 'Excerpts over 500 characters (not used as description)',
+  'translation.not-merged': 'Translations not merged: structure differs (not imported)',
+  'translation.value-differs': 'Translation values that differ (default language kept)',
+};
+
+/** The codes listed first, in this order; the rest follow in catalogue order. */
+const FIRST: ReportCode[] = ['block.skipped', 'block.shortcode', 'image.alt-missing'];
+
+function describe(line: ReportLine): string {
+  const where = [
+    line.postId !== undefined && `post ${line.postId}`,
+    line.title && `"${line.title}"`,
+    line.locale && `[${line.locale}]`,
+    line.block && `${line.block} #${line.position}`,
+  ].filter(Boolean);
+  return `  - ${where.join(' ')}${line.detail ? `: ${line.detail}` : ''}`;
+}
+
+export function formatReport(plan: ImportPlan): string {
+  const count = (type: string, status?: string) =>
+    plan.items.filter((i) => i.document.type === type && (!status || i.status === status)).length;
+  const out = [
+    `WordPress import plan for ${plan.site.title || plan.site.url}`,
+    `Default locale ${plan.defaultLocale}; locales ${plan.locales.join(', ')}`,
+    '',
+    `Pages      ${count('page')} (${count('page', 'draft')} draft)`,
+    `Articles   ${count('article')} (${count('article', 'draft')} draft)`,
+    `Media      ${plan.media.length}`,
+    `People     ${plan.people.length}`,
+    `Sections   ${plan.sections.length}`,
+    `Remarks    ${plan.report.length}`,
+  ];
+  const codes = [
+    ...FIRST,
+    ...(Object.keys(HEADINGS) as ReportCode[]).filter((c) => !FIRST.includes(c)),
+  ];
+  for (const code of codes) {
+    const lines = plan.report.filter((l) => l.code === code);
+    if (!lines.length) continue;
+    out.push('', `${HEADINGS[code]} (${lines.length})`, ...lines.map(describe));
+  }
+  return `${out.join('\n')}\n`;
+}

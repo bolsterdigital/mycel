@@ -104,6 +104,7 @@ const ALLOWED = {
   'packages/render-email': ['packages/core'],
   'packages/pay-mollie': ['packages/core'],
   'packages/analytics-plausible': ['packages/core'],
+  'packages/import-wordpress': ['packages/core'],
   'packages/core': [],
 };
 const ALLOWED_LICENSES = new Set([
