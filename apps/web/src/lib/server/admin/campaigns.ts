@@ -32,6 +32,11 @@ export interface CampaignPanel {
   /** Whether this member may open, close and move the window (ADR 033 rule 10). */
   canPublish: boolean;
   canWrite: boolean;
+  /**
+   * Whether the panel links to who took part (`campaigns/[id]/participants`): a reader of
+   * supporters, on a petition or signup. A fundraiser's gifts are under Donations.
+   */
+  showParticipants: boolean;
 }
 
 export async function campaignPanel(
@@ -59,6 +64,7 @@ export async function campaignPanel(
     hasForm: !!campaign.formId,
     canPublish: can(principal, 'content:publish'),
     canWrite: can(principal, 'content:write'),
+    showParticipants: campaign.kind !== 'fundraiser' && can(principal, 'supporters:read'),
   };
 }
 

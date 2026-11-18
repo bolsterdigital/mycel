@@ -49,6 +49,7 @@ import {
   updateCampaign,
   withdrawParticipation,
 } from './campaigns/service.js';
+import { exportParticipations, listParticipations } from './campaigns/participants.js';
 import { composeCampaign } from './campaigns/compose.js';
 import { getCampaignCard } from './campaigns/card.js';
 import {
@@ -319,6 +320,8 @@ export const useCases = {
   requestOwnGiftsLink,
   listCampaigns,
   withdrawParticipation,
+  listParticipations,
+  exportParticipations,
   createPersonGroup,
   updatePersonGroup,
   getPersonGroup,

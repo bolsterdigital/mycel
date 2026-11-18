@@ -23,6 +23,7 @@ import { NARROW, TEXT_SIZES, focusObscuredProblems, layoutGate, setTextSize } fr
 import { forwarded, login } from './lib/login';
 import { exerciseSupporterGrants } from './lib/access/grants';
 import { exerciseSupporterExport } from './lib/supporters/export';
+import { exerciseCampaignParticipants } from './lib/campaigns/participants';
 import { ADMIN_LOCALES, ADMIN_ROUTES, type GateRoute, PUBLIC_ROUTES } from './routes';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { testTenant } from '@mycel/db/testing';
@@ -1609,6 +1610,9 @@ test.describe('supporters', () => {
 
   test('an administrator downloads the list in view as CSV, an editor cannot', ({ page }) =>
     exerciseSupporterExport(page, 'gate-list', [fixtures[1][0], fixtures[0][0]], editor('en')));
+
+  test('a campaign lists who took part and an administrator exports them', ({ page }) =>
+    exerciseCampaignParticipants(page, editor('en'), author));
 
   test('an author has no Supporters entry and the list refuses them', async ({ page }) => {
     await login(page, '/admin/probe/beheer', author);

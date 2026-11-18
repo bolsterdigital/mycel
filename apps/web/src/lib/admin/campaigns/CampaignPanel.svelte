@@ -4,7 +4,9 @@
      outside the editor's form) and posts to `campaigns/[id]` with the base it was rendered with.
      Opening and closing are their own buttons and need publishing permission (rule 10); a member
      without it sees the window as text. The buttons stand in one column (`Actions stack`): the
-     side column is narrow, and long nl/en labels never share a line (skill ui-action-layout). -->
+     side column is narrow, and long nl/en labels never share a line (skill ui-action-layout).
+     Who took part is a link to a list of its own, for a reader of supporters: a column this
+     narrow holds no addresses. -->
 <script lang="ts">
   import { Actions, Badge, Button, Field, MetaList, Notice } from '#lib/admin/ui/index.js';
   import { fill, ui } from '../../../i18n/index.js';
@@ -59,6 +61,9 @@
     <Badge tone={tone[panel.state]}>{t(`admin.campaign.state.${panel.state}`)}</Badge>
     {t(panel.archived ? 'admin.campaign.archivedHint' : `admin.campaign.stateHint.${panel.state}`)}
   </p>
+  {#if panel.showParticipants}
+    <p><a href="{action}/participants">{t('admin.campaign.participants.link')}</a></p>
+  {/if}
   {#if edits}
     <input type="hidden" form={f} name="baseUpdatedAt" value={panel.baseUpdatedAt} />
     {#if panel.canPublish}
