@@ -173,6 +173,18 @@ export async function exerciseMembership(page: Page, project: string): Promise<v
   await expect(membership).toContainText('Opgezegd');
   await expect(membership).toContainText('Lid tot');
 
+  // The admin: the tier lists its member as cancelling, Recurring filters memberships.
+  await login(page, `/admin/probe/access/${tier.id}`);
+  const members = page.getByRole('region', { name: 'Leden' });
+  await expect(members.getByRole('row').filter({ hasText: member })).toContainText(
+    /€\s?5 per maand.*Opgezegd/s
+  );
+  await gate(page, 'tier members');
+  await page.goto('/admin/probe/donations/recurring?kind=membership');
+  await expect(page.getByRole('row').filter({ hasText: member })).toContainText(
+    `Lidmaatschap: ${tier.name.nl}`
+  );
+
   // The charge run at the end of the period ends it without charging; the article stays open
   // through the grace, which ends 14 days after the paid period.
   const supporter = await withInvoker((invoker) =>
@@ -203,16 +215,4 @@ export async function exerciseMembership(page: Page, project: string): Promise<v
   );
   await page.goto(`${SITE}${article}`);
   await expect(page.getByText('LEDEN-BODY voor leden.')).toBeVisible();
-
-  // The admin: the tier lists its member, Recurring filters memberships and names the tier.
-  await login(page, `/admin/probe/access/${tier.id}`);
-  const members = page.getByRole('region', { name: 'Leden' });
-  await expect(members.getByRole('row').filter({ hasText: member })).toContainText(
-    /€\s?5 per maand/
-  );
-  await gate(page, 'tier members');
-  await page.goto('/admin/probe/donations/recurring?kind=membership');
-  await expect(page.getByRole('row').filter({ hasText: member })).toContainText(
-    `Lidmaatschap: ${tier.name.nl}`
-  );
 }
