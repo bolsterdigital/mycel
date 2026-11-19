@@ -80,6 +80,12 @@ export const MANAGE: NavSection = {
       hint: 'admin.supporters.hint',
     },
     {
+      path: 'welcome-mails',
+      label: 'admin.nav.welcome',
+      needs: 'supporters:read',
+      hint: 'admin.welcome.hint',
+    },
+    {
       path: 'donations',
       label: 'admin.donations.title',
       needs: 'donations:read',

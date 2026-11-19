@@ -1060,6 +1060,7 @@ test.describe('admin-shell', () => {
       'Forms',
       'Reader access',
       'Supporters',
+      'Welcome mails',
       'Donations',
       'Connections',
       'API access',
@@ -1618,6 +1619,7 @@ test.describe('supporters', () => {
     await login(page, '/admin/probe/beheer', author);
     await expect(page.getByRole('link', { name: 'Supporters', exact: true })).toHaveCount(0);
     expect((await page.goto('/admin/probe/supporters'))?.status()).toBe(403);
+    expect((await page.goto('/admin/probe/welcome-mails'))?.status()).toBe(403);
     await expect(page.getByText('lijst.example')).toHaveCount(0);
     expect((await page.goto(`/admin/probe/supporters/${broerId}`))?.status()).toBe(403);
     await expect(page.getByText('elders.example')).toHaveCount(0);
