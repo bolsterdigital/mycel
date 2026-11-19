@@ -23,7 +23,9 @@ import {
 import { buildRegistry, useCases } from '../use-cases.js';
 import {
   AUTOMATION_DUE,
+  AUTOMATION_TEST_REQUESTED,
   automationMailSubscriber,
+  automationTestMailSubscriber,
   automationSubscriber,
   runAutomationStep,
 } from './automation.js';
@@ -287,6 +289,49 @@ describe('mailing.automation', () => {
     await expectCode(update(draft), 'conflict');
     await expectCode(update(closed), 'conflict');
     await expectCode(update(welcome, [1, 1]), 'conflict');
+  });
+
+  it('sends every mailable step to the operator who asked, as a test, and starts nobody', async () => {
+    await setSeries(false, [0, 2]);
+    await join('ada@example.org');
+    const member = await invoker.run(useCases.inviteMember, admin, {
+      email: 'editor@example.org',
+      capabilities: ['content:read', 'mailing:send'],
+    });
+    const editor = principal({
+      actor: { kind: 'operator', operatorId: member.operatorId },
+      capabilities: ['content:read', 'mailing:send'],
+    });
+    expect(await invoker.run(useCases.testAutomation, editor, { list: LIST })).toEqual({
+      status: 'queued',
+      steps: 2,
+    });
+    const events = uow.store.outbox.filter((e) => e.type === AUTOMATION_TEST_REQUESTED);
+    expect(JSON.stringify(events.map((e) => e.props))).not.toContain('@');
+    const send = automationTestMailSubscriber(deps);
+    for (const event of [...events, events[0]!]) await send.handle(event);
+    expect(mailer.sent.map((m) => [m.to.email, m.subject, m.stream])).toEqual([
+      ['editor@example.org', '[Test] Welkom', 'transactional'],
+      ['editor@example.org', '[Test] Dit kun je doen', 'transactional'],
+    ]);
+    expect(mailer.sent[0]!.html).not.toContain(UNSUBSCRIBE_PLACEHOLDER);
+    expect(mailer.sent[0]!.headers).toBeUndefined();
+    expect(stepJobs()).toHaveLength(0);
+
+    // No series, a key without an address, and nothing left to mail are refusals.
+    await expectCode(invoker.run(useCases.testAutomation, editor, { list: 'other' }), 'conflict');
+    await expectCode(
+      invoker.run(
+        useCases.testAutomation,
+        principal({ actor: { kind: 'api-key', keyId: 'k' }, capabilities: ['mailing:send'] }),
+        { list: LIST }
+      ),
+      'forbidden'
+    );
+    for (const itemId of [welcome, tips])
+      for (const locale of ['nl', 'en'])
+        await invoker.run(useCases.unpublishItem, admin, { itemId, locale });
+    await expectCode(invoker.run(useCases.testAutomation, editor, { list: LIST }), 'conflict');
   });
 
   it('keeps one series per list and its steps in order of delay', async () => {

@@ -44,10 +44,11 @@ import { ingest, toSupporterEvent } from '../supporters/service.js';
 import { siteUrl } from '../tenants/url.js';
 import type { ConfirmationMailDeps } from './confirmation.js';
 import { signupLocale, type EditionMailDeps } from './edition-delivery.js';
+import { testSubject } from './edition.js';
 import { emailDocument, UNSUBSCRIBE_PLACEHOLDER, withUnsubscribeUrl } from './email.js';
 import type { MailAutomation, MailMessage } from './ports.js';
 import { sendOnce, type MailSource } from './send-attempts.js';
-import { unsubscribeLink } from './unsubscribe.js';
+import { UNSUBSCRIBE_PATH, unsubscribeLink } from './unsubscribe.js';
 import '../content/ports.js';
 import '../jobs/ports.js';
 import '../supporters/ports.js';
@@ -65,6 +66,17 @@ export interface AutomationDueProps {
   position: number;
   itemId: string;
   locale: string;
+}
+
+/** An operator asked for one step of a series in their own inbox (`mailing.automation.test`). */
+export const AUTOMATION_TEST_REQUESTED = 'mailing.automation.test_requested';
+/** Sends one test step; the intent key is this name and the request's event id. */
+export const AUTOMATION_TEST_SUBSCRIBER = 'mailing.automation.test';
+export interface AutomationTestProps {
+  automationId: string;
+  position: number;
+  itemId: string;
+  operatorId: string;
 }
 
 export const MAX_AUTOMATION_STEPS = 5;
@@ -120,6 +132,12 @@ async function stepLocale(
   for (const locale of [joined, defaultLocale])
     if (locale && (await mailable(ctx, item, locale))) return locale;
   return null;
+}
+
+/** Whether `item` may be mailed in at least one locale. */
+async function anyMailable(ctx: TransactionContext, item: ItemRecord): Promise<boolean> {
+  for (const s of item.publication) if (await mailable(ctx, item, s.locale)) return true;
+  return false;
 }
 
 async function view(ctx: TransactionContext, a: MailAutomation) {
@@ -188,9 +206,7 @@ export const updateAutomation = defineUseCase({
     for (const step of ordered) {
       const item = await ctx.content.get(step.itemId);
       if (!item) throw refuse('mailing.automation.no-item', 'unknown item', { id: step.itemId });
-      let published = false;
-      for (const s of item.publication) if (await mailable(ctx, item, s.locale)) published = true;
-      if (!published)
+      if (!(await anyMailable(ctx, item)))
         throw refuse(
           'mailing.automation.not-mailable',
           'the item is not published as public content in any locale',
@@ -209,6 +225,51 @@ export const updateAutomation = defineUseCase({
     };
     await ctx.mailAutomations.save(automation);
     return view(ctx, automation);
+  },
+});
+
+export const testAutomation = defineUseCase({
+  name: 'mailing.automation.test',
+  kind: 'command',
+  description:
+    "Send every step of the welcome series of a list to the operator's own address at once, as a test: the mails a subscriber would get, marked as a test in the subject, in the site's default locale where the item has it, to nobody else and without starting the series for anyone. Uses the saved series, on or off; a step whose item may no longer be mailed is left out. Refuses a list without a series and a series none of whose steps can be mailed.",
+  requires: 'mailing:send',
+  effect: 'send',
+  // A test goes to the address of whoever asks; a key and an agent have none.
+  actors: ['operator'],
+  input: z.object({ list: ListName }).strict(),
+  output: z.object({ status: z.literal('queued'), steps: z.number().int().min(1) }),
+  examples: [{ input: { list: 'newsletter' } }],
+  async handler(ctx, { list }) {
+    const { principal } = ctx;
+    requireEntitled(principal, 'mailing.enabled');
+    if (principal.actor.kind !== 'operator')
+      throw new UseCaseError('forbidden', 'only an operator has an address to test with');
+    const automation = await ctx.mailAutomations.forList(list);
+    if (!automation) throw refuse('mailing.automation.none', 'the list has no welcome series');
+    let steps = 0;
+    for (const [position, step] of automation.steps.entries()) {
+      const item = await ctx.content.get(step.itemId);
+      if (!item || !(await anyMailable(ctx, item))) continue;
+      const props: AutomationTestProps = {
+        automationId: automation.id,
+        position,
+        itemId: item.id,
+        operatorId: principal.actor.operatorId,
+      };
+      await ctx.events.publish({
+        id: ctx.ids.next(),
+        type: AUTOMATION_TEST_REQUESTED,
+        tenantId: principal.tenantId,
+        occurredAt: ctx.clock.now(),
+        actor: principal.actor,
+        props: { ...props },
+      });
+      steps++;
+    }
+    if (!steps)
+      throw refuse('mailing.automation.not-mailable', 'no step of the series can be mailed now');
+    return { status: 'queued' as const, steps };
   },
 });
 
@@ -325,6 +386,39 @@ export async function runAutomationStep(
   return {};
 }
 
+type MailTenant = { name: string; slug: string; defaultLocale: string };
+
+/** The published revision of `item` in `locale` as a mail, with the unsubscribe placeholder. */
+async function renderStep(
+  ctx: TransactionContext,
+  deps: Pick<ConfirmationMailDeps, 'platform'>,
+  tenant: MailTenant,
+  item: ItemRecord,
+  locale: string
+) {
+  const revision = await mailable(ctx, item, locale);
+  if (!revision) return null;
+  const primaryHostname = (await ctx.hostnames.primary())?.hostname ?? null;
+  const site = {
+    name: tenant.name,
+    url: siteUrl({ slug: tenant.slug, primaryHostname }, deps.platform, ''),
+    defaultLocale: tenant.defaultLocale,
+  };
+  const email = await emailDocument(ctx, {
+    item,
+    doc: revision.document,
+    locale,
+    site,
+    unsubscribe: UNSUBSCRIBE_PLACEHOLDER,
+  });
+  return {
+    primaryHostname,
+    siteUrl: site.url,
+    subject: email.subject,
+    rendered: ctx.emailRenderer.render(email),
+  };
+}
+
 /**
  * The mail of one due step, built when it is sent and again by `mail.reconcile`: null when the
  * person left the list, the series was switched off or the item may no longer be mailed.
@@ -346,28 +440,9 @@ export function automationMailSource(
       const item = await ctx.content.get(p.itemId);
       if (!automation?.enabled || !supporter || !item) return null;
       if (isTombstone(supporter.email) || !supporter.lists.includes(automation.list)) return null;
-      const revision = await mailable(ctx, item, p.locale);
-      if (!revision) return null;
-      const primaryHostname = (await ctx.hostnames.primary())?.hostname ?? null;
-      const site = {
-        name: tenant.name,
-        url: siteUrl({ slug: tenant.slug, primaryHostname }, deps.platform, ''),
-        defaultLocale: tenant.defaultLocale,
-      };
-      const email = await emailDocument(ctx, {
-        item,
-        doc: revision.document,
-        locale: p.locale,
-        site,
-        unsubscribe: UNSUBSCRIBE_PLACEHOLDER,
-      });
-      return {
-        list: automation.list,
-        supporter,
-        primaryHostname,
-        subject: email.subject,
-        rendered: ctx.emailRenderer.render(email),
-      };
+      const step = await renderStep(ctx, deps, tenant, item, p.locale);
+      if (!step) return null;
+      return { list: automation.list, supporter, ...step };
     });
     if (!found?.subject) return null;
     const link = await unsubscribeLink(deps, {
@@ -412,6 +487,59 @@ export function automationMailSubscriber(
         AUTOMATION_MAIL_SUBSCRIBER,
         message
       );
+    },
+  };
+}
+
+/**
+ * The test mail of one step (`mailing.automation.test`), rendered when it is sent, to the
+ * operator who asked: the default locale when the item has it, else its first mailable one. The
+ * footer link leads to the plain unsubscribe page, as in a newsletter test: the operator is no
+ * recipient. Transactional, like that test: one mail to one person who asked for it.
+ */
+export function automationTestMailSource(
+  deps: ConfirmationMailDeps & Pick<EditionMailDeps, 'access'>
+): MailSource {
+  return async (event) => {
+    if (event.type !== AUTOMATION_TEST_REQUESTED) return null;
+    const p = event.props as unknown as AutomationTestProps;
+    const access = await deps.access(event.tenantId);
+    const principal = systemPrincipal(event.tenantId, AUTOMATION_TEST_SUBSCRIBER, access);
+    if (access.status === 'suspended' || !entitled(principal, 'mailing.enabled')) return null;
+    const tenant = await deps.tenants.findById(event.tenantId);
+    if (!tenant) throw new Error(`tenant ${event.tenantId} not found`);
+    return deps.uow.run(principal, async (ctx): Promise<MailMessage | null> => {
+      const member = await ctx.members.get(p.operatorId);
+      const item = await ctx.content.get(p.itemId);
+      if (!member || !item) return null;
+      let locale = await stepLocale(ctx, item, null, tenant.defaultLocale);
+      for (const s of item.publication)
+        if (!locale && (await mailable(ctx, item, s.locale))) locale = s.locale;
+      if (!locale) return null;
+      const step = await renderStep(ctx, deps, tenant, item, locale);
+      if (!step?.subject) return null;
+      return {
+        from: { email: deps.from.email, name: tenant.name },
+        to: { email: member.email },
+        subject: testSubject(locale, step.subject),
+        ...withUnsubscribeUrl(step.rendered, `${step.siteUrl}${UNSUBSCRIBE_PATH}`),
+        stream: 'transactional',
+      };
+    });
+  };
+}
+
+/** Sends a test step after commit, from the outbox, once per request (`sendOnce`). */
+export function automationTestMailSubscriber(
+  deps: ConfirmationMailDeps & Pick<EditionMailDeps, 'access'>
+): Subscriber {
+  const source = automationTestMailSource(deps);
+  return {
+    name: AUTOMATION_TEST_SUBSCRIBER,
+    types: [AUTOMATION_TEST_REQUESTED],
+    async handle(event) {
+      const message = await source(event);
+      if (message) await sendOnce(deps, event, AUTOMATION_TEST_SUBSCRIBER, message);
     },
   };
 }

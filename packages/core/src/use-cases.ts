@@ -141,7 +141,7 @@ import { confirmSubscription, previewConfirmation } from './mailing/service.js';
 import { getEmail } from './mailing/email.js';
 import { confirmOptOut, previewOptOut } from './mailing/unsubscribe.js';
 import { getEdition, listEditions, sendEdition, testEdition } from './mailing/edition.js';
-import { listAutomations, updateAutomation } from './mailing/automation.js';
+import { listAutomations, testAutomation, updateAutomation } from './mailing/automation.js';
 import {
   bulkDeleteMedia,
   deleteMedia,
@@ -366,6 +366,7 @@ export const useCases = {
   sendEdition,
   listAutomations,
   updateAutomation,
+  testAutomation,
   getSupporter,
   listSupporters,
   exportSupporters,
