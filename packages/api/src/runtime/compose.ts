@@ -24,6 +24,10 @@ import {
   editionMailSource,
   editionTestMailSource,
   editionTestMailSubscriber,
+  automationSubscriber,
+  automationMailSubscriber,
+  automationMailSource,
+  AUTOMATION_MAIL_SUBSCRIBER,
   EDITION_SUBSCRIBER,
   EDITION_TEST_SUBSCRIBER,
   confirmationMailSource,
@@ -398,6 +402,8 @@ export function createRuntime(
     signinMailSubscriber(confirmation),
     givingMailSubscriber(confirmation),
     editionTestMailSubscriber(confirmation),
+    automationSubscriber(confirmation),
+    automationMailSubscriber(confirmation),
     analyticsSubscriber({
       uow,
       tenants,
@@ -415,6 +421,7 @@ export function createRuntime(
     [GIVING_MAIL_SUBSCRIBER]: givingMailSource(confirmation),
     [EDITION_SUBSCRIBER]: editionMailSource(confirmation),
     [EDITION_TEST_SUBSCRIBER]: editionTestMailSource(confirmation),
+    [AUTOMATION_MAIL_SUBSCRIBER]: automationMailSource(confirmation),
   };
   const stops: (() => Promise<void>)[] = [];
   // On the authentication login: each platform function enters mycel_platform itself (0010).

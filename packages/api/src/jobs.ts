@@ -22,6 +22,7 @@ import {
   purgeMedia,
   reconcileMail,
   deliverEdition,
+  runAutomationStep,
   type EditionMailDeps,
   intentOf,
   reverifyHostname,
@@ -486,6 +487,15 @@ export function jobHandlers({
       if (!editions) throw new Error('newsletter delivery is not configured in this worker');
       const { editionId } = parseJobPayload('mailing.edition.deliver', job.payload);
       return deliverEdition(editions, job.tenantId, editionId);
+    },
+    // Not a `tenantJob`, like the edition: `runAutomationStep` opens its own unit of work and
+    // answers a suspension itself. Its mail goes out from the outbox (`mailing.automation.mail`).
+    'mailing.automation.step': async (job) => {
+      if (job.tenantId === null)
+        throw new Error('mailing.automation.step is a tenant job but has no tenant');
+      if (!editions) throw new Error('welcome series are not configured in this worker');
+      const payload = parseJobPayload('mailing.automation.step', job.payload);
+      return runAutomationStep(editions, job.tenantId, payload);
     },
     // Not a `tenantJob`: `exportTenant` reads as mycel_app in its own repeatable-read transaction
     // on the operator connection, and the run outlives any one unit of work. Runs whatever the

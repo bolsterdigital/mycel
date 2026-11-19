@@ -56,6 +56,18 @@ export const JobPayloads = {
    */
   'mailing.edition.deliver': z.object({ editionId: z.string().guid() }).strict(),
   /**
+   * Tenant job: one step of a welcome series for one person (MY-258, `runAutomationStep`). Key
+   * `mailing.automation.step:<automationId>:<supporterId>:<position>`. Ids only: membership,
+   * the step and its item are read when it runs.
+   */
+  'mailing.automation.step': z
+    .object({
+      automationId: z.string().guid(),
+      supporterId: z.string().guid(),
+      position: z.number().int().min(0),
+    })
+    .strict(),
+  /**
    * Tenant job: publish exactly the pinned revision of one locale (ADR 018 rule 1, #8a). Key
    * `content.publish:<itemId>:<locale>:<scheduleId>`, so a reschedule or a second locale never
    * collides with an open job of an older plan; the handler ignores such a job as stale.

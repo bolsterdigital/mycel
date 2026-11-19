@@ -2,6 +2,8 @@
 
 import { sql, type Kysely, type Selectable } from 'kysely';
 import {
+  type MailAutomation,
+  type MailAutomationsRepository,
   type MailEdition,
   type MailEditionSummary,
   type MailEditionsRepository,
@@ -242,6 +244,137 @@ export function mailEditionsRepository(trx: Trx, tenantId: string): MailEditions
         .where('id', '=', id)
         .where('completed_at', 'is', null)
         .execute();
+    },
+  };
+}
+
+/**
+ * Welcome series (0082): one per list, steps replaced whole on save, one run per person. `start`
+ * and `advance` are single conditional statements, so two workers on one event or one job
+ * agree on who goes first.
+ */
+export function mailAutomationsRepository(trx: Trx, tenantId: string): MailAutomationsRepository {
+  const load = async (
+    rows: Selectable<Database['mail_automations']>[]
+  ): Promise<MailAutomation[]> => {
+    if (!rows.length) return [];
+    const steps = await trx
+      .selectFrom('mail_automation_steps')
+      .selectAll()
+      .where(
+        'automation_id',
+        'in',
+        rows.map((r) => r.id)
+      )
+      .orderBy('position')
+      .execute();
+    return rows.map((r) => ({
+      id: r.id,
+      list: r.list,
+      enabled: r.enabled,
+      createdAt: new Date(r.created_at),
+      updatedAt: new Date(r.updated_at),
+      steps: steps
+        .filter((s) => s.automation_id === r.id)
+        .map((s) => ({ itemId: s.item_id, delayDays: s.delay_days })),
+    }));
+  };
+  const one = async (column: 'id' | 'list', value: string) =>
+    (
+      await load(
+        await trx.selectFrom('mail_automations').selectAll().where(column, '=', value).execute()
+      )
+    )[0] ?? null;
+  return {
+    list: async () =>
+      load(await trx.selectFrom('mail_automations').selectAll().orderBy('list').execute()),
+    get: (id) => one('id', id),
+    forList: (list) => one('list', list),
+    async save(a) {
+      await trx
+        .insertInto('mail_automations')
+        .values({
+          tenant_id: tenantId,
+          id: a.id,
+          list: a.list,
+          enabled: a.enabled,
+          created_at: a.createdAt,
+          updated_at: a.updatedAt,
+        })
+        .onConflict((oc) =>
+          oc
+            .columns(['tenant_id', 'id'])
+            .doUpdateSet({ enabled: a.enabled, updated_at: a.updatedAt })
+        )
+        .execute();
+      await trx.deleteFrom('mail_automation_steps').where('automation_id', '=', a.id).execute();
+      if (a.steps.length)
+        await trx
+          .insertInto('mail_automation_steps')
+          .values(
+            a.steps.map((step, position) => ({
+              tenant_id: tenantId,
+              automation_id: a.id,
+              position,
+              item_id: step.itemId,
+              delay_days: step.delayDays,
+            }))
+          )
+          .execute();
+    },
+    async start(automationId, supporterId, at) {
+      const rows = await trx
+        .insertInto('mail_automation_runs')
+        .values({
+          tenant_id: tenantId,
+          automation_id: automationId,
+          supporter_id: supporterId,
+          started_at: at,
+        })
+        .onConflict((oc) => oc.doNothing())
+        .returning('supporter_id')
+        .execute();
+      return rows.length === 1;
+    },
+    async run(automationId, supporterId) {
+      const row = await trx
+        .selectFrom('mail_automation_runs')
+        .selectAll()
+        .where('automation_id', '=', automationId)
+        .where('supporter_id', '=', supporterId)
+        .executeTakeFirst();
+      return row
+        ? {
+            automationId: row.automation_id,
+            supporterId: row.supporter_id,
+            startedAt: new Date(row.started_at),
+            through: row.through,
+          }
+        : null;
+    },
+    async advance(automationId, supporterId, through) {
+      const result = await trx
+        .updateTable('mail_automation_runs')
+        .set({ through })
+        .where('automation_id', '=', automationId)
+        .where('supporter_id', '=', supporterId)
+        .where('through', '<', through)
+        .executeTakeFirst();
+      return Number(result.numUpdatedRows) === 1;
+    },
+    async reach(automationId) {
+      const { rows } = await sql<{ started: string; reached: number[] | null }>`
+        select count(*)::text as started,
+               (select array_agg(n order by p) from (
+                  select s.position as p,
+                         count(r.supporter_id) filter (where r.through >= s.position)::int as n
+                  from mail_automation_steps s
+                  left join mail_automation_runs r on r.automation_id = s.automation_id
+                  where s.automation_id = ${automationId}
+                  group by s.position) x) as reached
+        from mail_automation_runs where automation_id = ${automationId}`.execute(trx);
+      const row = rows[0];
+      return { started: Number(row?.started ?? 0), reached: row?.reached ?? [] };
     },
   };
 }

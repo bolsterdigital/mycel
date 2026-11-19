@@ -160,10 +160,53 @@ export interface MailEditionsRepository {
   complete(id: string, at: Date): Promise<void>;
 }
 
+/** One mail of a welcome series: an item of the site, so many days after joining the list. */
+export interface MailAutomationStep {
+  itemId: string;
+  delayDays: number;
+}
+
+/**
+ * A welcome series (ADR 010 rule 10, MY-258): one per list, its steps in order of delay. Only
+ * people who join the list while it is on get it, each step at most once (`MailAutomationRun`).
+ */
+export interface MailAutomation {
+  id: string;
+  list: string;
+  enabled: boolean;
+  steps: MailAutomationStep[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** One person in one series: when they joined, and the last step position handled (-1: none). */
+export interface MailAutomationRun {
+  automationId: string;
+  supporterId: string;
+  startedAt: Date;
+  through: number;
+}
+
+export interface MailAutomationsRepository {
+  list(): Promise<MailAutomation[]>;
+  get(id: string): Promise<MailAutomation | null>;
+  forList(list: string): Promise<MailAutomation | null>;
+  /** Insert or replace the series with this id, its steps included. */
+  save(automation: MailAutomation): Promise<void>;
+  /** Start the series for a person; false when they were in it before (once is once). */
+  start(automationId: string, supporterId: string, at: Date): Promise<boolean>;
+  run(automationId: string, supporterId: string): Promise<MailAutomationRun | null>;
+  /** Mark position `through` handled; false when the run was already there or past it. */
+  advance(automationId: string, supporterId: string, through: number): Promise<boolean>;
+  /** Per series: how many people started it, and per position how many got that far. */
+  reach(automationId: string): Promise<{ started: number; reached: number[] }>;
+}
+
 declare module '../ports.js' {
   interface TransactionContext {
     mailSends: MailSendsRepository;
     mailEditions: MailEditionsRepository;
+    mailAutomations: MailAutomationsRepository;
     emailRenderer: EmailRenderer;
   }
 }

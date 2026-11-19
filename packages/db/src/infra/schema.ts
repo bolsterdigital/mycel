@@ -649,6 +649,28 @@ export interface Database {
     delivered_through: string | null;
     completed_at: Timestamp | null;
   };
+  mail_automations: {
+    tenant_id: string;
+    id: string;
+    list: string;
+    enabled: boolean;
+    created_at: Timestamp;
+    updated_at: Timestamp;
+  };
+  mail_automation_steps: {
+    tenant_id: string;
+    automation_id: string;
+    position: number;
+    item_id: string;
+    delay_days: number;
+  };
+  mail_automation_runs: {
+    tenant_id: string;
+    automation_id: string;
+    supporter_id: string;
+    started_at: Timestamp;
+    through: Generated<number>;
+  };
   operators: {
     id: string;
     issuer: string | null;

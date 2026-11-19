@@ -47,6 +47,7 @@ import {
   eraseOutboxProps,
   ERASED_DOMAIN,
   EDITION_SUBSCRIBER,
+  AUTOMATION_MAIL_SUBSCRIBER,
   ERASURE_EXPIRES_EXPORTS,
   ERASURE_EXPORT_ERROR,
   ERASURE_KEEPS_INTENT_STATES,
@@ -506,6 +507,22 @@ async function eraseRows(
     )
     select count(*)::text as deleted from gone`.execute(trx);
   changed += Number(participations.rows[0]?.deleted ?? 0);
+  // An erased supporter leaves every welcome series (0082). Their sent steps hang off due events
+  // that name the supporter id, never the address, so the event route below misses those
+  // intents: they go by that id too.
+  count(
+    await sql`
+      delete from mail_automation_runs
+      where supporter_id = any(${supporterIds}::uuid[])`.execute(trx)
+  );
+  count(
+    await sql`
+      delete from mail_sends
+      where subscriber = ${AUTOMATION_MAIL_SUBSCRIBER}
+        and event_id in (
+          select o.id from outbox o
+          where o.props->>'supporterId' = any(${supporterIds}::text[]))`.execute(trx)
+  );
   // The payment stays for the books, without the supporter it named (0072).
   count(
     await sql`

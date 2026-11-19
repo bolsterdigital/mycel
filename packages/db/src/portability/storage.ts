@@ -797,7 +797,7 @@ export const STORAGE = {
         subject: 'supporter',
         route: {
           kind: 'apply',
-          does: 'deletes the edition intents that name an erased supporter id in their key',
+          does: 'deletes the edition intents that name an erased supporter id in their key, and the welcome-series intents whose due event names it',
         },
       },
     ],
@@ -806,6 +806,21 @@ export const STORAGE = {
       term: 'goes with its outbox event; an erasure finds an intent by that event, or an edition intent by the supporter id in its key',
       by: 'retention.apply',
     },
+  },
+  // A welcome series names a list and items, never a person (0082).
+  mail_automations: { category: 'mail', owner: 'tenant', copies: [], retention: SITE_KEPT },
+  mail_automation_steps: { category: 'mail', owner: 'tenant', copies: [], retention: SITE_KEPT },
+  mail_automation_runs: {
+    category: 'mail',
+    owner: 'tenant',
+    copies: [
+      {
+        field: 'supporter_id',
+        subject: 'supporter',
+        route: { kind: 'apply', does: 'deletes the runs of the erased supporter' },
+      },
+    ],
+    retention: SUPPORTER_KEPT,
   },
   mail_editions: {
     category: 'mail',
