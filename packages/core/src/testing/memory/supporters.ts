@@ -7,6 +7,7 @@ import {
   type SupporterAdmissions,
   type SupporterRepository,
 } from '../../supporters/ports.js';
+import { listChangeOf } from '../../supporters/activity.js';
 import { emailKey } from '../../supporters/email-key.js';
 import {
   afterPosition,
@@ -45,6 +46,16 @@ export function memorySupporters(s: TenantStore, ids: Ids): SupporterRepository 
         .map((p) => structuredClone(p)),
     countMembers: async (list) =>
       [...s.projections.values()].filter((p) => p.lists.includes(list)).length,
+    listChanges: async (from, until) =>
+      [...s.events.values()]
+        .filter((e) => {
+          const at = Date.parse(e.occurred_at);
+          return at >= from.getTime() && at <= until.getTime();
+        })
+        .sort(
+          (a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at) || (a.id < b.id ? -1 : 1)
+        )
+        .flatMap((e) => listChangeOf(e) ?? []),
     async page(filter, { after, limit }) {
       const matches = [...s.projections.values()]
         .filter((p) => matchesSupporterFilter(p, filter))

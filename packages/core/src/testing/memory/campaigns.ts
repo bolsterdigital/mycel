@@ -66,6 +66,14 @@ export function memoryCampaigns(s: TenantStore): CampaignRepository {
           counts.set(p.campaignId, (counts.get(p.campaignId) ?? 0) + 1);
       return counts;
     },
+    participationsSince: async (from, until) =>
+      [...parts.values()]
+        .filter((p) => {
+          const at = Date.parse(p.confirmedAt);
+          return !p.withdrawnAt && at >= from.getTime() && at <= until.getTime();
+        })
+        .sort((a, b) => Date.parse(a.confirmedAt) - Date.parse(b.confirmedAt))
+        .map((p) => ({ campaignId: p.campaignId, supporterId: p.supporterId, at: p.confirmedAt })),
     async participants(campaignId, { after, limit }) {
       const emails = new Map([...s.projections.values()].map((p) => [p.id, p.email]));
       const all = [...parts.values()]

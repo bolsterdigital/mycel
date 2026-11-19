@@ -112,6 +112,7 @@ export * from './supporters/service.js';
 export * from './supporters/listing.js';
 export * from './supporters/export.js';
 export * from './supporters/timeline.js';
+export * from './supporters/activity.js';
 export * from './supporters/erasure.js';
 export * from './supporters/erase.js';
 export * from './supporters/access.js';

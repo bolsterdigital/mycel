@@ -145,6 +145,21 @@ export function campaignRepository(trx: Kysely<Database>, tenantId: string): Cam
         .execute();
       return new Map(found.map((r) => [r.campaign_id, r.n]));
     },
+    async participationsSince(from, until) {
+      const found = await trx
+        .selectFrom('campaign_participations')
+        .select(['campaign_id', 'supporter_id', 'confirmed_at'])
+        .where('withdrawn_at', 'is', null)
+        .where('confirmed_at', '>=', from)
+        .where('confirmed_at', '<=', until)
+        .orderBy('confirmed_at')
+        .execute();
+      return found.map((r) => ({
+        campaignId: r.campaign_id,
+        supporterId: r.supporter_id,
+        at: toIso(r.confirmed_at)!,
+      }));
+    },
     // The join is on the supporter's row, which RLS keeps to this tenant like the participation
     // itself; an erasure deletes the participation (erasures.ts), so no tombstone address shows.
     async participants(campaignId, { after, limit }) {

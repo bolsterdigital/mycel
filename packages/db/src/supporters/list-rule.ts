@@ -1,4 +1,4 @@
-// The supporter list scenario of the adapter rules (adapter-rules.test.ts runs it over the memory
+// The supporter list and activity scenario of the adapter rules (adapter-rules.test.ts runs it over the memory
 // adapter and over Postgres and compares both with `expectedSupporterList`). In a file of its own
 // because the suite is at its size ceiling; it ingests its own supporters.
 
@@ -30,7 +30,7 @@ export async function observeSupporterList(
   const add = (
     email: string,
     minute: number,
-    type: 'newsletter.subscribed' | 'petition.signed',
+    type: 'newsletter.subscribed' | 'newsletter.unsubscribed' | 'petition.signed',
     props: Record<string, unknown>,
     by = admin
   ) => {
@@ -92,7 +92,7 @@ export async function observeSupporterList(
   } while (after && pages < 10);
 
   const pending = await list({ list: 'news', status: 'pending' });
-  return {
+  const observed = {
     // The two of one moment lead; which of them is first is `tieByIdDescending`.
     tied: [first?.email, second?.email].sort().join(' '),
     tieByIdDescending: Boolean(first && second && first.id > second.id),
@@ -126,6 +126,26 @@ export async function observeSupporterList(
       )
     ),
   };
+
+  // `supporter.activity.get` over the same log, after the list is read: a join and a leave
+  // of one more supporter, the erased one and the other tenant's out, a pending one not joined.
+  await add('hein@example.org', 9, 'newsletter.subscribed', { list: 'news' });
+  await add('hein@example.org', 10, 'newsletter.unsubscribed', {
+    list: 'news',
+  });
+  const activity = await invoker.run(useCases.getSupporterActivity, admin, {
+    timeZone: 'UTC',
+    until: '2026-11-04T00:00:00Z',
+  });
+  return {
+    ...observed,
+    activity: {
+      joined: activity.joined,
+      left: activity.left,
+      lists: activity.lists,
+      days: activity.days.filter((d) => d.joined || d.participations),
+    },
+  };
 }
 
 export const expectedSupporterList = {
@@ -153,4 +173,13 @@ export const expectedSupporterList = {
   otherTenant: 'vreemd',
   statusWithoutList: 'invalid_input',
   malformedCursors: ['invalid_input', 'invalid_input', 'invalid_input'],
+  activity: {
+    joined: 6,
+    left: 1,
+    lists: [
+      { list: 'news', joined: 5, joinedBefore: 0, left: 1, members: 4 },
+      { list: 'campaign', joined: 1, joinedBefore: 0, left: 0, members: 1 },
+    ],
+    days: [{ date: '2026-11-03', joined: 6, participations: 0 }],
+  },
 };

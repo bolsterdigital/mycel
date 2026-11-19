@@ -121,6 +121,43 @@ export function supporterRepository(trx: Trx, tenantId: string, ids: Ids): Suppo
         .executeTakeFirstOrThrow();
       return Number(row.n);
     },
+    // The rule of core `listChangeOf` (`supporters/activity.ts`) in SQL; adapter-rules holds the
+    // two together. Only events that name a list are read, and only what the summary counts.
+    async listChanges(from, until) {
+      const rows = await trx
+        .selectFrom('events')
+        .select([
+          'supporter_id',
+          'occurred_at',
+          sql<string>`props->>'list'`.as('list'),
+          sql<
+            'joined' | 'left'
+          >`case when type in ('newsletter.unsubscribed', 'consent.withdrawn') then 'left' else 'joined' end`.as(
+            'kind'
+          ),
+        ])
+        .where('occurred_at', '>=', from)
+        .where('occurred_at', '<=', until)
+        .where(sql<boolean>`jsonb_typeof(props->'list') = 'string'`)
+        .where((eb) =>
+          eb.or([
+            eb('type', 'in', ['consent.given', 'newsletter.unsubscribed', 'consent.withdrawn']),
+            eb.and([
+              eb('type', '=', 'newsletter.subscribed'),
+              sql<boolean>`props->'confirmed' is distinct from 'false'::jsonb`,
+            ]),
+          ])
+        )
+        .orderBy('occurred_at')
+        .orderBy('id')
+        .execute();
+      return rows.map((r) => ({
+        supporterId: r.supporter_id,
+        list: r.list,
+        kind: r.kind,
+        at: new Date(r.occurred_at).toISOString(),
+      }));
+    },
     // The rules of core `supporters/listing.ts` in SQL; adapter-rules holds the two together.
     // `starts_with` takes the term as a value, so a `%` or `_` in it is a character, not a
     // pattern. The row comparison reads `(last_activity, id) < (edge, id)`: newest first, then
