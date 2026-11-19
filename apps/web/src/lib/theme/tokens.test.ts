@@ -4,8 +4,12 @@
 // because no preset chooses one. That grammar (`theme tokens`) holds the stylesheet complete,
 // finite and inside its own properties for the presets and for random valid themes; it stood in
 // the block conformance suite until that suite reached its size ceiling.
+import { existsSync } from 'node:fs';
 import {
   DEFAULT_THEME,
+  FONTS,
+  FONT_KEYS,
+  hasWeight,
   THEME_PRESETS,
   THEME_RANGES,
   THEME_ROLES,
@@ -15,7 +19,15 @@ import {
   type ResolvedTheme,
 } from '@mycel/core';
 import { describe, expect, it } from 'vitest';
-import { CAPTION_MONO, STEPS, themeCss, themeHash } from './tokens.js';
+import { fontFaces } from './font-files.js';
+import {
+  CAPTION_MONO,
+  preloadFonts,
+  STEPS,
+  themeCss,
+  themeHash,
+  withItalicPreload,
+} from './tokens.js';
 
 const themes: ResolvedTheme[] = [DEFAULT_THEME, ...Object.values(THEME_PRESETS)];
 
@@ -78,8 +90,11 @@ describe('theme tokens', () => {
 
   // The grammar of the output: declarations of our own properties with hex colours, plain
   // numbers with a unit, our font names and the @font-face rules of our own files.
-  const declaration =
-    /^--[a-z0-9-]+: (#[0-9a-f]{6}|-?\d+(\.\d+)?(rem|ch)?|Inter, system-ui, -apple-system, 'Segoe UI', sans-serif|'Mycel Serif', Georgia, 'Times New Roman', serif);$/i;
+  const family = FONT_KEYS.map((k) => FONTS[k].family).join('|');
+  const declaration = new RegExp(
+    `^--[a-z0-9-]+: (#[0-9a-f]{6}|-?\\d+(\\.\\d+)?(rem|ch)?|'(${family})', (system-ui, -apple-system, 'Segoe UI', sans-serif|Georgia, 'Times New Roman', serif));$`,
+    'i'
+  );
 
   function problems(theme: ResolvedTheme): string[] {
     const css = themeCss(theme);
@@ -188,6 +203,42 @@ describe('theme tokens', () => {
     expect(editorial).toContain(`--color-link: ${THEME_PRESETS.editorial.palettes.dark.link};`);
   });
 
+  it('declares only the two chosen families, each file of the catalogue on disk', () => {
+    for (const heading of FONT_KEYS)
+      for (const body of FONT_KEYS) {
+        const css = themeCss({ ...DEFAULT_THEME, headingFont: heading, bodyFont: body });
+        const declared = new Set(
+          [...css.matchAll(/@font-face \{ font-family: '([^']+)'/g)].map((m) => m[1])
+        );
+        expect(declared).toEqual(new Set([FONTS[heading].family, FONTS[body].family]));
+      }
+    for (const key of FONT_KEYS)
+      for (const face of fontFaces(key))
+        expect(existsSync(new URL(`../../../static${face.file}`, import.meta.url)), face.file).toBe(
+          true
+        );
+  });
+
+  it('preloads the body regular first, then the heading at its weight, and its italic only', () => {
+    const theme = { ...DEFAULT_THEME, bodyFont: 'poppins', headingFont: 'vesper-libre' } as const;
+    expect(preloadFonts({ ...theme, headingWeight: 700 })).toEqual([
+      '/fonts/poppins/poppins-latin-400.woff2',
+      '/fonts/vesper-libre/vesper-libre-latin-700.woff2',
+    ]);
+    expect(preloadFonts({ ...DEFAULT_THEME, headingWeight: 800 })).toEqual([
+      '/fonts/inter/inter-latin-roman.woff2',
+    ]);
+    const page = (fonts: string[], body: string) =>
+      `<head>${fonts.map((f) => `<link rel="preload" href="${f}" as="font">`).join('')}</head><body>${body}</body>`;
+    const poppins = withItalicPreload(
+      page(preloadFonts({ ...theme, headingWeight: 700 }), '<em>x</em>')
+    );
+    expect(poppins).toContain('href="/fonts/poppins/poppins-latin-400-italic.woff2"');
+    expect(poppins).not.toContain('vesper-libre-latin-400');
+    const quicksand = page(preloadFonts({ ...DEFAULT_THEME, bodyFont: 'quicksand' }), '<em>x</em>');
+    expect(withItalicPreload(quicksand)).toBe(quicksand);
+  });
+
   it('stays inside the grammar for random valid themes', () => {
     // A seeded generator: reproducible, and every value inside the validated ranges.
     let seed = 42;
@@ -196,7 +247,8 @@ describe('theme tokens', () => {
     for (let i = 0; i < 200; i += 1) {
       const theme: ResolvedTheme = {
         ...DEFAULT_THEME,
-        fontPair: random() < 0.5 ? 'inter' : 'source-serif-inter',
+        headingFont: FONT_KEYS[Math.floor(random() * FONT_KEYS.length)]!,
+        bodyFont: FONT_KEYS[Math.floor(random() * FONT_KEYS.length)]!,
         baseSize: between(THEME_RANGES.baseSize.min, THEME_RANGES.baseSize.max),
         scaleRatio: between(THEME_RANGES.scaleRatio.min, THEME_RANGES.scaleRatio.max),
         measure: between(THEME_RANGES.measure.min, THEME_RANGES.measure.max),
@@ -204,6 +256,8 @@ describe('theme tokens', () => {
         density: between(THEME_RANGES.density.min, THEME_RANGES.density.max),
         headingWeight: ([400, 500, 600, 700, 800] as const)[Math.floor(random() * 5)]!,
       };
+      // A static heading font only has some weights; the write refuses the rest.
+      if (!hasWeight(theme.headingFont, theme.headingWeight)) theme.headingWeight = 700;
       // The same values a write would accept (contrast is unchanged from the default).
       expect(Theme.safeParse(theme).success).toBe(true);
       expect(problems(theme)).toEqual([]);

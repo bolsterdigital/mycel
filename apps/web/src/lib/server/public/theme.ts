@@ -87,7 +87,7 @@ async function loadSiteTheme(site: Site): Promise<SiteTheme> {
     found = themeHash(css).then((hash) => ({
       css,
       hash,
-      preload: preloadFonts(theme.fontPair),
+      preload: preloadFonts(theme),
       dropCap,
       colors: { light: palettes.light.body.background, dark: palettes.dark.body.background },
     }));

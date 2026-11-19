@@ -87,6 +87,7 @@ export * from './content/blocks/overview.js';
 export * from './content/published/search.js';
 export * from './content/patterns.js';
 export * from './theme/model.js';
+export * from './theme/fonts.js';
 export * from './theme/contrast.js';
 export * from './theme/ports.js';
 export * from './theme/presets.js';

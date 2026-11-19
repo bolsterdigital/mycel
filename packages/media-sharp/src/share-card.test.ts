@@ -6,7 +6,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH, type ShareCardDrawing } from '@mycel/core';
+import { FONT_KEYS, SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH, type ShareCardDrawing } from '@mycel/core';
 import { createSharpProcessor } from './index.js';
 
 const fixture = (name: string) =>
@@ -60,6 +60,15 @@ describe('share card', () => {
     expect(titled.equals(empty)).toBe(false);
   });
 
+  it('draws a title in every heading font of the catalogue', async () => {
+    const inter = await draw('font-inter', { ...base, font: 'inter' });
+    for (const font of FONT_KEYS) {
+      const png = await draw(`font-${font}`, { ...base, font });
+      expect((await sharp(png).metadata()).width, font).toBe(1200);
+      if (font !== 'inter') expect(Buffer.from(png).equals(Buffer.from(inter)), font).toBe(false);
+    }
+  });
+
   it('puts the photo in the right-hand column and a logo at the bottom', async () => {
     const photo = await fixture('exif-orientation-gps.jpg');
     const logo = await sharp({
@@ -71,7 +80,7 @@ describe('share card', () => {
       ...base,
       title:
         'Een veel langere titel die over meerdere regels loopt en toch leesbaar moet blijven op een klein kaartje in een tijdlijn',
-      font: 'source-serif-inter',
+      font: 'mycel-serif',
       photo: { bytes: photo, focal: { x: 0.5, y: 0.5 } },
       logo: new Uint8Array(logo),
     });

@@ -29,6 +29,7 @@ import { t, type MessageKey } from '../i18n/index.js';
 import { creditKind, variantFile, type MediaCredit, type MediaRecord } from '../media/model.js';
 import type { TransactionContext } from '../ports.js';
 import { resolveTheme } from '../theme/contrast.js';
+import { FONTS } from '../theme/fonts.js';
 import '../content/ports.js';
 import '../media/ports.js';
 import '../theme/ports.js';
@@ -300,7 +301,8 @@ export async function emailDocument(
       muted: p.muted,
       warning: p.warning,
       link: p.link,
-      headingFont: theme.fontPair === 'source-serif-inter' ? 'serif' : 'sans',
+      // No webfont in mail: the heading font's category picks the system stack, a slab reads as serif.
+      headingFont: FONTS[theme.headingFont].category === 'sans' ? 'sans' : 'serif',
     },
     copy: {
       viewInBrowser: copy('mail.email.viewInBrowser'),

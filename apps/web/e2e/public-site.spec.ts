@@ -1752,7 +1752,8 @@ test.describe('site-settings', () => {
     await page.goto(`/${slug}/home`);
     const oldCss = await themeLink(page).getAttribute('href');
     await login(page, `/admin/${slug}/site?section=theme`, `site-editor-${slug}@probe.test`);
-    await page.locator('select[name="fontPair"]').selectOption('inter');
+    await page.locator('select[name="headingFont"]').selectOption('rubik');
+    await page.locator('select[name="bodyFont"]').selectOption('open-sans');
     // The action row's card colours are rows of the colour table: a third light card
     // is added and the second dark one emptied; untouched rows keep what was stored.
     const card = (mode: string, i: number, side: string) =>
@@ -1765,7 +1766,7 @@ test.describe('site-settings', () => {
     await saveTheme(page);
     await savedOk(page);
     const theme = (await themeState(tenantId)).value;
-    expect(theme.fontPair).toBe('inter');
+    expect([theme.headingFont, theme.bodyFont]).toEqual(['rubik', 'open-sans']);
     expect(theme.palettes.light.cardAccents).toEqual([
       ...WALK.light,
       { foreground: '#000000', background: '#ffd54f' },
@@ -1805,6 +1806,7 @@ test.describe('site-settings', () => {
     expect(saved.value).toEqual({ footer: { nl: 'Een onafhankelijke site', en: 'New footer' } });
     await page.goto(`/${slug}/en/home`);
     await expect(page.getByRole('contentinfo')).toContainText('New footer');
+    await expect(page.locator('body')).toHaveCSS('font-family', /^"Open Sans"/);
     const newCss = await themeLink(page).getAttribute('href');
     expect(newCss).not.toBe(oldCss);
     const stale = await request.get(oldCss!, { maxRedirects: 0 });

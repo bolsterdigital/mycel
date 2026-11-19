@@ -19,7 +19,8 @@
     AI_USES,
     CAPTION_FONTS,
     DROP_CAPS,
-    FONT_PAIRS,
+    FONT_KEYS,
+    FONTS,
     MAX_READER_ACTIVITY_DAYS,
     MAX_SUBMISSION_RETENTION_MONTHS,
     MIN_SUBMISSION_RETENTION_MONTHS,
@@ -550,15 +551,17 @@
       {/each}
       <p class="ui-hint">{t('admin.site.cards.hint')}</p>
       <Fieldset legend={t('admin.site.group.type')}>
-        <Select
-          id="site-font"
-          name="fontPair"
-          label={t('admin.site.font')}
-          locale={data.locale}
-          size="m"
-          options={FONT_PAIRS.map((font) => ({ value: font, label: font }))}
-          value={value('fontPair', data.theme.value.fontPair)}
-        />
+        {#each ['headingFont', 'bodyFont'] as const as key (key)}
+          <Select
+            id="site-{key}"
+            name={key}
+            label={t(`admin.site.${key}`)}
+            locale={data.locale}
+            size="m"
+            options={FONT_KEYS.map((font) => ({ value: font, label: FONTS[font].family }))}
+            value={value(key, data.theme.value[key])}
+          />
+        {/each}
         <Select
           id="site-dropCap"
           name="dropCap"

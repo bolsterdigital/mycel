@@ -28,6 +28,7 @@ import {
   type ContentDocument,
   type CreditKind,
   type MediaView,
+  DEFAULT_THEME,
 } from '@mycel/core';
 import { demoArticle, demoPage, probeForm, conditionalProbeForm } from '@mycel/core/testing';
 import { formValues } from '../editor/block-form.js';
@@ -39,7 +40,7 @@ import { headingTag } from './headings.js';
 import { renderMarkdown } from './markdown.js';
 import { resolveDocument, type ResolveSource } from './resolve.js';
 import { shownBlockIds } from './shown.js';
-import { FONT_FILES, withItalicPreload } from '../theme/tokens.js';
+import { preloadFonts, withItalicPreload } from '../theme/tokens.js';
 
 /** A fixed challenge, so the snapshots do not change per run. */
 const PROOF = {
@@ -788,7 +789,7 @@ describe('the demo documents render whole', () => {
 
   // The public layout's head, as Svelte renders it, around a document body.
   const page = (body: string) =>
-    `<head><link rel="preload" href="${FONT_FILES.inter.roman}" as="font" type="font/woff2" crossorigin="anonymous"/></head><body>${body}</body>`;
+    `<head><link rel="preload" href="${preloadFonts(DEFAULT_THEME)[0]}" as="font" type="font/woff2" crossorigin="anonymous"/></head><body>${body}</body>`;
   const italicLinks = (html: string) =>
     html.match(/<link rel="preload" href="\/fonts\/inter\/inter-latin-italic\.woff2"[^>]*>/g) ?? [];
 

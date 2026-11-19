@@ -14,21 +14,22 @@ import sharp from 'sharp';
 import {
   SHARE_CARD_HEIGHT,
   SHARE_CARD_WIDTH,
-  type FontPair,
+  type FontKey,
   type ShareCardDrawing,
 } from '@mycel/core';
 
-/** The heading face per font pair; the files are the site's own (OFL, see fonts/). */
-const FONT_FILES: Record<FontPair, { name: string; file: string }> = {
-  inter: { name: 'Inter', file: 'inter.woff2' },
-  'source-serif-inter': { name: 'Source Serif 4', file: 'source-serif-4.woff2' },
-};
-const fonts = new Map<FontPair, Buffer>();
-const font = (pair: FontPair): Buffer => {
-  let found = fonts.get(pair);
+/**
+ * The heading font per catalogue key, drawn at its regular weight: a static instance renamed
+ * `Mycel Card`, because satori draws a variable font at its default instance (Raleway's is Thin)
+ * and a modified face may not carry a Reserved Font Name (docs/reference/fonts.md).
+ */
+const CARD_FAMILY = 'Mycel Card';
+const fonts = new Map<FontKey, Buffer>();
+const font = (key: FontKey): Buffer => {
+  let found = fonts.get(key);
   if (!found) {
-    found = readFileSync(new URL(`../fonts/${FONT_FILES[pair].file}`, import.meta.url));
-    fonts.set(pair, found);
+    found = readFileSync(new URL(`../fonts/${key}/card.woff2`, import.meta.url));
+    fonts.set(key, found);
   }
   return found;
 };
@@ -76,7 +77,7 @@ export async function renderShareCard(card: ShareCardDrawing): Promise<Uint8Arra
         {
           display: 'block',
           width: textWidth - 2 * PAD,
-          fontFamily: FONT_FILES[card.font].name,
+          fontFamily: CARD_FAMILY,
           fontSize: size,
           lineHeight: 1.15,
           lineClamp: Math.floor((SHARE_CARD_HEIGHT - 2 * PAD - LOGO_HEIGHT - 32) / (size * 1.15)),
@@ -100,7 +101,7 @@ export async function renderShareCard(card: ShareCardDrawing): Promise<Uint8Arra
   const svg = await satori(tree as Parameters<typeof satori>[0], {
     width: textWidth,
     height: SHARE_CARD_HEIGHT,
-    fonts: [{ name: FONT_FILES[card.font].name, data: font(card.font), style: 'normal' }],
+    fonts: [{ name: CARD_FAMILY, data: font(card.font), style: 'normal' }],
   });
   const text = await sharp(Buffer.from(svg)).png().toBuffer();
   const png = await sharp({
