@@ -111,11 +111,15 @@ export interface PublishedEntry {
  * is public. `ids` narrows to those items (the pins), `exclude` leaves items out (the pins again,
  * under the list). Section and tags apply to articles; every tag must be on the article. `events`
  * narrows to pages with the `event` profile and a start, and orders by that start instead.
+ * `dossierId` keeps the members whose published revision names that dossier (MY-260); `profile`
+ * keeps the pages with that profile.
  */
 export interface PublishedCardFilter {
   locale: string;
   type?: ContentType | undefined;
   sectionId?: string | undefined;
+  dossierId?: string | undefined;
+  profile?: ContentProfile | undefined;
   /** Articles whose published revision names this person among its authors. */
   authorId?: string | undefined;
   /** Canonical tags (`canonicalTag`), all required. */

@@ -187,6 +187,7 @@ export const publicSite = {
   'block.overview.newer': 'Show newer',
   'block.overview.pages': 'More in this overview',
   'block.overview.restricted': 'Members only',
+  'public.dossier.partOf': 'Part of the dossier',
   'block.campaign.notOpen.upcoming': 'You cannot take part yet.',
   'block.campaign.notOpen.closed': 'You can no longer take part: this campaign has closed.',
   'block.lightbox.enlarge': 'larger version',

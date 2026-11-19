@@ -190,6 +190,8 @@ export const blocks = {
   'admin.block.option.article': 'Articles',
   'admin.block.option.page': 'Pages',
   'admin.block.option.event': 'Events',
+  'admin.block.option.dossier': 'Dossiers',
+  'admin.block.field.dossierId': 'Dossier',
   'admin.block.field.when': 'Which events',
   'admin.block.option.upcoming': 'Upcoming',
   'admin.block.option.past': 'Past',

@@ -196,6 +196,8 @@ export const blocks: Partial<Record<UiKey, string>> = {
   'admin.block.option.article': 'Artikelen',
   'admin.block.option.page': 'Pagina’s',
   'admin.block.option.event': 'Evenementen',
+  'admin.block.option.dossier': 'Dossiers',
+  'admin.block.field.dossierId': 'Dossier',
   'admin.block.field.when': 'Welke evenementen',
   'admin.block.option.upcoming': 'Komend',
   'admin.block.option.past': 'Geweest',

@@ -1,6 +1,6 @@
 <!-- A public page or article, or its thank-you page: the document header (`Intro`: title, the
      only h1 per ADR 004 rule 3, lead and hero image, in the order of the edit screen), then the
-     blocks from the resolved model (lib/blocks) and an article's corrections; a failed form post comes back as `form`. A
+     blocks from the resolved model (lib/blocks), an article's corrections and the dossier boxes (MY-260); a failed form post comes back as `form`. A
      restricted item whose body was left out ends with the reader gate where the body would be. An
      article on a site with a drop cap carries `data-drop-cap`, which base.css reads (no style
      attribute under the CSP). The head carries the canonical URL, one alternate per published locale and
@@ -11,6 +11,7 @@
   import StructuredData from '#lib/components/public/StructuredData.svelte';
   import Intro from '#lib/blocks/Intro.svelte';
   import Prefooter from '#lib/components/public/Prefooter.svelte';
+  import DossierBox from '#lib/components/public/DossierBox.svelte';
   import ReaderGate from '#lib/components/public/ReaderGate.svelte';
   import ConsentBanner from '#lib/components/public/ConsentBanner.svelte';
   import { placeEmbeds } from '#lib/blocks/embeds.js';
@@ -111,6 +112,7 @@
     <Blocks model={data.model} formState={form ?? null} eagerFirstImage={!data.intro.hero} />
     {#if data.corrections}<Corrections corrections={data.corrections} />{/if}
     {#if data.gate}<ReaderGate gate={data.gate} />{/if}
+    {#if data.dossiers}<DossierBox dossiers={data.dossiers} base={data.model.base} />{/if}
   </main>
   {#if data.prefooter}<Prefooter zone={data.prefooter} formState={form ?? null} />{/if}
 {/if}

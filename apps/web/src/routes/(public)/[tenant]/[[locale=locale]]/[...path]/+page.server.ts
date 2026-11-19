@@ -122,6 +122,7 @@ export const load: PageServerLoad = async ({
     view: 'item' as const,
     model: view.model,
     prefooter: view.prefooter,
+    dossiers: view.dossiers,
     gate: view.gate,
     intro: view.intro,
     corrections: view.corrections,

@@ -274,7 +274,8 @@ export async function imageIssue(
 
 /**
  * Block references, the document's own images (featured and share image, the same rule as an
- * image block), plus an article's authors and section: what every save and publish checks.
+ * image block), an article's authors and section, and the dossiers: what every save and publish
+ * checks.
  */
 export async function referenceIssues(
   ctx: TransactionContext,
@@ -306,6 +307,15 @@ export async function referenceIssues(
     if (doc.sectionId && !(await ctx.sections.get(doc.sectionId)))
       issues.push({ path: 'sectionId', message: 'content.reference.section-unknown' });
   }
+  // A dossier is a page with the `dossier` profile of this tenant, outside the trash: the read
+  // runs in the tenant's context, so another tenant's id is an unknown one (brief dossiers).
+  for (const [i, { itemId }] of (doc.dossiers ?? []).entries())
+    if ((await ctx.content.get(itemId))?.profile !== 'dossier')
+      issues.push({
+        path: `dossiers.${i}.itemId`,
+        message: 'content.dossier.not-a-dossier',
+        params: { id: itemId },
+      });
   // A tier is the tenant's own or it does not exist (ADR 016 rule 2): the read runs in the
   // tenant's context, so an unknown id and another tenant's id are the same refusal, on every
   // save and again at publish. Until a tier is found, tier access stays unpublishable.

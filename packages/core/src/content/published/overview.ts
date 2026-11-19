@@ -22,6 +22,10 @@
 // wall clock at the moment the page is read, never stored, so an event moves to "past" when it
 // ends without anyone saving anything. The card carries when and where; the host page's ETag
 // hashes the render model, so the list it shows after the turn is a new tag, not a 304.
+//
+// Dossiers (MY-260): `dossierId` keeps the articles or pages whose published revision names that
+// dossier, so a member taken out of it leaves the list when that change is published; the source
+// `dossier` lists the dossier pages themselves, newest or oldest first like any page.
 
 import { z } from 'zod';
 import { Locale } from '../../i18n/locale.js';
@@ -29,9 +33,9 @@ import { defineUseCase } from '../../registry.js';
 import type { TransactionContext } from '../../ports.js';
 import { exampleId } from '../../util/ids.js';
 import { ContentType, Slug, canonicalTag } from '../model.js';
-import { PublishedEvent, projectEvent } from '../public.js';
+import { PublishedEvent, projectEvent } from './event.js';
 import { wallClock } from '../../util/time-zone.js';
-import { effectiveOf } from '../header/effective.js';
+import { effectiveOf, type ChainSite } from '../header/effective.js';
 import { cardDocument } from '../access/projection.js';
 import { OverviewProps } from '../blocks/overview.js';
 import type { PublishedCardRow } from '../ports.js';
@@ -70,6 +74,35 @@ export const Overview = z.object({
 });
 export type Overview = z.infer<typeof Overview>;
 
+/**
+ * One card of a published row in `locale`, as an overview shows it: drawn from the card
+ * projection of the document (`cardDocument`), so a restricted item shows only its teaser fields.
+ * Shared with the dossier box (`dossier.ts`), which lists members as the same cards.
+ */
+export function cardEntry(
+  row: PublishedCardRow,
+  pinned: boolean,
+  locale: string,
+  site: ChainSite,
+  timeZone: string
+): OverviewEntry {
+  const doc = cardDocument(row.document);
+  const effective = effectiveOf(doc, locale, site);
+  return {
+    id: row.itemId,
+    type: row.type,
+    slug: row.slug,
+    revisionId: row.revisionId,
+    date: row.firstPublishedAt.toISOString(),
+    title: effective.title.text,
+    summary: effective.summary.text,
+    imageId: effective.images.featured.mediaId,
+    event: projectEvent(doc, locale, timeZone),
+    pinned,
+    restricted: doc.access.level !== 'public',
+  };
+}
+
 export async function overviewOf(
   ctx: TransactionContext,
   props: OverviewProps,
@@ -80,23 +113,8 @@ export async function overviewOf(
   const pinIds = props.pinned.map((p) => p.itemId);
   const site = (await ctx.siteSettings.images()).value;
   const { timeZone } = (await ctx.siteSettings.general()).value;
-  const entry = (row: PublishedCardRow, pinned: boolean): OverviewEntry => {
-    const doc = cardDocument(row.document);
-    const effective = effectiveOf(doc, locale, site);
-    return {
-      id: row.itemId,
-      type: row.type,
-      slug: row.slug,
-      revisionId: row.revisionId,
-      date: row.firstPublishedAt.toISOString(),
-      title: effective.title.text,
-      summary: effective.summary.text,
-      imageId: effective.images.featured.mediaId,
-      event: projectEvent(doc, locale, timeZone),
-      pinned,
-      restricted: doc.access.level !== 'public',
-    };
-  };
+  const entry = (row: PublishedCardRow, pinned: boolean) =>
+    cardEntry(row, pinned, locale, site, timeZone);
 
   // The pins as page 1 shows them, in the editor's order; their count decides where the list
   // starts on every page, so page 2 continues page 1 exactly.
@@ -119,9 +137,11 @@ export async function overviewOf(
   const rows = await ctx.content.publishedCards(
     {
       locale,
-      type: props.source === 'event' ? 'page' : props.source,
+      type: props.source === 'event' || props.source === 'dossier' ? 'page' : props.source,
       ...(events ? { events } : {}),
+      ...(props.source === 'dossier' ? { profile: 'dossier' as const } : {}),
       ...(props.sectionId ? { sectionId: props.sectionId } : {}),
+      ...(props.dossierId ? { dossierId: props.dossierId } : {}),
       ...(props.tags.length ? { tags: props.tags.map((t) => canonicalTag(t.tag)) } : {}),
       exclude: pinIds,
       order: props.order,
@@ -144,7 +164,7 @@ export const getOverview = defineUseCase({
   kind: 'query',
   requires: 'content:read',
   description:
-    "Read what an overview block shows in one locale: its pinned items, then the published articles or pages that match its filter (a restricted one as a teaser card marked `restricted`), newest or oldest first, or the upcoming (soonest first) or past (latest first) events on the site's clock now, as cards with featured title, summary, image and, for an event, when and where; page 2 and on continue the list without the pins.",
+    "Read what an overview block shows in one locale: its pinned items, then the published articles, pages or dossier pages that match its filter (section, tags, dossier) (a restricted one as a teaser card marked `restricted`), newest or oldest first, or the upcoming (soonest first) or past (latest first) events on the site's clock now, as cards with featured title, summary, image and, for an event, when and where; page 2 and on continue the list without the pins.",
   input: z
     .object({
       props: OverviewProps,

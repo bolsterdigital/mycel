@@ -9,11 +9,13 @@
 // has no number field; a choice of 1 to 24 is the same range). An agenda orders by the start, so
 // `order` does not apply to it: upcoming runs soonest first, past most recent first, the order a
 // visitor reads either in. Rejected: "upcoming" stored on the item (it changes without an edit).
+// A dossier (MY-260) narrows articles or pages to its members (`dossierId`, both sources), and the
+// source `dossier` lists the dossier pages themselves, for a page "All dossiers".
 import { z } from 'zod';
 import type { BlockDefinition, WIDTHS } from '../block-types.js';
 import { EXAMPLE_IDS } from './example-ids.js';
 
-export const OVERVIEW_SOURCES = ['article', 'page', 'event'] as const;
+export const OVERVIEW_SOURCES = ['article', 'page', 'event', 'dossier'] as const;
 /** Which events an agenda lists, decided when the page is read (`content/published/overview.ts`). */
 export const OVERVIEW_WHEN = ['upcoming', 'past'] as const;
 export const OVERVIEW_LAYOUTS = ['cards', 'list'] as const;
@@ -31,6 +33,8 @@ export const OverviewProps = z
   .object({
     source: z.enum(OVERVIEW_SOURCES).default('article'),
     sectionId: z.string().guid().nullable().default(null),
+    /** Members of this dossier page only; articles and pages. */
+    dossierId: z.string().guid().nullable().default(null),
     /** Every tag must be on an article; compared in canonical form (`canonicalTag`). */
     tags: z
       .array(z.object({ tag: z.string().trim().min(1).max(50) }).strict())
@@ -55,6 +59,10 @@ export const OverviewProps = z
     'content.overview.filter-article-only'
   )
   .refine(
+    (p) => p.dossierId === null || p.source === 'article' || p.source === 'page',
+    'content.overview.dossier-filter-source'
+  )
+  .refine(
     (p) => new Set(p.pinned.map((v) => v.itemId)).size === p.pinned.length,
     'content.overview.pin-duplicate'
   );
@@ -66,6 +74,7 @@ export const overviewDefinition: BlockDefinition<typeof OverviewProps, 1> = {
   fields: [
     { key: 'source', kind: 'choice', options: OVERVIEW_SOURCES },
     { key: 'sectionId', kind: 'reference', to: 'section', optional: 'null' },
+    { key: 'dossierId', kind: 'reference', to: 'item', optional: 'null' },
     {
       key: 'tags',
       kind: 'list',
@@ -97,6 +106,7 @@ export const overviewDefinition: BlockDefinition<typeof OverviewProps, 1> = {
   localized: () => [],
   references: (p) => [
     ...(p.sectionId ? [{ type: 'section' as const, refId: p.sectionId }] : []),
+    ...(p.dossierId ? [{ type: 'item' as const, refId: p.dossierId }] : []),
     ...p.pinned.map(({ itemId }) => ({ type: 'item' as const, refId: itemId })),
   ],
   examples: [
@@ -124,5 +134,11 @@ export const overviewDefinition: BlockDefinition<typeof OverviewProps, 1> = {
       name: 'overview-events-past-list',
       props: { source: 'event', when: 'past', layout: 'list', width: 'content' },
     },
+    {
+      name: 'overview-dossier-members',
+      note: 'The articles of one dossier, on the dossier page itself.',
+      props: { dossierId: EXAMPLE_IDS.dossier, limit: '6' },
+    },
+    { name: 'overview-dossiers', props: { source: 'dossier', layout: 'list' } },
   ],
 };
