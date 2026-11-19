@@ -21,7 +21,8 @@
 // revision has it (`formDocument`). Switching locale saves first and remembers the choice; a
 // locale the document lacks shows "start the translation", empty or as a copy of another locale.
 import { editorReferences } from '#lib/server/content/editor-references.js';
-import { relationshipChoices } from '#lib/server/people/relationships.js';
+import { postedChoices, relationshipChoices } from '#lib/server/people/relationships.js';
+import { dossiersOf } from '#lib/server/content/dossier-choices.js';
 import { tierChoices } from '#lib/server/access/tiers.js';
 import { addAuthor } from '#lib/server/people/add-author.js';
 import { blockNaming } from '#lib/server/content/block-names.js';
@@ -295,6 +296,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     canWrite,
     restricted: doc.access.level !== 'public',
     tiers: await loaded(tierChoices(principal, tenant.defaultLocale)),
+    dossiers: await dossiersOf(principal, tenant.defaultLocale, doc),
     timeZone: zone,
     // Named next to the field only where the operator's own zone is not the site's (#88).
     timeZoneNamed: zone !== site,
@@ -631,13 +633,7 @@ async function refused(
   }
 ) {
   const { revision } = await latest(principal, itemId);
-  const choices = await relationshipChoices(
-    principal,
-    tenant.defaultLocale,
-    revision.document.type === 'article',
-    Array.isArray(values.authorIds) ? [...new Set(values.authorIds)] : [],
-    typeof values.sectionId === 'string' ? values.sectionId : ''
-  );
+  const choices = await postedChoices(principal, tenant.defaultLocale, revision.document, values);
   const { status = 400, ...rest } = outcome;
   return fail(status, {
     action: 'save',

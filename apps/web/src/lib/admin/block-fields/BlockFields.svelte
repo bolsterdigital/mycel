@@ -65,6 +65,8 @@
       personGroups: readonly Option[];
       /** The site's sections, for an overview's filter; absent: the id is typed. */
       sectionChoices?: readonly Option[];
+      /** The site's dossier pages, for an overview's dossier filter (MY-260). */
+      dossierChoices?: readonly Option[];
     };
     people?: readonly Option[];
     personGroups?: readonly Option[];
@@ -341,6 +343,21 @@
   {:else if f.kind === 'reference' && f.to === 'section' && references?.sectionChoices}
     {@render select(name, label(f.key), references.sectionChoices, t('admin.block.section.all'))}
     <p class="ui-hint">{t('admin.block.section.articles')}</p>
+  {:else if f.kind === 'reference' && f.key === 'dossierId' && references?.dossierChoices}
+    {@const chosen = v(name)}
+    {@const available = references.dossierChoices}
+    {@render select(
+      name,
+      label(f.key),
+      chosen && !available.some((o) => o.id === chosen)
+        ? [
+            { id: chosen, label: fill(t('admin.block.dossier.unknown'), { id: chosen }) },
+            ...available,
+          ]
+        : available,
+      t('admin.block.dossier.all')
+    )}
+    <p class="ui-hint">{t('admin.block.dossier.sources')}</p>
   {:else if f.kind === 'reference' && f.to === 'item'}
     {@render select(name, label(f.key), references?.items ?? items, t('admin.block.none'))}
   {:else if f.kind === 'reference' && f.key === 'photographerPersonId'}

@@ -39,7 +39,7 @@ export const ISSUE_COPY: Record<string, UiKey> = {
   'content.reference.item-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.form-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.campaign-unknown': 'admin.content.issue.referenceUnknown',
-  'content.dossier.not-a-dossier': 'admin.content.issue.referenceUnknown',
+  'content.dossier.not-a-dossier': 'admin.content.error.dossierUnavailable',
   'content.reference.media-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.media-not-image': 'admin.content.issue.mediaNotImage',
   'content.reference.media-not-document': 'admin.content.issue.mediaNotDocument',
@@ -66,6 +66,8 @@ export const ISSUES: Record<string, UiKey> = {
   'content.event.end-without-start': 'admin.content.error.eventEndWithoutStart',
   'content.event.ends-before-start': 'admin.content.error.eventEndsBeforeStart',
   'content.event.online-url-invalid': 'admin.content.error.eventOnlineUrl',
+  'content.dossier.not-a-dossier': 'admin.content.error.dossierUnavailable',
+  'content.dossier.too-many': 'admin.content.error.dossierTooMany',
 };
 
 /** Core's refusals of a new slug, as admin copy. */

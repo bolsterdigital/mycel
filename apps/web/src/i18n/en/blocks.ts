@@ -192,6 +192,10 @@ export const blocks = {
   'admin.block.option.event': 'Events',
   'admin.block.option.dossier': 'Dossiers',
   'admin.block.field.dossierId': 'Dossier',
+  'admin.block.dossier.all': 'No dossier filter',
+  'admin.block.dossier.sources':
+    'Shows the members of one dossier; with the source Articles or Pages.',
+  'admin.block.dossier.unknown': 'Missing dossier ({id})',
   'admin.block.field.when': 'Which events',
   'admin.block.option.upcoming': 'Upcoming',
   'admin.block.option.past': 'Past',

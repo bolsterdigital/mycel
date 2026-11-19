@@ -125,6 +125,44 @@ describe('the pre-footer switch in the form', () => {
   });
 });
 
+describe('the dossiers in the form (MY-260)', () => {
+  const [a, b, c] = ['a', 'b', 'c'].map((n) => `00000000-0000-4000-8000-00000000000${n}`) as [
+    string,
+    string,
+    string,
+  ];
+  const day = '2026-11-19';
+  it('saves the ticked dossiers in their stored order, new ones after, and the box switch', () => {
+    const member = ContentDocument.parse({ ...page, dossiers: [{ itemId: b }, { itemId: a }] });
+    expect(valuesOf(member).dossierIds).toEqual([b, a]);
+    const shown = { ...valuesOf(member), dossiersShown: '1' };
+    const saved = documentFrom(
+      member,
+      { ...shown, dossierIds: [a, c, b], noDossierBox: 'on' },
+      day
+    );
+    expect(saved.dossiers).toEqual([{ itemId: b }, { itemId: a }, { itemId: c }]);
+    expect(saved).toHaveProperty('showDossier', false);
+    const none = documentFrom(member, { ...shown, dossierIds: [] }, day);
+    expect(none).not.toHaveProperty('dossiers');
+    expect(none).not.toHaveProperty('showDossier');
+  });
+
+  it('drops only the id of the remove button, and keeps all of it on a form without the field', () => {
+    const member = ContentDocument.parse({
+      ...page,
+      dossiers: [{ itemId: a }, { itemId: b }],
+      showDossier: false,
+    });
+    const shown = { ...valuesOf(member), dossiersShown: '1', dropDossier: a };
+    expect(documentFrom(member, shown, day).dossiers).toEqual([{ itemId: b }]);
+    const { dossierIds: _d, noDossierBox: _n, ...without } = valuesOf(member);
+    const kept = documentFrom(member, without, day);
+    expect(kept.dossiers).toEqual(member.dossiers);
+    expect(kept).toHaveProperty('showDossier', false);
+  });
+});
+
 describe("an article's newsletter in the form", () => {
   const today = '2026-11-17';
   it('turns on with a list and a subject that starts as the title, per shown locale', () => {

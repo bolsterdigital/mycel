@@ -54,7 +54,7 @@ export function valuesFromForm(data: FormData): FormValues {
   return out;
 }
 
-const LISTS = new Set(['locales', 'authorIds', 'tierIds']);
+const LISTS = new Set(['locales', 'authorIds', 'tierIds', 'dossierIds']);
 
 const one = (v: FormValues, key: string): string => {
   const x = v[key];
@@ -136,6 +136,8 @@ export function valuesOf(doc: ContentDocument): FormValues {
   put('seoDescription', doc.seo.description);
   if (doc.seo.noindex) v.noindex = 'on';
   if (doc.prefooter === false) v.noPrefooter = 'on';
+  v.dossierIds = (doc.dossiers ?? []).map((d) => d.itemId);
+  if (doc.showDossier === false) v.noDossierBox = 'on';
   v.canonical = doc.seo.canonical ?? '';
   put('lead', doc.lead);
   v.heroImageId = doc.heroImageId ?? '';
@@ -269,6 +271,8 @@ export function documentFrom(
     featured: _featuredTexts,
     lead: _lead,
     prefooter: _prefooter,
+    dossiers: _dossiers,
+    showDossier: _showDossier,
     ...rest
   } = doc;
   // Read where the form showed the box (`prefooterShown`), kept otherwise.
@@ -276,6 +280,7 @@ export function documentFrom(
     'prefooterShown' in v ? one(v, 'noPrefooter') === 'on' : doc.prefooter === false;
   const lead = optional(pick('lead', doc.lead));
   const event = eventFrom(doc, v, pick);
+  const dossiers = dossiersFrom(doc, v);
   const common = {
     ...rest,
     ...(heroImageId ? { heroImageId } : {}),
@@ -292,6 +297,7 @@ export function documentFrom(
       : {}),
     ...(lead ? { lead } : {}),
     ...(noPrefooter ? { prefooter: false as const } : {}),
+    ...dossiers,
     locales,
     title: pick('title', doc.title),
     seo,
@@ -343,6 +349,32 @@ export function documentFrom(
       ? [...doc.corrections, { date: one(v, 'correctionDate') || today, text: correction }]
       : doc.corrections,
   } as ContentDocumentInput;
+}
+
+/**
+ * The dossiers and the box switch, read where the form showed them (`dossiersShown`), kept
+ * otherwise. `dropDossier` is the remove button of a dossier that is no longer one: that one id
+ * leaves, everything else on the form is saved as with the save button. Absent rather than empty,
+ * as a stored document parses byte for byte.
+ */
+function dossiersFrom(
+  doc: ContentDocument,
+  v: FormValues
+): Pick<ContentDocumentInput, 'dossiers' | 'showDossier'> {
+  if (!('dossiersShown' in v))
+    return {
+      ...(doc.dossiers ? { dossiers: doc.dossiers } : {}),
+      ...(doc.showDossier === false ? { showDossier: false as const } : {}),
+    };
+  const drop = one(v, 'dropDossier');
+  const ids = keepOrder(
+    (doc.dossiers ?? []).map((d) => d.itemId),
+    many(v, 'dossierIds').filter((id) => id !== drop)
+  );
+  return {
+    ...(ids.length ? { dossiers: ids.map((itemId) => ({ itemId })) } : {}),
+    ...(one(v, 'noDossierBox') === 'on' ? { showDossier: false as const } : {}),
+  };
 }
 
 /** The posted ids with those of `before` first, in `before`'s order; new ones follow as posted. */

@@ -4,12 +4,14 @@ import {
   MAX_PAGE_SIZE,
   isUuid,
   pickAny,
+  type ContentDocument,
   type Principal,
   type Section,
 } from '@mycel/core';
 import { runtime } from '../runtime.js';
 import { orNull } from '../admin/admin-actions.js';
 import { withAssigned } from '../content/content-admin.js';
+import { dossiersOf } from '../content/dossier-choices.js';
 /** Resolve picker choices under the operator's tenant, including a failed post's selections. */
 export async function relationshipChoices(
   principal: Principal,
@@ -68,4 +70,27 @@ export async function relationshipChoices(
       ])
     : [[], []];
   return { authors, sections };
+}
+
+/**
+ * The choices of a refused save's form, from what it posted: authors, section and dossiers, so
+ * the screen shows the same picks again.
+ */
+export async function postedChoices(
+  principal: Principal,
+  defaultLocale: string,
+  doc: ContentDocument,
+  values: Readonly<Record<string, unknown>>
+) {
+  const { authorIds, sectionId, dossierIds } = values;
+  return {
+    ...(await relationshipChoices(
+      principal,
+      defaultLocale,
+      doc.type === 'article',
+      Array.isArray(authorIds) ? [...new Set(authorIds as string[])] : [],
+      typeof sectionId === 'string' ? sectionId : ''
+    )),
+    dossiers: await dossiersOf(principal, defaultLocale, doc, dossierIds),
+  };
 }

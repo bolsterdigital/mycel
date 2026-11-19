@@ -57,6 +57,7 @@ export const DOC_FIELDS: Record<string, UiKey> = {
   correctionDate: 'admin.content.edit.correctionDate',
   slug: 'admin.content.slug',
   heroAlt: 'admin.content.field.heroAlt',
+  dossiers: 'admin.content.dossier.title',
 };
 
 /** The posted name of the article writer; its surface carries the same string as element id. */
