@@ -43,6 +43,11 @@ export function memorySubscriptions(s: TenantStore): SubscriptionRepository {
     },
     ledger: async (id) =>
       structuredClone(s.subscriptionLedger.filter((e) => e.subscriptionId === id)),
+    async countActive() {
+      const counts = { donation: 0, membership: 0 };
+      for (const r of rows.values()) if (r.status === 'active') counts[r.kind] += 1;
+      return counts;
+    },
     async insertMandate(mandate) {
       s.mandates.set(mandate.id, structuredClone(mandate));
     },

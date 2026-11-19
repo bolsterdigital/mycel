@@ -60,6 +60,7 @@ import {
   listDonations,
 } from './money/service.js';
 import { cancelSubscription, getSubscription, listSubscriptions } from './money/subscriptions.js';
+import { getDonationSummary } from './money/summary.js';
 import { getOwnGifts, requestOwnGiftsLink, updateOwnGift } from './money/self-service.js';
 import { requestMemberSignin } from './money/member-signin.js';
 import {
@@ -325,6 +326,7 @@ export const useCases = {
   checkDonationReturn,
   getDonation,
   listDonations,
+  getDonationSummary,
   getSubscription,
   listSubscriptions,
   cancelSubscription,

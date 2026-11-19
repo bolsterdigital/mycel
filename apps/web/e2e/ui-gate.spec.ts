@@ -1005,13 +1005,20 @@ test.describe('admin-shell', () => {
 
   // #66 PR 1: the dashboard first, then three groups with short labels and icons; an article is
   // marked as an article in its list, its editor and its writer. Axe in both schemes.
-  test('the dashboard has six widgets and the navigation three groups', async ({ page }) => {
+  test('the dashboard has seven widgets and the navigation three groups', async ({ page }) => {
     await login(page, '/admin/probe', email);
     await checkShell(page, 'Probe', 'Dashboard');
     await expect(page.locator('.admin-menu > summary')).toBeHidden();
-    await expect(page.locator('.ui-dashboard > .ui-widget')).toHaveCount(6);
-    // "Visits" is still a contour; "Sign-ups" shows the last 30 days (MY-259).
-    await expect(page.locator('.ui-widget.empty')).toHaveCount(1);
+    await expect(page.locator('.ui-dashboard > .ui-widget')).toHaveCount(7);
+    // None is a contour for a site administrator: "Visits" says whether the site measures and
+    // links to the setting either way; "Gifts" shows this month (MY-259 PR 2).
+    await expect(page.locator('.ui-widget.empty')).toHaveCount(0);
+    await expect(
+      page.getByRole('region', { name: 'Visits' }).locator('a[href$="/site#site-analytics"]')
+    ).toHaveCount(1);
+    await expect(
+      page.getByRole('region', { name: 'Gifts' }).getByRole('link', { name: /paying members?$/ })
+    ).toHaveCount(1);
     // Two columns on a wide screen, never three (brief edit-screen § 4).
     expect(
       await page

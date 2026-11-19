@@ -50,6 +50,21 @@ export function wallClock(instant: Date, zone: string): string {
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
+/** The calendar date (`YYYY-MM-DD`) of `zone` at `instant`. */
+export const localDate = (instant: Date, zone: string): string =>
+  wallClock(instant, zone).slice(0, 10);
+
+/**
+ * The instant the local `date` (`YYYY-MM-DD`) starts in `zone`. The offset is read twice, so a
+ * day whose midnight sits next to a summer-time change still starts at its own midnight.
+ */
+export function startOfLocalDay(date: string, zone: string): Date {
+  const guess = Date.parse(`${date}T00:00:00Z`);
+  let at = guess;
+  for (let i = 0; i < 2; i++) at = guess - (Date.parse(`${wallClock(new Date(at), zone)}Z`) - at);
+  return new Date(at);
+}
+
 /** Every canonical zone, Europe first, then the rest alphabetically: the order a picker shows. */
 export function timeZones(): string[] {
   const all = [...known].sort();

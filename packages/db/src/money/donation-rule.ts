@@ -112,6 +112,13 @@ export async function observeDonation(
   await uow.run(admin, (ctx) => ctx.erasures.register(gone.id, gone.email));
   await erase(admin.tenantId);
   const erased = await read(leaving.paymentId);
+  // `donation.summary.get` over the same ledger: the refund taken off; the erasure changes no
+  // money.
+  const summary = (by: Principal) =>
+    invoker.run(useCases.getDonationSummary, by, {
+      timeZone: 'UTC',
+      until: clock.now().toISOString(),
+    });
 
   return {
     started: {
@@ -145,6 +152,8 @@ export async function observeDonation(
       amount: erased.donation.amount,
       ledger: erased.ledger.length,
     },
+    summary: await summary(admin).then((s) => ({ currencies: s.currencies, running: s.running })),
+    otherTenantSummary: (await summary(other)).currencies,
     otherTenantList: (await invoker.run(useCases.listDonations, other, {})).donations.length,
     otherTenantGet: await read(known.paymentId, other).then(
       () => 'found',
@@ -182,6 +191,17 @@ export const expectedDonation = {
   firstPage: { amounts: [500, 4000, 2500], nextOffset: 3 },
   beforeErasure: true,
   erased: { supporterId: null, status: 'paid', amount: 4000, ledger: 3 },
+  summary: {
+    currencies: [
+      {
+        currency: 'EUR',
+        month: { net: 6500, returned: 1000, gifts: 3 },
+        previousMonth: { net: 0, returned: 0, gifts: 0 },
+      },
+    ],
+    running: { donations: 0, memberships: 0 },
+  },
+  otherTenantSummary: [],
   otherTenantList: 0,
   otherTenantGet: 'not_found',
   otherTenantCheck: 'not_found',
