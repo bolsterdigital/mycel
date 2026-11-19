@@ -155,6 +155,18 @@ export const content: Partial<Record<UiKey, string>> = {
   'admin.content.new.event': 'Nieuw evenement',
   'admin.content.new.zone': 'Nieuwe zone',
   'admin.content.new.dossier': 'Nieuw dossier',
+  'admin.content.dossier.title': 'Dossiers',
+  'admin.content.dossier.hint':
+    'Hooguit drie. Onder dit stuk staat per dossier een vak dat ernaar linkt, met een paar andere stukken eruit.',
+  'admin.content.dossier.none': 'Deze site heeft nog geen dossiers. Maak er een onder',
+  'admin.content.dossier.unavailable': 'Dossier {id} is niet meer beschikbaar',
+  'admin.content.dossier.unavailableHint':
+    'Het staat in de prullenbak of is verwijderd. Haal het weg om dit stuk op te slaan.',
+  'admin.content.dossier.remove': 'Weghalen',
+  'admin.content.dossier.removeNamed': 'Weghalen: {name}',
+  'admin.content.field.noDossierBox': 'Geen dossiervak onder dit stuk',
+  'admin.content.field.noDossierBoxHint':
+    'Het stuk blijft in zijn dossiers en hun overzichten; alleen het vak eronder verdwijnt.',
   'admin.content.event.title': 'Wanneer en waar',
   'admin.content.event.startsAt': 'Begint',
   'admin.content.event.endsAt': 'Eindigt',
@@ -478,6 +490,9 @@ export const content: Partial<Record<UiKey, string>> = {
     'Een evenement met een eindtijd heeft ook een begintijd.',
   'admin.content.error.eventEndsBeforeStart': 'Het evenement eindigt vóór het begint.',
   'admin.content.error.eventOnlineUrl': 'Het online adres moet beginnen met https:// of http://.',
+  'admin.content.error.dossierUnavailable':
+    'Een gekozen dossier is niet meer beschikbaar. Haal het weg onder Dossiers.',
+  'admin.content.error.dossierTooMany': 'Kies hooguit drie dossiers.',
   'admin.content.error.tag':
     'Een tag heeft alleen letters en cijfers, met één spatie of streepje tussen woorden.',
   'admin.content.error.marker':

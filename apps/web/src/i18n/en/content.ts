@@ -152,6 +152,18 @@ export const content = {
   'admin.content.new.event': 'New event',
   'admin.content.new.zone': 'New zone',
   'admin.content.new.dossier': 'New dossier',
+  'admin.content.dossier.title': 'Dossiers',
+  'admin.content.dossier.hint':
+    'Up to three. Under this item, each dossier shows a box that links to it and to a few other items in it.',
+  'admin.content.dossier.none': 'This site has no dossiers yet. Make one under',
+  'admin.content.dossier.unavailable': 'Dossier {id} is no longer available',
+  'admin.content.dossier.unavailableHint':
+    'It is in the trash or was deleted. Remove it to save this item.',
+  'admin.content.dossier.remove': 'Remove',
+  'admin.content.dossier.removeNamed': 'Remove: {name}',
+  'admin.content.field.noDossierBox': 'No dossier box under this item',
+  'admin.content.field.noDossierBoxHint':
+    'The item stays in its dossiers and their overviews; only the box under it goes.',
   'admin.content.event.title': 'When and where',
   'admin.content.event.startsAt': 'Starts',
   'admin.content.event.endsAt': 'Ends',
@@ -471,6 +483,9 @@ export const content = {
   'admin.content.error.eventEndWithoutStart': 'An event with an end time also has a start time.',
   'admin.content.error.eventEndsBeforeStart': 'The event ends before it starts.',
   'admin.content.error.eventOnlineUrl': 'The online address must start with https:// or http://.',
+  'admin.content.error.dossierUnavailable':
+    'A chosen dossier is no longer available. Remove it under Dossiers.',
+  'admin.content.error.dossierTooMany': 'Choose up to three dossiers.',
   'admin.content.error.tag':
     'A tag has only letters and digits, with single spaces or hyphens between words.',
   'admin.content.error.marker':

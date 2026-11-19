@@ -319,7 +319,9 @@ describe('dossiers (MY-260)', () => {
     const three = ids.slice(0, 3).map((itemId) => ({ itemId }));
     expect(parse({ ...page, dossiers: three, showDossier: false }).success).toBe(true);
     expect(parse({ ...page, type: 'article', dossiers: three }).success).toBe(true);
-    expect(parse({ ...page, dossiers: ids.map((itemId) => ({ itemId })) }).success).toBe(false);
+    expect(messages({ ...page, dossiers: ids.map((itemId) => ({ itemId })) })).toContain(
+      'content.dossier.too-many'
+    );
     expect(messages({ ...page, dossiers: [{ itemId: ids[0] }, { itemId: ids[0] }] })).toContain(
       'content.dossier.duplicate'
     );

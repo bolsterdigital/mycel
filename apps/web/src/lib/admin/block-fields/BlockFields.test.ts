@@ -85,3 +85,26 @@ describe('overview', () => {
     expect(out).toContain(`value="${section}"`);
   });
 });
+
+describe('overview dossier filter (MY-260)', () => {
+  const dossier = '01900000-0000-7000-8000-00000000f003';
+  const gone = '01900000-0000-7000-8000-00000000f004';
+  const html = (chosen: string) =>
+    render(BlockFields, {
+      props: {
+        ...props,
+        block: { type: 'overview', image: null },
+        values: { 'b.f.p.dossierId': chosen },
+        references: { ...refs, dossierChoices: [{ id: dossier, label: 'Betaalbaar wonen' }] },
+      },
+    }).body;
+  it('offers only dossier pages, and keeps one that is gone selected and named', () => {
+    expect(html(dossier)).toContain(
+      `<option value="${dossier}" selected="">Betaalbaar wonen</option>`
+    );
+    expect(html(dossier)).toContain('<option value="">Geen dossierfilter</option>');
+    expect(html(gone)).toContain(
+      `<option value="${gone}" selected="">Ontbrekend dossier (${gone})</option>`
+    );
+  });
+});

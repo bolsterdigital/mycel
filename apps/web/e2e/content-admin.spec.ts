@@ -12,6 +12,7 @@ import { bfcacheBack, bfcacheBrowser } from './lib/navigation/bfcache';
 import { blockPage, card, editorReady, more, newPage, reloadsEditor } from './lib/editor';
 import { exercisePeople } from './lib/people/manage';
 import { exerciseErasedAuthor } from './lib/people/erased';
+import { exerciseDossierPicker } from './lib/dossiers/dossiers';
 import { exerciseAccessTiers } from './lib/access/tiers';
 import { exerciseBlockNames } from './lib/blocks/names';
 import { exerciseBlockMove } from './lib/block-move';
@@ -2089,6 +2090,9 @@ for (const type of ['page', 'article'] as const)
 test('people management preserves edits and adds an author inline', async ({ page, request }) => {
   await exercisePeople(page, request);
 });
+test('an item picks dossiers and drops one in the trash', ({ page }) =>
+  exerciseDossierPicker(page));
+
 test('an erased author stays visible and can be removed', async ({ page, request }) => {
   await exerciseErasedAuthor(page, request);
 });

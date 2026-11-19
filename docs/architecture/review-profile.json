@@ -220,6 +220,7 @@
         "apps/web/src/lib/server/content/edit-form*",
         "apps/web/src/lib/server/content/presence*",
         "apps/web/src/lib/server/content/edit-copy*",
+        "apps/web/src/lib/server/content/dossier-choices*",
         "apps/web/src/lib/server/content/edit-path*",
         "apps/web/src/lib/server/content/address/**",
         "apps/web/src/lib/server/content/conflict/**",

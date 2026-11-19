@@ -261,7 +261,7 @@ const MAX_DOSSIERS = 3;
  */
 const Dossiers = z
   .array(z.object({ itemId: z.string().guid() }).strict())
-  .max(MAX_DOSSIERS)
+  .max(MAX_DOSSIERS, 'content.dossier.too-many')
   .refine((d) => new Set(d.map((v) => v.itemId)).size === d.length, 'content.dossier.duplicate');
 
 /** The closed choice of article headers (ADR 025 rule 3). */

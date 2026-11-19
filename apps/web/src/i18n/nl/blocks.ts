@@ -198,6 +198,10 @@ export const blocks: Partial<Record<UiKey, string>> = {
   'admin.block.option.event': 'Evenementen',
   'admin.block.option.dossier': 'Dossiers',
   'admin.block.field.dossierId': 'Dossier',
+  'admin.block.dossier.all': 'Geen dossierfilter',
+  'admin.block.dossier.sources':
+    'Toont de stukken van één dossier; bij de bron Artikelen of Pagina’s.',
+  'admin.block.dossier.unknown': 'Ontbrekend dossier ({id})',
   'admin.block.field.when': 'Welke evenementen',
   'admin.block.option.upcoming': 'Komend',
   'admin.block.option.past': 'Geweest',
