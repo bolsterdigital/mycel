@@ -1010,7 +1010,8 @@ test.describe('admin-shell', () => {
     await checkShell(page, 'Probe', 'Dashboard');
     await expect(page.locator('.admin-menu > summary')).toBeHidden();
     await expect(page.locator('.ui-dashboard > .ui-widget')).toHaveCount(6);
-    await expect(page.locator('.ui-widget.empty')).toHaveCount(2);
+    // "Visits" is still a contour; "Sign-ups" shows the last 30 days (MY-259).
+    await expect(page.locator('.ui-widget.empty')).toHaveCount(1);
     // Two columns on a wide screen, never three (brief edit-screen § 4).
     expect(
       await page

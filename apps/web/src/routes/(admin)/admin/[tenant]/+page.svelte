@@ -1,6 +1,6 @@
-<!-- The dashboard: six widgets in two columns, one on a phone (brief edit-screen § 4). Three are
-     empty contours for now, so the place of what will come is learnt before it is filled; #12
-     visits and #39/#47 sign-ups. "Waiting work" shows the newest five of what asks
+<!-- The dashboard: six widgets in two columns, one on a phone (brief edit-screen § 4). "Visits"
+     (#12) is an empty contour for now, so the place of what will come is learnt before it is
+     filled; "Sign-ups" shows lists and campaigns of the last 30 days (MY-259). "Waiting work" shows the newest five of what asks
      for attention, from the layout's one `attention.list`, with a link to all of them; the bell
      reads the same list. "Recently edited" and "Scheduled"
      link to the items in the content locale. "Usage and limits" shows the usage the
@@ -9,16 +9,14 @@
   import { DashboardWidget, Notice, PageHeader } from '#lib/admin/ui/index.js';
   import UsageList from '#lib/admin/UsageList.svelte';
   import AttentionList from '#lib/admin/attention/AttentionList.svelte';
+  import SignupActivity from '#lib/admin/dashboard/SignupActivity.svelte';
   import { formatWhen } from '#lib/admin/format.js';
   import { fill, ui, type UiKey } from '../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();
   const t = $derived(ui(data.locale));
-  const empty: readonly [string, UiKey][] = [
-    ['dash-visits', 'admin.dashboard.visits'],
-    ['dash-signups', 'admin.dashboard.signups'],
-  ];
+  const empty: readonly [string, UiKey][] = [['dash-visits', 'admin.dashboard.visits']];
   // The admin renders on the server only (csr = false), so `now` is the moment of the request.
   const now = new Date();
   const when = (iso: string, relative: boolean) =>
@@ -127,6 +125,22 @@
     {#each empty as [id, title] (id)}
       <DashboardWidget {id} title={t(title)} locale={data.locale} />
     {/each}
+    {#if data.activity}
+      <DashboardWidget id="dash-signups" title={t('admin.dashboard.signups')} locale={data.locale}>
+        <SignupActivity
+          activity={data.activity}
+          base="/admin/{data.tenant.slug}"
+          locale={data.locale}
+          contentLocale={data.contentLocale}
+        />
+      </DashboardWidget>
+    {:else}
+      <DashboardWidget
+        id="dash-signups"
+        title={t('admin.dashboard.signups')}
+        locale={data.locale}
+      />
+    {/if}
     {#if data.usage}
       <DashboardWidget id="dash-usage" title={t('admin.dashboard.usage')} locale={data.locale}>
         <UsageList usage={data.usage} locale={data.locale} />

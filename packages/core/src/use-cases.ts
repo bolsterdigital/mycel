@@ -169,6 +169,7 @@ import { changeSupporterEmail, getSupporter } from './supporters/service.js';
 import { listSupporters } from './supporters/listing.js';
 import { exportSupporters } from './supporters/export.js';
 import { getSupporterTimeline } from './supporters/timeline.js';
+import { getSupporterActivity } from './supporters/activity.js';
 import { createAccessGrant, revokeAccessGrant } from './supporters/access.js';
 import { getReaderAccount, withdrawReaderSubscription } from './readers/account.js';
 import {
@@ -369,6 +370,7 @@ export const useCases = {
   listSupporters,
   exportSupporters,
   getSupporterTimeline,
+  getSupporterActivity,
   changeSupporterEmail,
   eraseSupporter,
   getSupporterErasure,

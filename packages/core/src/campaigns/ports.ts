@@ -4,6 +4,7 @@
 // use case (a race passes it twice) and only in the store (an unlocked race aborts the
 // transaction with a constraint error instead of a typed refusal).
 import type { Campaign, CampaignKind, CampaignParticipation } from './model.js';
+import type { ParticipationChange } from '../supporters/activity.js';
 import type { ParticipantPage, ParticipantPosition } from './participants.js';
 
 export interface CampaignFilter {
@@ -49,6 +50,11 @@ export interface CampaignRepository {
   participation(campaignId: string, supporterId: string): Promise<CampaignParticipation | null>;
   /** Active (confirmed, not withdrawn) participations per campaign; absent ids count 0. */
   activeCounts(campaignIds: readonly string[]): Promise<Map<string, number>>;
+  /**
+   * Active participations confirmed from `from` up to and including `until`, oldest first
+   * (`supporters/activity.ts`).
+   */
+  participationsSince(from: Date, until: Date): Promise<ParticipationChange[]>;
   /**
    * The participations of one campaign with each supporter's address, withdrawn ones included,
    * newest confirmation first and the higher supporter id first within one moment

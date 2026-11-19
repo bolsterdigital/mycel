@@ -1,3 +1,4 @@
+import type { ListChange } from './activity.js';
 import type { SupporterEvent } from './events.js';
 import type { SupporterFilter, SupporterPage, SupporterPosition } from './listing.js';
 import type { SupporterProjection } from './model.js';
@@ -26,6 +27,13 @@ export interface SupporterRepository {
     page: { after: string | null; limit: number }
   ): Promise<SupporterProjection[]>;
   countMembers(list: string): Promise<number>;
+  /**
+   * List joins and leaves from `from` up to and including `until`, oldest first, then by event id
+   * (`activity.ts`): a `newsletter.subscribed` that is not `confirmed: false` or a `consent.given`
+   * joins, a `newsletter.unsubscribed` or `consent.withdrawn` leaves; an event without a list is
+   * neither (an erased supporter's events have empty props).
+   */
+  listChanges(from: Date, until: Date): Promise<ListChange[]>;
   /**
    * The supporters a filter matches (`listing.ts`), newest activity first, after the position
    * `after`, at most `limit`, with the count of every match. An erased supporter matches nothing.

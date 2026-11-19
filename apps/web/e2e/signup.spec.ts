@@ -329,6 +329,19 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
     await setTextSize(page, '16px');
   }
 
+  // MY-259: the dashboard's Sign-ups widget counts campaign participations of the last 30 days.
+  const participations = async () => {
+    await page.goto('/admin/probe');
+    const total = page
+      .getByRole('region', { name: 'Inschrijvingen' })
+      .getByRole('definition')
+      .filter({ hasText: /in de 30 dagen ervoor/ })
+      .nth(1)
+      .locator('.total');
+    return (await total.count()) ? Number((await total.textContent())!.replace(/\D/g, '')) : 0;
+  };
+  const participationsBefore = await participations();
+
   // Signed without consent and without JavaScript in the no-js project: the thanks and the
   // confirmation speak of taking part, never of a subscription (B2 review R1).
   const email = `e2e-petition-${Date.now()}@example.org`;
@@ -347,6 +360,9 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
   await expect(
     visitor.getByRole('heading', { level: 1, name: 'Deelname bevestigd' })
   ).toBeVisible();
+
+  await expect.poll(participations, { timeout: 15_000 }).toBeGreaterThan(participationsBefore);
+  if (isA11y()) await expectNoAxeViolations(page, { label: 'dashboard with sign-ups' });
 
   // The worker records the confirmed signature; the panel counts it.
   await expect(async () => {
