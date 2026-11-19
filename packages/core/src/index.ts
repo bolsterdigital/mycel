@@ -16,6 +16,7 @@ export * from './money/ports.js';
 export * from './money/service.js';
 export * from './money/subscription-model.js';
 export * from './money/subscriptions.js';
+export * from './money/summary.js';
 export * from './money/webhook.js';
 export * from './money/self-service-model.js';
 export * from './money/self-service.js';

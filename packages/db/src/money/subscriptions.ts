@@ -8,6 +8,7 @@ import {
   ChargeAttempt,
   Mandate,
   Subscription,
+  SubscriptionKind,
   SubscriptionLedgerEntry,
   type SubscriptionRepository,
 } from '@mycel/core';
@@ -192,6 +193,18 @@ export function subscriptionRepository(
           actor: row.actor,
         })
       );
+    },
+    async countActive() {
+      const found = await trx
+        .selectFrom('subscriptions')
+        .select(['kind'])
+        .select((eb) => eb.fn.countAll<string>().as('n'))
+        .where('status', '=', 'active')
+        .groupBy('kind')
+        .execute();
+      const counts = { donation: 0, membership: 0 };
+      for (const row of found) counts[SubscriptionKind.parse(row.kind)] = Number(row.n);
+      return counts;
     },
     async insertMandate(m) {
       await trx

@@ -25,7 +25,7 @@ import '../content/ports.js';
 import { can } from '../principal.js';
 import { defineUseCase } from '../registry.js';
 import type { SupporterEvent } from './events.js';
-import { DEFAULT_TIME_ZONE, IanaTimeZone, wallClock } from '../util/time-zone.js';
+import { DEFAULT_TIME_ZONE, IanaTimeZone, localDate, startOfLocalDay } from '../util/time-zone.js';
 import './ports.js';
 
 /** The days a window spans, today included. */
@@ -60,19 +60,9 @@ export function listChangeOf(event: SupporterEvent): ListChange | null {
   return null;
 }
 
-const localDate = (instant: Date, zone: string) => wallClock(instant, zone).slice(0, 10);
-
 /** `date` (YYYY-MM-DD) moved by `days` on the calendar, without a clock or a zone. */
 const shiftDate = (date: string, days: number) =>
   new Date(Date.parse(`${date}T12:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
-
-/** The instant the local `date` starts in `zone`; twice, so a summer-time change lands right. */
-function startOfDay(date: string, zone: string): Date {
-  const guess = Date.parse(`${date}T00:00:00Z`);
-  let at = guess;
-  for (let i = 0; i < 2; i++) at = guess - (Date.parse(`${wallClock(new Date(at), zone)}Z`) - at);
-  return new Date(at);
-}
 
 /** The window ending at `until`: its first day, its start and the start of the one before. */
 export function activityWindow(until: Date, zone: string) {
@@ -80,8 +70,8 @@ export function activityWindow(until: Date, zone: string) {
   const first = shiftDate(today, -(ACTIVITY_DAYS - 1));
   return {
     dates: Array.from({ length: ACTIVITY_DAYS }, (_, i) => shiftDate(first, i)),
-    from: startOfDay(first, zone),
-    previousFrom: startOfDay(shiftDate(first, -ACTIVITY_DAYS), zone),
+    from: startOfLocalDay(first, zone),
+    previousFrom: startOfLocalDay(shiftDate(first, -ACTIVITY_DAYS), zone),
   };
 }
 

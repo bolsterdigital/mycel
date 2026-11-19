@@ -7,7 +7,7 @@
 // written by `subscriptions.ts`.
 // Rejected: `save` as an upsert (a payment that vanished must not come back as a new row).
 import { sql, type Kysely, type Selectable } from 'kysely';
-import { LedgerEntry, Payment, type PaymentRepository } from '@mycel/core';
+import { LedgerEntry, Payment, PaymentStatus, type PaymentRepository } from '@mycel/core';
 import type { Database } from '../infra/schema.js';
 import { toIso } from '../infra/dates.js';
 
@@ -171,6 +171,26 @@ export function paymentRepository(trx: Kysely<Database>, tenantId: string): Paym
           actor: row.actor,
         })
       );
+    },
+    // `movements` of core `money/summary.ts`: only payment entries move money, so a subscription
+    // step (whose `to_status` is never one of these) stays out even without the `payment_id` test.
+    async movements(from, until) {
+      const found = await trx
+        .selectFrom('ledger_entries')
+        .select(['to_status', 'amount', 'currency', 'at'])
+        .where('payment_id', 'is not', null)
+        .where('to_status', 'in', ['paid', 'refunded', 'charged_back'])
+        .where('at', '>=', from)
+        .where('at', '<=', until)
+        .orderBy('at')
+        .orderBy('id')
+        .execute();
+      return found.map((row) => ({
+        to: PaymentStatus.parse(row.to_status),
+        amount: row.amount,
+        currency: row.currency,
+        at: toIso(row.at),
+      }));
     },
   };
 }

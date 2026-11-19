@@ -1,6 +1,7 @@
-<!-- The dashboard: six widgets in two columns, one on a phone (brief edit-screen § 4). "Visits"
-     (#12) is an empty contour for now, so the place of what will come is learnt before it is
-     filled; "Sign-ups" shows lists and campaigns of the last 30 days (MY-259). "Waiting work" shows the newest five of what asks
+<!-- The dashboard: up to seven widgets in two columns, one on a phone (brief edit-screen § 4).
+     "Visits" says whether the site measures and links to the statistics, for a site administrator
+     (an empty contour for others); "Sign-ups" shows lists and campaigns of the last 30 days and
+     "Gifts" the money of this month and what runs (MY-259). "Waiting work" shows the newest five of what asks
      for attention, from the layout's one `attention.list`, with a link to all of them; the bell
      reads the same list. "Recently edited" and "Scheduled"
      link to the items in the content locale. "Usage and limits" shows the usage the
@@ -10,13 +11,14 @@
   import UsageList from '#lib/admin/UsageList.svelte';
   import AttentionList from '#lib/admin/attention/AttentionList.svelte';
   import SignupActivity from '#lib/admin/dashboard/SignupActivity.svelte';
+  import GiftSummary from '#lib/admin/dashboard/GiftSummary.svelte';
+  import VisitStatus from '#lib/admin/dashboard/VisitStatus.svelte';
   import { formatWhen } from '#lib/admin/format.js';
   import { fill, ui, type UiKey } from '../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();
   const t = $derived(ui(data.locale));
-  const empty: readonly [string, UiKey][] = [['dash-visits', 'admin.dashboard.visits']];
   // The admin renders on the server only (csr = false), so `now` is the moment of the request.
   const now = new Date();
   const when = (iso: string, relative: boolean) =>
@@ -122,9 +124,19 @@
         locale={data.locale}
       />
     {/if}
-    {#each empty as [id, title] (id)}
-      <DashboardWidget {id} title={t(title)} locale={data.locale} />
-    {/each}
+    {#if data.visits}
+      <DashboardWidget id="dash-visits" title={t('admin.dashboard.visits')} locale={data.locale}>
+        <VisitStatus
+          domain={data.visits.value.plausibleDomain}
+          hostname={data.visits.primaryHostname}
+          mismatch={data.visits.hostnameMismatch}
+          base="/admin/{data.tenant.slug}"
+          locale={data.locale}
+        />
+      </DashboardWidget>
+    {:else}
+      <DashboardWidget id="dash-visits" title={t('admin.dashboard.visits')} locale={data.locale} />
+    {/if}
     {#if data.activity}
       <DashboardWidget id="dash-signups" title={t('admin.dashboard.signups')} locale={data.locale}>
         <SignupActivity
@@ -140,6 +152,11 @@
         title={t('admin.dashboard.signups')}
         locale={data.locale}
       />
+    {/if}
+    {#if data.gifts}
+      <DashboardWidget id="dash-gifts" title={t('admin.dashboard.gifts')} locale={data.locale}>
+        <GiftSummary summary={data.gifts} base="/admin/{data.tenant.slug}" locale={data.locale} />
+      </DashboardWidget>
     {/if}
     {#if data.usage}
       <DashboardWidget id="dash-usage" title={t('admin.dashboard.usage')} locale={data.locale}>

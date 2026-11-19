@@ -200,6 +200,8 @@ export async function observeSubscription(
 
   return {
     membership,
+    // `donation.summary.get` counts what runs now: `countActive` over the same rows.
+    running: (await invoker.run(useCases.getDonationSummary, admin, {})).running,
     started: {
       status: pending,
       firstSequence: (await read(monthly.subscriptionId)).payments.at(-1)?.sequence,
@@ -291,6 +293,7 @@ export async function observeSubscription(
 
 export const expectedSubscription = {
   membership: expectedMembership,
+  running: { donations: 1, memberships: 0 },
   started: { status: 'pending', firstSequence: 'first' },
   active: { status: 'active', periodsPaid: 1, mandate: true, dueAtPeriodEnd: true },
   charged: 'charged',
