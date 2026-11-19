@@ -1247,6 +1247,23 @@ test.describe('admin-shell', () => {
     await page.goto(`/admin/${slug}/site?section=theme`);
     const save = page.getByRole('button', { name: 'Save theme' });
     await expect(save).toBeInViewport();
+
+    // MY-261 PR 2: each font is a radio named by its family with a line set in that font, from
+    // the picker's own stylesheet; a heading weight the font has no face for is named on save.
+    const heading = page.getByRole('group', { name: 'Heading font' });
+    await expect(heading.locator('.ui-font-specimen[data-font="zilla-slab"]')).toHaveCSS(
+      'font-family',
+      /^"Zilla Slab"/
+    );
+    const faces = await page.evaluate(async () => document.fonts.load("700 20px 'Zilla Slab'"));
+    expect(faces).toHaveLength(1);
+    await heading.getByRole('radio', { name: 'Vesper Libre' }).check();
+    await page.locator('#site-headingWeight').fill('600');
+    await save.click();
+    await expect(
+      page.getByText('The heading font has no face in this heading weight.')
+    ).toBeVisible();
+    await expect(heading.getByRole('radio', { name: 'Vesper Libre' })).toBeChecked();
   });
 
   for (const locale of ['nl', 'en']) {

@@ -4,7 +4,7 @@
 // because no preset chooses one. That grammar (`theme tokens`) holds the stylesheet complete,
 // finite and inside its own properties for the presets and for random valid themes; it stood in
 // the block conformance suite until that suite reached its size ceiling.
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import {
   DEFAULT_THEME,
   FONTS,
@@ -19,7 +19,7 @@ import {
   type ResolvedTheme,
 } from '@mycel/core';
 import { describe, expect, it } from 'vitest';
-import { fontFaces } from './font-files.js';
+import { fontFaces, specimenCss } from './font-files.js';
 import {
   CAPTION_MONO,
   preloadFonts,
@@ -217,6 +217,20 @@ describe('theme tokens', () => {
         expect(existsSync(new URL(`../../../static${face.file}`, import.meta.url)), face.file).toBe(
           true
         );
+  });
+
+  // The admin's font picker (MY-261 PR 2) serves the generated stylesheet as a static file.
+  it('keeps the font picker stylesheet equal to its generator, a face and a rule per font', () => {
+    const file = new URL('../../../static/_admin/font-specimens.css', import.meta.url);
+    const css = specimenCss();
+    expect(readFileSync(file, 'utf8'), 'regenerate static/_admin/font-specimens.css').toBe(css);
+    for (const key of FONT_KEYS) {
+      expect(css).toContain(
+        `.ui-font-specimen[data-font='${key}'] { font-family: '${FONTS[key].family}'`
+      );
+      expect(css).toContain(`@font-face { font-family: '${FONTS[key].family}';`);
+    }
+    expect(css).not.toContain('italic');
   });
 
   it('preloads the body regular first, then the heading at its weight, and its italic only', () => {

@@ -22,6 +22,9 @@ export const site = {
   'admin.site.fail': 'fails',
   'admin.site.headingFont': 'Heading font',
   'admin.site.bodyFont': 'Body font',
+  'admin.site.font.specimen': 'Together we stand stronger',
+  'admin.site.font.weightUnavailable':
+    'The heading font has no face in this heading weight. Choose another weight or another font.',
   'admin.site.dropCap': 'Drop cap on articles',
   'admin.site.dropCap.hint': 'A large first letter at the start of the text of every article.',
   'admin.site.dropCap.articles': 'On',

@@ -31,6 +31,7 @@
     Actions,
     Button,
     Checkbox,
+    Choices,
     ColorField,
     Field,
     Fieldset,
@@ -126,6 +127,7 @@
 </script>
 
 <svelte:head>
+  {#if data.section === 'theme'}<link rel="stylesheet" href="/_admin/font-specimens.css" />{/if}
   <title
     >{form?.problem || form?.error ? `${t('error.prefix')} ` : ''}{subject} · {t(
       'admin.site.title'
@@ -551,15 +553,27 @@
       {/each}
       <p class="ui-hint">{t('admin.site.cards.hint')}</p>
       <Fieldset legend={t('admin.site.group.type')}>
+        <!-- MY-261 PR 2: each font as a radio with a line in that font, so an editor chooses on
+             what they see; the faces come from /_admin/font-specimens.css, linked in the head of
+             this section only. The specimen is hidden from the radio's name, which stays the
+             family. A heading specimen is bold, as a heading is. -->
         {#each ['headingFont', 'bodyFont'] as const as key (key)}
-          <Select
+          {#snippet specimen(option: { value: string; label: string })}
+            {option.label}<span
+              class={['ui-font-specimen', key === 'headingFont' && 'heading']}
+              data-font={option.value}
+              aria-hidden="true">{t('admin.site.font.specimen')}</span
+            >
+          {/snippet}
+          <Choices
             id="site-{key}"
             name={key}
-            label={t(`admin.site.${key}`)}
+            legend={t(`admin.site.${key}`)}
             locale={data.locale}
             size="m"
             options={FONT_KEYS.map((font) => ({ value: font, label: FONTS[font].family }))}
-            value={value(key, data.theme.value[key])}
+            selected={[value(key, data.theme.value[key])]}
+            optionLabel={specimen}
           />
         {/each}
         <Select
