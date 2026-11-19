@@ -123,6 +123,12 @@ export const TABLES = {
   mail_sends: 'operational',
   // What was sent, as it was sent (0070, ADR 018 rule 4): the tenant's newsletter archive.
   mail_editions: 'export',
+  // A welcome series and its steps are site configuration (0082) and travel with the site. Who
+  // is in a series is this installation's sending state, like `mail_sends`: an import starts
+  // without runs, so only people who join afterwards get the series there.
+  mail_automations: 'export',
+  mail_automation_steps: 'export',
+  mail_automation_runs: 'operational',
   // A pending sign-in link and a reader session (0069) belong to this installation's hostname
   // and signing secret: an import starts without them and readers sign in again.
   reader_signin_links: 'operational',
@@ -188,6 +194,8 @@ export const EXPORT_ORDER: readonly ExportTable[] = [
   'payments',
   'ledger_entries',
   'mail_editions',
+  'mail_automations',
+  'mail_automation_steps',
   'tenant_memberships',
   'audit_log',
   'erasures',

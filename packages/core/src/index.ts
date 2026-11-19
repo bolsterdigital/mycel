@@ -132,6 +132,7 @@ export * from './mailing/email.js';
 export * from './mailing/unsubscribe.js';
 export * from './mailing/edition.js';
 export * from './mailing/edition-delivery.js';
+export * from './mailing/automation.js';
 export * from './operators/model.js';
 export * from './operators/ports.js';
 export * from './operators/service.js';

@@ -1,6 +1,7 @@
 // `mail_sends` in memory: the intent rows that make a delivery at-most-once (ADR 019 rule 6).
 
 import type {
+  MailAutomationsRepository,
   MailDayCount,
   MailEditionsRepository,
   MailSend,
@@ -130,6 +131,63 @@ export function memoryMailEditions(s: TenantStore): MailEditionsRepository {
     async complete(id, at) {
       const row = s.mailEditions.get(id);
       if (row && !row.completedAt) row.completedAt = new Date(at);
+    },
+  };
+}
+
+/** `mail_automations` and `mail_automation_runs` in memory (0082): one series per list. */
+export function memoryMailAutomations(s: TenantStore): MailAutomationsRepository {
+  const runKey = (automationId: string, supporterId: string) => `${automationId}:${supporterId}`;
+  return {
+    list: async () =>
+      [...s.mailAutomations.values()]
+        .sort((a, b) => (a.list < b.list ? -1 : 1))
+        .map((a) => structuredClone(a)),
+    get: async (id) => {
+      const row = s.mailAutomations.get(id);
+      return row ? structuredClone(row) : null;
+    },
+    forList: async (list) => {
+      const row = [...s.mailAutomations.values()].find((a) => a.list === list);
+      return row ? structuredClone(row) : null;
+    },
+    async save(automation) {
+      const other = [...s.mailAutomations.values()].find(
+        (a) => a.list === automation.list && a.id !== automation.id
+      );
+      if (other) throw new Error('a series for this list exists');
+      s.mailAutomations.set(automation.id, structuredClone(automation));
+    },
+    async start(automationId, supporterId, at) {
+      const key = runKey(automationId, supporterId);
+      if (s.mailAutomationRuns.has(key)) return false;
+      s.mailAutomationRuns.set(key, {
+        automationId,
+        supporterId,
+        startedAt: new Date(at),
+        through: -1,
+      });
+      return true;
+    },
+    run: async (automationId, supporterId) => {
+      const row = s.mailAutomationRuns.get(runKey(automationId, supporterId));
+      return row ? structuredClone(row) : null;
+    },
+    async advance(automationId, supporterId, through) {
+      const row = s.mailAutomationRuns.get(runKey(automationId, supporterId));
+      if (!row || row.through >= through) return false;
+      row.through = through;
+      return true;
+    },
+    reach: async (automationId) => {
+      const runs = [...s.mailAutomationRuns.values()].filter(
+        (r) => r.automationId === automationId
+      );
+      const steps = s.mailAutomations.get(automationId)?.steps.length ?? 0;
+      return {
+        started: runs.length,
+        reached: Array.from({ length: steps }, (_, i) => runs.filter((r) => r.through >= i).length),
+      };
     },
   };
 }

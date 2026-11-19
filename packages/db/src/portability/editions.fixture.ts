@@ -1,5 +1,6 @@
-// Seed one sent newsletter edition (migration 0070), so the export conformance carries a
-// `mail_editions` row through export and import and the RLS conformance has a row to hide.
+// Seed one sent newsletter edition (migration 0070) and a welcome series with one person in it
+// (0082), so the export conformance carries `mail_editions`, `mail_automations` and their steps
+// through export and import and the RLS conformance has a row to hide in each mail table.
 // Written through the repository, as `mailing.edition.send` writes it, against a real revision
 // (the row's foreign key). Rejected: sending through the use case, which needs a published
 // article and an e-mail renderer in suites that are about neither.
@@ -35,4 +36,17 @@ export async function seedEdition(invoker: Invoker, uow: UnitOfWork, admin: Prin
       ],
     })
   );
+  // Through the repository too: the use case asks for a published item, which this article is not.
+  const automationId = uuidv7();
+  await uow.run(admin, async (ctx) => {
+    await ctx.mailAutomations.save({
+      id: automationId,
+      list: 'newsletter',
+      enabled: true,
+      steps: [{ itemId: item.id, delayDays: 0 }],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await ctx.mailAutomations.start(automationId, uuidv7(), new Date());
+  });
 }

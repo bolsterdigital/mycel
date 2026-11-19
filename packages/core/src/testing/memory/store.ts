@@ -30,7 +30,12 @@ import {
 } from '../../entitlements/model.js';
 import type { FormDefinition, Submission } from '../../forms/model.js';
 import type { JobRecord } from '../../jobs/ports.js';
-import type { MailEdition, MailSend } from '../../mailing/ports.js';
+import type {
+  MailAutomation,
+  MailAutomationRun,
+  MailEdition,
+  MailSend,
+} from '../../mailing/ports.js';
 import type { NewMedia } from '../../media/model.js';
 import type { NewApiKey } from '../../operators/ports.js';
 import type { Capability, Principal } from '../../principal.js';
@@ -125,6 +130,10 @@ export interface TenantStore {
   /** Keyed by intent key. */
   mailSends: Map<string, MailSend>;
   mailEditions: Map<string, MailEdition>;
+  /** `mail_automations` with their steps (0082), keyed by id. */
+  mailAutomations: Map<string, MailAutomation>;
+  /** `mail_automation_runs`, keyed by `<automationId>:<supporterId>`. */
+  mailAutomationRuns: Map<string, MailAutomationRun>;
   /** `reader_signin_links` and `reader_sessions` (0069), keyed by id. */
   signinLinks: Map<string, import('../../readers/model.js').SigninLink>;
   readerSessions: Map<string, import('../../readers/model.js').ReaderSession>;
@@ -225,6 +234,8 @@ const emptyTenant = (): TenantStore => ({
   projections: new Map(),
   mailSends: new Map(),
   mailEditions: new Map(),
+  mailAutomations: new Map(),
+  mailAutomationRuns: new Map(),
   signinLinks: new Map(),
   readerSessions: new Map(),
   members: new Map(),

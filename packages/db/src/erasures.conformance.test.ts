@@ -841,6 +841,7 @@ describe.skipIf(skip)('erasure conformance', () => {
       'form_submissions.erasure_apply',
       'jobs.erasure_apply',
       'ledger_entries.erasure_apply',
+      'mail_automation_runs.erasure_apply',
       'mail_sends.erasure_apply',
       'mailchimp_receipts.erasure_delete',
       'mailchimp_receipts.erasure_select',

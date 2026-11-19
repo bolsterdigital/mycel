@@ -3,6 +3,7 @@
 - **Status**: accepted
 - **Date**: 2026-10-21
 - **Rules 1, 2, 4 and 5 refined**: 2026-10-24 by [ADR 023](023-configurable-forms-and-actions.md). Conditional fields, multiple per-form notifications and connector actions are baseline; the original small-v1 exclusion of conditional logic is superseded.
+- **Rule 10 refined**: 2026-11-19 (MY-258). The first automation is a welcome series: one per list, one to five steps, each a published public page or article sent so many days (0 to 60) after a person's subscription to the list is confirmed, at most once per person and series. The trigger is joining the list while the series is on; the action is sending a site item, rendered when the step is due. The "add tag" action waits until tags exist. Contract: [mail.md](../reference/mail.md#welcome-series).
 - **Rule 6 partly superseded**: 2026-10-24 by [ADR 024](024-managed-integrations-and-external-ownership.md). The native suite remains available, but an external CRM or mail platform may permanently own a tenant's corresponding domain or consent scope.
 
 ## Context

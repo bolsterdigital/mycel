@@ -1500,6 +1500,7 @@ export const en = {
   'admin.audit.op.mailing.opt_out.confirm': 'Unsubscribed',
   'admin.audit.op.mailing.edition.test': 'Newsletter test sent',
   'admin.audit.op.mailing.edition.send': 'Newsletter sent',
+  'admin.audit.op.mailing.automation.update': 'Welcome mails changed',
   'admin.audit.op.media.restore': 'File restored',
   'admin.audit.op.media.bulk.delete': 'Files moved to the trash',
   'admin.audit.op.media.delete': 'File deleted',
