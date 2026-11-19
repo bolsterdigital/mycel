@@ -28,38 +28,14 @@ import { defineUseCase } from '../registry.js';
 import { MediaView } from '../media/model.js';
 import { AccessGate, accessProjection, readerMedia } from './access/projection.js';
 import { Block, blockLocalized, projectBlock } from './blocks.js';
-import { ContentType, LocalDateTime, Slug, type ContentDocument } from './model.js';
+import { ContentType, Slug, type ContentDocument } from './model.js';
+import { PublishedEvent, projectEvent } from './published/event.js';
+import { PublishedDossier, dossierBoxes } from './published/dossier.js';
 import { EffectiveView, effectiveOf } from './header/effective.js';
 import { statusOf } from './lifecycle.js';
 import { personPageEnabled } from './people/public.js';
 import './ports.js';
 import '../theme/ports.js';
-
-export const PublishedEvent = z.object({
-  startsAt: LocalDateTime,
-  endsAt: LocalDateTime.nullable(),
-  location: z.string().nullable(),
-  onlineUrl: z.string().url().nullable(),
-  timeZone: z.string(),
-});
-export type PublishedEvent = z.infer<typeof PublishedEvent>;
-
-/** The event of a document in one locale; null unless it is an event page with a start. */
-export function projectEvent(
-  doc: ContentDocument,
-  locale: string,
-  timeZone: string
-): PublishedEvent | null {
-  if (doc.type !== 'page' || doc.profile !== 'event' || !doc.event?.startsAt) return null;
-  const { startsAt, endsAt, location, onlineUrl } = doc.event;
-  return {
-    startsAt,
-    endsAt: endsAt ?? null,
-    location: location?.[locale] ?? null,
-    onlineUrl: onlineUrl ?? null,
-    timeZone,
-  };
-}
 
 export const PublishedItem = z.object({
   id: z.string().guid(),
@@ -129,6 +105,11 @@ export const PublishedItem = z.object({
   event: PublishedEvent.optional(),
   /** `false` where the item hides the site's pre-footer zone; absent shows it. */
   prefooter: z.literal(false).optional(),
+  /**
+   * The dossier boxes under the item (MY-260), in the order of its document; absent when it
+   * shows none. Only dossiers published in this locale, each with its public members.
+   */
+  dossiers: z.array(PublishedDossier).optional(),
 });
 export type PublishedItem = z.infer<typeof PublishedItem>;
 
@@ -194,6 +175,7 @@ export const getPublished = defineUseCase({
       ? await readerMedia(ctx, doc, { itemId: item.id, locale: chosen }, until)
       : {};
     const effective = effectiveOf(doc, chosen, (await ctx.siteSettings.images()).value);
+    const dossiers = await dossierBoxes(ctx, doc, item.id, chosen);
     const base = {
       id: item.id,
       type: item.type,
@@ -221,6 +203,7 @@ export const getPublished = defineUseCase({
       lead: doc.lead?.[chosen] ?? null,
       effective,
       ...(doc.prefooter === false ? { prefooter: false as const } : {}),
+      ...(dossiers.length ? { dossiers } : {}),
     };
     if (doc.type !== 'article') {
       const event = projectEvent(doc, chosen, (await ctx.siteSettings.general()).value.timeZone);

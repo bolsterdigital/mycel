@@ -349,19 +349,19 @@ export async function resolveIntro(
  * The time an overview card shows: an event's when (as its own header writes it) and place,
  * else the first publication as a date.
  */
-function overviewWhen(entry: Overview['entries'][number], locale: string, timeZone: string) {
-  if (entry.event) {
-    const { when, where, online } = renderEvent(entry.event, locale);
+export function overviewWhen(e: Overview['entries'][number], locale: string, tz: string) {
+  if (e.event) {
+    const { when, where, online } = renderEvent(e.event, locale);
     return {
       date: { iso: when.iso, label: when.label },
       place: where?.text ?? online?.text ?? null,
     };
   }
-  const at = new Date(entry.date);
+  const at = new Date(e.date);
   return {
     date: {
-      iso: new Intl.DateTimeFormat('en-CA', { timeZone }).format(at),
-      label: new Intl.DateTimeFormat(locale, { timeZone, dateStyle: 'long' }).format(at),
+      iso: new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(at),
+      label: new Intl.DateTimeFormat(locale, { timeZone: tz, dateStyle: 'long' }).format(at),
     },
     place: null,
   };

@@ -79,6 +79,8 @@ export * from './content/entities.js';
 export * from './content/public.js';
 export * from './content/published/list.js';
 export * from './content/published/overview.js';
+export * from './content/published/event.js';
+export * from './content/published/dossier.js';
 export * from './content/published/feed.js';
 export * from './content/published/share-card.js';
 export * from './content/blocks/overview.js';

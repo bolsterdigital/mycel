@@ -293,8 +293,9 @@ Version 1.
 
 | Prop              | Label                      | Kind                                                                                                                                         | Presence                   |
 | ----------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `source`          | Source                     | one of `article`, `page`, `event`                                                                                                            | required                   |
+| `source`          | Source                     | one of `article`, `page`, `event`, `dossier`                                                                                                 | required                   |
 | `sectionId`       | Section                    | section reference (id)                                                                                                                       | optional (null when empty) |
+| `dossierId`       | Dossier                    | item reference (id)                                                                                                                          | optional (null when empty) |
 | `tags`            | Tags (all)                 | list of 0–5                                                                                                                                  | required                   |
 | `tags[].tag`      | Tag                        | text                                                                                                                                         | required                   |
 | `when`            | Which events               | one of `upcoming`, `past`                                                                                                                    | required                   |
@@ -306,7 +307,7 @@ Version 1.
 | `archive`         | Show a link to older items | yes or no                                                                                                                                    | required                   |
 | `width`           | Width                      | one of `content`, `wide`, `full`                                                                                                             | required                   |
 
-Examples: `overview-articles-cards` (The newest articles of one section, one pinned on top, with an older link), `overview-articles-list`, `overview-pages-full`, `overview-events-upcoming` (An agenda: the next events, soonest first, with when and where on each card), `overview-events-past-list`.
+Examples: `overview-articles-cards` (The newest articles of one section, one pinned on top, with an older link), `overview-articles-list`, `overview-pages-full`, `overview-events-upcoming` (An agenda: the next events, soonest first, with when and where on each card), `overview-events-past-list`, `overview-dossier-members` (The articles of one dossier, on the dossier page itself), `overview-dossiers`.
 
 ## Rich text in the no-JavaScript form
 

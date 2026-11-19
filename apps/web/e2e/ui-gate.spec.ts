@@ -1043,7 +1043,15 @@ test.describe('admin-shell', () => {
     for (const [group, links] of [
       [
         'Content',
-        ['Pages', 'Articles', 'Events', 'Zones', 'Campaigns', 'People and organisations'],
+        [
+          'Pages',
+          'Articles',
+          'Events',
+          'Dossiers',
+          'Zones',
+          'Campaigns',
+          'People and organisations',
+        ],
       ],
       ['Library', ['Media', 'Patterns']],
     ] as const)

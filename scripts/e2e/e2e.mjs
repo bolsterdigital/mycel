@@ -286,7 +286,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   // The quality runner's API key deliberately has no connection permission. Pass only the
   // already-authorised synthetic fixture id, rather than broadening that key or prewarming UI.
   process.env.E2E_MAILCHIMP_CONNECTION_ID = qualityMailchimp.id;
-  await probeFixtures(invoker, admin, useCases);
+  const { dossierId } = await probeFixtures(invoker, admin, useCases);
 
   // One saved pattern, so the UI gate measures a card of /admin/probe/patterns.
   const doe = { type: 'heading', version: 1, props: { text: { nl: 'Doe mee', en: 'Join in' } } };
@@ -739,6 +739,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
           .replaceAll(EXAMPLE_IDS.form, formId)
           .replaceAll(EXAMPLE_IDS.campaign, cardCampaign.id)
           .replaceAll(EXAMPLE_IDS.section, qualitySection.id)
+          .replaceAll(EXAMPLE_IDS.dossier, dossierId)
       );
     const qualityImages = [landscape.id, portrait.id, square.id, panorama.id];
     await invoker.run(useCases.updatePerson, admin, {

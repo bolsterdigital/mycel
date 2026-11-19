@@ -167,6 +167,128 @@ export async function observeOverview(
     ),
     // Last: the agenda advances the clock past an event's end.
     agenda: await observeAgenda(invoker, admin, clock, pagina.id),
+    dossiers: await observeDossiers(invoker, admin, other, clock),
+  };
+}
+
+/**
+ * Dossiers (MY-260): an overview with `dossierId` lists the published members in this locale
+ * (articles or pages, a restricted one as its teaser card), the source `dossier` lists the
+ * published dossier pages, and `content.published.get` carries a box per dossier the item names
+ * that is published in this locale, with up to three other public members, newest first. A draft
+ * member, another tenant, an unpublished locale, a restricted member (in the box), a box switched
+ * off and a dossier in the trash never show; an id that is no dossier page of this tenant, and
+ * dossiers on a dossier page, are refused.
+ */
+async function observeDossiers(invoker: Invoker, admin: Principal, other: Principal, clock: Clock) {
+  const create = async (slug: string, document: Record<string, unknown>, by = admin) =>
+    (await invoker.run(useCases.createItem, by, { slug, document: document as never })).item;
+  const publish = async (item: { id: string; latestRevisionId: string }, ...locales: string[]) => {
+    for (const locale of locales)
+      await invoker.run(useCases.publishItem, admin, {
+        itemId: item.id,
+        revisionId: item.latestRevisionId,
+        locale,
+      });
+  };
+  const dossierPage = (slug: string, over: Record<string, unknown> = {}) => ({
+    ...article(slug),
+    type: 'page',
+    profile: 'dossier',
+    ...over,
+  });
+  const refused = (slug: string, document: Record<string, unknown>, by = admin) =>
+    create(slug, document, by).then(
+      () => 'answered',
+      (e: { code?: string; issues?: { message: string }[] }) =>
+        `${e.code}:${e.issues?.[0]?.message}`
+    );
+
+  const wonen = await create(
+    'wonen',
+    dossierPage('wonen', {
+      title: { nl: 'Betaalbaar wonen', en: 'Affordable housing' },
+      lead: { nl: 'Alles over wonen.', en: 'All about housing.' },
+    })
+  );
+  await publish(wonen, 'nl');
+  // A draft dossier may be chosen; it shows nowhere until it is published.
+  const ontwerp = await create('ontwerp-dossier', dossierPage('ontwerp-dossier'));
+  const oud = await create('oud-dossier', dossierPage('oud-dossier'));
+  await publish(oud, 'nl');
+  const inWonen = { dossiers: [{ itemId: wonen.id }] };
+  clock.advance(1000);
+  const huur = await create('huur', article('huur', inWonen));
+  await publish(huur, 'nl', 'en');
+  clock.advance(1000);
+  await publish(await create('koop', article('koop', inWonen)), 'nl');
+  clock.advance(1000);
+  await publish(await create('plan', { ...article('plan', inWonen), type: 'page' }), 'nl');
+  clock.advance(1000);
+  const leden = article('leden-wonen', {
+    ...inWonen,
+    lead: { nl: 'Voor leden.', en: 'Members.' },
+    access: { level: 'members' },
+  });
+  await publish(await create('leden-wonen', leden), 'nl');
+  clock.advance(1000);
+  const stil = await create('stil', article('stil', { ...inWonen, showDossier: false }));
+  await publish(stil, 'nl');
+  clock.advance(1000);
+  const twee = await create(
+    'twee',
+    article('twee', { dossiers: [{ itemId: ontwerp.id }, { itemId: wonen.id }] })
+  );
+  await publish(twee, 'nl');
+  await create('concept-wonen', article('concept-wonen', inWonen));
+  const inOud = await create('in-oud', article('in-oud', { dossiers: [{ itemId: oud.id }] }));
+  await publish(inOud, 'nl');
+  await invoker.run(useCases.deleteItem, admin, { itemId: oud.id });
+  const vreemd = await create('vreemd-dossier', dossierPage('vreemd-dossier'), other);
+  const gewoon = await create('gewoon', { ...article('gewoon'), type: 'page' });
+
+  const slugs = async (props: Record<string, unknown>, locale = 'nl', by = admin) =>
+    (await invoker.run(useCases.getOverview, by, { props: props as never, locale })).entries
+      .map((e) => `${e.slug}${e.restricted ? '!' : ''}`)
+      .join(' ');
+  const boxes = async (type: 'article' | 'page', slug: string, locale = 'nl') => {
+    const item = await invoker.run(useCases.getPublished, admin, { type, slug, locale });
+    return (item.dossiers ?? []).map(
+      (d) => `${d.slug} "${d.title}" "${d.lead}": ${d.members.map((m) => m.slug).join(' ')}`
+    );
+  };
+  return {
+    articles: await slugs({ dossierId: wonen.id }),
+    pages: await slugs({ source: 'page', dossierId: wonen.id }),
+    english: await slugs({ dossierId: wonen.id }, 'en'),
+    otherTenant: await slugs({ dossierId: wonen.id }, 'nl', other),
+    all: await slugs({ source: 'dossier' }),
+    eventWithDossier: await invoker
+      .run(useCases.getOverview, admin, {
+        props: { source: 'event', dossierId: wonen.id },
+        locale: 'nl',
+      })
+      .then(
+        () => 'answered',
+        (e: { code?: string }) => e.code
+      ),
+    box: await boxes('article', 'huur'),
+    // The dossier is not published in English: no box there.
+    boxEnglish: await boxes('article', 'huur', 'en'),
+    boxOnPage: await boxes('page', 'plan'),
+    switchedOff: await boxes('article', 'stil'),
+    draftDossier: await boxes('article', 'twee'),
+    trashedDossier: await boxes('article', 'in-oud'),
+    otherTenantDossier: await refused(
+      'naar-vreemd',
+      article('x', { dossiers: [{ itemId: vreemd.id }] })
+    ),
+    notADossier: await refused('naar-gewoon', article('y', { dossiers: [{ itemId: gewoon.id }] })),
+    duplicate: await refused(
+      'dubbel',
+      article('z', { dossiers: [{ itemId: wonen.id }, { itemId: wonen.id }] })
+    ),
+    onDossier: await refused('genest', dossierPage('genest', inWonen)),
   };
 }
 
@@ -302,5 +424,23 @@ export const expectedOverview = {
     page2: 'lang-geleden',
     ordered: 'gisteren lang-geleden',
     withSection: 'invalid_input',
+  },
+  dossiers: {
+    articles: 'twee stil leden-wonen! koop huur',
+    pages: 'plan',
+    english: 'huur',
+    otherTenant: '',
+    all: 'wonen',
+    eventWithDossier: 'invalid_input',
+    box: ['wonen "Betaalbaar wonen" "Alles over wonen.": twee stil plan'],
+    boxEnglish: [],
+    boxOnPage: ['wonen "Betaalbaar wonen" "Alles over wonen.": twee stil koop'],
+    switchedOff: [],
+    draftDossier: ['wonen "Betaalbaar wonen" "Alles over wonen.": stil plan koop'],
+    trashedDossier: [],
+    otherTenantDossier: 'invalid_input:content.dossier.not-a-dossier',
+    notADossier: 'invalid_input:content.dossier.not-a-dossier',
+    duplicate: 'invalid_input:content.dossier.duplicate',
+    onDossier: 'invalid_input:content.dossier.on-dossier',
   },
 };

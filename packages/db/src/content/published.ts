@@ -98,15 +98,28 @@ interface CardRow {
  * `ContentRepository.publishedCards`: one query per overview, the published revision's
  * document included so core derives the card (`effectiveOf`) the way every other card does, after
  * projecting a restricted one (`cardDocument`). The filter is on plain values of that document
- * (access level unless `restricted` asks for every level, section, tags), as above; the tag
- * test is jsonb containment, so every tag must be there. A document that no longer parses is left
+ * (access level unless `restricted` asks for every level, section, tags, dossier), as above; the
+ * tag and dossier tests are jsonb containment, so every tag must be there. A document that no longer parses is left
  * out, as `latestDocuments` does, so one broken row does not empty a homepage. An agenda's test
  * and order are on the published document's event times, plain `YYYY-MM-DDTHH:mm` text, so they
  * compare as text in the byte order (`"C"`) the memory adapter's string comparison uses.
  */
 export function publishedCards(trx: Kysely<Database>): ContentRepository['publishedCards'] {
   return async (
-    { locale, type, sectionId, authorId, tags, ids, exclude, order, events, restricted },
+    {
+      locale,
+      type,
+      sectionId,
+      dossierId,
+      profile,
+      authorId,
+      tags,
+      ids,
+      exclude,
+      order,
+      events,
+      restricted,
+    },
     offset,
     limit
   ) => {
@@ -126,6 +139,8 @@ export function publishedCards(trx: Kysely<Database>): ContentRepository['publis
         ${restricted ? sql`` : sql`and coalesce(r.document->'access'->>'level', 'public') = 'public'`}
         ${type ? sql`and i.type = ${type}` : sql``}
         ${sectionId ? sql`and i.type = 'article' and r.document->>'sectionId' = ${sectionId}` : sql``}
+        ${dossierId ? sql`and r.document->'dossiers' @> ${JSON.stringify([{ itemId: dossierId }])}::jsonb` : sql``}
+        ${profile ? sql`and i.profile = ${profile}` : sql``}
         ${authorId ? sql`and i.type = 'article' and r.document->'authorIds' @> ${JSON.stringify([authorId])}::jsonb` : sql``}
         ${tags?.length ? sql`and i.type = 'article' and r.document->'tags' @> ${JSON.stringify(tags)}::jsonb` : sql``}
         ${ids ? sql`and l.item_id = any(${[...ids]}::uuid[])` : sql``}
