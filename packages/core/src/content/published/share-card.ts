@@ -100,7 +100,7 @@ async function planCard(
       JSON.stringify([
         SHARE_CARD_VERSION,
         title,
-        theme.fontPair,
+        theme.headingFont,
         primary.background,
         primary.foreground,
         photo?.key ?? null,
@@ -114,7 +114,7 @@ async function planCard(
     fingerprint,
     key: shareCardKey(tenantId, item.id, locale, fingerprint),
     title,
-    font: theme.fontPair,
+    font: theme.headingFont,
     background: primary.background,
     foreground: primary.foreground,
     photo,

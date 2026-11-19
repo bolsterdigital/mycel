@@ -9,7 +9,7 @@
 import type { Signer } from '../ports.js';
 import type { MediaFilter, MediaOrder } from './listing.js';
 import type { ImageFormat, MediaFocal, MediaPatch, MediaRecord, NewMedia } from './model.js';
-import type { FontPair } from '../theme/model.js';
+import type { FontKey } from '../theme/fonts.js';
 
 /**
  * Bytes under keys. Keys are paths (`tenants/<id>/media/<id>/w960.avif`); `put` is idempotent on
@@ -62,7 +62,8 @@ export const SHARE_CARD_HEIGHT = 630;
  */
 export interface ShareCardDrawing {
   title: string;
-  font: FontPair;
+  /** The heading font, which the adapter draws at its regular weight. */
+  font: FontKey;
   /** `#rrggbb`, the primary role pair of the light palette. */
   background: string;
   foreground: string;

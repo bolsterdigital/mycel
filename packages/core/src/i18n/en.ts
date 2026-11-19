@@ -166,6 +166,8 @@ export const en = {
   'theme.key.unknown': 'This setting is not part of a theme.',
   'theme.contrast.too-low':
     'The contrast is too low: text, links or the focus indicator would be hard to see.',
+  'theme.font.weight-unavailable':
+    'The heading font has no face in this weight. Choose another weight or another font.',
   'patterns.long-read.name': 'Long read',
   'patterns.long-read.description': 'An article with room for a long text and a pull quote.',
   'patterns.long-read.intro': 'Start with the heart of the story in two or three sentences.',

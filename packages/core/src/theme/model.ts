@@ -12,12 +12,9 @@
 // renderer self-hosts).
 
 import { z } from 'zod';
+import { FONT_KEYS, type FontKey } from './fonts.js';
 
 export const THEME_VERSION = 1;
-
-/** Curated font pairs (headings, body); #8c self-hosts the files with their licences. */
-export const FONT_PAIRS = ['inter', 'source-serif-inter'] as const;
-export type FontPair = (typeof FONT_PAIRS)[number];
 
 export const HEADING_WEIGHTS = [400, 500, 600, 700, 800] as const;
 
@@ -124,7 +121,9 @@ export const ThemeInput = z
     {
       version: z.literal(THEME_VERSION, notAllowed).default(THEME_VERSION),
       palettes: z.object({ light: Palette, dark: Palette }, unknownKey).strict().optional(),
-      fontPair: z.enum(FONT_PAIRS, notAllowed).optional(),
+      /** Catalogue keys (`theme/fonts.ts`); every font has 400 and 700, so each can be the body. */
+      headingFont: z.enum(FONT_KEYS, notAllowed).optional(),
+      bodyFont: z.enum(FONT_KEYS, notAllowed).optional(),
       baseSize: range('baseSize').optional(),
       scaleRatio: range('scaleRatio').optional(),
       measure: range('measure').optional(),
@@ -143,7 +142,8 @@ export type ThemeInput = z.infer<typeof ThemeInput>;
 export interface ResolvedTheme {
   version: typeof THEME_VERSION;
   palettes: Record<ThemeMode, Palette>;
-  fontPair: FontPair;
+  headingFont: FontKey;
+  bodyFont: FontKey;
   baseSize: number;
   scaleRatio: number;
   measure: number;

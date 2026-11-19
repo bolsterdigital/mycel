@@ -167,6 +167,8 @@ export const nl: Partial<Messages> = {
   'theme.key.unknown': 'Deze instelling hoort niet bij een thema.',
   'theme.contrast.too-low':
     'Het contrast is te laag: tekst, links of de focusmarkering zijn dan slecht te zien.',
+  'theme.font.weight-unavailable':
+    'De kopletter heeft geen variant in dit gewicht. Kies een ander gewicht of een andere letter.',
   'patterns.long-read.name': 'Longread',
   'patterns.long-read.description':
     'Een artikel met ruimte voor een lange tekst en een uitgelicht citaat.',

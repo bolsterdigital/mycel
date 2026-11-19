@@ -317,7 +317,8 @@ export const actions: Actions = {
     const theme = {
       version: 1,
       palettes,
-      fontPair: text(data, 'fontPair'),
+      headingFont: text(data, 'headingFont'),
+      bodyFont: text(data, 'bodyFont'),
       baseSize: Number(text(data, 'baseSize')),
       scaleRatio: Number(text(data, 'scaleRatio')),
       measure: Number(text(data, 'measure')),

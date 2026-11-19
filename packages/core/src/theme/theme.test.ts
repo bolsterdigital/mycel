@@ -11,6 +11,7 @@ import { buildRegistry, useCases } from '../use-cases.js';
 import { Theme, checkTheme, contrastRatio, resolveTheme } from './contrast.js';
 import { THEME_RANGES, THEME_VERSION, ThemeInput, type Palette } from './model.js';
 import { DEFAULT_THEME, THEME_PRESETS } from './presets.js';
+import { FONTS, FONT_KEYS, hasWeight } from './fonts.js';
 
 const light = DEFAULT_THEME.palettes.light;
 const dark = DEFAULT_THEME.palettes.dark;
@@ -160,10 +161,14 @@ describe('Theme and ThemeInput', () => {
   });
 
   it('accepts only the font catalogue and no CSS, URL or extra key', () => {
-    expect(ThemeInput.safeParse({ fontPair: 'source-serif-inter' }).success).toBe(true);
+    expect(ThemeInput.safeParse({ headingFont: 'rubik', bodyFont: 'open-sans' }).success).toBe(
+      true
+    );
     for (const input of [
-      { fontPair: 'Comic Sans' },
-      { fontPair: 'https://fonts.example/x.woff2' },
+      { headingFont: 'Comic Sans' },
+      { bodyFont: 'https://fonts.example/x.woff2' },
+      { headingFont: 'Rubik' },
+      { fontPair: 'inter' },
       { css: 'body{}' },
       { fontUrl: 'https://fonts.example/x.woff2' },
       { palettes: { light } },
@@ -173,6 +178,32 @@ describe('Theme and ThemeInput', () => {
       ),
     ])
       expect(ThemeInput.safeParse(input).success, JSON.stringify(input)).toBe(false);
+  });
+
+  it('gives every catalogue font a regular and a bold face, so each can set body text', () => {
+    for (const key of FONT_KEYS) {
+      expect(hasWeight(key, 400), key).toBe(true);
+      expect(hasWeight(key, 700), key).toBe(true);
+    }
+    expect(new Set(FONT_KEYS.map((k) => FONTS[k].family)).size).toBe(FONT_KEYS.length);
+  });
+
+  it('refuses a heading weight the heading font has no face for, in the report and the write', () => {
+    const input = { headingFont: 'vesper-libre', headingWeight: 600 } as const;
+    expect(ThemeInput.safeParse(input).success).toBe(true);
+    expect(checkTheme(ThemeInput.parse(input)).issues).toEqual([
+      { path: 'headingWeight', message: 'theme.font.weight-unavailable' },
+    ]);
+    const r = Theme.safeParse({ ...DEFAULT_THEME, ...input });
+    expect(r.success ? [] : r.error.issues.map((i) => i.message)).toEqual([
+      'theme.font.weight-unavailable',
+    ]);
+    expect(Theme.parse({ ...DEFAULT_THEME, ...input, headingWeight: 700 }).headingFont).toBe(
+      'vesper-libre'
+    );
+    expect(checkTheme(ThemeInput.parse({ headingFont: 'rubik', headingWeight: 800 })).valid).toBe(
+      true
+    );
   });
 
   it('sets captions in body by default, takes mono and refuses any other face', () => {

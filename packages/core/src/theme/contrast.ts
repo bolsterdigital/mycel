@@ -15,6 +15,7 @@ import {
   type ThemeMode,
 } from './model.js';
 import { DEFAULT_THEME } from './presets.js';
+import { hasWeight } from './fonts.js';
 
 export const TEXT_CONTRAST = 4.5;
 export const AAA_CONTRAST = 7;
@@ -62,7 +63,8 @@ export function resolveTheme(input: ThemeInput): ResolvedTheme {
   return {
     version: input.version,
     palettes: input.palettes ?? DEFAULT_THEME.palettes,
-    fontPair: input.fontPair ?? DEFAULT_THEME.fontPair,
+    headingFont: input.headingFont ?? DEFAULT_THEME.headingFont,
+    bodyFont: input.bodyFont ?? DEFAULT_THEME.bodyFont,
     baseSize: value('baseSize'),
     scaleRatio: value('scaleRatio'),
     measure: value('measure'),
@@ -102,7 +104,11 @@ function paletteReport(mode: ThemeMode, p: Palette): ThemePairReport[] {
   ];
 }
 
-/** The contrast report of a structurally valid theme, defaults resolved. */
+/**
+ * The contrast report of a structurally valid theme, defaults resolved, plus the one check across
+ * fields: a heading weight the heading font has no face for (a static font such as Vesper Libre),
+ * which a browser would otherwise fake by smearing the regular face.
+ */
 export function checkTheme(input: ThemeInput): ThemeReport {
   const theme = resolveTheme(input);
   const pairs = THEME_MODES.flatMap((m) => paletteReport(m, theme.palettes[m]));
@@ -112,6 +118,8 @@ export function checkTheme(input: ThemeInput): ThemeReport {
     paths.add(`palettes.${p.mode}.${kind}`);
   }
   const issues = [...paths].map((path) => ({ path, message: 'theme.contrast.too-low' }));
+  if (!hasWeight(theme.headingFont, theme.headingWeight))
+    issues.push({ path: 'headingWeight', message: 'theme.font.weight-unavailable' });
   return { valid: issues.length === 0, pairs, issues };
 }
 

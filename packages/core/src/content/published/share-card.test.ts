@@ -91,7 +91,7 @@ describe('generated share cards', () => {
     expect(found?.fingerprint).toMatch(/^[0-9a-f]{24}$/);
     expect(await drawing(found!.fingerprint)).toMatchObject({
       title: 'Pepernoten',
-      font: DEFAULT_THEME.fontPair,
+      font: DEFAULT_THEME.headingFont,
       background: DEFAULT_THEME.palettes.light.primary.background,
       photo: null,
       logo: null,
@@ -183,13 +183,13 @@ describe('generated share cards', () => {
     const theme = await invoker.run(useCases.getSiteTheme, admin, {});
     await invoker.run(useCases.updateSiteTheme, admin, {
       baseVersion: theme.version,
-      theme: { ...DEFAULT_THEME, fontPair: 'source-serif-inter' },
+      theme: { ...DEFAULT_THEME, headingFont: 'mycel-serif' },
     });
     expect(open('content.share-cards')).toHaveLength(1);
     await runJobs();
     const after = (await card())!.fingerprint;
     expect(after).not.toBe(before);
-    expect(await drawing(after)).toMatchObject({ font: 'source-serif-inter' });
+    expect(await drawing(after)).toMatchObject({ font: 'mycel-serif' });
     expect(await files()).toEqual([shareCardKey(TENANT, itemId, 'nl', after)]);
   });
 
