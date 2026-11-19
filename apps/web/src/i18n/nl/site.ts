@@ -24,6 +24,9 @@ export const site: Partial<Record<UiKey, string>> = {
   'admin.site.fail': 'voldoet niet',
   'admin.site.headingFont': 'Kopletter',
   'admin.site.bodyFont': 'Tekstletter',
+  'admin.site.font.specimen': 'Samen staan we sterker',
+  'admin.site.font.weightUnavailable':
+    'De kopletter heeft geen variant in deze kopdikte. Kies een andere dikte of een andere letter.',
   'admin.site.dropCap': 'Initiaal op artikelen',
   'admin.site.dropCap.hint': 'Een grote eerste letter aan het begin van de tekst van elk artikel.',
   'admin.site.dropCap.articles': 'Aan',

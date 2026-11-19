@@ -16,26 +16,13 @@
 import {
   contrastRatio,
   FONT_KEYS,
-  FONTS,
   luminance,
   THEME_ROLES,
-  type FontCategory,
-  type FontKey,
   type Palette,
   type ResolvedTheme,
 } from '@mycel/core';
-import { familyName, fontFaces, italicFile, romanFile } from './font-files.js';
+import { faceRule, fontFaces, fontStack, italicFile, romanFile } from './font-files.js';
 
-const LATIN =
-  'U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD';
-
-/** Where a file cannot load: the system face of the same category. A slab falls back to serif. */
-const FALLBACK: Record<FontCategory, string> = {
-  sans: "system-ui, -apple-system, 'Segoe UI', sans-serif",
-  serif: "Georgia, 'Times New Roman', serif",
-  slab: "Georgia, 'Times New Roman', serif",
-};
-const stack = (key: FontKey) => `${familyName(key)}, ${FALLBACK[FONTS[key].category]}`;
 /**
  * The system's monospace for captions (`captionFont: 'mono'`): no file to load, so no preload or
  * `@font-face`. Only a theme that chooses it sets `--font-caption`; without it `media-blocks.css`
@@ -91,12 +78,7 @@ export function withItalicPreload(html: string): string {
 /** The `@font-face` rules of the chosen families only; one family when heading and body agree. */
 function fontFaceRules(theme: Pick<ResolvedTheme, 'headingFont' | 'bodyFont'>): string {
   return [...new Set([theme.bodyFont, theme.headingFont])]
-    .flatMap((key) =>
-      fontFaces(key).map(
-        (f) =>
-          `@font-face { font-family: ${familyName(key)}; src: url('${f.file}') format('woff2'); font-style: ${f.style}; font-weight: ${f.weight}; font-display: swap;${f.latin ? ` unicode-range: ${LATIN};` : ''} }`
-      )
-    )
+    .flatMap((key) => fontFaces(key).map((f) => faceRule(key, f)))
     .join('\n');
 }
 
@@ -214,8 +196,8 @@ export function themeCss(theme: ResolvedTheme): string {
   );
   const root = [
     ...palette(theme.palettes.light),
-    `--font-body: ${stack(theme.bodyFont)};`,
-    `--font-heading: ${stack(theme.headingFont)};`,
+    `--font-body: ${fontStack(theme.bodyFont)};`,
+    `--font-heading: ${fontStack(theme.headingFont)};`,
     ...(theme.captionFont === 'mono' ? [`--font-caption: ${CAPTION_MONO};`] : []),
     `--heading-weight: ${theme.headingWeight};`,
     ...sizes,

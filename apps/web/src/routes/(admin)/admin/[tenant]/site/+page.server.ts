@@ -58,6 +58,8 @@ const refused = (e: unknown, action: string, values?: FormData) => {
     conflict: 'admin.site.conflict',
     invalid: 'admin.site.invalid',
     notFound: 'admin.site.invalid',
+    // The one theme refusal that is not about a field's own value: name it, not "check the fields".
+    issues: { 'theme.font.weight-unavailable': 'admin.site.font.weightUnavailable' },
   });
   return fail(status, { ...body, ...(values ? { values: Object.fromEntries(values) } : {}) });
 };

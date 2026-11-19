@@ -1752,8 +1752,8 @@ test.describe('site-settings', () => {
     await page.goto(`/${slug}/home`);
     const oldCss = await themeLink(page).getAttribute('href');
     await login(page, `/admin/${slug}/site?section=theme`, `site-editor-${slug}@probe.test`);
-    await page.locator('select[name="headingFont"]').selectOption('rubik');
-    await page.locator('select[name="bodyFont"]').selectOption('open-sans');
+    await page.locator('input[name="headingFont"][value="rubik"]').check();
+    await page.locator('input[name="bodyFont"][value="open-sans"]').check();
     // The action row's card colours are rows of the colour table: a third light card
     // is added and the second dark one emptied; untouched rows keep what was stored.
     const card = (mode: string, i: number, side: string) =>
