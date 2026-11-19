@@ -45,6 +45,7 @@ import { exerciseOwnGifts } from './lib/forms/own-gifts';
 import { exerciseMembership } from './lib/forms/membership';
 import { exerciseMollieConnection } from './lib/forms/mollie';
 import { exerciseFundraiser } from './lib/forms/fundraiser';
+import { exerciseWelcomeMails } from './lib/mail/welcome';
 
 /**
  * A form page ships proof of work, plus conditional display only when its definition needs it.
@@ -787,6 +788,11 @@ test('a monthly gift managed by its giver: link, amount, pause, resume, stop', a
 test('a membership: prompt, join, sign-in link, read, cancel, and read through the grace', async ({
   page,
 }, testInfo) => exerciseMembership(page, testInfo.project.name));
+
+// MY-258 PR 2: Welcome mails in the admin: two steps, the confirmation to switch on, the test to me.
+test('welcome mails: set two steps, confirm switching on, send the test to me', async ({
+  page,
+}, testInfo) => exerciseWelcomeMails(page, testInfo.project.name));
 
 // MY-252 PR 3: the site's Mollie key under Connections (lib/forms/mollie.ts).
 test.describe('a Mollie key', () => {
