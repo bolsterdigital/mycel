@@ -46,6 +46,7 @@ import { exerciseMembership } from './lib/forms/membership';
 import { exerciseMollieConnection } from './lib/forms/mollie';
 import { exerciseFundraiser } from './lib/forms/fundraiser';
 import { exerciseWelcomeMails } from './lib/mail/welcome';
+import { exerciseLaunchChecklist } from './lib/launch/checklist';
 
 /**
  * A form page ships proof of work, plus conditional display only when its definition needs it.
@@ -809,6 +810,11 @@ test('a membership: prompt, join, sign-in link, read, cancel, and read through t
 test('welcome mails: set two steps, confirm switching on, send the test to me', async ({
   page,
 }, testInfo) => exerciseWelcomeMails(page, testInfo.project.name));
+
+// MY-262 PR 2: the launch checklist: tick with a note, switch off and on, a colleague's save stands.
+test('the launch checklist: tick a step with a note, switch it off and on, keep a later save', async ({
+  page,
+}, testInfo) => exerciseLaunchChecklist(page, testInfo.project.name));
 
 // MY-252 PR 3: the site's Mollie key under Connections (lib/forms/mollie.ts).
 test.describe('a Mollie key', () => {
