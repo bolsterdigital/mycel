@@ -44,9 +44,14 @@ export const ADMIN_ROUTES: GateRoute[] = [
   // Supporters: the list as the seed left it, and its filter bar with a list and a search on.
   { path: '/admin/probe/supporters', within: 'main' },
   { path: '/admin/probe/supporters?list=newsletter&status=pending&q=a', within: 'main' },
+  // Welcome mails: the lists, and the form of a list without a series (MY-258 PR 2).
+  { path: '/admin/probe/welcome-mails', within: 'main' },
+  { path: '/admin/probe/welcome-mails/newsletter', within: 'main' },
   { path: '/admin/probe/connections', within: 'main', folds: true },
   { path: '/admin/probe/export', within: 'main', folds: true },
   { path: '/admin/probe/status', within: 'main', folds: true },
+  // The launch checklist with every fold open: a step's Adjust and a phase's steps that do not apply.
+  { path: '/admin/probe/livegang', within: 'main', folds: true },
   { path: '/admin/probe/status/audit', within: 'main' },
   { path: '/admin/probe/meldingen', within: 'main' },
   { path: '/admin/probe/media/trash', within: 'main' },

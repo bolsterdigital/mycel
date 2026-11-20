@@ -199,11 +199,16 @@ const HeroAlt = z
  * the item is created, like its type. Rejected: an `events` entity with its own table and read
  * route, which would duplicate what a page has (brief events-profile).
  *
+ * `dossier` is a theme page that bundles related pages and articles (MY-260): an item names up to
+ * three dossiers in its document (`dossiers`), overviews filter on them and each member shows a
+ * dossier box. It adds no metadata of its own. Rejected: a dossier entity beside a page, the
+ * post type plus term pair whose sync needed a trash cascade in Dreamkit (brief dossiers).
+ *
  * `zone` is a page that is shown inside other pages, never on its own (brief prefooter): the
  * pre-footer that the navigation places between the content and the footer. It has no public
  * route and is left out of search, the sitemap, feeds and overviews.
  */
-export const CONTENT_PROFILES = ['event', 'zone'] as const;
+export const CONTENT_PROFILES = ['event', 'zone', 'dossier'] as const;
 export const ContentProfile = z.enum(CONTENT_PROFILES);
 export type ContentProfile = z.infer<typeof ContentProfile>;
 
@@ -244,6 +249,21 @@ export function profileOf(doc: {
   return doc.type === 'page' ? (doc.profile ?? null) : null;
 }
 
+/** How many dossiers one page or article can belong to. */
+const MAX_DOSSIERS = 3;
+
+/**
+ * The dossiers a page or article belongs to (ADR 012, amended 2026-11-19): ids of pages with the
+ * `dossier` profile in this tenant, in the order their boxes show. Stored in the revision like an
+ * article's section, so it travels through revisions, the merge and export. The tenant check is
+ * `referenceIssues`. Rejected: rows in `content_block_refs`, which would make a dossier with
+ * members refuse the trash, where the brief wants its boxes to disappear.
+ */
+const Dossiers = z
+  .array(z.object({ itemId: z.string().guid() }).strict())
+  .max(MAX_DOSSIERS, 'content.dossier.too-many')
+  .refine((d) => new Set(d.map((v) => v.itemId)).size === d.length, 'content.dossier.duplicate');
+
 /** The closed choice of article headers (ADR 025 rule 3). */
 export const ARTICLE_HEADERS = ['standard', 'cover'] as const;
 export type ArticleHeader = (typeof ARTICLE_HEADERS)[number];
@@ -280,6 +300,10 @@ function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
      * stored default, which every revision would carry for nothing.
      */
     prefooter: z.literal(false).optional(),
+    /** Absent: the item belongs to no dossier. Never on a dossier page itself. */
+    dossiers: Dossiers.optional(),
+    /** `false` hides the dossier box under this item; absent shows it, as `prefooter`. */
+    showDossier: z.literal(false).optional(),
   };
   const page = z
     .object({
@@ -385,6 +409,9 @@ function documentIssues(doc: DocumentShape): { path: (string | number)[]; messag
   if (doc.heroAlt && !doc.heroImageId)
     issues.push({ path: ['heroAlt'], message: 'content.hero.alt-without-image' });
   if (doc.type === 'page') issues.push(...eventIssues(doc));
+  // A dossier belongs to no dossier: not to itself, and no hierarchy (brief dossiers).
+  if (doc.type === 'page' && doc.profile === 'dossier' && doc.dossiers?.length)
+    issues.push({ path: ['dossiers'], message: 'content.dossier.on-dossier' });
   for (const [i, block] of doc.blocks.entries())
     for (const locale of Object.keys(block.name ?? {}))
       if (!doc.locales.includes(locale))

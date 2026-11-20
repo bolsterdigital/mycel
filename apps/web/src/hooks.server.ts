@@ -132,7 +132,13 @@ export const handle: Handle = async (input) => {
       response.headers.set('cache-control', PRIVATE_NO_STORE);
       response.headers.set('x-robots-tag', 'noindex');
     }
-    applySecurityHeaders(response.headers, kind, event.url.protocol === 'https:', liveDraft);
+    applySecurityHeaders(
+      response.headers,
+      kind,
+      event.url.protocol === 'https:',
+      liveDraft,
+      event.locals.pageSources ?? null
+    );
     rt.log[isProbe(event.url.pathname) ? 'debug' : 'info']('request', {
       method: event.request.method,
       route: event.route.id ?? 'unmatched',

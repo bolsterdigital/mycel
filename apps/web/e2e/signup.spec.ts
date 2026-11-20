@@ -2,6 +2,9 @@
 import { expect, test, type APIRequestContext, type Page, type Response } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { exerciseAnalyticsSettings } from './lib/analytics/settings';
+import { exerciseIntegrationSettings } from './lib/integrations/settings';
+import { exerciseVideoEmbeds } from './lib/integrations/video';
+import { exerciseConsent } from './lib/integrations/consent';
 import { exercisePageviews } from './lib/analytics/pageviews';
 import { exerciseCountedSignup } from './lib/analytics/signups';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -42,6 +45,8 @@ import { exerciseOwnGifts } from './lib/forms/own-gifts';
 import { exerciseMembership } from './lib/forms/membership';
 import { exerciseMollieConnection } from './lib/forms/mollie';
 import { exerciseFundraiser } from './lib/forms/fundraiser';
+import { exerciseWelcomeMails } from './lib/mail/welcome';
+import { exerciseLaunchChecklist } from './lib/launch/checklist';
 
 /**
  * A form page ships proof of work, plus conditional display only when its definition needs it.
@@ -326,6 +331,19 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
     await setTextSize(page, '16px');
   }
 
+  // MY-259: the dashboard's Sign-ups widget counts campaign participations of the last 30 days.
+  const participations = async () => {
+    await page.goto('/admin/probe');
+    const total = page
+      .getByRole('region', { name: 'Inschrijvingen' })
+      .getByRole('definition')
+      .filter({ hasText: /in de 30 dagen ervoor/ })
+      .nth(1)
+      .locator('.total');
+    return (await total.count()) ? Number((await total.textContent())!.replace(/\D/g, '')) : 0;
+  };
+  const participationsBefore = await participations();
+
   // Signed without consent and without JavaScript in the no-js project: the thanks and the
   // confirmation speak of taking part, never of a subscription (B2 review R1).
   const email = `e2e-petition-${Date.now()}@example.org`;
@@ -344,6 +362,9 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
   await expect(
     visitor.getByRole('heading', { level: 1, name: 'Deelname bevestigd' })
   ).toBeVisible();
+
+  await expect.poll(participations, { timeout: 15_000 }).toBeGreaterThan(participationsBefore);
+  if (isA11y()) await expectNoAxeViolations(page, { label: 'dashboard with sign-ups' });
 
   // The worker records the confirmed signature; the panel counts it.
   await expect(async () => {
@@ -784,6 +805,16 @@ test('a monthly gift managed by its giver: link, amount, pause, resume, stop', a
 test('a membership: prompt, join, sign-in link, read, cancel, and read through the grace', async ({
   page,
 }, testInfo) => exerciseMembership(page, testInfo.project.name));
+
+// MY-258 PR 2: Welcome mails in the admin: two steps, the confirmation to switch on, the test to me.
+test('welcome mails: set two steps, confirm switching on, send the test to me', async ({
+  page,
+}, testInfo) => exerciseWelcomeMails(page, testInfo.project.name));
+
+// MY-262 PR 2: the launch checklist: tick with a note, switch off and on, a colleague's save stands.
+test('the launch checklist: tick a step with a note, switch it off and on, keep a later save', async ({
+  page,
+}, testInfo) => exerciseLaunchChecklist(page, testInfo.project.name));
 
 // MY-252 PR 3: the site's Mollie key under Connections (lib/forms/mollie.ts).
 test.describe('a Mollie key', () => {
@@ -1631,6 +1662,18 @@ test('an administrator names the Plausible site; an editor cannot', ({ page, bas
 // With a Plausible site named, a published public page reports its own path and nothing else.
 test('a counted page reports the decided path; nothing else gets a tag', ({ page, baseURL }) =>
   exercisePageviews(page, baseURL!));
+
+// Which third party's code runs on the public site is the administrator's choice too.
+test('an administrator switches integrations on and off; an editor cannot', ({ page, baseURL }) =>
+  exerciseIntegrationSettings(page, baseURL!));
+
+// A switched-on provider's video loads its player on a click, never before, and frames only it.
+test('a video loads its player on a click and asks the provider nothing before', ({ page }) =>
+  exerciseVideoEmbeds(page));
+
+// A switched-on tag manager waits for the visitor's choice; refusing or withdrawing loads nothing.
+test('the tag manager loads only after consent, and never on a page with a form', ({ page }) =>
+  exerciseConsent(page));
 
 // An accepted signup reaches Plausible from the worker as one closed event, never the visitor.
 test('the worker counts an accepted signup once, also through an outage', ({ page, baseURL }) =>

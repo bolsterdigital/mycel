@@ -542,6 +542,7 @@ describe.skipIf(skip)('mailing conformance', () => {
         created.id,
         created.version,
         'synthetic-secret',
+        null,
         clock.now()
       ))!;
       return (await ctx.connections.state(created.id, credential.version, 'active', clock.now()))!;

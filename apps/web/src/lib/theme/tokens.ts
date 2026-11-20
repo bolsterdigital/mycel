@@ -7,38 +7,22 @@
 // Served as a stylesheet route with the content hash in its path (`/_theme/<hash>.css`,
 // immutable), not as `<style nonce>`: components have no nonce, and a stylesheet is cacheable
 // across pages. Both palettes are explicit (light in `:root`, dark under `prefers-color-scheme`),
-// never derived. The `@font-face` rules are here too, because the font pair is a theme value and
-// `inter` must not load Source Serif.
+// never derived. The `@font-face` rules are here too, because the fonts are theme values and a
+// site must not load a family it did not choose (`font-files.ts`).
 //
 // Rejected: component-local CSS and unchecked hover arithmetic. Interaction pairs keep the
 // original polarity and are checked along the entire sRGB transition before becoming tokens.
 
 import {
   contrastRatio,
+  FONT_KEYS,
   luminance,
   THEME_ROLES,
-  type FontPair,
   type Palette,
   type ResolvedTheme,
 } from '@mycel/core';
+import { faceRule, fontFaces, fontStack, italicFile, romanFile } from './font-files.js';
 
-/** Self-hosted, Latin-subset variable fonts in `static/fonts` (docs/reference/fonts.md). */
-export const FONT_FILES = {
-  inter: {
-    roman: '/fonts/inter/inter-latin-roman.woff2',
-    italic: '/fonts/inter/inter-latin-italic.woff2',
-  },
-  sourceSerif: {
-    roman: '/fonts/source-serif-4/source-serif-4-latin-roman.woff2',
-    italic: '/fonts/source-serif-4/source-serif-4-latin-italic.woff2',
-  },
-} as const;
-
-const LATIN =
-  'U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD';
-
-const SANS_FALLBACK = "system-ui, -apple-system, 'Segoe UI', sans-serif";
-const SERIF_FALLBACK = "Georgia, 'Times New Roman', serif";
 /**
  * The system's monospace for captions (`captionFont: 'mono'`): no file to load, so no preload or
  * `@font-face`. Only a theme that chooses it sets `--font-caption`; without it `media-blocks.css`
@@ -46,53 +30,56 @@ const SERIF_FALLBACK = "Georgia, 'Times New Roman', serif";
  */
 export const CAPTION_MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
-/** The two roman files to preload for a pair: the faces the first paint needs. */
-export function preloadFonts(pair: FontPair): string[] {
-  return pair === 'inter'
-    ? [FONT_FILES.inter.roman]
-    : [FONT_FILES.sourceSerif.roman, FONT_FILES.inter.roman];
+/**
+ * The roman files the first paint needs: the body's regular first, then the heading's at its
+ * weight (one file when both are the same). `withItalicPreload` relies on that order.
+ */
+export function preloadFonts(
+  theme: Pick<ResolvedTheme, 'headingFont' | 'bodyFont' | 'headingWeight'>
+): string[] {
+  return [
+    ...new Set([romanFile(theme.bodyFont, 400), romanFile(theme.headingFont, theme.headingWeight)]),
+  ];
 }
 
 // Elements a browser renders italic by default; no stylesheet here sets `font-style` itself.
 const ITALIC_ELEMENT = /<(?:em|i|cite|dfn|var|address)[\s>]/;
-const ROMAN_PRELOAD = new RegExp(
-  `<link rel="preload" href="${FONT_FILES.inter.roman}"[^>]*>`.replaceAll('/', '\\/')
+const FIRST_FONT_PRELOAD = /<link rel="preload" href="(\/fonts\/[^"]+)"[^>]*>/;
+/** Each catalogue font's regular body file to its italic, for the fonts that have one. */
+const ITALIC_OF = new Map(
+  FONT_KEYS.flatMap((key) => {
+    const italic = italicFile(key);
+    return italic ? [[romanFile(key, 400), italic] as const] : [];
+  })
 );
 
 /**
- * The italic Inter face as a low-priority preload, after the roman one, on a rendered page whose
- * body uses italic text. Discovered during layout instead, the font is fetched at the highest
- * priority, which Lighthouse counts as render-blocking although `font-display: swap` lets text
- * paint before it arrives: 116 KB on the first paint's critical path. Low priority keeps it off
- * that path and out of the LCP image's way. Pages without italic text never fetch it. Only the
- * body face: headings and pull quotes are plain text and never italic.
+ * The body font's italic face as a low-priority preload, after its roman one, on a rendered page
+ * whose body uses italic text. Discovered during layout instead, the font is fetched at the
+ * highest priority, which Lighthouse counts as render-blocking although `font-display: swap` lets
+ * text paint before it arrives: up to 116 KB on the first paint's critical path. Low priority
+ * keeps it off that path and out of the LCP image's way. Pages without italic text never fetch it,
+ * and neither does a body font without an italic. Only the body face: headings and pull quotes
+ * are plain text and never italic. The first font preload is the body's (`preloadFonts`).
  * Rejected: preloading the italic face on every page (wasted bytes on most of them), and listing
  * the italic-emitting components (a new one would silently bring the cost back).
  */
 export function withItalicPreload(html: string): string {
-  const roman = ROMAN_PRELOAD.exec(html);
-  if (!roman) return html;
+  const roman = FIRST_FONT_PRELOAD.exec(html);
+  const file = roman && ITALIC_OF.get(roman[1]!);
+  if (!roman || !file) return html;
   const body = html.indexOf('<body');
   if (body < 0 || !ITALIC_ELEMENT.test(html.slice(body))) return html;
-  const italic = `<link rel="preload" href="${FONT_FILES.inter.italic}" as="font" type="font/woff2" crossorigin="anonymous" fetchpriority="low">`;
+  const italic = `<link rel="preload" href="${file}" as="font" type="font/woff2" crossorigin="anonymous" fetchpriority="low">`;
   const end = roman.index + roman[0].length;
   return html.slice(0, end) + italic + html.slice(end);
 }
 
-function fontFaces(pair: FontPair): string {
-  const face = (family: string, file: string, style: string, weight: string) =>
-    `@font-face { font-family: '${family}'; src: url('${file}') format('woff2'); font-style: ${style}; font-weight: ${weight}; font-display: swap; unicode-range: ${LATIN}; }`;
-  const faces = [
-    face('Inter', FONT_FILES.inter.roman, 'normal', '100 900'),
-    // The italic file is instanced to 400-700 at text size (docs/reference/fonts.md).
-    face('Inter', FONT_FILES.inter.italic, 'italic', '400 700'),
-  ];
-  if (pair === 'source-serif-inter')
-    faces.push(
-      face('Mycel Serif', FONT_FILES.sourceSerif.roman, 'normal', '200 900'),
-      face('Mycel Serif', FONT_FILES.sourceSerif.italic, 'italic', '200 900')
-    );
-  return faces.join('\n');
+/** The `@font-face` rules of the chosen families only; one family when heading and body agree. */
+function fontFaceRules(theme: Pick<ResolvedTheme, 'headingFont' | 'bodyFont'>): string {
+  return [...new Set([theme.bodyFont, theme.headingFont])]
+    .flatMap((key) => fontFaces(key).map((f) => faceRule(key, f)))
+    .join('\n');
 }
 
 /** Rounded to four decimals and without trailing zeros: `1.25`, `0.9`, never `NaN` or `1e-7`. */
@@ -207,13 +194,10 @@ export function themeCss(theme: ResolvedTheme): string {
   const sizes = STEPS.map(
     (n) => `${stepName(n)}: ${num((theme.baseSize * theme.scaleRatio ** n) / 16)}rem;`
   );
-  // Body text is Inter in both pairs; the pair only chooses the headings.
-  const heading =
-    theme.fontPair === 'inter' ? `Inter, ${SANS_FALLBACK}` : `'Mycel Serif', ${SERIF_FALLBACK}`;
   const root = [
     ...palette(theme.palettes.light),
-    `--font-body: Inter, ${SANS_FALLBACK};`,
-    `--font-heading: ${heading};`,
+    `--font-body: ${fontStack(theme.bodyFont)};`,
+    `--font-heading: ${fontStack(theme.headingFont)};`,
     ...(theme.captionFont === 'mono' ? [`--font-caption: ${CAPTION_MONO};`] : []),
     `--heading-weight: ${theme.headingWeight};`,
     ...sizes,
@@ -224,7 +208,7 @@ export function themeCss(theme: ResolvedTheme): string {
   ];
   const indent = (lines: string[], by: string) => lines.map((l) => `${by}${l}`).join('\n');
   return [
-    fontFaces(theme.fontPair),
+    fontFaceRules(theme),
     `:root {\n${indent(root, '  ')}\n}`,
     `@media (prefers-color-scheme: dark) {\n  :root {\n${indent(palette(theme.palettes.dark), '    ')}\n  }\n}`,
     '',

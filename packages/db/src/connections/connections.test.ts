@@ -12,6 +12,7 @@ import {
   runConnectionIntent,
   CONNECTION_DIRECTIONS,
   CONNECTION_PROVIDERS,
+  CREDENTIAL_MODES,
   ConnectionFailure,
   ConnectionIntentState,
 } from '@mycel/core';
@@ -110,7 +111,8 @@ describe.skipIf(skip)('managed connection storage', () => {
   it('stores exactly the provider, direction, state and failure values the core defines', async () => {
     const checks = await sql<{ name: string; def: string }>`
       select conname as name, pg_get_constraintdef(oid) as def from pg_constraint
-      where conrelid in ('connections'::regclass, 'connection_intents'::regclass)
+      where conrelid in ('connections'::regclass, 'connection_intents'::regclass,
+          'connection_credentials'::regclass)
         and contype = 'c'`.execute(operatorDb);
     const values = (name: string) =>
       [...(checks.rows.find((c) => c.name === name)?.def ?? '').matchAll(/'([a-z_]+)'::text/g)]
@@ -118,6 +120,7 @@ describe.skipIf(skip)('managed connection storage', () => {
         .sort();
     expect(values('connections_provider_check')).toEqual([...CONNECTION_PROVIDERS].sort());
     expect(values('connections_direction_check')).toEqual([...CONNECTION_DIRECTIONS].sort());
+    expect(values('connection_credentials_mode_check')).toEqual([...CREDENTIAL_MODES].sort());
     expect(values('connection_intents_state_check')).toEqual(
       [...ConnectionIntentState.options].sort()
     );
@@ -141,6 +144,7 @@ describe.skipIf(skip)('managed connection storage', () => {
       version: 2,
       credentialVersion: 1,
       credentialStatus: 'connected',
+      credentialMode: null,
     });
     expect(JSON.stringify(replaced)).not.toContain('private-connector-token');
     await expect(invoker.run(useCases.getConnection, pb, { id: created.id })).rejects.toMatchObject(
@@ -217,6 +221,37 @@ describe.skipIf(skip)('managed connection storage', () => {
         .where('connection_id', '=', created.id)
         .executeTakeFirst()
     ).toBeUndefined();
+  });
+
+  // MY-262 PR 3: the mode of a Mollie key sits beside its ciphertext, follows a replacement and
+  // goes with the key on a disconnect; tenant B never reads it.
+  it('keeps the mode of a Mollie key beside it, replaced with it and gone with it', async () => {
+    const pa = systemPrincipal(a, 'test');
+    const pb = systemPrincipal(b, 'test');
+    const mollie = { ...input, provider: 'mollie' as const, consentScopes: [], destination: null };
+    const created = await invoker.run(useCases.createConnection, pa, mollie);
+    const save = (secret: string, baseVersion: number) =>
+      invoker.run(useCases.replaceConnectionCredential, pa, {
+        id: created.id,
+        baseVersion,
+        secret,
+      });
+    const test = await save(`test_${'a'.repeat(30)}`, created.version);
+    expect(test.credentialMode).toBe('test');
+    const live = await save(`live_${'b'.repeat(30)}`, test.version);
+    expect(live.credentialMode).toBe('live');
+    const stored = await operatorDb
+      .selectFrom('connection_credentials')
+      .select('mode')
+      .where('connection_id', '=', created.id)
+      .executeTakeFirstOrThrow();
+    expect(stored.mode).toBe('live');
+    expect((await invoker.run(useCases.listConnections, pb, {})).connections).toEqual([]);
+    const gone = await invoker.run(useCases.disconnectConnection, pa, {
+      id: created.id,
+      baseVersion: live.version,
+    });
+    expect(gone.credentialMode).toBeNull();
   });
 
   async function planned() {

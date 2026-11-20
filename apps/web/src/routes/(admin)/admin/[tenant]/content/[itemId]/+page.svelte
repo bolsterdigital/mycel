@@ -19,6 +19,8 @@
   import HeroConversion from '#lib/admin/hero-conversion/HeroConversion.svelte';
   import EventFields from '#lib/admin/event-fields/EventFields.svelte';
   import PrefooterSwitch from '#lib/admin/prefooter-switch/PrefooterSwitch.svelte';
+  import DossierFields from '#lib/admin/dossier-fields/DossierFields.svelte';
+  import SlugField from '#lib/admin/slug-field/SlugField.svelte';
   import ItemLocales from '#lib/admin/item-locales/ItemLocales.svelte';
   import BlockDrop from '#lib/admin/block-drop/BlockDrop.svelte';
   import PendingBlock from '#lib/admin/pending-block/PendingBlock.svelte';
@@ -113,6 +115,7 @@
   };
   const authors = $derived((form && 'authors' in form ? form.authors : null) ?? data.authors);
   const sections = $derived((form && 'sections' in form ? form.sections : null) ?? data.sections);
+  const dossiers = $derived((form && 'dossiers' in form ? form.dossiers : null) ?? data.dossiers);
   const pending = $derived(form && 'pending' in form ? form.pending : data.pending);
   const issues = $derived<{ name: string; list?: string; copy: string }[]>(
     editorFieldIssues(form, data.blocks)
@@ -1278,27 +1281,13 @@
       {/if}
       <MetaList items={[{ term: t('admin.content.item.url'), value: data.item.path }]} />
       {#if data.canWrite}
-        <details class="ui-fold item-slug" open={flagged('slug')}>
-          <summary>{t('admin.content.slug.change')}</summary>
-          <!-- The address this form was rendered with: a save changes the slug only when the
-               field differs from it, so a tab left open cannot move another tab's address back. -->
-          <input type="hidden" name="baseSlug" value={v('baseSlug') || data.item.slug} />
-          <Field
-            id="slug"
-            name="slug"
-            label={t('admin.content.slug')}
-            locale={data.locale}
-            size="m"
-            hint={t('admin.content.slug.editHint')}
-            required
-            maxlength={63}
-            pattern={'[a-z0-9][a-z0-9-]{0,62}'}
-            autocapitalize="off"
-            spellcheck={false}
-            invalid={flagged('slug')}
-            value={v('slug') || data.item.slug}
-          />
-        </details>
+        <SlugField
+          locale={data.locale}
+          slug={v('slug')}
+          baseSlug={v('baseSlug')}
+          stored={data.item.slug}
+          flagged={flagged('slug')}
+        />
       {/if}
       <OldAddresses {data} {action} />
       {#if article}
@@ -1325,6 +1314,16 @@
         {@render translateLinks('sectionId', 'sectionId', work, '')}
         {@render text('tags', t('admin.content.field.tags'), { max: 2000 })}
       {/if}
+      <DossierFields
+        locale={data.locale}
+        {base}
+        choices={dossiers}
+        selected={list('dossierIds')}
+        noBox={v('noDossierBox') === 'on'}
+        write={data.canWrite}
+        removeAction={action('save')}
+        invalid={flagged('dossiers')}
+      />
       <p>
         <a href="{base}/content/{data.item.id}/revisions">{t('admin.content.revisions')}</a>
       </p>

@@ -5,7 +5,12 @@
 // Rejected: a port method per rule (the adapters would still each decide what it means).
 
 import type { Principal } from '../principal.js';
-import type { ConnectionProvider, ConnectionRecord, ConnectionState } from './ports.js';
+import type {
+  ConnectionProvider,
+  ConnectionRecord,
+  ConnectionState,
+  CredentialMode,
+} from './ports.js';
 
 /**
  * The one system job that may decrypt a connection credential through `ctx.connections`: the
@@ -23,6 +28,20 @@ export const PAYMENT_CONNECTION_PROVIDER = 'mollie' satisfies ConnectionProvider
 
 /** A Mollie API key: a test or live key. An OAuth access token is another kind of thing. */
 export const MOLLIE_API_KEY = /^(test|live)_[A-Za-z0-9]{20,64}$/;
+
+/**
+ * Whether a stored key takes test or real payments, read from its prefix when it is written
+ * (MY-262 PR 3). Not secret: the prefix is all it keeps. Null for a provider without modes.
+ */
+export const credentialModeOf = (
+  provider: ConnectionProvider,
+  secret: string
+): CredentialMode | null =>
+  provider === 'mollie' && MOLLIE_API_KEY.test(secret)
+    ? secret.startsWith('live_')
+      ? 'live'
+      : 'test'
+    : null;
 
 /** A read serves the stored credential only for an active connection at the asked version. */
 export const credentialServes = (

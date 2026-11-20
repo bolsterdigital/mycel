@@ -170,6 +170,7 @@ async function page(
       share: { title: model.title, type: 'article' as const },
       image: null,
     },
+    embeds: [],
     errorPrefix: 'Fout:',
   };
   const body = render(Page, { props: { data, form: null } as never }).body.replace(

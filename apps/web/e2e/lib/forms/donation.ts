@@ -3,8 +3,9 @@
 // with a donation form, passes the hop page to the provider's screen, chooses an outcome and
 // lands on the return page that shows it; a second visitor types an amount of their own and
 // fails. The administrator then finds both under Donations, and the paid one on the donor's own
-// page. Works the same in the no-js project: the hop is a meta refresh, not a script. The core
-// record is `packages/core/src/money/donation-form.test.ts`; the fixtures are made here.
+// page, and the dashboard's Gifts widget counts the paid one this month (MY-259 PR 2). Works the
+// same in the no-js project: the hop is a meta refresh, not a script. The core record is
+// `packages/core/src/money/donation-form.test.ts`; the fixtures are made here.
 
 import { expect, type Page } from '@playwright/test';
 import { systemPrincipal, useCases } from '@mycel/core';
@@ -70,6 +71,15 @@ export async function exerciseDonation(page: Page, project: string): Promise<voi
   const stamp = `${project}-${Date.now()}`;
   const paid = `gever-${stamp}@example.org`;
   const failed = `twijfel-${stamp}@example.org`;
+  // Other tests give in parallel, so the dashboard is held to "more than before", not a number.
+  const giftsBefore = await withInvoker(async (invoker) => {
+    const summary = await invoker.run(
+      useCases.getDonationSummary,
+      systemPrincipal(await tenantId(), 'e2e-donation'),
+      {}
+    );
+    return summary.currencies.find((c) => c.currency === 'EUR')?.month.gifts ?? 0;
+  });
 
   await page.goto(`/probe/${slug}`);
   const presets = page.getByRole('group', { name: 'Bedrag' });
@@ -117,4 +127,24 @@ export async function exerciseDonation(page: Page, project: string): Promise<voi
   await row(paid).getByRole('link', { name: paid }).click();
   await expect(page.getByRole('heading', { name: paid })).toBeVisible();
   await expect(page.getByText(/Gaf €\s?25/)).toBeVisible();
+
+  const gifts = page.getByRole('region', { name: 'Giften' });
+  const giftsNow = async () => {
+    await page.goto('/admin/probe');
+    const link = gifts.locator('a[href$="/donations?status=paid"]');
+    return (await link.count()) ? Number((await link.textContent())!.replace(/\D/g, '')) : 0;
+  };
+  await expect.poll(giftsNow, { timeout: 15_000 }).toBeGreaterThan(giftsBefore);
+  await expect(gifts.getByText('Ontvangen deze maand')).toBeVisible();
+  await expect(gifts.getByRole('link', { name: /betalende? le/ })).toHaveAttribute(
+    'href',
+    '/admin/probe/donations/recurring?status=active&kind=membership'
+  );
+  if (isA11y()) {
+    await expectNoAxeViolations(page, { label: 'dashboard with gifts' });
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'dashboard gifts at 320px / 200%', '.ui-widget:has(#dash-gifts)');
+    await setTextSize(page, '16px');
+  }
 }

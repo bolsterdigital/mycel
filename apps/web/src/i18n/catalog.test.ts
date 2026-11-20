@@ -4,13 +4,22 @@
 // in every consumer instead of one named failure here.
 
 import { describe, expect, it } from 'vitest';
-import { en } from './en.js';
+import { en, enAreas } from './en.js';
 import { plural, refusalCopy, ui } from './index.js';
-import { nl } from './nl.js';
+import { nl, nlAreas } from './nl.js';
 
 const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
 describe('web UI catalogs', () => {
+  // The areas are merged by spread, which keeps the last of two equal keys without a word.
+  it.each([
+    ['en', enAreas, en],
+    ['nl', nlAreas, nl],
+  ] as const)('declare each %s key in one area only', (_, areas, merged) => {
+    const declared = areas.reduce((n, area) => n + Object.keys(area).length, 0);
+    expect(declared).toBe(Object.keys(merged).length);
+  });
+
   it('translate every English key into Dutch', () => {
     expect(Object.keys(en).filter((k) => !(k in nl))).toEqual([]);
   });

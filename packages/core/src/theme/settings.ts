@@ -7,15 +7,9 @@ import { defineUseCase } from '../registry.js';
 import { UseCaseError } from '../errors.js';
 import { Theme } from './contrast.js';
 import './ports.js';
-import {
-  Palette,
-  CAPTION_FONTS,
-  DROP_CAPS,
-  FONT_PAIRS,
-  HEADING_WEIGHTS,
-  THEME_VERSION,
-} from './model.js';
+import { Palette, CAPTION_FONTS, DROP_CAPS, HEADING_WEIGHTS, THEME_VERSION } from './model.js';
 import { DEFAULT_THEME } from './presets.js';
+import { FONT_KEYS } from './fonts.js';
 import { DEFAULT_TIME_ZONE, IanaTimeZone } from '../util/time-zone.js';
 import { imageIssue } from '../content/service.js';
 import '../media/ports.js';
@@ -87,7 +81,8 @@ const ResolvedTheme = z
   .object({
     version: z.literal(THEME_VERSION),
     palettes: z.object({ light: Palette, dark: Palette }).strict(),
-    fontPair: z.enum(FONT_PAIRS),
+    headingFont: z.enum(FONT_KEYS),
+    bodyFont: z.enum(FONT_KEYS),
     baseSize: z.number(),
     scaleRatio: z.number(),
     measure: z.number(),

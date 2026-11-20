@@ -34,7 +34,7 @@ export const checkThemeUseCase = defineUseCase({
       },
       note: 'White on yellow: valid is false and the issue names palettes.light.primary.',
     },
-    { input: { theme: { fontPair: 'source-serif-inter', baseSize: 20 } } },
+    { input: { theme: { headingFont: 'mycel-serif', baseSize: 20 } } },
   ],
   handler: async (_ctx, { theme }) => checkTheme(theme),
 });

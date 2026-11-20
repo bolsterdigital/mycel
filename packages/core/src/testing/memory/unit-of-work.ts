@@ -47,7 +47,7 @@ import {
 } from './fakes.js';
 import { memoryFormMail, memoryForms, memoryRateLimits, memorySubmissions } from './forms.js';
 import { MemoryJobRecovery, MemoryScheduler } from './operations/jobs.js';
-import { memoryMailEditions, memoryMailSends } from './mailing.js';
+import { memoryMailAutomations, memoryMailEditions, memoryMailSends } from './mailing.js';
 import type { EmailRenderer } from '../../mailing/ports.js';
 import { MemoryBlobStore, memoryImageProcessor, memoryMedia } from './media.js';
 import {
@@ -63,7 +63,7 @@ import {
   memorySigninLinks,
   memorySupporters,
 } from './supporters.js';
-import { memoryExports, memoryHostnames, memoryUsage } from './tenants.js';
+import { memoryExports, memoryHostnames, memoryLaunchSteps, memoryUsage } from './tenants.js';
 
 export interface MemoryDeps {
   store?: MemoryStore;
@@ -205,11 +205,13 @@ export class MemoryUnitOfWork implements UnitOfWork {
         admissions: memoryAdmissions(s, tenantId, clock),
         mailSends: memoryMailSends(s),
         mailEditions: memoryMailEditions(s),
+        mailAutomations: memoryMailAutomations(s),
         signinLinks: memorySigninLinks(s),
         readerSessions: memoryReaderSessions(s),
         operators: memoryOperators(store.operators),
         members: memoryMembers(s, store.operators, memberLock.lock),
         attentionReads: memoryAttentionReads(s),
+        launchSteps: memoryLaunchSteps(s),
         apiKeys: memoryApiKeys(s),
         hostnames: memoryHostnames(store, s),
         jobs: new MemoryScheduler(store, tenantId, ids, clock),

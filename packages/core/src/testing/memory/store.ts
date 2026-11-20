@@ -30,7 +30,12 @@ import {
 } from '../../entitlements/model.js';
 import type { FormDefinition, Submission } from '../../forms/model.js';
 import type { JobRecord } from '../../jobs/ports.js';
-import type { MailEdition, MailSend } from '../../mailing/ports.js';
+import type {
+  MailAutomation,
+  MailAutomationRun,
+  MailEdition,
+  MailSend,
+} from '../../mailing/ports.js';
 import type { NewMedia } from '../../media/model.js';
 import type { NewApiKey } from '../../operators/ports.js';
 import type { Capability, Principal } from '../../principal.js';
@@ -51,6 +56,7 @@ import {
 import type { OperatorPreferences } from '../../operators/preferences.js';
 import { DEFAULT_RETENTION, type SiteRetention } from '../../ops/retention.js';
 import { DEFAULT_ANALYTICS, type AnalyticsSettings } from '../../analytics/model.js';
+import { DEFAULT_INTEGRATIONS, type IntegrationSettings } from '../../integrations/model.js';
 import type { TenantExportRecord } from '../../tenants/exports.js';
 import { platformHostname } from '../../tenants/model.js';
 import type { HostnameRecord, TenantInfo } from '../../tenants/ports.js';
@@ -62,6 +68,7 @@ export interface TenantStore {
   siteImages: { version: number; value: SiteImages };
   siteRetention: { version: number; value: SiteRetention };
   analytics: { version: number; value: AnalyticsSettings };
+  integrations: { version: number; value: IntegrationSettings };
   brandLogo: { version: number; asset: BrandAsset | null };
   brandFont: { version: number; asset: BrandAsset | null };
   connections: Map<string, ConnectionRecord>;
@@ -123,6 +130,12 @@ export interface TenantStore {
   /** Keyed by intent key. */
   mailSends: Map<string, MailSend>;
   mailEditions: Map<string, MailEdition>;
+  /** `mail_automations` with their steps (0082), keyed by id. */
+  mailAutomations: Map<string, MailAutomation>;
+  /** `mail_automation_runs`, keyed by `<automationId>:<supporterId>`. */
+  mailAutomationRuns: Map<string, MailAutomationRun>;
+  /** `launch_steps` (0085), keyed by step id. */
+  launchSteps: Map<string, import('../../launch/ports.js').LaunchStepRecord>;
   /** `reader_signin_links` and `reader_sessions` (0069), keyed by id. */
   signinLinks: Map<string, import('../../readers/model.js').SigninLink>;
   readerSessions: Map<string, import('../../readers/model.js').ReaderSession>;
@@ -172,6 +185,7 @@ const emptyTenant = (): TenantStore => ({
   siteImages: { version: 0, value: DEFAULT_IMAGES },
   siteRetention: { version: 0, value: DEFAULT_RETENTION },
   analytics: { version: 0, value: DEFAULT_ANALYTICS },
+  integrations: { version: 0, value: DEFAULT_INTEGRATIONS },
   brandLogo: { version: 0, asset: null },
   brandFont: { version: 0, asset: null },
   connections: new Map(),
@@ -222,6 +236,9 @@ const emptyTenant = (): TenantStore => ({
   projections: new Map(),
   mailSends: new Map(),
   mailEditions: new Map(),
+  mailAutomations: new Map(),
+  mailAutomationRuns: new Map(),
+  launchSteps: new Map(),
   signinLinks: new Map(),
   readerSessions: new Map(),
   members: new Map(),

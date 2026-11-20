@@ -120,3 +120,21 @@ An erasure deletes the erased supporter's edition intents by the id in their key
 | `EDITION_RUN_BUDGET_MS` | 3 min | `packages/core/src/mailing/edition-delivery.ts` | one run stops sending well inside the job's five-minute lease       |
 
 Not built yet, and needed before a first send from a production site: bounce and complaint webhooks into suppression, and the sending-domain check with warm-up (ADR 010 rule 8).
+
+## Welcome series
+
+The first automation of ADR 010 rule 10 (MY-258, `packages/core/src/mailing/automation.ts`, migration 0082): per list one series of one to five steps, each a published public page or article sent so many days (0 to 60) after a person joined the list.
+
+| Use case                    | Needs             | Does                                                                                                   |
+| --------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------ |
+| `mailing.automation.list`   | `supporters:read` | every series: list, on or off, steps, how many people started it and reached each step; no addresses   |
+| `mailing.automation.update` | `mailing:send`    | sets the steps and the switch of one list's series, creating it; refuses an item that cannot be mailed |
+| `mailing.automation.test`   | `mailing:send`    | every mailable step of the saved series to the operator's own address at once, `[Test]` in the subject |
+
+**Trigger.** The outbox subscriber `mailing.automation` reacts to a confirmed `newsletter.subscribed` or a `consent.given` for a list whose series is on: it starts a run (`mail_automation_runs`, one row per series and person) and plans the tenant job `mailing.automation.step` for step 0. A pending double opt-in starts nothing, and the run's primary key makes a series start once per person: leaving and joining again does not start it over. Who was a member before the series was switched on gets nothing.
+
+**A step.** The job checks that the series is on, the step exists and the person is still a member, then in one transaction moves the run's `through` to the step and publishes `mailing.automation.due` (ids only), and plans the next step at the moment of joining plus its delay. A job that runs twice finds `through` moved and publishes nothing. The subscriber `mailing.automation.mail` renders the item's revision published at that moment in the locale the person joined in (else the site's default) and sends it with `sendOnce` on the `bulk` stream, with the recipient's unsubscribe link and RFC 8058 headers; `mail.reconcile` rebuilds it from the due event. An item that is gone, unpublished in both locales or restricted is skipped and the next step still comes; switching the series off ends every run.
+
+**Test.** `mailing.automation.test` publishes one `mailing.automation.test_requested` per step whose item can be mailed; the subscriber `mailing.automation.test` renders it when it is sent, in the site's default locale where the item has it, and sends it on the `transactional` stream to the operator who asked, with the footer link to the plain unsubscribe page, as a newsletter test does. It starts no run and works on a series that is off.
+
+An erasure deletes the erased supporter's runs and the intents of their due events (`applyErasures`). The series and its steps travel in a tenant export; runs do not.

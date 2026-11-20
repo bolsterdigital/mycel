@@ -33,4 +33,54 @@ export async function probeFixtures(invoker, admin, useCases) {
       baseVersion: images.version,
       images: { ...images.value, workCredits: true },
     });
+
+  return { dossierId: await seedDossier(invoker, admin, useCases) };
+}
+
+/**
+ * A dossier with one member, in nl and en (MY-260), so the examples `overview-dossier-members`
+ * (its id stands in for `EXAMPLE_IDS.dossier`) and `overview-dossiers` render something, and the
+ * member's page shows a dossier box. Returns the dossier's id.
+ */
+async function seedDossier(invoker, admin, useCases) {
+  const publish = async ({ item, revision }) => {
+    for (const locale of ['nl', 'en'])
+      await invoker.run(useCases.publishItem, admin, {
+        itemId: item.id,
+        revisionId: revision.id,
+        locale,
+      });
+    return item;
+  };
+  const find = async (type, slug) =>
+    (await invoker.run(useCases.listItems, admin, { type, slug })).items[0];
+  const doc = (type, nl, en, over = {}) => ({
+    type,
+    defaultLocale: 'nl',
+    locales: ['nl', 'en'],
+    title: { nl, en },
+    blocks: [],
+    ...over,
+  });
+  const dossier =
+    (await find('page', 'e2e-dossier')) ??
+    (await publish(
+      await invoker.run(useCases.createItem, admin, {
+        slug: 'e2e-dossier',
+        document: doc('page', 'Betaalbaar wonen', 'Affordable housing', {
+          profile: 'dossier',
+          lead: { nl: 'Alles over wonen in de wijk.', en: 'All about housing in the area.' },
+        }),
+      })
+    ));
+  if (!(await find('article', 'e2e-dossier-lid')))
+    await publish(
+      await invoker.run(useCases.createItem, admin, {
+        slug: 'e2e-dossier-lid',
+        document: doc('article', 'Huren wordt duurder', 'Rents go up', {
+          dossiers: [{ itemId: dossier.id }],
+        }),
+      })
+    );
+  return dossier.id;
 }

@@ -80,6 +80,12 @@ export const MANAGE: NavSection = {
       hint: 'admin.supporters.hint',
     },
     {
+      path: 'welcome-mails',
+      label: 'admin.nav.welcome',
+      needs: 'supporters:read',
+      hint: 'admin.welcome.hint',
+    },
+    {
       path: 'donations',
       label: 'admin.donations.title',
       needs: 'donations:read',
@@ -126,6 +132,12 @@ export const MANAGE: NavSection = {
       label: 'admin.nav.export',
       needs: 'tenant:admin',
       hint: 'admin.manage.hint.export',
+    },
+    {
+      path: 'livegang',
+      label: 'admin.nav.launch',
+      needs: 'tenant:admin',
+      hint: 'admin.manage.hint.launch',
     },
   ],
 };

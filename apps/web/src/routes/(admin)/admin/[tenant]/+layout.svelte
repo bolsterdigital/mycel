@@ -88,6 +88,7 @@
         ...(
           [
             ['event', 'calendar'],
+            ['dossier', 'folder-open'],
             ['zone', 'panel-bottom'],
           ] as const
         ).map(([name, icon]) => ({

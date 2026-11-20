@@ -60,6 +60,7 @@ import {
   listDonations,
 } from './money/service.js';
 import { cancelSubscription, getSubscription, listSubscriptions } from './money/subscriptions.js';
+import { getDonationSummary } from './money/summary.js';
 import { getOwnGifts, requestOwnGiftsLink, updateOwnGift } from './money/self-service.js';
 import { requestMemberSignin } from './money/member-signin.js';
 import {
@@ -141,6 +142,7 @@ import { confirmSubscription, previewConfirmation } from './mailing/service.js';
 import { getEmail } from './mailing/email.js';
 import { confirmOptOut, previewOptOut } from './mailing/unsubscribe.js';
 import { getEdition, listEditions, sendEdition, testEdition } from './mailing/edition.js';
+import { listAutomations, testAutomation, updateAutomation } from './mailing/automation.js';
 import {
   bulkDeleteMedia,
   deleteMedia,
@@ -163,11 +165,13 @@ import {
 } from './operators/service.js';
 import { closeJob, getOpsStatus, retryJob } from './ops/service.js';
 import { getAttentionSummary, listAttention, updateAttentionSeenAt } from './attention/service.js';
+import { getLaunchChecklist, updateLaunchStep } from './launch/service.js';
 import { UseCaseRegistry, type UseCase } from './registry.js';
 import { changeSupporterEmail, getSupporter } from './supporters/service.js';
 import { listSupporters } from './supporters/listing.js';
 import { exportSupporters } from './supporters/export.js';
 import { getSupporterTimeline } from './supporters/timeline.js';
+import { getSupporterActivity } from './supporters/activity.js';
 import { createAccessGrant, revokeAccessGrant } from './supporters/access.js';
 import { getReaderAccount, withdrawReaderSubscription } from './readers/account.js';
 import {
@@ -203,6 +207,11 @@ import {
   getAnalyticsTracker,
   updateAnalyticsSettings,
 } from './analytics/service.js';
+import {
+  getIntegrationPlacement,
+  getIntegrationSettings,
+  updateIntegrationSettings,
+} from './integrations/service.js';
 import {
   addHostname,
   listHostnames,
@@ -318,6 +327,7 @@ export const useCases = {
   checkDonationReturn,
   getDonation,
   listDonations,
+  getDonationSummary,
   getSubscription,
   listSubscriptions,
   cancelSubscription,
@@ -357,10 +367,14 @@ export const useCases = {
   listEditions,
   testEdition,
   sendEdition,
+  listAutomations,
+  updateAutomation,
+  testAutomation,
   getSupporter,
   listSupporters,
   exportSupporters,
   getSupporterTimeline,
+  getSupporterActivity,
   changeSupporterEmail,
   eraseSupporter,
   getSupporterErasure,
@@ -431,12 +445,17 @@ export const useCases = {
   getAnalyticsSettings,
   updateAnalyticsSettings,
   getAnalyticsTracker,
+  getIntegrationSettings,
+  updateIntegrationSettings,
+  getIntegrationPlacement,
   getBrandAsset,
   putBrandAsset,
   removeBrandAsset,
   getAttentionSummary,
   listAttention,
   updateAttentionSeenAt,
+  getLaunchChecklist,
+  updateLaunchStep,
 } as const;
 
 export function buildRegistry(): UseCaseRegistry {

@@ -87,12 +87,61 @@ export function denyFraming(policy: string): string {
 
 /** Only the live draft document and the e-mail preview may be framed by their own admin origin. */
 export function frameAncestors(policy: string, source: "'none'" | "'self'"): string {
+  return directive(policy, 'frame-ancestors', source);
+}
+
+/**
+ * The sources one public response adds to the policy SvelteKit generated, from its integration
+ * decision (docs/reference/integrations.md): the catalogue's origins per direction, never a
+ * tenant's value, and whether the page may create the `default` Trusted Types policy that lets a
+ * tag manager's script URLs through (`static/_site/consent.js`).
+ */
+export interface PageSources {
+  script: readonly string[];
+  connect: readonly string[];
+  img: readonly string[];
+  frame: readonly string[];
+  defaultPolicy: boolean;
+}
+
+/**
+ * The policy with the page's sources added. A source list the config already has (script,
+ * connect, img) keeps its values, nonce included, and gains the origins; frames get `'self'` plus
+ * exactly the origins, replacing any earlier `frame-src`, because without one they fall back to
+ * `default-src 'self'`. Nothing to add leaves the policy as it was.
+ */
+export function pageSources(policy: string, sources: PageSources): string {
+  let out = policy;
+  for (const name of ['script', 'connect', 'img'] as const)
+    if (sources[name].length > 0) out = widen(out, `${name}-src`, sources[name]);
+  if (sources.frame.length > 0)
+    out = directive(out, 'frame-src', ["'self'", ...sources.frame].join(' '));
+  if (sources.defaultPolicy) out = widen(out, 'trusted-types', ['default']);
+  return out;
+}
+
+const valuesOf = (policy: string, name: string): string[] | null => {
+  const found = policy
+    .split(';')
+    .map((d) => d.trim().split(/\s+/))
+    .find(([n]) => n?.toLowerCase() === name);
+  return found ? found.slice(1) : null;
+};
+
+/** One directive gains values it does not have yet; a missing one starts from `'self'`. */
+function widen(policy: string, name: string, values: readonly string[]): string {
+  const current = valuesOf(policy, name) ?? (name === 'trusted-types' ? [] : ["'self'"]);
+  return directive(policy, name, [...new Set([...current, ...values])].join(' '));
+}
+
+/** The policy with one directive replaced, or appended when it had none; the rest untouched. */
+function directive(policy: string, name: string, value: string): string {
   const directives = policy
     .split(';')
     .map((d) => d.trim())
     .filter(Boolean)
-    .filter((d) => !/^frame-ancestors(\s|$)/i.test(d));
-  return [...directives, `frame-ancestors ${source}`].join('; ');
+    .filter((d) => d.split(/\s/, 1)[0]!.toLowerCase() !== name);
+  return [...directives, `${name} ${value}`].join('; ');
 }
 
 /** Sets the headers on a response, leaving any value a route chose itself. */
@@ -100,11 +149,14 @@ export function applySecurityHeaders(
   headers: Headers,
   kind: ResponseKind,
   https: boolean,
-  liveDraft = false
+  liveDraft = false,
+  sources: PageSources | null = null
 ): void {
   for (const [name, value] of Object.entries(securityHeaders(kind, https)))
     if (!headers.has(name)) headers.set(name, value);
   const policy = headers.get('content-security-policy');
+  if (kind === 'public' && policy && sources)
+    headers.set('content-security-policy', pageSources(policy, sources));
   if (kind === 'admin' && policy)
     headers.set('content-security-policy', frameAncestors(policy, liveDraft ? "'self'" : "'none'"));
 }

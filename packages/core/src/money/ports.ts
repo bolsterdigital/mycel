@@ -22,6 +22,7 @@
 // checkout.
 
 import type { LedgerEntry, Payment, PaymentStatus } from './model.js';
+import type { MoneyMovement } from './summary.js';
 import type {
   ChargeAttempt,
   Mandate,
@@ -150,6 +151,12 @@ export interface PaymentRepository {
   appendLedger(entry: LedgerEntry): Promise<void>;
   /** In the order the entries were appended; one walk writes several with the same `at`. */
   ledger(paymentId: string): Promise<LedgerEntry[]>;
+  /**
+   * The payment entries that moved money (`to` is `paid`, `refunded` or `charged_back`) with `at`
+   * from `from` up to and including `until`, oldest first (`summary.ts`). Subscription entries
+   * move no money and are not among them.
+   */
+  movements(from: Date, until: Date): Promise<MoneyMovement[]>;
 }
 
 export interface SubscriptionFilter {
@@ -175,6 +182,8 @@ export interface SubscriptionRepository {
   appendLedger(entry: SubscriptionLedgerEntry): Promise<void>;
   /** In the order the entries were appended. */
   ledger(subscriptionId: string): Promise<SubscriptionLedgerEntry[]>;
+  /** How many subscriptions of each kind are `active` now. */
+  countActive(): Promise<Record<SubscriptionKind, number>>;
   insertMandate(mandate: Mandate): Promise<void>;
   getMandate(id: string): Promise<Mandate | null>;
   insertAttempt(attempt: ChargeAttempt): Promise<void>;

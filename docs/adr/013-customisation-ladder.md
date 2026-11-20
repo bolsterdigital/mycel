@@ -34,3 +34,7 @@ What never exists: per-tenant CSS, template overrides, injected HTML or scripts,
 - Contrast validation runs in `core` on theme write and is also exposed as a query (`theme.check`) so the admin shows it live and an agent can call it.
 - The block registry records per block type its variants and layout props; the block conformance test (`docs/architecture/testing.md`) renders every variant.
 - A bespoke request becomes a brief in the public repo plus an entitlement change in hosting; the decision log notes which client asked, in the private planning sibling only.
+
+## Amendments
+
+- **2026-11-19, rule 1 (MY-261):** "one font pair from the curated self-hosted set" becomes "a heading font and a body font, each from the curated self-hosted catalogue". Eleven of the twelve Dreamkit sites combine a heading and a body font outside the two pairs, so a migrated site could not keep its letters, and pairs do not scale to the combinations those sites use. The catalogue stays closed and self-hosted: a theme names a key, never a family name or URL, and a heading weight the heading font has no face for is refused. The stored key `fontPair` is removed (migration 0084), without translating old values. An uploaded font for headings or body (the commercial fonts some sites use) is not part of this amendment.

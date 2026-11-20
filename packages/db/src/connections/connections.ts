@@ -16,7 +16,10 @@ import {
 } from '@mycel/core';
 import type { Database } from '../infra/schema.js';
 
-type Row = Selectable<Database['connections']> & { credential_id: string | null };
+type Row = Selectable<Database['connections']> & {
+  credential_id: string | null;
+  credential_mode: 'test' | 'live' | null;
+};
 
 function asRecord(r: Row): ConnectionRecord {
   return {
@@ -38,6 +41,7 @@ function asRecord(r: Row): ConnectionRecord {
     version: r.version,
     credentialVersion: r.credential_version,
     hasCredential: r.credential_id !== null,
+    credentialMode: r.credential_id !== null ? r.credential_mode : null,
     createdAt: new Date(r.created_at),
     updatedAt: new Date(r.updated_at),
   };
@@ -146,7 +150,7 @@ export function connectionRepository(
         join.onRef('k.connection_id', '=', 'c.id').onRef('k.tenant_id', '=', 'c.tenant_id')
       )
       .selectAll('c')
-      .select('k.connection_id as credential_id')
+      .select(['k.connection_id as credential_id', 'k.mode as credential_mode'])
       .where('c.tenant_id', '=', tenantId);
   const get = async (id: string) => {
     const row = await query().where('c.id', '=', id).executeTakeFirst();
@@ -231,7 +235,7 @@ export function connectionRepository(
           .execute();
       return get(id);
     },
-    async replaceCredential(id, baseVersion, secret, at) {
+    async replaceCredential(id, baseVersion, secret, mode, at) {
       if (!key) throw new Error('connection credential encryption is not configured');
       const row = await trx
         .updateTable('connections')
@@ -254,9 +258,12 @@ export function connectionRepository(
           connection_id: id,
           tenant_id: tenantId,
           ciphertext,
+          mode,
           updated_at: at,
         })
-        .onConflict((oc) => oc.column('connection_id').doUpdateSet({ ciphertext, updated_at: at }))
+        .onConflict((oc) =>
+          oc.column('connection_id').doUpdateSet({ ciphertext, mode, updated_at: at })
+        )
         .execute();
       return get(id);
     },

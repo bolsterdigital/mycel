@@ -1,6 +1,7 @@
 <!-- The site footer (docs/architecture/content-layout.md § Site chrome), from the same
      `chromeModel` as the header; the credit is decided there (ADR 015 rule 5). Each placed column
-     is its own list under its title, every group open, then the legal menu. -->
+     is its own list under its title, every group open, then the legal menu. A page that places a
+     tag manager adds the link to its consent choice (docs/reference/integrations.md § Consent). -->
 <script lang="ts">
   import { ui } from '../../i18n/index.js';
   import MycelCredit from './MycelCredit.svelte';
@@ -12,11 +13,13 @@
     credit,
     locale,
     current = null,
+    consentHref = null,
   }: {
     chrome: ChromeModel;
     credit: ChromeLink | null;
     locale: string;
     current?: string | null;
+    consentHref?: string | null;
   } = $props();
   const t = $derived(ui(locale));
 </script>
@@ -40,5 +43,8 @@
       {/if}
     </nav>
   {/if}
+  {#if consentHref}<p class="site-footer-consent">
+      <a href={consentHref}>{t('consent.footer')}</a>
+    </p>{/if}
   {#if credit}<MycelCredit {...credit} />{/if}
 </footer>

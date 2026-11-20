@@ -1,0 +1,66 @@
+/* The consent banner and choice page (docs/reference/integrations.md § Consent). A file of its own
+   in `static/`, linked only by a page that places a tag manager and by the choice page, so no
+   other page pays for it (ADR 022 rule 5). It reads the theme's tokens.
+   The banner sits in the flow above the content, a band on the surface pair; its actions wrap as
+   whole buttons and a label too long for its button wraps inside it at word boundaries (skill
+   ui-action-layout). Both choices look the same: refusing is as easy as accepting.
+   Rejected: a fixed bar over the page (it covers content and focus at 200 % zoom) and the styles
+   in base.css (every page would download them). */
+.consent-banner:not([hidden]) {
+  display: block;
+  padding: var(--space-3) var(--wide-inset);
+  color: var(--color-surface-fg);
+  background: var(--color-surface-bg);
+  border-block-end: 2px solid currentColor;
+}
+.consent-banner h2 {
+  margin-block: 0 var(--space-1);
+  font-size: var(--step-1);
+}
+.consent-banner p {
+  max-inline-size: var(--measure);
+  margin-block: 0 var(--space-2);
+}
+.consent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.consent-actions > button,
+.consent-actions > a {
+  flex: 0 1 auto;
+  min-block-size: var(--tap);
+  min-inline-size: var(--tap);
+  max-inline-size: 100%;
+  overflow-wrap: break-word;
+  text-align: center;
+}
+.consent-actions > a {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  color: inherit;
+}
+.consent-page .consent-category {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 var(--space-1);
+  align-items: center;
+  margin-block: var(--space-3);
+}
+.consent-page .consent-category input {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  margin: 0;
+}
+.consent-page .consent-category label {
+  font-weight: 600;
+  min-block-size: var(--tap);
+  display: flex;
+  align-items: center;
+}
+.consent-page .consent-category p {
+  grid-column: 2;
+  margin: 0;
+}

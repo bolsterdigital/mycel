@@ -1,5 +1,5 @@
 // The row stays tenant scoped under forced RLS. Every setting on it (theme, chrome, general,
-// images, retention, analytics, logo, font) is a value with its own version, written through one compare-and-set (`writeVersioned`). A
+// images, retention, analytics, integrations, logo, font) is a value with its own version, written through one compare-and-set (`writeVersioned`). A
 // column that was never written is null and reads as the current default, so the first write of
 // one setting does not freeze the defaults of the others (TODO #53). Rejected: read, then
 // unconditional update; and one upsert per setting, which drifted into three copies.
@@ -8,6 +8,9 @@ import {
   AnalyticsSettings,
   DEFAULT_ANALYTICS,
   type AnalyticsSettingsRepository,
+  DEFAULT_INTEGRATIONS,
+  IntegrationSettings,
+  type IntegrationSettingsRepository,
   DEFAULT_CHROME,
   DEFAULT_GENERAL,
   DEFAULT_IMAGES,
@@ -33,6 +36,7 @@ type VersionColumn =
   | 'images_version'
   | 'retention_version'
   | 'analytics_version'
+  | 'integrations_version'
   | 'logo_version'
   | 'font_version';
 
@@ -183,6 +187,36 @@ export function analyticsSettingsRepository(
     update: (baseVersion, value) =>
       writeVersioned(db, tenantId, 'analytics_version', baseVersion, {
         analytics: JSON.stringify(value),
+      }),
+  };
+}
+
+/**
+ * The managed-integration setting (docs/reference/integrations.md) on the same row. A stored value
+ * this version no longer accepts reads as everything off: a document that fails to parse must
+ * never switch an integration on.
+ */
+export function integrationSettingsRepository(
+  db: Kysely<Database>,
+  tenantId: string
+): IntegrationSettingsRepository {
+  return {
+    async get() {
+      const row = await db
+        .selectFrom('site_settings')
+        .select(['integrations', 'integrations_version'])
+        .where('tenant_id', '=', tenantId)
+        .executeTakeFirst();
+      const parsed =
+        row?.integrations == null ? null : IntegrationSettings.safeParse(row.integrations);
+      return {
+        version: row?.integrations_version ?? 0,
+        value: parsed?.success ? parsed.data : DEFAULT_INTEGRATIONS,
+      };
+    },
+    update: (baseVersion, value) =>
+      writeVersioned(db, tenantId, 'integrations_version', baseVersion, {
+        integrations: JSON.stringify(value),
       }),
   };
 }

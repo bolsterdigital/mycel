@@ -38,6 +38,9 @@
 // expired token stays), fetching the token outside the HTML (needs JavaScript, ADR 009), and a
 // validator that knows the token's age (a 304 still cannot replace the token).
 //
+// The dossier boxes (MY-260) are in the digest too: a member published or taken out, or the
+// dossier republished, changes what the box shows and so the tag.
+//
 // The pre-footer zone is part of the page: the zone the published navigation places
 // (`site.prefooter.get`), resolved like the page's own blocks, unless the item switches it off.
 // Its model is in the digest, and a form in it makes the page an item with a form, as above: a
@@ -75,8 +78,10 @@ import { READER_COOKIE, READER_PATH, readerOfRequest } from './reader.js';
 import { ogLocales } from './share-locale.js';
 import { sitePath, siteTenant, siteUrls, type Site } from '../site.js';
 import { siteBrand, siteChrome, siteNavigation, siteTheme } from './theme.js';
-import { siteTracker } from './analytics.js';
+import { siteTracker } from './scripts/analytics.js';
+import { sitePlacement } from './scripts/integrations.js';
 import { refuse } from '#lib/server/http/refuse.js';
+import { renderDossiers, type RenderDossiers } from './dossier-box.js';
 
 export interface PublicHead {
   /** The item's own address, or the editor's explicit canonical URL (`seo.canonical`). */
@@ -127,6 +132,8 @@ export interface PublicItem {
   dropCap: boolean;
   head: PublicHead;
   structured: ReturnType<typeof articleData> | ReturnType<typeof eventData>;
+  /** The dossier boxes under the body (MY-260), or null. */
+  dossiers: RenderDossiers | null;
   /** The zone between the content and the footer, or null. */
   prefooter: PublicZone | null;
   /** Set when the body was left out for this request; the page shows it after the teaser. */
@@ -291,6 +298,7 @@ export async function loadPublicItem(
           timeZone,
         });
   const gate = item.gate ? gateOf(site, item, locale) : null;
+  const dossiers = renderDossiers(item, locale, tenant.defaultLocale, timeZone);
   const page = {
     tenant,
     item,
@@ -301,6 +309,7 @@ export async function loadPublicItem(
     dropCap,
     head,
     structured,
+    dossiers,
     prefooter,
     gate,
     restricted,
@@ -315,6 +324,8 @@ export async function loadPublicItem(
   const navigation = await siteNavigation(site, locale);
   // Measurement on or off adds or removes the pageview tag (analytics.ts).
   const tracker = await siteTracker(site);
+  // And so does switching an integration: its player markup and the CSP (integrations.ts).
+  const integrations = await sitePlacement(site);
   const digest = createHash('sha256')
     .update(
       JSON.stringify({
@@ -328,9 +339,11 @@ export async function loadPublicItem(
         chrome,
         navigation,
         brand,
+        dossiers,
         prefooter,
         gate,
         tracker,
+        integrations,
       })
     )
     .digest('base64url')

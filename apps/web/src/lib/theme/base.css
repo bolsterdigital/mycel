@@ -187,6 +187,17 @@
     color: var(--color-surface-fg);
     background: var(--color-surface-bg);
   }
+  /* The dossier box under an item (MY-260): a rule above it parts it from the body; its member
+     list is the overview's list (overview.css), so a site keeps one list style. */
+  .dossier-box {
+    clear: both;
+    padding-block-start: var(--space-2);
+    border-block-start: 1px solid currentColor;
+  }
+  .dossier-box-kicker {
+    margin-block-end: 0;
+    font-size: var(--step--1);
+  }
   :is(.page, .page > :where(.preview-selectable)) > * {
     width: min(var(--content-width), 100% - 2 * var(--gutter));
     margin-inline: auto;
@@ -891,12 +902,38 @@
     text-align: center;
   }
 
-  /* Video: a plain link to the provider. */
+  /* Video: a link to the provider; where the site placed the provider, a play button above it in
+     the player's own shape, which the player replaces on a click (VideoEmbed.svelte). */
   .video {
     padding: var(--space-2) var(--inset);
     color: var(--color-surface-fg);
     background: var(--color-surface-bg);
     border-radius: var(--radius);
+  }
+  .video-player {
+    margin-block-end: var(--space-1);
+  }
+  .video-play,
+  .video-player iframe {
+    display: block;
+    inline-size: 100%;
+    aspect-ratio: 16 / 9;
+    border: 0;
+    border-radius: var(--radius);
+  }
+  .video-play {
+    padding: var(--space-2);
+    font: inherit;
+    font-weight: 600;
+    color: var(--color-primary-fg);
+    background: var(--color-primary-bg);
+    cursor: pointer;
+  }
+  .video-play::before {
+    content: '▶\FE0E' / '';
+    display: block;
+    margin-block-end: var(--space-0);
+    font-size: var(--step-3);
   }
   .video-link {
     margin: 0;

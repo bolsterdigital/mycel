@@ -1,5 +1,6 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
 import type { OperatorPreferences, OperatorSession, Principal, TenantInfo } from '@mycel/core';
+import type { PageSources } from '#lib/server/http/security-headers.js';
 import type { Site } from '#lib/server/site.js';
 
 declare global {
@@ -22,6 +23,8 @@ declare global {
        * Europe/Amsterdam. Set by `adminTimeZone` (lib/server/admin/admin.ts), the one place deciding it.
        */
       timeZone?: string;
+      /** What a public page's integration decision adds to its CSP (hooks.server.ts). */
+      pageSources?: PageSources;
     }
   }
 }

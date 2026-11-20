@@ -18,7 +18,7 @@ export function overviewFixture(props: BlockProps<'overview'>, locale: string): 
         };
   const entry = (n: number, pinned: boolean) => ({
     id: exampleId(0xe000 + n),
-    type: props.source === 'event' ? ('page' as const) : props.source,
+    type: props.source === 'article' ? ('article' as const) : ('page' as const),
     slug: locale === 'nl' ? `bericht-${n}` : `post-${n}`,
     revisionId: exampleId(0xe100 + n),
     date: `2026-11-0${n}T10:00:00.000Z`,

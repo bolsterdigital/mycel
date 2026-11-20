@@ -82,6 +82,8 @@ export interface Database {
     retention_version: Generated<number>;
     analytics: Json<unknown> | null;
     analytics_version: Generated<number>;
+    integrations: Json<unknown> | null;
+    integrations_version: Generated<number>;
   };
   connection_intents: {
     id: string;
@@ -154,6 +156,8 @@ export interface Database {
     connection_id: string;
     tenant_id: string;
     ciphertext: string;
+    /** `test` or `live`, from the key's prefix when it was written (0086); null otherwise. */
+    mode: 'test' | 'live' | null;
     updated_at: Timestamp;
   };
   tenants: {
@@ -225,7 +229,11 @@ export interface Database {
     id: string;
     tenant_id: string;
     type: 'page' | 'article';
-    profile: ColumnType<'event' | 'zone' | null, 'event' | 'zone' | null | undefined, never>;
+    profile: ColumnType<
+      'event' | 'zone' | 'dossier' | null,
+      'event' | 'zone' | 'dossier' | null | undefined,
+      never
+    >;
     slug: string;
     title: Json<Record<string, string>>;
     default_locale: string;
@@ -646,6 +654,38 @@ export interface Database {
     sent_at: Timestamp;
     delivered_through: string | null;
     completed_at: Timestamp | null;
+  };
+  mail_automations: {
+    tenant_id: string;
+    id: string;
+    list: string;
+    enabled: boolean;
+    created_at: Timestamp;
+    updated_at: Timestamp;
+  };
+  mail_automation_steps: {
+    tenant_id: string;
+    automation_id: string;
+    position: number;
+    item_id: string;
+    delay_days: number;
+  };
+  mail_automation_runs: {
+    tenant_id: string;
+    automation_id: string;
+    supporter_id: string;
+    started_at: Timestamp;
+    through: Generated<number>;
+  };
+  launch_steps: {
+    tenant_id: string;
+    step_id: string;
+    done: Generated<boolean>;
+    acknowledged: Generated<boolean>;
+    applicable: boolean | null;
+    owner: 'platform' | 'organisation' | 'shared' | null;
+    note: Generated<string>;
+    updated_at: Timestamp;
   };
   operators: {
     id: string;

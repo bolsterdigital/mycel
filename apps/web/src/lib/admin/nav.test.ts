@@ -27,6 +27,7 @@ describe('admin navigation data (#114)', () => {
       'Forms',
       'Reader access',
       'Supporters',
+      'Welcome mails',
       'Donations',
       'Connections',
       'API access',
@@ -35,6 +36,7 @@ describe('admin navigation data (#114)', () => {
       'Status',
       'Log',
       'Export',
+      'Launch',
     ];
     expect(labels(at(`${base}/beheer`)[0])).toEqual(all);
     expect(at(`${base}/beheer`)[0]!.children.some((c) => c.current)).toBe(false);

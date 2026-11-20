@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { PLAUSIBLE_EVENT_ENDPOINT, PLAUSIBLE_ORIGIN, pageviewDecision } from '@mycel/core';
 
 const script = readFileSync(
-  new URL('../../../../static/_site/pageview.js', import.meta.url),
+  new URL('../../../../../static/_site/pageview.js', import.meta.url),
   'utf8'
 );
 
@@ -102,7 +102,7 @@ describe('the pageview script', () => {
 
 describe('the Content-Security-Policy', () => {
   it('lets a page connect to its own origin and the one Plausible origin, nothing else', () => {
-    const config = readFileSync(new URL('../../../../vite.config.ts', import.meta.url), 'utf8');
+    const config = readFileSync(new URL('../../../../../vite.config.ts', import.meta.url), 'utf8');
     const connect = config.match(/'connect-src':\s*\[([^\]]*)\]/)?.[1];
     expect(connect?.split(',').map((s) => s.trim().replace(/'/g, ''))).toEqual([
       'self',

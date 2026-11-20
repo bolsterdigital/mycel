@@ -1005,12 +1005,20 @@ test.describe('admin-shell', () => {
 
   // #66 PR 1: the dashboard first, then three groups with short labels and icons; an article is
   // marked as an article in its list, its editor and its writer. Axe in both schemes.
-  test('the dashboard has six widgets and the navigation three groups', async ({ page }) => {
+  test('the dashboard has seven widgets and the navigation three groups', async ({ page }) => {
     await login(page, '/admin/probe', email);
     await checkShell(page, 'Probe', 'Dashboard');
     await expect(page.locator('.admin-menu > summary')).toBeHidden();
-    await expect(page.locator('.ui-dashboard > .ui-widget')).toHaveCount(6);
-    await expect(page.locator('.ui-widget.empty')).toHaveCount(2);
+    await expect(page.locator('.ui-dashboard > .ui-widget')).toHaveCount(7);
+    // None is a contour for a site administrator: "Visits" says whether the site measures and
+    // links to the setting either way; "Gifts" shows this month (MY-259 PR 2).
+    await expect(page.locator('.ui-widget.empty')).toHaveCount(0);
+    await expect(
+      page.getByRole('region', { name: 'Visits' }).locator('a[href$="/site#site-analytics"]')
+    ).toHaveCount(1);
+    await expect(
+      page.getByRole('region', { name: 'Gifts' }).getByRole('link', { name: /paying members?$/ })
+    ).toHaveCount(1);
     // Two columns on a wide screen, never three (brief edit-screen § 4).
     expect(
       await page
@@ -1035,7 +1043,15 @@ test.describe('admin-shell', () => {
     for (const [group, links] of [
       [
         'Content',
-        ['Pages', 'Articles', 'Events', 'Zones', 'Campaigns', 'People and organisations'],
+        [
+          'Pages',
+          'Articles',
+          'Events',
+          'Dossiers',
+          'Zones',
+          'Campaigns',
+          'People and organisations',
+        ],
       ],
       ['Library', ['Media', 'Patterns']],
     ] as const)
@@ -1060,6 +1076,7 @@ test.describe('admin-shell', () => {
       'Forms',
       'Reader access',
       'Supporters',
+      'Welcome mails',
       'Donations',
       'Connections',
       'API access',
@@ -1068,6 +1085,7 @@ test.describe('admin-shell', () => {
       'Status',
       'Log',
       'Export',
+      'Launch',
     ]);
     await page.getByRole('main').getByRole('link', { name: 'Domains' }).click();
     await expect(nav.getByRole('link', { name: 'Domains' })).toHaveAttribute(
@@ -1230,6 +1248,23 @@ test.describe('admin-shell', () => {
     await page.goto(`/admin/${slug}/site?section=theme`);
     const save = page.getByRole('button', { name: 'Save theme' });
     await expect(save).toBeInViewport();
+
+    // MY-261 PR 2: each font is a radio named by its family with a line set in that font, from
+    // the picker's own stylesheet; a heading weight the font has no face for is named on save.
+    const heading = page.getByRole('group', { name: 'Heading font' });
+    await expect(heading.locator('.ui-font-specimen[data-font="zilla-slab"]')).toHaveCSS(
+      'font-family',
+      /^"Zilla Slab"/
+    );
+    const faces = await page.evaluate(async () => document.fonts.load("700 20px 'Zilla Slab'"));
+    expect(faces).toHaveLength(1);
+    await heading.getByRole('radio', { name: 'Vesper Libre' }).check();
+    await page.locator('#site-headingWeight').fill('600');
+    await save.click();
+    await expect(
+      page.getByText('The heading font has no face in this heading weight.')
+    ).toBeVisible();
+    await expect(heading.getByRole('radio', { name: 'Vesper Libre' })).toBeChecked();
   });
 
   for (const locale of ['nl', 'en']) {
@@ -1618,6 +1653,7 @@ test.describe('supporters', () => {
     await login(page, '/admin/probe/beheer', author);
     await expect(page.getByRole('link', { name: 'Supporters', exact: true })).toHaveCount(0);
     expect((await page.goto('/admin/probe/supporters'))?.status()).toBe(403);
+    expect((await page.goto('/admin/probe/welcome-mails'))?.status()).toBe(403);
     await expect(page.getByText('lijst.example')).toHaveCount(0);
     expect((await page.goto(`/admin/probe/supporters/${broerId}`))?.status()).toBe(403);
     await expect(page.getByText('elders.example')).toHaveCount(0);

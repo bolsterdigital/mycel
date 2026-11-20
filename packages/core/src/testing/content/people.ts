@@ -70,6 +70,7 @@ export function teamAndNews(personId: string | undefined): BlockInput[] {
       props: {
         source: 'article',
         sectionId: null,
+        dossierId: null,
         tags: [],
         when: 'upcoming',
         order: 'newest',

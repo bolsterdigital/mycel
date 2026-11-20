@@ -63,7 +63,20 @@ function memoryPublished(
 ): Pick<ContentRepository, 'listPublished' | 'searchPublished' | 'publishedCards'> {
   return {
     async publishedCards(
-      { locale, type, sectionId, authorId, tags, ids, exclude, order, events, restricted },
+      {
+        locale,
+        type,
+        sectionId,
+        dossierId,
+        profile,
+        authorId,
+        tags,
+        ids,
+        exclude,
+        order,
+        events,
+        restricted,
+      },
       offset,
       limit
     ) {
@@ -72,6 +85,7 @@ function memoryPublished(
         // A zone is shown inside pages, never as a card or a row of its own.
         if (item.profile === 'zone') return [];
         if (type && item.type !== type) return [];
+        if (profile && item.profile !== profile) return [];
         if (ids && !ids.includes(item.id)) return [];
         if (exclude?.includes(item.id)) return [];
         const state = item.publication.find((p) => p.locale === locale && p.publishedRevisionId);
@@ -80,6 +94,7 @@ function memoryPublished(
         const doc = revision.document;
         if (doc.access.level !== 'public' && !restricted) return [];
         if (sectionId && (doc.type !== 'article' || doc.sectionId !== sectionId)) return [];
+        if (dossierId && !doc.dossiers?.some((d) => d.itemId === dossierId)) return [];
         if (authorId && (doc.type !== 'article' || !doc.authorIds.includes(authorId))) return [];
         if (tags?.length && (doc.type !== 'article' || !tags.every((t) => doc.tags.includes(t))))
           return [];
@@ -323,12 +338,12 @@ export function memoryContent(s: TenantStore): ContentRepository {
   };
 }
 
-/** Theme, chrome, general settings, analytics and brand assets, each a versioned value with a compare-and-set write. */
+/** Theme, chrome, general settings, analytics, integrations and brand assets, each a versioned value with a compare-and-set write. */
 export function memorySite(
   s: TenantStore
 ): Pick<
   TransactionContext,
-  'siteSettings' | 'analyticsSettings' | 'brandAssets' | 'brandProcessor'
+  'siteSettings' | 'analyticsSettings' | 'integrationSettings' | 'brandAssets' | 'brandProcessor'
 > {
   return {
     analyticsSettings: {
@@ -337,6 +352,14 @@ export function memorySite(
         if (s.analytics.version !== baseVersion) return null;
         s.analytics = { version: baseVersion + 1, value: structuredClone(value) };
         return s.analytics.version;
+      },
+    },
+    integrationSettings: {
+      get: async () => structuredClone(s.integrations),
+      update: async (baseVersion, value) => {
+        if (s.integrations.version !== baseVersion) return null;
+        s.integrations = { version: baseVersion + 1, value: structuredClone(value) };
+        return s.integrations.version;
       },
     },
     siteSettings: {

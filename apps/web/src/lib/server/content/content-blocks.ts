@@ -38,6 +38,7 @@ import {
 import { runtime } from '../runtime.js';
 import { peopleDirectory, groupDirectory } from '../people/directory.js';
 import { withAssigned } from './content-admin.js';
+import { dossierChoices } from './dossier-choices.js';
 import { mediaChoice } from '../admin/media-choices.js';
 import { richTextHtml } from '../../blocks/rich-text.js';
 import type { UiKey } from '../../../i18n/index.js';
@@ -61,7 +62,8 @@ export function itemLabel(item: Labelled, locale: string): string {
 /**
  * The images, items and sections the pickers offer: a page of each plus everything the blocks
  * use. Sections are `sectionChoices`, since the article's own section field already takes
- * `sections` on the edit screen.
+ * `sections` on the edit screen; `dossierChoices` are the dossier pages an overview filters on
+ * (MY-260), apart from `dossiers`, the item's own picker.
  */
 export async function pickerOptions(
   principal: Principal,
@@ -75,12 +77,13 @@ export async function pickerOptions(
   people: Option[];
   personGroups: Option[];
   sectionChoices: Option[];
+  dossierChoices: Option[];
   upload: boolean;
 }> {
   const { invoker } = runtime();
   const used = blockReferences(blocks);
   const orNull = <T>(p: Promise<T>) => p.catch(() => null);
-  const [media, items, sectionChoices] = await Promise.all([
+  const [media, items, sectionChoices, dossiers] = await Promise.all([
     mediaChoices(principal, [
       ...new Set([...used.media, ...used.documents, ...used.audio, ...alsoChosen]),
     ]),
@@ -105,6 +108,7 @@ export async function pickerOptions(
         (id) => ({ id, label: id })
       )
     ),
+    dossierChoices(principal, locale, []),
   ]);
   const people = (await peopleDirectory(principal, invoker)).map((p) => ({
     id: p.id,
@@ -120,6 +124,7 @@ export async function pickerOptions(
     people,
     personGroups,
     sectionChoices,
+    dossierChoices: dossiers.available,
     upload: can(principal, 'media:write'),
   };
 }

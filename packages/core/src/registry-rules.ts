@@ -50,6 +50,10 @@ const MODULES = [
   // ADR 005: a one-off gift; its payment and ledger are how it is recorded, not its name.
   'donation',
   'form',
+  // ADR 022 rules 5-7: the catalogue of managed site integrations and the tenant's switch.
+  'integration',
+  // ADR 037: the launch checklist, one per site; a step is its entity.
+  'launch',
   'mailing',
   'media',
   'ops',

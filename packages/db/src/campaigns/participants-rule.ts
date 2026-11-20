@@ -105,7 +105,13 @@ export async function observeParticipants(
   const file = await invoker.run(useCases.exportParticipations, admin, { campaignId: campaign.id });
   const lines = file.csv.split('\r\n');
 
+  // `supporter.activity.get` counts the same active participations per campaign.
+  const activity = await invoker.run(useCases.getSupporterActivity, admin, {
+    timeZone: 'UTC',
+    until: '2026-11-19T00:00:00Z',
+  });
   return {
+    activity: activity.campaigns.map((c) => `${c.title?.['nl']}: ${c.participations}`),
     beforeErasure,
     // The two of one moment lead; which of them is first is `tieByIdDescending`.
     tied: [first?.email, second?.email].sort().join(' '),
@@ -143,6 +149,7 @@ export async function observeParticipants(
 }
 
 export const expectedParticipants = {
+  activity: ['teken-hier: 3', 'teken-daar: 1'],
   beforeErasure: 5,
   tied: 'cato@example.org dirk@example.org',
   tieByIdDescending: true,

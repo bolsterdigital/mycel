@@ -18,6 +18,9 @@ import type {
 } from '../../../money/ports.js';
 import type { TenantStore } from '../store.js';
 
+/** The statuses whose entry moves money, as `movements` in 0072's adapter. */
+const MOVED = new Set(['paid', 'refunded', 'charged_back']);
+
 export function memoryPayments(s: TenantStore): PaymentRepository {
   const rows = s.payments;
   return {
@@ -64,6 +67,14 @@ export function memoryPayments(s: TenantStore): PaymentRepository {
     // The order of appending, as `seq` in 0072: not `at` or the id, which tie within one walk.
     ledger: async (paymentId) =>
       structuredClone(s.ledgerEntries.filter((e: LedgerEntry) => e.paymentId === paymentId)),
+    movements: async (from, until) =>
+      s.ledgerEntries
+        .filter((e) => {
+          const at = Date.parse(e.at);
+          return MOVED.has(e.to) && at >= from.getTime() && at <= until.getTime();
+        })
+        .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
+        .map(({ to, amount, currency, at }) => ({ to, amount, currency, at })),
   };
 }
 

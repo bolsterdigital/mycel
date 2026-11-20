@@ -12,13 +12,15 @@
      default image items inherit (#81-rest), and the theme whether articles open with a drop cap.
      API access (#101) is the site's API keys, moved from Members (lib/admin/ApiAccess.svelte).
      General also holds, for `tenant:admin` only, how long form submissions are kept and which
-     Plausible site counts its pageviews and signups. -->
+     Plausible site counts its pageviews and signups, and which managed integrations it places
+     (lib/admin/integrations/). -->
 <script lang="ts">
   import {
     AI_USES,
     CAPTION_FONTS,
     DROP_CAPS,
-    FONT_PAIRS,
+    FONT_KEYS,
+    FONTS,
     MAX_READER_ACTIVITY_DAYS,
     MAX_SUBMISSION_RETENTION_MONTHS,
     MIN_SUBMISSION_RETENTION_MONTHS,
@@ -29,6 +31,7 @@
     Actions,
     Button,
     Checkbox,
+    Choices,
     ColorField,
     Field,
     Fieldset,
@@ -42,6 +45,7 @@
     Table,
   } from '#lib/admin/ui/index.js';
   import ApiAccess from '#lib/admin/ApiAccess.svelte';
+  import IntegrationSettings from '#lib/admin/integrations/IntegrationSettings.svelte';
   import UsageList from '#lib/admin/UsageList.svelte';
   import { fill, plural, ui, type UiKey, refusalCopy } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -123,6 +127,7 @@
 </script>
 
 <svelte:head>
+  {#if data.section === 'theme'}<link rel="stylesheet" href="/_admin/font-specimens.css" />{/if}
   <title
     >{form?.problem || form?.error ? `${t('error.prefix')} ` : ''}{subject} · {t(
       'admin.site.title'
@@ -333,6 +338,17 @@
         />
       </SettingsSection>
     {/if}
+    {#if data.integrations}
+      <IntegrationSettings
+        state={data.integrations}
+        locale={data.locale}
+        action={action('integrations')}
+        saved={saved('integrations')}
+        values={form?.action === 'integrations' && 'values' in form
+          ? (form.values as Record<string, FormDataEntryValue>)
+          : undefined}
+      />
+    {/if}
   {:else if data.section === 'assist' && data.assist}
     {@const assist = data.assist}
     <SettingsSection
@@ -537,15 +553,29 @@
       {/each}
       <p class="ui-hint">{t('admin.site.cards.hint')}</p>
       <Fieldset legend={t('admin.site.group.type')}>
-        <Select
-          id="site-font"
-          name="fontPair"
-          label={t('admin.site.font')}
-          locale={data.locale}
-          size="m"
-          options={FONT_PAIRS.map((font) => ({ value: font, label: font }))}
-          value={value('fontPair', data.theme.value.fontPair)}
-        />
+        <!-- MY-261 PR 2: each font as a radio with a line in that font, so an editor chooses on
+             what they see; the faces come from /_admin/font-specimens.css, linked in the head of
+             this section only. The specimen is hidden from the radio's name, which stays the
+             family. A heading specimen is bold, as a heading is. -->
+        {#each ['headingFont', 'bodyFont'] as const as key (key)}
+          {#snippet specimen(option: { value: string; label: string })}
+            {option.label}<span
+              class={['ui-font-specimen', key === 'headingFont' && 'heading']}
+              data-font={option.value}
+              aria-hidden="true">{t('admin.site.font.specimen')}</span
+            >
+          {/snippet}
+          <Choices
+            id="site-{key}"
+            name={key}
+            legend={t(`admin.site.${key}`)}
+            locale={data.locale}
+            size="m"
+            options={FONT_KEYS.map((font) => ({ value: font, label: FONTS[font].family }))}
+            selected={[value(key, data.theme.value[key])]}
+            optionLabel={specimen}
+          />
+        {/each}
         <Select
           id="site-dropCap"
           name="dropCap"

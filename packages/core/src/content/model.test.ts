@@ -304,6 +304,38 @@ describe('the event profile (ADR 022 rule 3)', () => {
   });
 });
 
+describe('dossiers (MY-260)', () => {
+  const page = {
+    type: 'page',
+    defaultLocale: 'nl',
+    locales: ['nl'],
+    title: { nl: 'Huur' },
+    blocks: [],
+  };
+  const parse = (doc: object) => ContentDocument.safeParse(doc);
+  const ids = ['a', 'b', 'c', 'd'].map((n) => `00000000-0000-4000-8000-00000000000${n}`);
+
+  it('lets a page or article name up to three dossiers, once each', () => {
+    const three = ids.slice(0, 3).map((itemId) => ({ itemId }));
+    expect(parse({ ...page, dossiers: three, showDossier: false }).success).toBe(true);
+    expect(parse({ ...page, type: 'article', dossiers: three }).success).toBe(true);
+    expect(messages({ ...page, dossiers: ids.map((itemId) => ({ itemId })) })).toContain(
+      'content.dossier.too-many'
+    );
+    expect(messages({ ...page, dossiers: [{ itemId: ids[0] }, { itemId: ids[0] }] })).toContain(
+      'content.dossier.duplicate'
+    );
+    expect(parse({ ...page, showDossier: true }).success).toBe(false);
+  });
+
+  it('gives a dossier page no dossiers of its own', () => {
+    expect(parse({ ...page, profile: 'dossier' }).success).toBe(true);
+    expect(messages({ ...page, profile: 'dossier', dossiers: [{ itemId: ids[0] }] })).toContain(
+      'content.dossier.on-dossier'
+    );
+  });
+});
+
 describe('routes and tags (brief #8a § 2)', () => {
   it('turns a title into a valid slug, or nothing', () => {
     expect(slugFromTitle('  Wat we doen in 2026 ')).toBe('wat-we-doen-in-2026');

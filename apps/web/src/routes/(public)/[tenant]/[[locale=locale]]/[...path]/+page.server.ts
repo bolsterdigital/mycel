@@ -33,7 +33,8 @@ import { failureFor } from '#lib/server/public/form-post.js';
 import { NO_STORE, itemCacheHeaders } from '#lib/server/http/http-cache.js';
 import { forwardOldAddress } from '#lib/server/public/old-address.js';
 import { loadPublicItem } from '#lib/server/public/public-page.js';
-import { pageviewTag } from '#lib/server/public/analytics.js';
+import { pageviewTag } from '#lib/server/public/scripts/analytics.js';
+import { pagePlacement } from '#lib/server/public/scripts/integrations.js';
 import { runtime } from '#lib/server/runtime.js';
 import { absoluteSiteUrl, requireSite, sitePath, siteTenant } from '#lib/server/site.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -105,10 +106,23 @@ export const load: PageServerLoad = async ({
   // A failed post re-renders the page with the visitor's answers: never for a shared cache.
   const read = request.method === 'GET' || request.method === 'HEAD';
   setHeaders(itemCacheHeaders(read ? view : { ...view, etag: null }));
+  // The players this page may load on a click, the tag manager it may load after consent, and
+  // their origins for the CSP (integrations.ts).
+  const response = { method: request.method, status: 200, url, thanks: false };
+  const blocks = [...view.model.blocks, ...(view.prefooter?.model.blocks ?? [])];
+  const { embeds, consent, sources } = await pagePlacement(
+    site,
+    response,
+    view.item,
+    locale,
+    blocks
+  );
+  if (sources) locals.pageSources = sources;
   return {
     view: 'item' as const,
     model: view.model,
     prefooter: view.prefooter,
+    dossiers: view.dossiers,
     gate: view.gate,
     intro: view.intro,
     corrections: view.corrections,
@@ -116,12 +130,9 @@ export const load: PageServerLoad = async ({
     head: view.head,
     structured: view.structured,
     // Only a successful GET of a published public item counts (analytics.ts).
-    pageview: await pageviewTag(
-      site,
-      { method: request.method, status: 200, url, thanks: false },
-      view.item,
-      locale
-    ),
+    pageview: await pageviewTag(site, response, view.item, locale),
+    embeds,
+    consent,
     errorPrefix: t('error.prefix'),
   };
 };

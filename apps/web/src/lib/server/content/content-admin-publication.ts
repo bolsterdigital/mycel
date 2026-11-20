@@ -52,6 +52,7 @@ export function fieldOf(path: string, locale: string): string | null {
   if (head === 'delivery' && rest[1] === 'subject') return `emailSubject.${rest[2] ?? locale}`;
   if (head === 'authorIds') return 'authors';
   if (head === 'sectionId') return 'sectionId';
+  if (head === 'dossiers') return 'dossiers';
   if (head === 'access') return 'level';
   if (head === 'at') return `at.${locale}`;
   if (head === 'event' && rest[0] === 'startsAt') return 'eventStartsAt';
