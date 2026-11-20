@@ -766,4 +766,164 @@ export const admin = {
   'admin.ui.catalogue.writingSheet': 'Writing sheet',
   'admin.ui.catalogue.writingSheet.intro':
     'Tools and labels stay outside the words; the surface follows the colour scheme.',
+  'admin.nav.launch': 'Launch',
+  'admin.manage.hint.launch':
+    'What still has to happen before, on and after the day the site goes live.',
+  'admin.launch.title': 'Launch',
+  'admin.launch.intro':
+    'Everything that has to happen before, on and after the day this site goes live, who does it, and what Mycel checked itself. The list advises; it never stops anything.',
+  'admin.launch.verdict.ready': 'Ready to go live',
+  'admin.launch.verdict.one': '{n} step before the launch is still open',
+  'admin.launch.verdict.other': '{n} steps before the launch are still open',
+  'admin.launch.checked': 'Checked',
+  'admin.launch.phase.prepare': 'Preparation',
+  'admin.launch.phase.prepare.intro':
+    'Before the launch day: content, team, forms, payments and statistics in order.',
+  'admin.launch.phase.launch': 'Launch day',
+  'admin.launch.phase.launch.intro': 'The decision, the domain and the first real payment.',
+  'admin.launch.phase.after': 'After the launch',
+  'admin.launch.phase.after.intro':
+    'The week after: checking what visitors see. Does not count for the verdict.',
+  'admin.launch.progress': '{complete} of {total} done',
+  'admin.launch.off.one': '{n} step does not apply',
+  'admin.launch.off.other': '{n} steps do not apply',
+  'admin.launch.save': 'Save',
+  'admin.launch.done.saved.one': '{n} step saved.',
+  'admin.launch.done.saved.other': '{n} steps saved.',
+  'admin.launch.moved.one':
+    '{n} step was changed by someone else in the meantime and stays as they saved it. Check it below.',
+  'admin.launch.moved.other':
+    '{n} steps were changed by someone else in the meantime and stay as they saved them. Check them below.',
+  'admin.launch.done.unchanged': 'Nothing changed.',
+  'admin.launch.error.invalid':
+    'This step could not be saved. Check the note: at most 1000 characters.',
+  'admin.launch.status.done': 'Done',
+  'admin.launch.status.open': 'Open',
+  'admin.launch.status.pass': 'In order',
+  'admin.launch.status.warn': 'Look at this',
+  'admin.launch.status.fail': 'Not in order yet',
+  'admin.launch.status.na': 'Does not apply',
+  'admin.launch.status.accepted': 'Accepted',
+  'admin.launch.tick.done': 'Done',
+  'admin.launch.tick.accept': 'Accept this as it is',
+  'admin.launch.note': 'Note',
+  'admin.launch.adjust.note': 'Add a note or adjust',
+  'admin.launch.adjust': 'Adjust',
+  'admin.launch.owner': 'Who does it',
+  'admin.launch.owner.default': 'As the list says',
+  'admin.launch.owner.platform': 'Platform',
+  'admin.launch.owner.organisation': 'Organisation',
+  'admin.launch.owner.shared': 'Together',
+  'admin.launch.applicable': 'Applies to this site',
+  'admin.launch.applicable.default': "Follow the site's features",
+  'admin.launch.applicable.on': 'Applies',
+  'admin.launch.applicable.off': 'Does not apply',
+  'admin.launch.applicable.entitlement': 'This site does not have the feature this step is about.',
+  'admin.launch.forms': 'Forms:',
+  'admin.launch.form.untitled': 'Form without a name',
+  'admin.launch.fix.home-published': 'Go to pages',
+  'admin.launch.fix.team-ready': 'Go to members',
+  'admin.launch.fix.form-notifications': 'Go to forms',
+  'admin.launch.fix.payments-connected': 'Go to connections',
+  'admin.launch.fix.analytics': 'Go to statistics',
+  'admin.launch.fix.custom-domain': 'Go to domains',
+  'admin.launch.fix.ops-healthy': 'Go to the status page',
+  'admin.launch.check.home-published.missing': 'There is no home page yet.',
+  'admin.launch.check.home-published.unpublished':
+    'The home page is not published in any language.',
+  'admin.launch.check.home-published.partly': 'The home page is not published yet in: {locales}.',
+  'admin.launch.check.home-published.ok': 'The home page is published.',
+  'admin.launch.check.team-ready.nobody': 'Nobody can manage or edit the site yet.',
+  'admin.launch.check.team-ready.pending': 'Invitations not accepted yet: {count}.',
+  'admin.launch.check.team-ready.ok': 'The team can sign in.',
+  'admin.launch.check.form-notifications.none': 'This site has no forms.',
+  'admin.launch.check.form-notifications.silent': 'Forms that notify nobody: {count}.',
+  'admin.launch.check.form-notifications.ok': 'Every form notifies someone.',
+  'admin.launch.check.payments-connected.missing': 'There is no Mollie connection.',
+  'admin.launch.check.payments-connected.attention': 'The Mollie connection needs attention.',
+  'admin.launch.check.payments-connected.ok': 'Mollie is connected.',
+  'admin.launch.check.analytics.off': 'Statistics are off.',
+  'admin.launch.check.analytics.mismatch':
+    'Statistics count for {domain}, not for the address of this site.',
+  'admin.launch.check.analytics.ok': 'Statistics are on.',
+  'admin.launch.check.custom-domain.missing': 'The site has no domain of its own yet.',
+  'admin.launch.check.custom-domain.unverified': '{hostname} is not verified yet.',
+  'admin.launch.check.custom-domain.not-primary':
+    '{hostname} is verified but is not the address of the site.',
+  'admin.launch.check.custom-domain.ok': 'The site runs on {hostname}.',
+  'admin.launch.check.ops-healthy.attention':
+    'The status page has something that needs an administrator.',
+  'admin.launch.check.ops-healthy.ok': 'Background work and mail are running.',
+  'admin.launch.step.home-published.title': 'Home page published',
+  'admin.launch.step.home-published.description':
+    'The page people land on is published in every language of the site.',
+  'admin.launch.step.team-ready.title': 'Team can sign in',
+  'admin.launch.step.team-ready.description':
+    'At least one administrator or editor of the organisation has accepted the invitation.',
+  'admin.launch.step.form-notifications.title': 'Forms notify someone',
+  'admin.launch.step.form-notifications.description':
+    'Every form sends a notification to someone who reads it.',
+  'admin.launch.step.payments-connected.title': 'Payments connected',
+  'admin.launch.step.payments-connected.description':
+    'The site is connected to Mollie, so gifts can be taken.',
+  'admin.launch.step.test-donation.title': 'Test donation made',
+  'admin.launch.step.test-donation.description':
+    'A gift went through with the test key, from the form to the thank-you page.',
+  'admin.launch.step.newsletter-signup-tested.title': 'Newsletter signup tested',
+  'admin.launch.step.newsletter-signup-tested.description':
+    'Someone signed up, confirmed, and was on the list.',
+  'admin.launch.step.analytics.title': 'Statistics on',
+  'admin.launch.step.analytics.description':
+    'Visits are counted for the address the site will have.',
+  'admin.launch.step.consent-banner.title': 'Consent banner checked',
+  'admin.launch.step.consent-banner.description':
+    'The cookie banner asks for what the site actually loads, and in the right category.',
+  'admin.launch.step.content-reviewed.title': 'Content reviewed',
+  'admin.launch.step.content-reviewed.description':
+    'Pages and forms walked through on a phone and on a desktop.',
+  'admin.launch.step.redirects.title': 'Old addresses redirected',
+  'admin.launch.step.redirects.description':
+    'Addresses from the old site lead to the right page on this one.',
+  'admin.launch.step.content-freeze.title': 'Content freeze agreed',
+  'admin.launch.step.content-freeze.description':
+    'Nobody changes the old site any more after the agreed moment.',
+  'admin.launch.step.old-platform-export.title': 'Old site exported',
+  'admin.launch.step.old-platform-export.description':
+    'A full export of the old site is kept somewhere safe.',
+  'admin.launch.step.dns-ttl-lowered.title': 'DNS TTL lowered',
+  'admin.launch.step.dns-ttl-lowered.description':
+    'The time to live of the domain is lowered a day ahead, so the switch is quick.',
+  'admin.launch.step.backup.title': 'Backup made',
+  'admin.launch.step.backup.description': 'A backup of this site was made and can be restored.',
+  'admin.launch.step.go-no-go.title': 'Go or no-go',
+  'admin.launch.step.go-no-go.description': 'The organisation decided the site goes live.',
+  'admin.launch.step.dns-cutover.title': 'DNS switched',
+  'admin.launch.step.dns-cutover.description': 'The domain points to this site.',
+  'admin.launch.step.custom-domain.title': 'Own domain live',
+  'admin.launch.step.custom-domain.description': 'The site runs on its own verified domain.',
+  'admin.launch.step.mollie-live.title': 'Mollie live key',
+  'admin.launch.step.mollie-live.description': 'Payments use the live key, not the test key.',
+  'admin.launch.step.live-test-payment.title': 'Real payment made',
+  'admin.launch.step.live-test-payment.description':
+    'A small real gift went through and shows under Donations.',
+  'admin.launch.step.ops-healthy.title': 'Background work running',
+  'admin.launch.step.ops-healthy.description':
+    'Nothing is stuck in background work, mail or erasure requests.',
+  'admin.launch.step.smoke-test.title': 'Smoke test on the live site',
+  'admin.launch.step.smoke-test.description':
+    'The most important pages and forms work on the live address.',
+  'admin.launch.step.broken-links.title': 'Broken links checked',
+  'admin.launch.step.broken-links.description': 'No link on the site leads nowhere.',
+  'admin.launch.step.search-console.title': 'Search engines told',
+  'admin.launch.step.search-console.description':
+    'The site and its sitemap (/sitemap.xml) are submitted to Google Search Console.',
+  'admin.launch.step.analytics-verified.title': 'Statistics checked',
+  'admin.launch.step.analytics-verified.description':
+    'The first visits on the live address show up in the statistics.',
+  'admin.launch.step.dns-ttl-restored.title': 'DNS TTL restored',
+  'admin.launch.step.dns-ttl-restored.description':
+    'The time to live of the domain is back to its usual value.',
+  'admin.launch.step.launch-mail.title': 'Editors told',
+  'admin.launch.step.launch-mail.description':
+    'The editors know the site is live and where to sign in.',
 } as const;

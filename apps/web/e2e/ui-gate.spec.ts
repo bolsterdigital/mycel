@@ -1085,6 +1085,7 @@ test.describe('admin-shell', () => {
       'Status',
       'Log',
       'Export',
+      'Launch',
     ]);
     await page.getByRole('main').getByRole('link', { name: 'Domains' }).click();
     await expect(nav.getByRole('link', { name: 'Domains' })).toHaveAttribute(

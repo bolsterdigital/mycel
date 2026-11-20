@@ -50,6 +50,8 @@ export const ADMIN_ROUTES: GateRoute[] = [
   { path: '/admin/probe/connections', within: 'main', folds: true },
   { path: '/admin/probe/export', within: 'main', folds: true },
   { path: '/admin/probe/status', within: 'main', folds: true },
+  // The launch checklist with every fold open: a step's Adjust and a phase's steps that do not apply.
+  { path: '/admin/probe/livegang', within: 'main', folds: true },
   { path: '/admin/probe/status/audit', within: 'main' },
   { path: '/admin/probe/meldingen', within: 'main' },
   { path: '/admin/probe/media/trash', within: 'main' },

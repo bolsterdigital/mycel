@@ -773,4 +773,168 @@ export const admin: Partial<Record<UiKey, string>> = {
   'admin.ui.catalogue.writingSheet': 'Schrijfvlak',
   'admin.ui.catalogue.writingSheet.intro':
     'Bediening en labels staan buiten de woorden; het vlak volgt het kleurenschema.',
+  'admin.nav.launch': 'Livegang',
+  'admin.manage.hint.launch': 'Wat er vóór, op en na de livegang nog moet gebeuren.',
+  'admin.launch.title': 'Livegang',
+  'admin.launch.intro':
+    'Alles wat er vóór, op en na de dag dat deze site live gaat moet gebeuren, wie het doet en wat Mycel zelf heeft gecontroleerd. De lijst adviseert; hij houdt nooit iets tegen.',
+  'admin.launch.verdict.ready': 'Klaar om live te gaan',
+  'admin.launch.verdict.one': 'Nog {n} stap vóór de livegang open',
+  'admin.launch.verdict.other': 'Nog {n} stappen vóór de livegang open',
+  'admin.launch.checked': 'Gecontroleerd',
+  'admin.launch.phase.prepare': 'Voorbereiding',
+  'admin.launch.phase.prepare.intro':
+    'Vóór de livegangsdag: inhoud, team, formulieren, betalingen en statistiek op orde.',
+  'admin.launch.phase.launch': 'Livegangsdag',
+  'admin.launch.phase.launch.intro': 'Het besluit, het domein en de eerste echte betaling.',
+  'admin.launch.phase.after': 'Na de livegang',
+  'admin.launch.phase.after.intro':
+    'De week erna: nalopen wat bezoekers zien. Telt niet mee voor het oordeel.',
+  'admin.launch.progress': '{complete} van {total} af',
+  'admin.launch.off.one': '{n} stap niet van toepassing',
+  'admin.launch.off.other': '{n} stappen niet van toepassing',
+  'admin.launch.save': 'Opslaan',
+  'admin.launch.done.saved.one': '{n} stap opgeslagen.',
+  'admin.launch.done.saved.other': '{n} stappen opgeslagen.',
+  'admin.launch.moved.one':
+    '{n} stap is intussen door iemand anders gewijzigd en blijft zoals die hem opsloeg. Kijk hem hieronder na.',
+  'admin.launch.moved.other':
+    '{n} stappen zijn intussen door iemand anders gewijzigd en blijven zoals die ze opsloeg. Kijk ze hieronder na.',
+  'admin.launch.done.unchanged': 'Er is niets veranderd.',
+  'admin.launch.error.invalid':
+    'Deze stap kon niet worden opgeslagen. Kijk de notitie na: hooguit 1000 tekens.',
+  'admin.launch.status.done': 'Gedaan',
+  'admin.launch.status.open': 'Open',
+  'admin.launch.status.pass': 'In orde',
+  'admin.launch.status.warn': 'Kijk hiernaar',
+  'admin.launch.status.fail': 'Nog niet in orde',
+  'admin.launch.status.na': 'Niet van toepassing',
+  'admin.launch.status.accepted': 'Geaccepteerd',
+  'admin.launch.tick.done': 'Gedaan',
+  'admin.launch.tick.accept': 'Zo accepteren',
+  'admin.launch.note': 'Notitie',
+  'admin.launch.adjust.note': 'Notitie of aanpassen',
+  'admin.launch.adjust': 'Aanpassen',
+  'admin.launch.owner': 'Wie doet het',
+  'admin.launch.owner.default': 'Zoals de lijst zegt',
+  'admin.launch.owner.platform': 'Platform',
+  'admin.launch.owner.organisation': 'Organisatie',
+  'admin.launch.owner.shared': 'Samen',
+  'admin.launch.applicable': 'Geldt voor deze site',
+  'admin.launch.applicable.default': 'Volgt de onderdelen van de site',
+  'admin.launch.applicable.on': 'Van toepassing',
+  'admin.launch.applicable.off': 'Niet van toepassing',
+  'admin.launch.applicable.entitlement':
+    'Deze site heeft het onderdeel niet waar deze stap over gaat.',
+  'admin.launch.forms': 'Formulieren:',
+  'admin.launch.form.untitled': 'Formulier zonder naam',
+  'admin.launch.fix.home-published': "Naar pagina's",
+  'admin.launch.fix.team-ready': 'Naar leden',
+  'admin.launch.fix.form-notifications': 'Naar formulieren',
+  'admin.launch.fix.payments-connected': 'Naar verbindingen',
+  'admin.launch.fix.analytics': 'Naar statistiek',
+  'admin.launch.fix.custom-domain': 'Naar domeinen',
+  'admin.launch.fix.ops-healthy': 'Naar de statuspagina',
+  'admin.launch.check.home-published.missing': 'Er is nog geen homepage.',
+  'admin.launch.check.home-published.unpublished':
+    'De homepage is in geen enkele taal gepubliceerd.',
+  'admin.launch.check.home-published.partly': 'De homepage is nog niet gepubliceerd in: {locales}.',
+  'admin.launch.check.home-published.ok': 'De homepage is gepubliceerd.',
+  'admin.launch.check.team-ready.nobody': 'Nog niemand kan de site beheren of bewerken.',
+  'admin.launch.check.team-ready.pending': 'Nog niet geaccepteerde uitnodigingen: {count}.',
+  'admin.launch.check.team-ready.ok': 'Het team kan inloggen.',
+  'admin.launch.check.form-notifications.none': 'Deze site heeft geen formulieren.',
+  'admin.launch.check.form-notifications.silent':
+    'Formulieren die niemand een melding sturen: {count}.',
+  'admin.launch.check.form-notifications.ok': 'Elk formulier stuurt iemand een melding.',
+  'admin.launch.check.payments-connected.missing': 'Er is geen Mollie-verbinding.',
+  'admin.launch.check.payments-connected.attention': 'De Mollie-verbinding vraagt aandacht.',
+  'admin.launch.check.payments-connected.ok': 'Mollie is verbonden.',
+  'admin.launch.check.analytics.off': 'Statistiek staat uit.',
+  'admin.launch.check.analytics.mismatch':
+    'Statistiek telt voor {domain}, niet voor het adres van deze site.',
+  'admin.launch.check.analytics.ok': 'Statistiek staat aan.',
+  'admin.launch.check.custom-domain.missing': 'De site heeft nog geen eigen domein.',
+  'admin.launch.check.custom-domain.unverified': '{hostname} is nog niet geverifieerd.',
+  'admin.launch.check.custom-domain.not-primary':
+    '{hostname} is geverifieerd, maar is niet het adres van de site.',
+  'admin.launch.check.custom-domain.ok': 'De site draait op {hostname}.',
+  'admin.launch.check.ops-healthy.attention':
+    'De statuspagina heeft iets dat een beheerder nodig heeft.',
+  'admin.launch.check.ops-healthy.ok': 'Achtergrondwerk en mail lopen.',
+  'admin.launch.step.home-published.title': 'Homepage gepubliceerd',
+  'admin.launch.step.home-published.description':
+    'De pagina waar bezoekers binnenkomen staat in elke taal van de site online.',
+  'admin.launch.step.team-ready.title': 'Team kan inloggen',
+  'admin.launch.step.team-ready.description':
+    'Minstens één beheerder of redacteur van de organisatie heeft de uitnodiging geaccepteerd.',
+  'admin.launch.step.form-notifications.title': 'Formulieren sturen meldingen',
+  'admin.launch.step.form-notifications.description':
+    'Elk formulier stuurt een melding naar iemand die hem leest.',
+  'admin.launch.step.payments-connected.title': 'Betalingen gekoppeld',
+  'admin.launch.step.payments-connected.description':
+    'De site is gekoppeld aan Mollie, zodat giften binnen kunnen komen.',
+  'admin.launch.step.test-donation.title': 'Testdonatie gedaan',
+  'admin.launch.step.test-donation.description':
+    'Een gift is met de testsleutel doorlopen, van formulier tot bedankpagina.',
+  'admin.launch.step.newsletter-signup-tested.title': 'Nieuwsbriefaanmelding getest',
+  'admin.launch.step.newsletter-signup-tested.description':
+    'Iemand heeft zich aangemeld, bevestigd en stond daarna op de lijst.',
+  'admin.launch.step.analytics.title': 'Statistiek aan',
+  'admin.launch.step.analytics.description':
+    'Bezoeken worden geteld voor het adres dat de site krijgt.',
+  'admin.launch.step.consent-banner.title': 'Toestemmingsbanner nagelopen',
+  'admin.launch.step.consent-banner.description':
+    'De cookiebanner vraagt om wat de site echt laadt, in de juiste categorie.',
+  'admin.launch.step.content-reviewed.title': 'Inhoud nagelopen',
+  'admin.launch.step.content-reviewed.description':
+    "Pagina's en formulieren doorgelopen op telefoon en desktop.",
+  'admin.launch.step.redirects.title': 'Oude adressen doorverwezen',
+  'admin.launch.step.redirects.description':
+    'Adressen van de oude site komen uit op de juiste pagina van deze site.',
+  'admin.launch.step.content-freeze.title': 'Contentstop afgesproken',
+  'admin.launch.step.content-freeze.description':
+    'Na het afgesproken moment wijzigt niemand meer iets op de oude site.',
+  'admin.launch.step.old-platform-export.title': 'Oude site geëxporteerd',
+  'admin.launch.step.old-platform-export.description':
+    'Een volledige export van de oude site staat ergens veilig.',
+  'admin.launch.step.dns-ttl-lowered.title': 'DNS-TTL verlaagd',
+  'admin.launch.step.dns-ttl-lowered.description':
+    'De TTL van het domein is een dag van tevoren verlaagd, zodat de omzetting snel gaat.',
+  'admin.launch.step.backup.title': 'Back-up gemaakt',
+  'admin.launch.step.backup.description':
+    'Er is een back-up van deze site gemaakt die terug te zetten is.',
+  'admin.launch.step.go-no-go.title': 'Go of no-go',
+  'admin.launch.step.go-no-go.description': 'De organisatie heeft besloten dat de site live gaat.',
+  'admin.launch.step.dns-cutover.title': 'DNS omgezet',
+  'admin.launch.step.dns-cutover.description': 'Het domein wijst naar deze site.',
+  'admin.launch.step.custom-domain.title': 'Eigen domein live',
+  'admin.launch.step.custom-domain.description':
+    'De site draait op zijn eigen, geverifieerde domein.',
+  'admin.launch.step.mollie-live.title': 'Mollie-livesleutel',
+  'admin.launch.step.mollie-live.description':
+    'Betalingen lopen via de livesleutel, niet via de testsleutel.',
+  'admin.launch.step.live-test-payment.title': 'Echte betaling gedaan',
+  'admin.launch.step.live-test-payment.description':
+    'Een kleine echte gift is doorgelopen en staat onder Giften.',
+  'admin.launch.step.ops-healthy.title': 'Achtergrondwerk loopt',
+  'admin.launch.step.ops-healthy.description':
+    'Er zit niets vast in achtergrondwerk, mail of wisverzoeken.',
+  'admin.launch.step.smoke-test.title': 'Rooktest op de live site',
+  'admin.launch.step.smoke-test.description':
+    "De belangrijkste pagina's en formulieren werken op het live adres.",
+  'admin.launch.step.broken-links.title': 'Gebroken links nagelopen',
+  'admin.launch.step.broken-links.description': 'Geen link op de site loopt dood.',
+  'admin.launch.step.search-console.title': 'Zoekmachines ingelicht',
+  'admin.launch.step.search-console.description':
+    'De site en de sitemap (/sitemap.xml) zijn aangemeld bij Google Search Console.',
+  'admin.launch.step.analytics-verified.title': 'Statistiek nagelopen',
+  'admin.launch.step.analytics-verified.description':
+    'De eerste bezoeken op het live adres verschijnen in de statistiek.',
+  'admin.launch.step.dns-ttl-restored.title': 'DNS-TTL hersteld',
+  'admin.launch.step.dns-ttl-restored.description':
+    'De TTL van het domein staat weer op de gewone waarde.',
+  'admin.launch.step.launch-mail.title': 'Redactie ingelicht',
+  'admin.launch.step.launch-mail.description':
+    'De redactie weet dat de site live is en waar ze kan inloggen.',
 };
