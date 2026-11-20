@@ -1,7 +1,7 @@
 // Connecting a site's Mollie account for donations (brief MY-252 PR 3): one key under
 // Connections, stored encrypted and switched on, never shown again; a refused key leaves nothing
 // behind; the connection's page offers no delivery fields or test send, and disconnecting it
-// offers the setup again. 320 CSS px and 200% text under axe. The e2e installation pays with the
+// offers the setup again; the page says it is a test key (MY-262 PR 3). 320 CSS px and 200% text under axe. The e2e installation pays with the
 // fake provider, so no request reaches Mollie. In the a11y project only: the probe site has one
 // live Mollie connection at a time, and the setup is a native form either way.
 
@@ -48,6 +48,8 @@ export async function exerciseMollieConnection(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { level: 1, name: 'Donations' })).toBeVisible();
   await expect(main).toContainText('Mollie');
   await expect(main).toContainText('Er is een sleutel ingesteld');
+  // MY-262 PR 3: the mode is read from the prefix and shown beside it, never the key.
+  await expect(main).toContainText('Het is een testsleutel');
   await expect(page.locator('body')).not.toContainText(KEY);
   await expect(main.getByRole('button', { name: 'Aflevering pauzeren' })).toBeVisible();
   await expect(main.getByRole('button', { name: 'Proef versturen' })).toHaveCount(0);

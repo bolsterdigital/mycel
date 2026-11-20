@@ -94,7 +94,12 @@ async function facts(ctx: TransactionContext): Promise<LaunchFacts> {
           ),
       };
     }),
-    mollie: mollie ? { connected: mollie.state === 'active' && mollie.hasCredential } : null,
+    mollie: mollie
+      ? {
+          connected: mollie.state === 'active' && mollie.hasCredential,
+          mode: mollie.credentialMode,
+        }
+      : null,
     analytics: {
       domain,
       hostnameMismatch: domain !== null && !!primary && !sameSite(domain, primary.hostname),

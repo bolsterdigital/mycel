@@ -46,6 +46,7 @@ export function memoryConnections(s: TenantStore, principal: Principal): Connect
         version: 1,
         credentialVersion: 0,
         hasCredential: false,
+        credentialMode: null,
         createdAt: at,
         updatedAt: at,
       };
@@ -65,17 +66,22 @@ export function memoryConnections(s: TenantStore, principal: Principal): Connect
         (row) => ({
           state,
           hasCredential: dropsCredential(state) ? false : row.hasCredential,
+          credentialMode: dropsCredential(state) ? null : row.credentialMode,
         }),
         at
       );
       if (next && dropsCredential(state)) s.connectionSecrets.delete(id);
       return structuredClone(next);
     },
-    async replaceCredential(id, baseVersion, secret, at) {
+    async replaceCredential(id, baseVersion, secret, mode, at) {
       const next = write(
         id,
         baseVersion,
-        (row) => ({ hasCredential: true, credentialVersion: row.credentialVersion + 1 }),
+        (row) => ({
+          hasCredential: true,
+          credentialMode: mode,
+          credentialVersion: row.credentialVersion + 1,
+        }),
         at
       );
       if (next) s.connectionSecrets.set(id, secret);

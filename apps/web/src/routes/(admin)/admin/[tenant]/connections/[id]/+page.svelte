@@ -299,6 +299,9 @@
           ? 'admin.connections.secret.set'
           : 'admin.connections.secret.missing'
       )}
+      {#if c.credentialStatus === 'connected' && c.credentialMode}
+        {t(`admin.connections.secret.mode.${c.credentialMode}` as const)}
+      {/if}
     </p>
     {#if live && allowed('connections:credentials')}
       <form method="post" action="?/credential" class="ui-fields">

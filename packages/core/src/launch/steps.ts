@@ -30,6 +30,7 @@ export const LaunchCheck = z.enum([
   'team-ready',
   'form-notifications',
   'payments-connected',
+  'mollie-live',
   'analytics',
   'custom-domain',
   'ops-healthy',
@@ -75,7 +76,7 @@ export const LAUNCH_STEPS: readonly LaunchStepDefinition[] = [
   step('go-no-go', 'launch', 'organisation'),
   step('dns-cutover', 'launch', 'organisation', { group: 'domain' }),
   step('custom-domain', 'launch', 'shared', { group: 'domain', check: 'custom-domain' }),
-  step('mollie-live', 'launch', 'organisation', { group: 'giving' }),
+  step('mollie-live', 'launch', 'organisation', { group: 'giving', check: 'mollie-live' }),
   step('live-test-payment', 'launch', 'shared', { group: 'giving' }),
   step('ops-healthy', 'launch', 'platform', { check: 'ops-healthy' }),
 
