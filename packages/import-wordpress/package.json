@@ -1,0 +1,16 @@
+{
+  "name": "@mycel/import-wordpress",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "Plan the import of a WordPress (WXR) export into a Mycel tenant",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -b",
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@mycel/core": "*",
+    "zod": "^4.6.7"
+  }
+}
