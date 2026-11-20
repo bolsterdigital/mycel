@@ -156,6 +156,8 @@ export interface Database {
     connection_id: string;
     tenant_id: string;
     ciphertext: string;
+    /** `test` or `live`, from the key's prefix when it was written (0086); null otherwise. */
+    mode: 'test' | 'live' | null;
     updated_at: Timestamp;
   };
   tenants: {

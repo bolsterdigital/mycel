@@ -745,6 +745,8 @@ export const admin: Partial<Record<UiKey, string>> = {
   'admin.connections.secret.title': 'Ondertekeningssleutel',
   'admin.connections.secret.set':
     'Er is een sleutel ingesteld. Hij wordt nooit meer getoond; je kunt hem alleen vervangen.',
+  'admin.connections.secret.mode.test': 'Het is een testsleutel: betalingen zijn niet echt.',
+  'admin.connections.secret.mode.live': 'Het is een livesleutel: betalingen zijn echt.',
   'admin.connections.secret.missing':
     'Er is nog geen sleutel ingesteld. Zonder sleutel kan niets worden afgeleverd.',
   'admin.connections.end.title': 'Loskoppelen',
@@ -832,6 +834,7 @@ export const admin: Partial<Record<UiKey, string>> = {
   'admin.launch.fix.team-ready': 'Naar leden',
   'admin.launch.fix.form-notifications': 'Naar formulieren',
   'admin.launch.fix.payments-connected': 'Naar verbindingen',
+  'admin.launch.fix.mollie-live': 'Naar verbindingen',
   'admin.launch.fix.analytics': 'Naar statistiek',
   'admin.launch.fix.custom-domain': 'Naar domeinen',
   'admin.launch.fix.ops-healthy': 'Naar de statuspagina',
@@ -850,6 +853,12 @@ export const admin: Partial<Record<UiKey, string>> = {
   'admin.launch.check.payments-connected.missing': 'Er is geen Mollie-verbinding.',
   'admin.launch.check.payments-connected.attention': 'De Mollie-verbinding vraagt aandacht.',
   'admin.launch.check.payments-connected.ok': 'Mollie is verbonden.',
+  'admin.launch.check.mollie-live.missing': 'Er is geen Mollie-verbinding.',
+  'admin.launch.check.mollie-live.test':
+    'Mollie staat op een testsleutel: er komt geen echt geld binnen.',
+  'admin.launch.check.mollie-live.unknown':
+    'Mycel weet niet of de Mollie-sleutel een test- of livesleutel is. Sla de sleutel opnieuw op.',
+  'admin.launch.check.mollie-live.ok': 'Mollie staat op de livesleutel.',
   'admin.launch.check.analytics.off': 'Statistiek staat uit.',
   'admin.launch.check.analytics.mismatch':
     'Statistiek telt voor {domain}, niet voor het adres van deze site.',

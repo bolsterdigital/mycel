@@ -602,7 +602,7 @@ async function observe({ uow, clock, tenant, apply, provider }: Adapter) {
     ctx.connections.insert({ ...connection, id: uuidv7() }, at)
   );
   const withKey = (await uow.run(admin, (ctx) =>
-    ctx.connections.replaceCredential(created.id, created.version, 'rule-secret', at)
+    ctx.connections.replaceCredential(created.id, created.version, 'rule-secret', null, at)
   ))!;
   const paused = await read(worker, created.id, 1);
   const active = (await uow.run(admin, (ctx) =>
@@ -630,7 +630,7 @@ async function observe({ uow, clock, tenant, apply, provider }: Adapter) {
       ctx.connections.state(created.id, gone.version, 'active', at)
     ),
     replaceCredential: await uow.run(admin, (ctx) =>
-      ctx.connections.replaceCredential(created.id, gone.version, 'again', at)
+      ctx.connections.replaceCredential(created.id, gone.version, 'again', null, at)
     ),
   };
 

@@ -17,7 +17,7 @@ const facts = (over: Partial<LaunchFacts> = {}): LaunchFacts => ({
   home: { locales: ['nl', 'en'], published: ['nl', 'en'] },
   members: [{ role: 'admin', pending: false }],
   forms: [{ id: 'f1', label: 'Contact', notifies: true }],
-  mollie: { connected: true },
+  mollie: { connected: true, mode: 'live' },
   analytics: { domain: 'example.org', hostnameMismatch: false },
   hostnames: [
     { hostname: 'site.mycel.test', kind: 'platform', primary: false, verified: true },
@@ -71,10 +71,13 @@ describe('launch checks', () => {
     ['payments-connected', { mollie: null }, 'fail', 'payments-connected.missing'],
     [
       'payments-connected',
-      { mollie: { connected: false } },
+      { mollie: { connected: false, mode: null } },
       'fail',
       'payments-connected.attention',
     ],
+    ['mollie-live', { mollie: null }, 'fail', 'mollie-live.missing'],
+    ['mollie-live', { mollie: { connected: true, mode: 'test' } }, 'fail', 'mollie-live.test'],
+    ['mollie-live', { mollie: { connected: true, mode: null } }, 'warn', 'mollie-live.unknown'],
     [
       'analytics',
       { analytics: { domain: null, hostnameMismatch: false } },

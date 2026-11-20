@@ -130,6 +130,7 @@ describe.skipIf(skip)('erasure conformance', () => {
         c.id,
         c.version,
         'synthetic-secret',
+        null,
         clock.now()
       ))!;
       const connected = (await ctx.connections.state(

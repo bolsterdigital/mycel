@@ -26,6 +26,9 @@ export const PROVIDER_RECONCILES: Readonly<Record<ConnectionProvider, boolean>> 
   mollie: false,
 };
 export type ConnectionAuthority = 'mycel' | 'external';
+/** Whether the stored key takes test or real payments; only a Mollie key has one (MY-262 PR 3). */
+export const CREDENTIAL_MODES = ['test', 'live'] as const;
+export type CredentialMode = (typeof CREDENTIAL_MODES)[number];
 
 export interface ConnectionRecord {
   id: string;
@@ -46,13 +49,21 @@ export interface ConnectionRecord {
   version: number;
   credentialVersion: number;
   hasCredential: boolean;
+  /** Read from the stored key when it was written; null without a key or for an older key. */
+  credentialMode: CredentialMode | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export type NewConnection = Omit<
   ConnectionRecord,
-  'state' | 'version' | 'credentialVersion' | 'hasCredential' | 'createdAt' | 'updatedAt'
+  | 'state'
+  | 'version'
+  | 'credentialVersion'
+  | 'hasCredential'
+  | 'credentialMode'
+  | 'createdAt'
+  | 'updatedAt'
 >;
 
 type ChangeFields = Pick<
@@ -91,11 +102,12 @@ export interface ConnectionRepository {
     next: ConnectionState,
     at: Date
   ): Promise<ConnectionRecord | null>;
-  /** Plaintext crosses only this write boundary and is never returned. */
+  /** Plaintext crosses only this write boundary and is never returned; `mode` is kept beside it. */
   replaceCredential(
     id: string,
     baseVersion: number,
     secret: string,
+    mode: CredentialMode | null,
     at: Date
   ): Promise<ConnectionRecord | null>;
 }

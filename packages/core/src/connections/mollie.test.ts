@@ -52,6 +52,45 @@ describe('a Mollie connection', () => {
     expect(JSON.stringify(active)).not.toContain('test_xxx');
   });
 
+  // MY-262 PR 3: the mode is read from the prefix when the key is saved, shown without the key,
+  // and turns the launch step `mollie-live` from a manual tick into a check.
+  it('keeps whether the key is a test or a live key, and the launch checklist reads it', async () => {
+    const owner = principal({
+      capabilities: [
+        'connections:configure',
+        'connections:credentials',
+        'connections:read',
+        'tenant:admin',
+      ],
+    });
+    const own = new Invoker(buildRegistry(), new MemoryUnitOfWork());
+    const step = async () =>
+      (await own.run(useCases.getLaunchChecklist, owner, {})).phases
+        .flatMap((p) => p.steps)
+        .find((s) => s.id === 'mollie-live')!;
+    const created = await own.run(useCases.createConnection, owner, mollie);
+    expect(created.credentialMode).toBeNull();
+    const save = async (secret: string, baseVersion: number) =>
+      own.run(useCases.replaceConnectionCredential, owner, { id: created.id, baseVersion, secret });
+
+    const test = await save(`test_${'x'.repeat(30)}`, created.version);
+    expect(test.credentialMode).toBe('test');
+    expect((await step()).detail?.code).toBe('mollie-live.test');
+
+    const live = await save(`live_${'y'.repeat(30)}`, test.version);
+    const [listed] = (await own.run(useCases.listConnections, owner, {})).connections;
+    expect(listed!.credentialMode).toBe('live');
+    expect(JSON.stringify(listed)).not.toContain('live_yyy');
+    expect((await step()).detail?.code).toBe('mollie-live.ok');
+
+    await own.run(useCases.disconnectConnection, owner, {
+      id: created.id,
+      baseVersion: live.version,
+    });
+    const [gone] = (await own.run(useCases.listConnections, owner, {})).connections;
+    expect(gone!.credentialMode).toBeNull();
+  });
+
   it('refuses a destination, forms or scopes', async () => {
     await expectCode(
       invoker.run(useCases.createConnection, admin, {

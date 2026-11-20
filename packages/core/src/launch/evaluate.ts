@@ -17,8 +17,8 @@ export interface LaunchFacts {
   };
   members: readonly { role: 'author' | 'editor' | 'admin' | 'custom'; pending: boolean }[];
   forms: readonly { id: string; label: string | null; notifies: boolean }[];
-  /** The Mollie connection, if the site has one. */
-  mollie: { connected: boolean } | null;
+  /** The Mollie connection, if the site has one, and the mode of its stored key (MY-262 PR 3). */
+  mollie: { connected: boolean; mode: 'test' | 'live' | null } | null;
   analytics: { domain: string | null; hostnameMismatch: boolean };
   hostnames: readonly {
     hostname: string;
@@ -80,6 +80,18 @@ function paymentsConnected({ mollie }: LaunchFacts): CheckOutcome {
     : { result: 'fail', detail: { code: 'payments-connected.attention' } };
 }
 
+/**
+ * A test key takes no real gift, so it fails on the day itself. A key stored before Mycel kept
+ * its mode warns: saving it again tells (clean cut, no conversion of stored keys).
+ */
+function mollieLive({ mollie }: LaunchFacts): CheckOutcome {
+  if (!mollie) return { result: 'fail', detail: { code: 'mollie-live.missing' } };
+  if (mollie.mode === 'live') return ok('mollie-live.ok');
+  return mollie.mode === 'test'
+    ? { result: 'fail', detail: { code: 'mollie-live.test' } }
+    : { result: 'warn', detail: { code: 'mollie-live.unknown' } };
+}
+
 function analytics({ analytics: a }: LaunchFacts): CheckOutcome {
   if (a.domain === null) return { result: 'warn', detail: { code: 'analytics.off' } };
   return a.hostnameMismatch
@@ -129,6 +141,7 @@ export const LAUNCH_CHECKS: Readonly<Record<LaunchCheck, (facts: LaunchFacts) =>
   'team-ready': teamReady,
   'form-notifications': formNotifications,
   'payments-connected': paymentsConnected,
+  'mollie-live': mollieLive,
   analytics,
   'custom-domain': customDomain,
   'ops-healthy': opsHealthy,

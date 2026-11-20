@@ -738,6 +738,8 @@ export const admin = {
   'admin.connections.secret.title': 'Signing secret',
   'admin.connections.secret.set':
     'A secret is set. It is never shown again; you can only replace it.',
+  'admin.connections.secret.mode.test': 'It is a test key: payments are not real.',
+  'admin.connections.secret.mode.live': 'It is a live key: payments are real.',
   'admin.connections.secret.missing':
     'No secret is set yet. Without one, nothing can be delivered.',
   'admin.connections.end.title': 'Disconnect',
@@ -825,6 +827,7 @@ export const admin = {
   'admin.launch.fix.team-ready': 'Go to members',
   'admin.launch.fix.form-notifications': 'Go to forms',
   'admin.launch.fix.payments-connected': 'Go to connections',
+  'admin.launch.fix.mollie-live': 'Go to connections',
   'admin.launch.fix.analytics': 'Go to statistics',
   'admin.launch.fix.custom-domain': 'Go to domains',
   'admin.launch.fix.ops-healthy': 'Go to the status page',
@@ -842,6 +845,11 @@ export const admin = {
   'admin.launch.check.payments-connected.missing': 'There is no Mollie connection.',
   'admin.launch.check.payments-connected.attention': 'The Mollie connection needs attention.',
   'admin.launch.check.payments-connected.ok': 'Mollie is connected.',
+  'admin.launch.check.mollie-live.missing': 'There is no Mollie connection.',
+  'admin.launch.check.mollie-live.test': 'Mollie is on a test key: no real money comes in.',
+  'admin.launch.check.mollie-live.unknown':
+    'Mycel does not know whether the Mollie key is a test or a live key. Save the key again.',
+  'admin.launch.check.mollie-live.ok': 'Mollie is on the live key.',
   'admin.launch.check.analytics.off': 'Statistics are off.',
   'admin.launch.check.analytics.mismatch':
     'Statistics count for {domain}, not for the address of this site.',

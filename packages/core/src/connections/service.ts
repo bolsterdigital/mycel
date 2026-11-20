@@ -7,8 +7,13 @@ import { notFound, UseCaseError } from '../errors.js';
 import { checkDestination } from './destination.js';
 import { defineUseCase } from '../registry.js';
 import type { TransactionContext } from '../ports.js';
-import { CONNECTION_DIRECTIONS, CONNECTION_PROVIDERS, type ConnectionRecord } from './ports.js';
-import { MOLLIE_API_KEY, isFrozen } from './rules.js';
+import {
+  CONNECTION_DIRECTIONS,
+  CONNECTION_PROVIDERS,
+  CREDENTIAL_MODES,
+  type ConnectionRecord,
+} from './ports.js';
+import { MOLLIE_API_KEY, credentialModeOf, isFrozen } from './rules.js';
 import { Uuid, exampleId } from '../util/ids.js';
 
 const shortText = z.string().trim().min(1).max(160);
@@ -50,6 +55,8 @@ const view = z.object({
   version: z.number().int().positive(),
   credentialVersion: z.number().int().nonnegative(),
   credentialStatus: z.enum(['connected', 'reconnect-required']),
+  /** `test` or `live` for a Mollie key, read from its prefix when it was saved; never the key. */
+  credentialMode: z.enum(CREDENTIAL_MODES).nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -258,7 +265,13 @@ export const replaceConnectionCredential = defineUseCase({
         );
     }
     return changed(
-      await ctx.connections.replaceCredential(id, baseVersion, secret, ctx.clock.now())
+      await ctx.connections.replaceCredential(
+        id,
+        baseVersion,
+        secret,
+        credentialModeOf(prior.provider, secret),
+        ctx.clock.now()
+      )
     );
   },
 });

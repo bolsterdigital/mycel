@@ -91,6 +91,7 @@ describe('attention', () => {
       version: 1,
       credentialVersion: 1,
       hasCredential: true,
+      credentialMode: null,
       createdAt: clock.now(),
       updatedAt: clock.now(),
       ...over,

@@ -51,6 +51,7 @@
     'team-ready': 'leden',
     'form-notifications': 'forms',
     'payments-connected': 'connections',
+    'mollie-live': 'connections',
     analytics: 'site#site-analytics',
     'custom-domain': 'domeinen',
     'ops-healthy': 'status',
