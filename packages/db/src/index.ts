@@ -66,6 +66,7 @@ import { readerSessionRepository, signinLinkRepository } from './supporters/read
 import { personErasureRepository } from './people/erasures.js';
 import { tenantExportRepository } from './portability/tenant-exports.js';
 import { hostnameRepository } from './hostnames.js';
+import { launchStepRepository } from './launch/repository.js';
 import { enterTenant } from './infra/roles.js';
 import { jobScheduler } from './operations/jobs.js';
 import { jobRecoveryRepository } from './infra/recovery.js';
@@ -332,6 +333,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           operators: operatorRepository(trx),
           members: membershipRepository(trx, tenantId),
           attentionReads: attentionReadsRepository(trx),
+          launchSteps: launchStepRepository(trx, tenantId),
           apiKeys: apiKeyRepository(trx, tenantId),
           hostnames: hostnameRepository(trx, tenantId),
           jobs: jobScheduler(trx, tenantId),

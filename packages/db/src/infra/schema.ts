@@ -675,6 +675,16 @@ export interface Database {
     started_at: Timestamp;
     through: Generated<number>;
   };
+  launch_steps: {
+    tenant_id: string;
+    step_id: string;
+    done: Generated<boolean>;
+    acknowledged: Generated<boolean>;
+    applicable: boolean | null;
+    owner: 'platform' | 'organisation' | 'shared' | null;
+    note: Generated<string>;
+    updated_at: Timestamp;
+  };
   operators: {
     id: string;
     issuer: string | null;

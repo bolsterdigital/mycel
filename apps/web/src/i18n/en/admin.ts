@@ -350,6 +350,7 @@ export const admin = {
   'admin.audit.op.assist.suggestion.dismiss': 'Suggestion dismissed',
   'admin.audit.op.assist.translation.suggest': 'Translation suggested',
   'admin.audit.op.attention.seen_at.update': 'Notifications marked as read',
+  'admin.audit.op.launch.step.update': 'Launch step updated',
   'admin.audit.op.connection.create': 'Connection added',
   'admin.audit.op.connection.credential.update': 'Connection credentials changed',
   'admin.audit.op.connection.disconnect': 'Connection disconnected',

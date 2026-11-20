@@ -84,6 +84,7 @@ const IMPORT_RULE = {
   mail_editions: 'as-exported',
   mail_automations: 'as-exported',
   mail_automation_steps: 'as-exported',
+  launch_steps: 'as-exported',
   person_groups: 'as-exported',
   person_group_members: 'as-exported',
   sections: 'as-exported',

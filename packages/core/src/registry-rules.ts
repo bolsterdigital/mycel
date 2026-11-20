@@ -52,6 +52,8 @@ const MODULES = [
   'form',
   // ADR 022 rules 5-7: the catalogue of managed site integrations and the tenant's switch.
   'integration',
+  // ADR 037: the launch checklist, one per site; a step is its entity.
+  'launch',
   'mailing',
   'media',
   'ops',

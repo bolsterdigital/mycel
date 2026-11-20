@@ -27,6 +27,8 @@
         "packages/core/src/operators/**",
         "packages/core/src/connections/**",
         "packages/core/src/attention/**",
+        "packages/core/src/launch/**",
+        "packages/db/src/launch/**",
         "packages/core/src/principal.ts",
         "packages/core/src/invoke.ts",
         "packages/core/src/forms/spam.ts",

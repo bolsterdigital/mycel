@@ -11,8 +11,8 @@ Short map; the reasoning is in [`../adr/`](../adr/).
                                                    ▼
                  ┌────────────────────────────────────────────────────────────┐
    domain        │ packages/core                                              │
-                 │ tenants · operators · entitlements · content · theme       │
-                 │ campaigns · media · forms · supporters · mailing · i18n    │
+                 │ tenants · operators · entitlements · content · theme · i18n│
+                 │ campaigns · media · forms · supporters · mailing · launch  │
                  │ connections · navigation · readers · money · analytics     │
                  │ integrations · assist · attention · audit · jobs · ops     │
                  │ use-case registry                                          │

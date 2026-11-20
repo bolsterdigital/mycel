@@ -63,7 +63,7 @@ import {
   memorySigninLinks,
   memorySupporters,
 } from './supporters.js';
-import { memoryExports, memoryHostnames, memoryUsage } from './tenants.js';
+import { memoryExports, memoryHostnames, memoryLaunchSteps, memoryUsage } from './tenants.js';
 
 export interface MemoryDeps {
   store?: MemoryStore;
@@ -211,6 +211,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         operators: memoryOperators(store.operators),
         members: memoryMembers(s, store.operators, memberLock.lock),
         attentionReads: memoryAttentionReads(s),
+        launchSteps: memoryLaunchSteps(s),
         apiKeys: memoryApiKeys(s),
         hostnames: memoryHostnames(store, s),
         jobs: new MemoryScheduler(store, tenantId, ids, clock),

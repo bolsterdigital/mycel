@@ -180,6 +180,11 @@ export * from './connections/stand.js';
 export * from './attention/model.js';
 export * from './attention/ports.js';
 export * from './attention/service.js';
+export * from './launch/steps.js';
+export * from './launch/model.js';
+export * from './launch/evaluate.js';
+export * from './launch/ports.js';
+export * from './launch/service.js';
 
 export * from './content/presence/model.js';
 export { type PresenceView } from './content/presence/service.js';

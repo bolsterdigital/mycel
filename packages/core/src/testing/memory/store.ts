@@ -134,6 +134,8 @@ export interface TenantStore {
   mailAutomations: Map<string, MailAutomation>;
   /** `mail_automation_runs`, keyed by `<automationId>:<supporterId>`. */
   mailAutomationRuns: Map<string, MailAutomationRun>;
+  /** `launch_steps` (0085), keyed by step id. */
+  launchSteps: Map<string, import('../../launch/ports.js').LaunchStepRecord>;
   /** `reader_signin_links` and `reader_sessions` (0069), keyed by id. */
   signinLinks: Map<string, import('../../readers/model.js').SigninLink>;
   readerSessions: Map<string, import('../../readers/model.js').ReaderSession>;
@@ -236,6 +238,7 @@ const emptyTenant = (): TenantStore => ({
   mailEditions: new Map(),
   mailAutomations: new Map(),
   mailAutomationRuns: new Map(),
+  launchSteps: new Map(),
   signinLinks: new Map(),
   readerSessions: new Map(),
   members: new Map(),
