@@ -49,6 +49,36 @@ describe('parseCommand', () => {
     });
   });
 
+  it('reads the WordPress plan and import, with switches that take no value', () => {
+    expect(parseCommand(['wordpress', 'plan', '--file', 'x.xml', '--json'])).toEqual({
+      kind: 'wordpress.plan',
+      file: 'x.xml',
+      json: true,
+    });
+    expect(
+      parseCommand([
+        'wordpress',
+        'import',
+        '--tenant',
+        'demo',
+        '--file=x.xml',
+        '--media-dir',
+        'uploads',
+        '--into-existing',
+      ])
+    ).toEqual({
+      kind: 'wordpress.import',
+      slug: 'demo',
+      file: 'x.xml',
+      mediaDir: 'uploads',
+      intoExisting: true,
+    });
+    expect(() => parseCommand(['wordpress', 'import', '--file', 'x.xml'])).toThrow(UsageError);
+    expect(() => parseCommand(['wordpress', 'plan', '--file', 'x.xml', '--dry'])).toThrow(
+      UsageError
+    );
+  });
+
   it('parses the arguments of the platform commands', () => {
     expect(parseCommand(['tenants', 'list'])).toEqual({ kind: 'tenants.list' });
     expect(parseCommand(['tenants', 'create', 'demo', 'Demo', 'nl,en'])).toEqual({

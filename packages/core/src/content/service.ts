@@ -785,16 +785,30 @@ export const publishItem = defineUseCase({
   name: 'content.item.publish',
   kind: 'command',
   description:
-    'Put one revision live in one locale; other locales and newer drafts are untouched, and any planning for this locale is cancelled.',
+    'Put one revision live in one locale; other locales and newer drafts are untouched, and any planning for this locale is cancelled. firstPublishedAt (not in the future) keeps the date of a publication elsewhere, such as an imported site.',
   requires: 'content:publish',
   effect: 'publish',
-  input: PublicationTarget,
+  input: PublicationTarget.extend({
+    firstPublishedAt: z.string().datetime({ offset: true }).optional(),
+  }),
   output: ContentItem,
-  examples: [{ input: exampleTarget }],
-  handler: (ctx, { itemId, revisionId, locale }) =>
+  examples: [
+    { input: exampleTarget },
+    {
+      input: { ...exampleTarget, firstPublishedAt: '2023-05-04T09:00:00Z' },
+      note: 'An import keeps the date the item was first published on the old site.',
+    },
+  ],
+  handler: (ctx, { itemId, revisionId, locale, firstPublishedAt }) =>
     changePublication(ctx, itemId, locale, async (state) => {
       await publishableRevision(ctx, itemId, revisionId, locale);
-      const next = publish(state, revisionId, ctx.clock.now());
+      const now = ctx.clock.now();
+      const originallyAt = firstPublishedAt ? new Date(firstPublishedAt) : undefined;
+      if (originallyAt && originallyAt > now)
+        throw new UseCaseError('invalid_input', 'a first publication lies in the past', [
+          { path: 'firstPublishedAt', message: 'content.publish.first-in-future' },
+        ]);
+      const next = publish(state, revisionId, now, originallyAt);
       if (next !== state) await planShareCard(ctx, itemId, locale, revisionId);
       return next;
     }),

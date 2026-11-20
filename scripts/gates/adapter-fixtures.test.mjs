@@ -12,8 +12,19 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isTest, readAll, staleEntries, walk, workspaces } from '../lib/repo.mjs';
 
-/** Workspaces that use fetch without being a provider adapter (docs/architecture/overview.md). */
-export const NOT_ADAPTERS = new Set(['api', 'core', 'db', 'mcp', 'observability']);
+/**
+ * Workspaces that use fetch without being a provider adapter (docs/architecture/overview.md).
+ * `import-wordpress` downloads a site's own attachments as bytes; there is no provider answer to
+ * record, and its test stubs fetch per case (source.test.ts).
+ */
+export const NOT_ADAPTERS = new Set([
+  'api',
+  'core',
+  'db',
+  'import-wordpress',
+  'mcp',
+  'observability',
+]);
 
 /**
  * The adapters that break the rule, given `{ name, files: [{ path, text }], fixtures: [path] }`

@@ -36,6 +36,9 @@
     },
     {
       "path": "../analytics-plausible"
+    },
+    {
+      "path": "../import-wordpress"
     }
   ]
 }
