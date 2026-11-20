@@ -58,16 +58,22 @@ const unpinned = (s: LocaleState): LocaleState => ({
 /**
  * Put `revisionId` live. A manual publish replaces any planning for this locale (brief #8a § 3)
  * and answers an offer for publication. Publishing the revision that is already live, with
- * nothing planned or offered, changes nothing.
+ * nothing planned or offered, changes nothing. `originallyAt` is a publication that happened
+ * elsewhere before (an import, ADR 012 amendment 2026-11-20): it becomes both dates.
  */
-export function publish(s: LocaleState, revisionId: string, at: Date): LocaleState {
-  if (s.publishedRevisionId === revisionId && !s.scheduleId && !s.review) return s;
+export function publish(
+  s: LocaleState,
+  revisionId: string,
+  at: Date,
+  originallyAt?: Date
+): LocaleState {
+  if (s.publishedRevisionId === revisionId && !s.scheduleId && !s.review && !originallyAt) return s;
   return {
     ...unpinned(s),
     review: null,
     publishedRevisionId: revisionId,
-    publishedAt: at,
-    firstPublishedAt: s.firstPublishedAt ?? at,
+    publishedAt: originallyAt ?? at,
+    firstPublishedAt: originallyAt ?? s.firstPublishedAt ?? at,
   };
 }
 

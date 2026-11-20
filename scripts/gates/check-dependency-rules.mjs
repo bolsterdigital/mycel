@@ -93,6 +93,7 @@ const ALLOWED = {
     'packages/render-email',
     'packages/pay-mollie',
     'packages/analytics-plausible',
+    'packages/import-wordpress',
   ],
   'packages/mcp': ['packages/core', 'packages/api', 'packages/observability'],
   'packages/observability': ['packages/core'],

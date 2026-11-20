@@ -290,6 +290,29 @@ describe('content items', () => {
       expect(twice.latestRevisionId).toBe(later.revision.id);
     });
 
+    it('keeps a first publication from elsewhere as both dates, and refuses one in the future', async () => {
+      const { item, revision } = await create();
+      const target = { itemId: item.id, revisionId: revision.id, locale: 'nl' };
+      const live = await invoker.run(useCases.publishItem, admin, {
+        ...target,
+        firstPublishedAt: '2023-05-04T09:00:00Z',
+      });
+      const nl = live.publication.find((s) => s.locale === 'nl')!;
+      expect([nl.publishedAt, nl.firstPublishedAt]).toEqual([
+        '2023-05-04T09:00:00.000Z',
+        '2023-05-04T09:00:00.000Z',
+      ]);
+      expect((await invoker.run(useCases.getPublished, visitor(), PAGE_ABOUT)).publishedAt).toBe(
+        '2023-05-04T09:00:00.000Z'
+      );
+      await expect(
+        invoker.run(useCases.publishItem, admin, {
+          ...target,
+          firstPublishedAt: new Date(clock.now().getTime() + 60_000).toISOString(),
+        })
+      ).rejects.toMatchObject({ code: 'invalid_input' });
+    });
+
     it('unpublish takes one locale offline and marks it unpublished, not draft', async () => {
       const { item, revision } = await create(pageDoc('Hello.'));
       for (const locale of ['nl', 'en'])

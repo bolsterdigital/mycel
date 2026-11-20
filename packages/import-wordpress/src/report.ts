@@ -27,6 +27,14 @@ const HEADINGS: Record<ReportCode, string> = {
   'item.excerpt-too-long': 'Excerpts over 500 characters (not used as description)',
   'translation.not-merged': 'Translations not merged: structure differs (not imported)',
   'translation.value-differs': 'Translation values that differ (default language kept)',
+  'media.failed': 'Files not uploaded',
+  'person.failed': 'Authors not created',
+  'section.failed': 'Sections not created',
+  'item.failed': 'Items not created',
+  'item.blocks-failed': 'Items whose blocks with links were not saved (created without blocks)',
+  'item.publish-failed': 'Locales not published (left as draft)',
+  'item.image-missing': 'Header or featured images whose file did not come over',
+  'block.reference-missing': 'Blocks whose file or linked item did not come over (left out)',
 };
 
 /** The codes listed first, in this order; the rest follow in catalogue order. */

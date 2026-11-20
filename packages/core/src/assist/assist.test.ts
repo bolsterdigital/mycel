@@ -181,12 +181,12 @@ describe('translation boundary', () => {
       expect(removed.revision.document.machineTranslation?.en).toContain('locales');
       expect(removed.item.publication).toEqual(accepted.item.publication);
       for (const command of [useCases.publishItem, useCases.scheduleItem]) {
+        // By name, untyped: the publish input refuses `at`, a field it does not know.
         await expect(
-          invoker.run(command, system, {
+          invoker.call(system, command.name, {
             itemId: accepted.item.id,
             revisionId: removed.revision.id,
             locale: 'en',
-            // @ts-expect-error: the strict input refuses a field it does not know
             at: '2030-01-01T00:00:00Z',
           })
         ).rejects.toMatchObject({ code: 'invalid_input' });

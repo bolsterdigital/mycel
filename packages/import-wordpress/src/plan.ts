@@ -86,7 +86,16 @@ export type ReportCode =
   | 'item.tag-invalid'
   | 'item.excerpt-too-long'
   | 'translation.not-merged'
-  | 'translation.value-differs';
+  | 'translation.value-differs'
+  // What happened while executing the plan against a tenant (execute.ts).
+  | 'media.failed'
+  | 'person.failed'
+  | 'section.failed'
+  | 'item.failed'
+  | 'item.blocks-failed'
+  | 'item.publish-failed'
+  | 'item.image-missing'
+  | 'block.reference-missing';
 
 export interface ReportLine {
   code: ReportCode;

@@ -65,6 +65,8 @@ The bucket then lives on the same disk as the database: a lost disk loses both, 
 
 `docker compose run --rm worker mycel <command>`; `mycel` without arguments prints the list. Besides `setup` and `blob init` it creates tenants, sets their entitlements and status, and lists and recovers stuck work: [`docs/reference/platform-api.md`](reference/platform-api.md) § The CLI. `mycel version` prints the version of the image.
 
+**Moving a WordPress site in.** `mycel wordpress plan --file <export.xml>` reads an export from Tools → Export (or `wp export`) and prints what would come over: pages, articles, files, authors, sections, and every block, shortcode or image without alt text that does not. `mycel wordpress import --tenant <slug> --file <export.xml>` then fills an empty site through the same use cases an editor uses, with slugs, languages (Polylang) and publication dates kept. Files come from `--media-dir` (a copy of `wp-content/uploads`) or are downloaded over https from the export's own site. A site that already has content is refused unless `--into-existing`; the old ids and the new ones are written to `<export.xml>.mycel-ids.json`.
+
 ## MCP
 
 The image's `mcp` entrypoint is the MCP server over stdio, acting with one API key of one site. Create a key in the admin (`/admin/<slug>`, API keys), set it as `MYCEL_API_KEY` in `.env`, and let your MCP client start:
