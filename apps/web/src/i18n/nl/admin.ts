@@ -356,6 +356,7 @@ export const admin: Partial<Record<UiKey, string>> = {
   'admin.audit.op.assist.suggestion.dismiss': 'Suggestie afgewezen',
   'admin.audit.op.assist.translation.suggest': 'Vertaling voorgesteld',
   'admin.audit.op.attention.seen_at.update': 'Meldingen als gelezen gemarkeerd',
+  'admin.audit.op.launch.step.update': 'Livegangsstap bijgewerkt',
   'admin.audit.op.connection.create': 'Koppeling toegevoegd',
   'admin.audit.op.connection.credential.update': 'Inloggegevens van koppeling gewijzigd',
   'admin.audit.op.connection.disconnect': 'Koppeling verbroken',

@@ -28,7 +28,7 @@ const SettingsState = z.object({
   hostnameMismatch: z.boolean(),
 });
 
-function sameSite(domain: string, hostname: string): boolean {
+export function sameSite(domain: string, hostname: string): boolean {
   const bare = (value: string) => value.toLowerCase().replace(/^www\./, '');
   return bare(domain) === bare(hostname);
 }

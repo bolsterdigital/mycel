@@ -165,6 +165,7 @@ import {
 } from './operators/service.js';
 import { closeJob, getOpsStatus, retryJob } from './ops/service.js';
 import { getAttentionSummary, listAttention, updateAttentionSeenAt } from './attention/service.js';
+import { getLaunchChecklist, updateLaunchStep } from './launch/service.js';
 import { UseCaseRegistry, type UseCase } from './registry.js';
 import { changeSupporterEmail, getSupporter } from './supporters/service.js';
 import { listSupporters } from './supporters/listing.js';
@@ -453,6 +454,8 @@ export const useCases = {
   getAttentionSummary,
   listAttention,
   updateAttentionSeenAt,
+  getLaunchChecklist,
+  updateLaunchStep,
 } as const;
 
 export function buildRegistry(): UseCaseRegistry {

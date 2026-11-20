@@ -128,6 +128,8 @@ export const TABLES = {
   // without runs, so only people who join afterwards get the series there.
   mail_automations: 'export',
   mail_automation_steps: 'export',
+  // The launch checklist's state is site configuration (0085) and travels with the site.
+  launch_steps: 'export',
   mail_automation_runs: 'operational',
   // A pending sign-in link and a reader session (0069) belong to this installation's hostname
   // and signing secret: an import starts without them and readers sign in again.
@@ -196,6 +198,7 @@ export const EXPORT_ORDER: readonly ExportTable[] = [
   'mail_editions',
   'mail_automations',
   'mail_automation_steps',
+  'launch_steps',
   'tenant_memberships',
   'audit_log',
   'erasures',

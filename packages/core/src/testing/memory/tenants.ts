@@ -1,7 +1,8 @@
-// A tenant's own platform rows in memory: hostnames, usage counts, export requests, and the
-// cross-tenant hostname resolution of `SiteDirectory`.
+// A tenant's own platform rows in memory: hostnames, usage counts, export requests, the launch
+// checklist's state, and the cross-tenant hostname resolution of `SiteDirectory`.
 
 import type { UsageReader } from '../../entitlements/ports.js';
+import type { LaunchStepRepository } from '../../launch/ports.js';
 import type { Clock } from '../../ports.js';
 import { isActiveExport, type TenantExportRecord } from '../../tenants/exports.js';
 import type {
@@ -146,4 +147,17 @@ export class MemorySiteDirectory implements SiteDirectory {
     const found = await this.resolve(hostname);
     return !!found && (found.hostname.kind === 'platform' || found.hostname.verifiedAt !== null);
   }
+}
+
+/** `ctx.launchSteps`: one record per step id, as the primary key of `launch_steps` (0085). */
+export function memoryLaunchSteps(s: TenantStore): LaunchStepRepository {
+  return {
+    list: async () =>
+      [...s.launchSteps.values()]
+        .sort((a, b) => (a.stepId < b.stepId ? -1 : 1))
+        .map((r) => structuredClone(r)),
+    async put(record) {
+      s.launchSteps.set(record.stepId, structuredClone(record));
+    },
+  };
 }

@@ -810,6 +810,13 @@ export const STORAGE = {
   // A welcome series names a list and items, never a person (0082).
   mail_automations: { category: 'mail', owner: 'tenant', copies: [], retention: SITE_KEPT },
   mail_automation_steps: { category: 'mail', owner: 'tenant', copies: [], retention: SITE_KEPT },
+  // What a person decided per launch step (0085); the note is free text an administrator writes.
+  launch_steps: {
+    category: 'site',
+    owner: 'tenant',
+    copies: [FREE_TEXT('note', ['launch.step.update'])],
+    retention: SITE_KEPT,
+  },
   mail_automation_runs: {
     category: 'mail',
     owner: 'tenant',
