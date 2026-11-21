@@ -8,7 +8,7 @@
 // would be convenient, but the host check would then mean nothing).
 
 import { readFile, stat } from 'node:fs/promises';
-import { basename, join, normalize, sep } from 'node:path';
+import { basename, join, normalize, resolve, sep } from 'node:path';
 import { MAX_UPLOAD_BYTES, errorMessage } from '@mycel/core';
 import type { MediaFile } from './execute.js';
 import type { PlannedMedia } from './plan.js';
@@ -36,7 +36,10 @@ export interface MediaSourceOptions {
   maxBytes?: number;
 }
 
-/** The path of an upload below `wp-content/uploads/`, kept inside the directory. */
+/**
+ * The path of an upload below `wp-content/uploads/`, kept inside the directory. `dir` is already
+ * resolved, so `uploads/` and `uploads` give the same prefix.
+ */
 function localPath(dir: string, url: string): string[] {
   let path = '';
   try {
@@ -47,7 +50,7 @@ function localPath(dir: string, url: string): string[] {
   const below = path.split('/wp-content/uploads/')[1];
   const candidates = below ? [normalize(join(dir, below))] : [];
   candidates.push(join(dir, basename(path)));
-  return candidates.filter((c) => c.startsWith(normalize(dir) + sep));
+  return candidates.filter((c) => c.startsWith(dir + sep));
 }
 
 async function readBounded(response: Response, max: number): Promise<Uint8Array | null> {
@@ -75,6 +78,7 @@ export function mediaSource(
 ): (media: PlannedMedia) => Promise<MediaFile> {
   const max = options.maxBytes ?? MAX_UPLOAD_BYTES;
   const fetch = options.fetch ?? globalThis.fetch;
+  const mediaDir = options.mediaDir ? resolve(options.mediaDir) : undefined;
   let siteHost: string | null = null;
   try {
     siteHost = new URL(options.siteUrl).host;
@@ -84,8 +88,8 @@ export function mediaSource(
   return async (media) => {
     const contentType = contentTypeOf(media.filename);
     if (!contentType) return { error: `type not accepted: ${media.filename}` };
-    if (options.mediaDir) {
-      for (const path of localPath(options.mediaDir, media.url)) {
+    if (mediaDir) {
+      for (const path of localPath(mediaDir, media.url)) {
         const info = await stat(path).catch(() => null);
         if (!info?.isFile()) continue;
         if (info.size > max) return { error: `larger than ${max} bytes` };

@@ -26,6 +26,7 @@ COPY packages/blob/package.json packages/blob/
 COPY packages/media-sharp/package.json packages/media-sharp/
 COPY packages/observability/package.json packages/observability/
 COPY packages/mcp/package.json packages/mcp/
+COPY packages/import-wordpress/package.json packages/import-wordpress/
 COPY apps/web/package.json apps/web/
 RUN npm ci --ignore-scripts
 COPY . .
@@ -53,6 +54,7 @@ COPY --from=build /app/packages/blob/package.json packages/blob/
 COPY --from=build /app/packages/media-sharp/package.json packages/media-sharp/
 COPY --from=build /app/packages/observability/package.json packages/observability/
 COPY --from=build /app/packages/mcp/package.json packages/mcp/
+COPY --from=build /app/packages/import-wordpress/package.json packages/import-wordpress/
 COPY --from=build /app/apps/web/package.json apps/web/
 # sharp needs no install script: its libvips binary for this platform (linux-x64 or arm64, glibc)
 # is an optional dependency (@img/sharp-*), installed by npm ci like any other package.
@@ -72,6 +74,7 @@ COPY --from=build /app/packages/media-sharp/dist packages/media-sharp/dist
 COPY --from=build /app/packages/media-sharp/fonts packages/media-sharp/fonts
 COPY --from=build /app/packages/observability/dist packages/observability/dist
 COPY --from=build /app/packages/mcp/dist packages/mcp/dist
+COPY --from=build /app/packages/import-wordpress/dist packages/import-wordpress/dist
 COPY --from=build /app/apps/web/build apps/web/build
 COPY docker/entrypoint.sh docker/healthcheck.mjs /usr/local/lib/mycel/
 

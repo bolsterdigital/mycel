@@ -27,6 +27,10 @@
 //   4. Production source imports no test barrel (`<core>/testing`, `<db>/testing`): they hold the
 //      memory adapters and demo content. Test files, the barrels themselves and the seed commands
 //      (TEST_BARREL_USERS) may.
+//   5. When the tree has a Dockerfile, it copies every workspace into the image: its package.json
+//      into the build and the runtime stage, and its output (`dist`, or `build` for an app) into
+//      the runtime stage. A workspace the API imports but the image lacks breaks every `mycel`
+//      command in production, `migrate` included, while every test outside Docker stays green.
 //
 // `--root <dir>` checks another tree; scripts/gates/fixtures/dependency-rules/ holds one small repo
 // per rule that must fail, and check-dependency-rules.test.mjs runs them.
@@ -241,6 +245,24 @@ for (const ws of workspaces) {
   const pkg = readJson(`${ws}/package.json`, root);
   if (pkg.license !== 'AGPL-3.0-only')
     errors.push(`${ws}/package.json: license must be AGPL-3.0-only (ADR 006)`);
+}
+
+const dockerfile = join(root, 'Dockerfile');
+if (existsSync(dockerfile)) {
+  const lines = new Set(
+    readFileSync(dockerfile, 'utf8')
+      .split('\n')
+      .map((l) => l.trim().replace(/\s+/g, ' '))
+  );
+  for (const ws of workspaces) {
+    const out = ws.startsWith('apps/') ? 'build' : 'dist';
+    for (const line of [
+      `COPY ${ws}/package.json ${ws}/`,
+      `COPY --from=build /app/${ws}/package.json ${ws}/`,
+      `COPY --from=build /app/${ws}/${out} ${ws}/${out}`,
+    ])
+      if (!lines.has(line)) errors.push(`Dockerfile: missing "${line}" for ${ws}`);
+  }
 }
 
 // Licence check over installed production dependencies (skipped when node_modules is absent).

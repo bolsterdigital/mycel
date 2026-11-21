@@ -81,5 +81,11 @@ describe('mediaSource', () => {
     });
     const escape = await get(media(`${SITE}/wp-content/uploads/..%2F..%2Fgeheim.pdf`));
     expect(escape).toEqual({ error: expect.stringContaining('not in the media directory') });
+
+    // A trailing slash, as a shell completes a directory name, finds the same file.
+    const slashed = mediaSource({ siteUrl: SITE, mediaDir: `${dir}/` });
+    expect(await slashed(media(`${SITE}/wp-content/uploads/2025/03/bos.jpg`))).toMatchObject({
+      contentType: 'image/jpeg',
+    });
   });
 });

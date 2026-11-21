@@ -41,8 +41,6 @@ import {
 } from './compose.js';
 import { OPS_REFUSALS } from '../platform.js';
 import { runSetup, type SetupInput } from './setup.js';
-import { importWordpress, planOf } from './wordpress.js';
-import { formatReport } from '@mycel/import-wordpress';
 
 export const USAGE = `usage:
   mycel setup --tenant <slug> --name <name> --operator <e-mail> [--locales nl,en] [--hostname <domain>]
@@ -254,7 +252,12 @@ async function main(argv: string[]): Promise<number> {
     return 0;
   }
   // Reading an export needs no database: a plan is checked before anything is set up.
+  // Loaded on demand, so an image or checkout without the importer still runs every other command.
   if (command.kind === 'wordpress.plan') {
+    const [{ planOf }, { formatReport }] = await Promise.all([
+      import('./wordpress.js'),
+      import('@mycel/import-wordpress'),
+    ]);
     const result = planOf(command);
     process.stdout.write(
       command.json ? `${JSON.stringify(result, null, 2)}\n` : formatReport(result)
@@ -367,6 +370,7 @@ async function main(argv: string[]): Promise<number> {
       }
       case 'wordpress.import': {
         const tenant = await bySlug(command.slug);
+        const { importWordpress } = await import('./wordpress.js');
         process.stdout.write(await importWordpress({ invoker: runtime!.invoker, tenant }, command));
         break;
       }
