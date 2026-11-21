@@ -40,6 +40,7 @@
     "@mycel/assist-openai": "*",
     "@mycel/analytics-plausible": "*",
     "@mycel/pay-mollie": "*",
+    "@mycel/import-wordpress": "*",
     "@mycel/render-email": "*"
   },
   "devDependencies": {

@@ -11,6 +11,7 @@
 
 - **Rule 2 superseded**: 2026-11-09 by [ADR 031](031-people-register.md). Authors are roles of people; the original decision is retained below.
 - **Rule 1 amended**: 2026-11-19 (MY-260). A dossier is a `page` with the built-in type profile `dossier` ([ADR 022](022-managed-extensions-and-site-integrations.md) rule 3), without metadata of its own. Both types carry an optional `dossiers`, an ordered list of up to three ids of dossier pages in the same tenant (checked at every save and publish, never on a dossier page itself), and an optional `showDossier: false` that hides the dossier box under the item. The list is part of the revision like an article's section, so it travels through revisions, the three-way merge (ADR 026) and export. Without it Dreamkit sites, which bundle pages and articles around a theme with a landing page of its own, had no place to move to; sections and tags exist on articles only and have no page (decision of the maintainer, brief dossiers). The original wording is retained below.
+- **Rule 4 amended**: 2026-11-20 (MY-257). `content.item.publish` takes an optional `firstPublishedAt`, not in the future, under the same capability `content:publish`: the locale's publication and first publication both get that date instead of now. A site moved from WordPress keeps the dates its articles were published on, which feeds, overviews and bylines show; without it every imported article would read as published on the day of the import. No second write route and no new capability (brief wordpress-import-execution § 6).
 
 ## Context
 

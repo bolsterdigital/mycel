@@ -31,7 +31,6 @@
     "db:migrate": "npm run -s migrate -w @mycel/db",
     "mycel": "tsc -b packages/api && node --env-file-if-exists=.env packages/api/dist/runtime/cli.js",
     "platform": "npm run -s mycel --",
-    "import:wordpress": "tsc -b packages/import-wordpress && node packages/import-wordpress/dist/cli.js",
     "db:seed": "tsc -b packages/db packages/api && npm run -s migrate -w @mycel/db && npm run -s seed -w @mycel/db && npm run -s seed:demo -w @mycel/api",
     "quality": "node scripts/e2e/e2e.mjs --quality",
     "verify:checks": "npm run format:check && npm run lint:deps && npm run lint:infra && npm run typecheck && npm run test:collect && npm run test && npm run build"

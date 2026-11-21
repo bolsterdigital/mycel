@@ -60,6 +60,8 @@ export const USAGE = `usage:
   mycel erasures apply [--tenant <slug>]
   mycel erasures status [--tenant <slug>]
   mycel search rebuild [--tenant <slug>]
+  mycel wordpress plan --file <export.xml> [--default-locale <nl>] [--json]
+  mycel wordpress import --tenant <slug> --file <export.xml> [--media-dir <uploads>] [--default-locale <nl>] [--into-existing]
   mycel version`;
 
 export type Command =
@@ -79,6 +81,15 @@ export type Command =
   | { kind: 'erasures.apply'; slug?: string }
   | { kind: 'erasures.status'; slug?: string }
   | { kind: 'search.rebuild'; slug?: string }
+  | { kind: 'wordpress.plan'; file: string; defaultLocale?: string; json: boolean }
+  | {
+      kind: 'wordpress.import';
+      slug: string;
+      file: string;
+      mediaDir?: string;
+      defaultLocale?: string;
+      intoExisting: boolean;
+    }
   | { kind: 'version' };
 
 /** A command line the parser refuses; the message says what is wrong, then the usage follows. */
@@ -90,13 +101,24 @@ const localesOf = (value: string | undefined) =>
     .map((l) => l.trim())
     .filter(Boolean);
 
-/** `--key value` and `--key=value`; a flag the command does not take is an error. */
-function flags(args: string[], allowed: readonly string[]): Record<string, string> {
+/**
+ * `--key value` and `--key=value`; a flag the command does not take is an error. A key in
+ * `switches` takes no value and reads as `'true'`.
+ */
+function flags(
+  args: string[],
+  allowed: readonly string[],
+  switches: readonly string[] = []
+): Record<string, string> {
   const out: Record<string, string> = {};
   for (let i = 0; i < args.length; i++) {
-    const m = /^--([a-z]+)(?:=(.*))?$/.exec(args[i]!);
+    const m = /^--([a-z][a-z-]*)(?:=(.*))?$/.exec(args[i]!);
     if (!m) throw new UsageError(`unexpected argument "${args[i]}"`);
     const key = m[1]!;
+    if (switches.includes(key) && m[2] === undefined) {
+      out[key] = 'true';
+      continue;
+    }
     if (!allowed.includes(key)) throw new UsageError(`unknown option --${key}`);
     const value = m[2] ?? args[++i];
     if (value === undefined || value.startsWith('--'))
@@ -148,6 +170,29 @@ export function parseCommand(argv: readonly string[]): Command {
   if (noun === 'search' && verb === 'rebuild') {
     const f = flags(rest, ['tenant']);
     return { kind: 'search.rebuild', ...(f['tenant'] ? { slug: f['tenant'] } : {}) };
+  }
+  if (noun === 'wordpress' && verb === 'plan') {
+    const f = flags(rest, ['file', 'default-locale'], ['json']);
+    if (!f['file']) throw new UsageError('wordpress plan needs --file');
+    return {
+      kind: 'wordpress.plan',
+      file: f['file'],
+      json: f['json'] === 'true',
+      ...(f['default-locale'] ? { defaultLocale: f['default-locale'] } : {}),
+    };
+  }
+  if (noun === 'wordpress' && verb === 'import') {
+    const f = flags(rest, ['tenant', 'file', 'media-dir', 'default-locale'], ['into-existing']);
+    for (const key of ['tenant', 'file'])
+      if (!f[key]) throw new UsageError(`wordpress import needs --${key}`);
+    return {
+      kind: 'wordpress.import',
+      slug: f['tenant']!,
+      file: f['file']!,
+      intoExisting: f['into-existing'] === 'true',
+      ...(f['media-dir'] ? { mediaDir: f['media-dir'] } : {}),
+      ...(f['default-locale'] ? { defaultLocale: f['default-locale'] } : {}),
+    };
   }
   if (noun === 'blob' && verb === 'init' && rest.length === 0) return { kind: 'blob.init' };
   if (noun === 'tenants' && verb === 'list' && rest.length === 0) return { kind: 'tenants.list' };
@@ -206,6 +251,19 @@ async function main(argv: string[]): Promise<number> {
     console.log(version());
     return 0;
   }
+  // Reading an export needs no database: a plan is checked before anything is set up.
+  // Loaded on demand, so an image or checkout without the importer still runs every other command.
+  if (command.kind === 'wordpress.plan') {
+    const [{ planOf }, { formatReport }] = await Promise.all([
+      import('./wordpress.js'),
+      import('@mycel/import-wordpress'),
+    ]);
+    const result = planOf(command);
+    process.stdout.write(
+      command.json ? `${JSON.stringify(result, null, 2)}\n` : formatReport(result)
+    );
+    return 0;
+  }
 
   const config = loadConfig();
   if (!config.DATABASE_URL) {
@@ -227,7 +285,7 @@ async function main(argv: string[]): Promise<number> {
     slug ? [await bySlug(slug)] : await store.list();
   // Log lines to stderr, so stdout stays the command's output.
   const runtime =
-    command.kind === 'setup'
+    command.kind === 'setup' || command.kind === 'wordpress.import'
       ? createRuntime(config, {
           service: 'cli',
           writeLog: (line) => void process.stderr.write(line + '\n'),
@@ -308,6 +366,12 @@ async function main(argv: string[]): Promise<number> {
           console.log(`${t.slug}\t${changed} rows changed, ${purged} archive(s) deleted`);
         }
         console.log(`erasures: ${total} rows changed in ${tenants.length} tenant(s)`);
+        break;
+      }
+      case 'wordpress.import': {
+        const tenant = await bySlug(command.slug);
+        const { importWordpress } = await import('./wordpress.js');
+        process.stdout.write(await importWordpress({ invoker: runtime!.invoker, tenant }, command));
         break;
       }
       case 'search.rebuild': {

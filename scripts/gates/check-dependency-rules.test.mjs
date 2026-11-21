@@ -34,6 +34,8 @@ const failing = {
   'licence-unknown':
     'dependency mystery@1.0.0: licence SEE LICENSE IN LICENSE.txt not in allow-list',
   'workspace-licence': 'packages/db/package.json: license must be AGPL-3.0-only',
+  'image-workspace':
+    'Dockerfile: missing "COPY --from=build /app/packages/db/dist packages/db/dist" for packages/db',
 };
 
 for (const [name, message] of Object.entries(failing))
