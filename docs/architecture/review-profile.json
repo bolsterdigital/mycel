@@ -474,6 +474,7 @@
     "SECURITY.md",
     "TRADEMARK.md",
     "**/.vscode/**",
-    "packages/api/demo-photos/**"
+    "packages/api/demo-photos/**",
+    "packages/api/demo-sites/**"
   ]
 }
