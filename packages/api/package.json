@@ -25,7 +25,8 @@
     "dev": "node --env-file-if-exists=../../.env --import tsx src/runtime/server.ts",
     "start": "node --env-file-if-exists=../../.env dist/runtime/server.js",
     "worker": "node --env-file-if-exists=../../.env --import tsx src/runtime/worker.ts",
-    "seed:demo": "node --env-file-if-exists=../../.env --import tsx src/runtime/seed-demo.ts"
+    "seed:demo": "node --env-file-if-exists=../../.env --import tsx src/runtime/seed-demo.ts",
+    "demo:site": "node --env-file-if-exists=../../.env --import tsx src/runtime/seed-site.ts"
   },
   "dependencies": {
     "@mycel/core": "*",

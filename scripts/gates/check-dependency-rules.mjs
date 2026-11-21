@@ -79,6 +79,7 @@ const API_ENTRIES = ['@mycel/api/compose', '@mycel/api/conditional'];
 /** Non-test files that may import a test barrel; the seed commands never run in a server. */
 const TEST_BARREL_USERS = [
   'packages/api/src/runtime/seed-demo.ts',
+  'packages/api/src/runtime/seed-site.ts',
   'packages/db/src/infra/seed.ts',
   'packages/db/src/testing.ts',
 ];
