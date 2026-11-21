@@ -12,7 +12,8 @@ import { buildRegistry, useCases } from '../../../use-cases.js';
 import { base64ToBytes } from '../../../util/bytes.js';
 import { exampleId } from '../../../util/ids.js';
 import { adminOf } from '../../fixtures.js';
-import { FakeClock, MemoryUnitOfWork } from '../../memory.js';
+import { FakeClock, FakePaymentProvider, MemoryUnitOfWork } from '../../memory.js';
+import { supporterIngestSubscriber } from '../../../supporters/service.js';
 import type { SiteRefs } from '../runner.js';
 import { seedSite } from '../runner.js';
 import { OTTERDAM, PODCAST_BASE64, reportPdf } from './index.js';
@@ -34,6 +35,7 @@ const refs: SiteRefs = {
   item: fake('item'),
   campaign: fake('campaign'),
   pattern: fake('pattern'),
+  tier: fake('tier'),
 };
 const documents = OTTERDAM.items.map((item) => ({ key: item.key, doc: item.document(refs) }));
 const blocksOf = (key: string) => documents.find((d) => d.key === key)!.doc.blocks;
@@ -74,7 +76,9 @@ describe('Otterdam is complete', () => {
   });
 
   it('has about twenty published articles spread over a year and a half', () => {
-    const published = OTTERDAM.items.filter((i) => i.publishedAt && !i.key.startsWith('test-'));
+    const published = OTTERDAM.items.filter(
+      (i) => i.publishedAt && !i.key.startsWith('test-') && !OTTERDAM.editions?.includes(i.key)
+    );
     const dates = published.map((i) => i.publishedAt!).sort();
     expect(published.length).toBe(20);
     expect(Date.parse(dates.at(-1)!) - Date.parse(dates[0]!)).toBeGreaterThan(400 * 86_400_000);
@@ -107,11 +111,12 @@ const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
 
 describe('seedSite with Otterdam', () => {
   it(
-    'seeds the whole site through the use cases, and a second run makes nothing',
+    'seeds the whole site and its supporters through the use cases, and a second run makes nothing',
     { timeout: 30_000 },
     async () => {
       const now = new Date('2026-11-21T12:00:00.000Z');
-      const uow = new MemoryUnitOfWork({ clock: new FakeClock(now) });
+      const provider = new FakePaymentProvider();
+      const uow = new MemoryUnitOfWork({ clock: new FakeClock(now), paymentProvider: provider });
       const invoker = new Invoker(buildRegistry(), uow);
       const admin = adminOf();
       const load = async (m: { filename: string; contentType: string }) =>
@@ -121,7 +126,20 @@ describe('seedSite with Otterdam', () => {
             ? base64ToBytes(PODCAST_BASE64)
             : JPEG;
 
-      const first = await seedSite(invoker, admin, OTTERDAM, load, now);
+      // What the worker would do after commit: here only the ingest, which makes the supporters.
+      const ingest = supporterIngestSubscriber(uow);
+      const activity = {
+        origin: 'http://localhost:5173/otterdam',
+        uow,
+        deliver: async () => {
+          const events = uow.store.outbox.filter((e) => ingest.types.includes(e.type));
+          uow.store.outbox.length = 0;
+          for (const e of events) await ingest.handle(e);
+        },
+        settle: async (ref: string) => provider.settle(ref, 'paid'),
+      };
+      const options = { load, now, activity };
+      const first = await seedSite(invoker, admin, OTTERDAM, options);
       expect(first.items.every((s) => s.created)).toBe(true);
       expect(first.created['item']).toHaveLength(OTTERDAM.items.length);
       expect(first.created['navigation']).toEqual(['navigation']);
@@ -147,7 +165,38 @@ describe('seedSite with Otterdam', () => {
       });
       expect(campaign.participation.state).toBe('open');
 
-      const second = await seedSite(invoker, admin, OTTERDAM, load, now);
+      // The supporters: signatures count, gifts are paid, a member and a reader read the club.
+      expect(first.created['supporter']).toHaveLength(OTTERDAM.supporters!.length);
+      const count = async (key: string) =>
+        (await invoker.run(useCases.getCampaign, admin, { campaignId: first.refs.campaign(key) }))
+          .participants;
+      expect(await count('vistrappen')).toBe(4);
+      expect(await count('otterspotten')).toBe(2);
+      const { donations } = await invoker.run(useCases.listDonations, admin, {});
+      expect(donations.filter((d) => d.status === 'paid')).toHaveLength(5);
+      const { subscriptions } = await invoker.run(useCases.listSubscriptions, admin, {});
+      expect(subscriptions.map((s) => [s.interval, s.status]).sort()).toEqual([
+        ['month', 'active'],
+        ['month', 'active'],
+        ['year', 'active'],
+      ]);
+      const reader = await invoker.run(useCases.getSupporter, admin, {
+        email: 'lezer@otterdam.example',
+      });
+      expect(reader.grants.map((g) => g.tierId)).toEqual([first.refs.tier('leesclub')]);
+      const { editions } = await invoker.run(useCases.listEditions, admin, {
+        itemId: first.refs.item('nieuwsbrief-november'),
+      });
+      expect(editions.map((e) => [e.list, e.recipients])).toEqual([['news', 5]]);
+      const mail = await invoker.run(useCases.getFormMailSettings, admin, {});
+      expect(mail.value.forms[0]!.actions.map((a) => a.kind)).toEqual([
+        'notification',
+        'notification',
+        'notification',
+        'receipt',
+      ]);
+
+      const second = await seedSite(invoker, admin, OTTERDAM, options);
       expect(second.created).toEqual({});
       expect(second.items.map((s) => s.item.id)).toEqual(first.items.map((s) => s.item.id));
     }
