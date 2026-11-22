@@ -10,6 +10,8 @@ import { Invoker } from '../invoke.js';
 import { FakeClock, MemoryUnitOfWork, TENANT, expectCode, principal } from '../testing/index.js';
 import { exampleId } from '../util/ids.js';
 import { buildRegistry, useCases } from '../use-cases.js';
+import { landingCampaignOf } from './card.js';
+import { visibleTarget } from './model.js';
 
 const TENANT_B = exampleId(0xbbbb);
 const HOUR = 3_600_000;
@@ -224,6 +226,66 @@ describe('campaign.card.get (ADR 033 rule 4)', () => {
       counterVisible: false,
     });
     expect(await card(c.id)).toMatchObject({ available: true, counter: null });
+  });
+});
+
+describe('a goal that grows with the count (MY-288)', () => {
+  const growing = { target: 1000, milestones: [100, 500] };
+  it('shows each milestone until 95 % of it, a jump passes several, the target stays at the end', () => {
+    expect(visibleTarget(growing, 0)).toBe(100);
+    expect(visibleTarget(growing, 94)).toBe(100);
+    expect(visibleTarget(growing, 95)).toBe(500);
+    expect(visibleTarget(growing, 474)).toBe(500);
+    expect(visibleTarget(growing, 475)).toBe(1000);
+    expect(visibleTarget(growing, 1200)).toBe(1000);
+    // A fixed goal keeps its target; no goal shows none.
+    expect(visibleTarget({ target: 500, milestones: [] }, 480)).toBe(500);
+    expect(visibleTarget(null, 480)).toBeNull();
+  });
+
+  it('gives the card and the landing page the same count and goal, and hides both when hidden', async () => {
+    const { uow, invoker, admin, start, publish, card, current } = setup();
+    const c = await start();
+    await publish(c.landingItemId, 'nl');
+    await invoker.run(useCases.updateCampaign, admin, {
+      campaignId: c.id,
+      baseUpdatedAt: (await current(c.id)).updatedAt,
+      goal: growing,
+    });
+    let signed = 0;
+    const signTo = (n: number) =>
+      uow.run(admin, async (ctx) => {
+        for (; signed < n; signed++)
+          await ctx.campaigns.recordParticipation({
+            campaignId: c.id,
+            supporterId: exampleId(0x50000 + signed),
+            submissionId: exampleId(0x60000 + signed),
+            confirmedAt: ctx.clock.now().toISOString(),
+          });
+      });
+    const landing = () => uow.run(admin, (ctx) => landingCampaignOf(ctx, c.landingItemId));
+    for (const [count, target] of [
+      [94, 100],
+      [95, 500],
+      [480, 1000],
+      [1001, 1000],
+    ] as const) {
+      await signTo(count);
+      expect(await card(c.id), `card at ${count}`).toMatchObject({
+        counter: { participants: count, target },
+      });
+      expect((await landing())!.counter, `landing at ${count}`).toMatchObject({
+        participants: count,
+        target,
+      });
+    }
+    await invoker.run(useCases.updateCampaign, admin, {
+      campaignId: c.id,
+      baseUpdatedAt: (await current(c.id)).updatedAt,
+      counterVisible: false,
+    });
+    expect(await card(c.id)).toMatchObject({ counter: null });
+    expect((await landing())!.counter).toBeNull();
   });
 });
 

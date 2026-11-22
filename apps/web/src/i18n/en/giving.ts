@@ -245,6 +245,10 @@ export const giving = {
   'admin.campaign.field.target': 'Goal',
   'admin.campaign.field.target.hint':
     'The number of participants you aim for, or for a fundraiser the amount in euros. Leave it empty for no goal.',
+  'admin.campaign.field.milestones': 'Milestones',
+  'admin.campaign.field.milestones.hint':
+    'For a goal that grows, for example 100, 500: the site shows the first milestone until 95% of it is reached, then the next, and finally the goal. Leave it empty for a fixed goal.',
+  'admin.campaign.column.shownTarget': 'Goal on the site now',
   'admin.campaign.field.opensAt': 'Opens at',
   'admin.campaign.field.closesAt': 'Closes at',
   'admin.campaign.field.counterVisible': 'Show the count on the site',
@@ -266,7 +270,8 @@ export const giving = {
   'admin.campaign.error.formKind':
     'The form on this campaign is of another kind and cannot be used.',
   'admin.campaign.error.window': 'The closing time must be after the opening time.',
-  'admin.campaign.error.goal': 'The goal must be a whole number above zero.',
+  'admin.campaign.error.goal':
+    'The goal must be a whole number above zero, and milestones rising and below the goal.',
   'admin.campaign.error.archived': 'This campaign is archived and can no longer change.',
   'admin.campaign.error.invalid': 'Check the dates and the goal: one of them is not valid.',
   'admin.campaign.archivedHint': 'Archived: participation is closed for good.',

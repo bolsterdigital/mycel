@@ -6,13 +6,13 @@
 // Rejected: actions in the editor route (past its size ceiling already) and a nested form (invalid
 // HTML; browsers drop the inner one).
 
-import { can, useCases, type CampaignView, type Principal } from '@mycel/core';
+import { can, useCases, visibleTarget, type CampaignView, type Principal } from '@mycel/core';
 import { UseCaseError } from '@mycel/core';
 import type { UiKey } from '../../../i18n/index.js';
 import { fromLocalInput, localInput } from '../content/content-admin-publication.js';
 import { runtime } from '../runtime.js';
 import { text } from './admin-actions.js';
-import { goalTarget } from '../../campaign-count.js';
+import { goalMilestones, goalTarget } from '../../campaign-count.js';
 
 /** What the editor's side column shows of the campaign a page is the landing page of. */
 export interface CampaignPanel {
@@ -24,6 +24,10 @@ export interface CampaignPanel {
   /** A fundraiser's paid gifts; then `target` is in minor units too. */
   raised: CampaignView['raised'];
   target: number | null;
+  /** The growing goal's steps below `target` (MY-288); empty for a fixed goal. */
+  milestones: number[];
+  /** The goal the site shows now: the current milestone, or `target`. */
+  shownTarget: number | null;
   counterVisible: boolean;
   opensAt: string;
   closesAt: string;
@@ -57,6 +61,11 @@ export async function campaignPanel(
     participants: campaign.participants,
     raised: campaign.raised,
     target: campaign.goal?.target ?? null,
+    milestones: campaign.goal?.milestones ?? [],
+    shownTarget: visibleTarget(
+      campaign.goal,
+      campaign.raised ? campaign.raised.amount : campaign.participants
+    ),
     counterVisible: campaign.counterVisible,
     opensAt: local(campaign.participation.opensAt),
     closesAt: local(campaign.participation.closesAt),
@@ -124,10 +133,11 @@ export function campaignFields(
   const opens = at('opensAt');
   const closes = at('closesAt');
   const target = goalTarget(text(data, 'target'), kind);
-  if (!opens.ok || !closes.ok || Number.isNaN(target)) return null;
+  const milestones = goalMilestones(text(data, 'milestones'), kind);
+  if (!opens.ok || !closes.ok || Number.isNaN(target) || !milestones) return null;
   return {
     counterVisible: data.get('counterVisible') === 'on',
-    goal: target === null ? null : { target, milestones: [] as number[] },
+    goal: target === null ? null : { target, milestones },
     ...(canPublish ? { window: { opensAt: opens.at, closesAt: closes.at } } : {}),
   };
 }

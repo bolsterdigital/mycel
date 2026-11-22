@@ -48,3 +48,20 @@ export function goalTarget(typed: string, kind: CampaignKind): number | null {
 /** The goal as the field shows it: whole euros for a fundraiser. */
 export const goalInput = (target: number | null, kind: CampaignKind): string =>
   target === null ? '' : String(kind === 'fundraiser' ? Math.round(target / 100) : target);
+
+/**
+ * Milestones as typed (MY-288): whole numbers separated by commas or spaces, in the unit of the
+ * kind as `goalTarget`. Empty for a fixed goal, null for anything that is not a list of whole
+ * numbers; core refuses an order or a step above the goal with its own message.
+ */
+export function goalMilestones(typed: string, kind: CampaignKind): number[] | null {
+  const parts = typed.split(/[\s,;]+/).filter(Boolean);
+  const steps = parts.map((part) => goalTarget(part, kind));
+  return steps.every((n) => typeof n === 'number' && Number.isInteger(n))
+    ? (steps as number[])
+    : null;
+}
+
+/** The milestones as the field shows them: whole euros for a fundraiser, comma-separated. */
+export const milestonesInput = (milestones: readonly number[], kind: CampaignKind): string =>
+  milestones.map((m) => goalInput(m, kind)).join(', ');

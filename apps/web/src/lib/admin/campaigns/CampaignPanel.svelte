@@ -12,7 +12,7 @@
   import { fill, ui } from '../../../i18n/index.js';
   import type { UiKey } from '../../../i18n/index.js';
   import type { CampaignPanel } from '../../server/admin/campaigns.js';
-  import { countFigures, goalInput } from '../../campaign-count.js';
+  import { countFigures, goalInput, milestonesInput } from '../../campaign-count.js';
 
   let {
     panel,
@@ -40,6 +40,10 @@
       ? figures.count
       : fill(t('admin.campaign.count.ofTarget'), { count: figures.count, target: figures.target })
   );
+  // A growing goal (MY-288) also says which step the site shows now.
+  const shown = $derived(
+    panel.milestones.length ? countFigures(panel, panel.shownTarget, locale).target : null
+  );
   const edits = $derived(panel.canWrite && !panel.archived);
 </script>
 
@@ -55,6 +59,7 @@
         value: t(`admin.campaign.state.${panel.state}`),
       },
       { term: t('admin.campaign.column.count'), value: count },
+      ...(shown ? [{ term: t('admin.campaign.column.shownTarget'), value: shown }] : []),
     ]}
   />
   <p class="ui-hint">
@@ -114,6 +119,15 @@
       hint={t('admin.campaign.field.target.hint')}
       {locale}
       value={goalInput(panel.target, panel.kind)}
+    />
+    <Field
+      id="campaign-milestones"
+      name="milestones"
+      form={f}
+      label={t('admin.campaign.field.milestones')}
+      hint={t('admin.campaign.field.milestones.hint')}
+      {locale}
+      value={milestonesInput(panel.milestones, panel.kind)}
     />
     <div class="ui-choice">
       <input

@@ -16,7 +16,14 @@ import { Block } from '../content/blocks.js';
 import { ContentType, Slug } from '../content/model.js';
 import { statusOf } from '../content/lifecycle.js';
 import { effectiveOf } from '../content/header/effective.js';
-import { acceptsNow, CampaignKind, FORM_KIND_OF, Raised, type Campaign } from './model.js';
+import {
+  acceptsNow,
+  CampaignKind,
+  FORM_KIND_OF,
+  Raised,
+  visibleTarget,
+  type Campaign,
+} from './model.js';
 import { tallyOf } from './tally.js';
 import './ports.js';
 import '../content/ports.js';
@@ -170,9 +177,7 @@ export async function campaignCardOf(
     phase,
     opensAt: campaign.participation.opensAt,
     closesAt: campaign.participation.closesAt,
-    counter: campaign.counterVisible
-      ? { ...(await tallyOf(ctx, campaign)), target: campaign.goal?.target ?? null }
-      : null,
+    counter: campaign.counterVisible ? await counterOf(ctx, campaign) : null,
     formId,
   };
 }
@@ -189,6 +194,13 @@ export async function formCampaignCard(
 ): Promise<CampaignCard | null> {
   const campaign = await ctx.campaigns.byForm(formId);
   return campaign ? campaignCardOf(ctx, campaign, campaign.id, locale) : null;
+}
+
+/** The public count and the goal shown now, the same on the card and the landing page (MY-288). */
+async function counterOf(ctx: TransactionContext, campaign: Campaign) {
+  const tally = await tallyOf(ctx, campaign);
+  const count = tally.raised ? tally.raised.amount : tally.participants;
+  return { ...tally, target: visibleTarget(campaign.goal, count) };
 }
 
 /**
@@ -232,9 +244,7 @@ export async function landingCampaignOf(
     kind: campaign.kind,
     phase: phaseOf(campaign, ctx.clock.now()),
     opensAt: campaign.participation.opensAt,
-    counter: campaign.counterVisible
-      ? { ...(await tallyOf(ctx, campaign)), target: campaign.goal?.target ?? null }
-      : null,
+    counter: campaign.counterVisible ? await counterOf(ctx, campaign) : null,
     formId,
   };
 }
