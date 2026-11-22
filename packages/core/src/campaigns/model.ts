@@ -78,6 +78,9 @@ export function visibleTarget(goal: CampaignGoal | null, count: number): number 
   return goal.target;
 }
 
+/** An earlier count in people, set as a whole number, never incremented (MY-288). */
+export const StartingCount = z.number().int().nonnegative().max(100_000_000);
+
 export const Campaign = z.object({
   id: z.string().guid(),
   kind: CampaignKind,
@@ -90,6 +93,12 @@ export const Campaign = z.object({
   counterVisible: z.boolean(),
   /** Confirmed participations of erased supporters, without any identifier (ADR 033 rule 8). */
   erasedCount: z.number().int().nonnegative(),
+  /**
+   * An earlier count a petition or signup starts from (MY-288, ADR 033 rule 8 amendment
+   * 2026-11-22): a fixed number added to the public count, apart from participations. Always 0
+   * for a fundraiser, whose count is money from the ledger.
+   */
+  startingCount: StartingCount,
   archivedAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -105,7 +114,7 @@ export type Raised = z.infer<typeof Raised>;
 
 /**
  * What a campaign counts now (ADR 033 rule 8). A petition or signup counts people: active
- * participations plus the anonymous erased ones. A fundraiser counts money in `raised`, and
+ * participations plus the anonymous erased ones plus its starting count. A fundraiser counts money in `raised`, and
  * `participants` is then the number of paid gifts; its goal is in minor units, like `raised`.
  */
 export interface Tally {
@@ -159,6 +168,7 @@ export const CampaignFields = z
     formId: z.string().guid().nullable().optional(),
     goal: CampaignGoal.nullable().optional(),
     counterVisible: z.boolean().optional(),
+    startingCount: StartingCount.optional(),
     window: ParticipationWindow.optional(),
   })
   .strict();

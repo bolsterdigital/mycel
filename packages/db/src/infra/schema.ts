@@ -394,6 +394,7 @@ export interface Database {
     goal: Json<unknown> | null;
     counter_visible: Generated<boolean>;
     erased_count: Generated<number>;
+    starting_count: Generated<number>;
     archived_at: Timestamp | null;
     created_at: Timestamp;
     updated_at: Timestamp;

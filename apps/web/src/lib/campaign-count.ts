@@ -65,3 +65,14 @@ export function goalMilestones(typed: string, kind: CampaignKind): number[] | nu
 /** The milestones as the field shows them: whole euros for a fundraiser, comma-separated. */
 export const milestonesInput = (milestones: readonly number[], kind: CampaignKind): string =>
   milestones.map((m) => goalInput(m, kind)).join(', ');
+
+/**
+ * A starting count as typed (MY-288 PR B): a whole number of people, empty for none. NaN for
+ * anything else; core refuses one on a fundraiser, whose panel has no such field.
+ */
+export function startingCountOf(typed: string): number {
+  const value = typed.trim();
+  if (!value) return 0;
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 0 ? n : NaN;
+}
