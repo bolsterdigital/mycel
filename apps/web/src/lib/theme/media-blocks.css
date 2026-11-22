@@ -27,7 +27,9 @@
   padding-inline: var(--caption-inset);
   text-align: start;
 }
-.caption-text {
+/* Scoped to the page's own caption: the lightbox clones these nodes into its dark dialog
+   (lightbox.js), where its own colour and size hold (lightbox.css). */
+:is(figcaption, .page-cover-caption) > .caption-text {
   flex: 0 1 auto;
   /* Its lines keep the content measure under a wide or full image (content-layout.md). */
   max-width: var(--content-width, 100%);
@@ -49,8 +51,8 @@
 
 /* The maker (P185-79): the camera in place of the word "Photo", which stays for a screen reader;
    smaller than the caption, in `--color-caption-fg` (tokens.ts: the muted colour moved towards
-   the page as far as it stays AA), never italic. */
-.credit {
+   the page as far as it stays AA), never italic. Scoped like the caption text. */
+:is(figcaption, .page-cover-caption) > .credit {
   flex: 0 1 auto;
   margin-inline-start: auto;
   text-align: end;
