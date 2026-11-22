@@ -90,6 +90,24 @@ function burger() {
 
 const px = (value) => Number.parseFloat(value) || 0;
 
+/**
+ * The `:root` rule that carries the sticky header's height, in a stylesheet this module
+ * constructs: no `style` attribute on the page (public pages carry none) and nothing for the
+ * CSP's `style-src` to refuse. Without constructable stylesheets the header is never sticky, since
+ * the scroll padding could not keep the focus below it. Rejected: `style` on `<html>`.
+ */
+let rootRule;
+function stickyRule() {
+  if (rootRule !== undefined) return rootRule;
+  rootRule = null;
+  if (typeof CSSStyleSheet === 'undefined' || !('adoptedStyleSheets' in document)) return rootRule;
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(':root {}');
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  rootRule = sheet.cssRules[0];
+  return rootRule;
+}
+
 function enhance(header) {
   const details = header.querySelector('.site-menu');
   const summary = details?.querySelector('.site-menu-toggle');
@@ -194,7 +212,6 @@ function enhance(header) {
   const links = bar ? [...bar.querySelectorAll(':scope > ul > li')] : [];
   const candidates = priority({ search, languages, second, links });
   const inTools = (c) => !links.includes(c);
-  const root = document.documentElement;
   let shown = 0;
   let pending = 0;
 
@@ -268,11 +285,11 @@ function enhance(header) {
       .map((el) => el.getBoundingClientRect());
     const oneRow = Math.max(...parts.map((r) => r.top)) < Math.min(...parts.map((r) => r.bottom));
     const height = header.getBoundingClientRect().height;
-    const sticky = stickyFits({ oneRow, height, viewport: window.innerHeight });
+    const rule = stickyRule();
+    const sticky = !!rule && stickyFits({ oneRow, height, viewport: window.innerHeight });
     header.toggleAttribute('data-sticky', sticky);
-    // CSSOM, so no inline style attribute for the CSP to refuse.
-    if (sticky) root.style.setProperty('--site-sticky-block-size', `${Math.ceil(height)}px`);
-    else root.style.removeProperty('--site-sticky-block-size');
+    if (sticky) rule.style.setProperty('--site-sticky-block-size', `${Math.ceil(height)}px`);
+    else rule?.style.removeProperty('--site-sticky-block-size');
   }
   const schedule = () => {
     if (!pending) pending = requestAnimationFrame(measure);
