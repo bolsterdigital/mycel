@@ -15,12 +15,19 @@
    panel into a modal dialog from the right instead. Rejected: a panel in the flow of the header,
    which moves Menu on opening, and a fixed overlay, which leaves the page behind it focusable. */
 
+/* Header and footer each stand in the role pair the theme chose for them (`chrome`, MY-266),
+   copied into `--chrome-header-*` and `--chrome-footer-*` (tokens.ts), so their text, links and
+   focus ring are what the contrast check measured. The edge is the pair's own text colour, faint:
+   a header in the body pair still parts from the page, and forced colours keep the border.
+   Rejected: a surface-coloured edge, a grey line across a primary bar. */
 .site-header,
 .site-footer {
   padding: var(--space-2) var(--wide-inset);
-  border-block: 1px solid var(--color-surface-bg);
+  border-block: 1px solid color-mix(in srgb, currentColor 15%, transparent);
 }
 .site-header {
+  color: var(--chrome-header-fg);
+  background: var(--chrome-header-bg);
   position: relative;
   display: flex;
   flex-wrap: wrap;
@@ -49,6 +56,43 @@
   display: inline-flex;
   align-items: center;
   min-height: var(--tap);
+}
+/* Links in the chrome are navigation in a landmark, not links in running text (which WCAG 1.4.1
+   asks to tell apart, and base.css keeps underlined): they take the text colour of the pair they
+   stand on and no underline at rest. Hover and focus underline, as Dreamkit's footer does: on a
+   brand colour there is no safe colour to change to. The current page is bold and underlined,
+   never colour alone. The panel, a dropdown and the language list stand on the body pair, so
+   their links inherit that. */
+:is(.site-header, .site-footer) a:not(.button) {
+  color: inherit;
+  text-decoration: none;
+}
+:is(.site-header, .site-footer) a:not(.button):is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+}
+:is(.site-header, .site-footer) a:not(.button)[aria-current] {
+  font-weight: 700;
+  text-decoration-line: underline;
+  text-decoration-thickness: 0.15em;
+}
+/* The bar's first call to action in `--chrome-action-*`: the primary pair, inverted on a primary
+   header where a primary button would vanish into the bar, each with its active pair (tokens.ts).
+   The panel's buttons stand on the body pair and stay primary. */
+.site-header .site-tools > .site-action:not(.secondary) {
+  --action-base-fg: var(--chrome-action-fg);
+  --action-base-bg: var(--chrome-action-bg);
+  --action-fg: var(--chrome-action-active-fg);
+  --action-bg: var(--chrome-action-active-bg);
+}
+/* Search in the bar: a magnifier before the visible word, inline so it costs no request. */
+.site-search-link {
+  gap: 0.375em;
+  padding-inline: var(--space-1);
+}
+.site-icon {
+  flex: none;
+  width: 1.125em;
+  height: 1.125em;
 }
 .site-tools {
   display: flex;
@@ -146,10 +190,6 @@
 .site-panel .site-tree a {
   display: flex;
 }
-.site-tree a[aria-current='page'] {
-  font-weight: 700;
-  text-decoration-thickness: 0.15em;
-}
 .site-group > summary {
   display: flex;
   align-items: center;
@@ -189,15 +229,15 @@
 .site-panel .site-tree > li > .site-tree-link > a {
   font-size: var(--step-1);
 }
-.site-panel .site-tree a {
-  text-decoration: none;
-}
-.site-panel .site-tree a:is(:hover, [aria-current='page']) {
-  text-decoration: underline;
-}
 
 /* The footer: its text, then the placed columns side by side as far as they fit, then the legal
-   menu in one row. Every group stays open: a footer hides nothing. */
+   menu in one row. Every group stays open: a footer hides nothing. The legal menu, the consent
+   link and the credit are small print under a rule. */
+.site-footer {
+  color: var(--chrome-footer-fg);
+  background: var(--chrome-footer-bg);
+  padding-block: var(--space-4);
+}
 .site-footer > p {
   margin-block: 0 var(--space-1);
 }
@@ -212,12 +252,29 @@
 }
 .site-footer-title {
   margin: 0;
-  font-size: 1em;
+  font-size: var(--step-0);
+  font-weight: 700;
 }
 .site-footer-legal .site-tree {
   display: flex;
   flex-wrap: wrap;
   gap: 0 var(--space-3);
+}
+.site-footer-legal,
+.site-footer-consent {
+  font-size: var(--step--1);
+}
+.site-footer-legal,
+.site-footer > nav:not(:has(.site-footer-legal)) + :is(.site-footer-consent, .mycel-credit) {
+  margin-block-start: var(--space-2);
+  padding-block-start: var(--space-1);
+  border-block-start: 1px solid currentColor;
+}
+.site-footer .mycel-credit {
+  padding-block-start: 0;
+}
+.site-footer .mycel-credit p {
+  margin: 0;
 }
 
 /* The enhancement (`static/_site/navigation.js`, step D2). Nothing below shows before the script
@@ -273,9 +330,6 @@
   min-width: var(--tap);
   justify-content: center;
   white-space: nowrap;
-}
-.site-bar a[aria-current='page'] {
-  font-weight: 700;
 }
 
 /* A sublink button beside its link, and a group's button in the bar: a chevron, 44 px. */
@@ -484,6 +538,7 @@
   padding: var(--space-1);
   border: 1px solid currentColor;
   border-radius: var(--radius);
+  color: var(--color-body-fg);
   background: var(--color-body-bg);
 }
 .site-panel > search,
@@ -492,7 +547,4 @@
 }
 .site-language-links a {
   padding-inline: var(--space-1);
-}
-.site-language-links [aria-current] {
-  font-weight: 700;
 }

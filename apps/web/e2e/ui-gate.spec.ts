@@ -24,6 +24,11 @@ import { forwarded, login } from './lib/login';
 import { exerciseSupporterGrants } from './lib/access/grants';
 import { exerciseSupporterExport } from './lib/supporters/export';
 import { exerciseCampaignParticipants } from './lib/campaigns/participants';
+import {
+  type ChromePaintFixture,
+  exerciseChromePaint,
+  seedChromePaint,
+} from './lib/site-navigation/chrome-paint';
 import { ADMIN_LOCALES, ADMIN_ROUTES, type GateRoute, PUBLIC_ROUTES } from './routes';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { testTenant } from '@mycel/db/testing';
@@ -619,6 +624,20 @@ test.describe('admin-ui', () => {
     });
     await expect(general.getByRole('status')).toHaveCount(0);
   });
+});
+
+// The painted site header and footer (MY-266 PR B): the theme's chrome role pairs, chrome links
+// without an underline at rest, axe on the front page, an article and the open menu; in both
+// projects, so the panel is the native disclosure in no-js and the dialog in a11y.
+test.describe('chrome-paint', () => {
+  test.use({ extraHTTPHeaders: forwarded() });
+  let fixture: ChromePaintFixture;
+  test.beforeAll(async () => {
+    const slug = `chrome-paint-${test.info().project.name}-${Date.now().toString(36)}`;
+    fixture = await seedChromePaint(slug);
+  });
+  test('header and footer in each chrome role, links at rest', async ({ page }) =>
+    exerciseChromePaint(page, fixture));
 });
 
 // Browser axe over every block example in the registry (TODO #30B, brief renderer-regressions
