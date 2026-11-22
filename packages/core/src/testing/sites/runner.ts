@@ -5,7 +5,9 @@
 // (found by slug, filename or name) is kept untouched, what is missing is made. That lets a test
 // server be brought up to date after a new feature without a reseed. Items are
 // made in two rounds, as the WordPress importer does: every missing item first as an empty
-// draft, so any document can link to any item, then filled, revised and published.
+// draft, so any document can link to any item, then filled, revised and published. Supporters,
+// their gifts and a newsletter edition follow last (`activity.ts`), only when the caller gives
+// what lies outside the use cases: signing a confirmation, draining the outbox, paying.
 // Rejected: SQL or a repository write (skips the checks a use case makes), a WXR file through the
 // importer (knows nothing of campaigns, forms or navigation), and one script per feature (not
 // repeatable, not reviewed, never complete).
@@ -15,16 +17,19 @@ import type { ContentItem } from '../../content/model.js';
 import type { NavigationDocument } from '../../navigation/model.js';
 import type { Invoker } from '../../invoke.js';
 import type { Principal } from '../../principal.js';
-import type { FormKind } from '../../forms/model.js';
+import type { FormDefinition, FormKind } from '../../forms/model.js';
+import type { FormMailConfig } from '../../forms/mail-model.js';
 import type { BlockInput } from '../../content/blocks.js';
 import { useCases } from '../../use-cases.js';
 import { bytesToBase64 } from '../../util/bytes.js';
 import type { L } from './rich.js';
+import { seedActivity, type Activity, type SupporterDef } from './activity.js';
 
 type DocumentInput = z.input<typeof useCases.createItem.input>['document'];
 type PersonInput = Omit<z.input<typeof useCases.createPerson.input>, 'slug' | 'imageId'>;
 type UploadInput = z.input<typeof useCases.uploadMedia.input>;
 type CampaignInput = z.input<typeof useCases.createCampaign.input>;
+type TierInput = Omit<z.input<typeof useCases.createAccessTier.input>, 'slug'>;
 
 /** The ids of what the run found or made, by the definition's keys. */
 export interface SiteRefs {
@@ -36,6 +41,7 @@ export interface SiteRefs {
   item(key: string): string;
   campaign(key: string): string;
   pattern(key: string): string;
+  tier(key: string): string;
 }
 
 export interface MediaDef {
@@ -68,11 +74,28 @@ export interface SectionDef {
   description?: L;
 }
 
+export interface TierDef {
+  key: string;
+  /** Also how a later run recognises the tier. */
+  slug: string;
+  tier: TierInput;
+}
+
 export interface FormDef {
   key: string;
   kind: FormKind;
   /** Also how a later run recognises the form, in the site's default locale. */
   name: L;
+  /** A membership form: the key of the paid tier it sells. */
+  tier?: string;
+  /**
+   * The fields as the definition wants them, from the fields the form has now. It must return
+   * its input unchanged once applied (add what is missing, by name), because it also runs on a
+   * form a previous run made: that is how an existing form gains a newer definition's fields.
+   */
+  fields?: (fields: FormDefinition['fields']) => FormDefinition['fields'];
+  /** Notifications and receipt (ADR 023), saved while the tenant has none for this form. */
+  mail?: Omit<FormMailConfig, 'formId'>;
 }
 
 export interface ItemDef {
@@ -120,12 +143,17 @@ export interface SiteDefinition {
   people: PersonDef[];
   groups: GroupDef[];
   sections: SectionDef[];
+  tiers: TierDef[];
   forms: FormDef[];
   items: ItemDef[];
   patterns: PatternDef[];
   campaigns: CampaignDef[];
   /** Saved and published in every locale while the site has no published navigation. */
   navigation?(refs: SiteRefs): NavigationDocument;
+  /** People who signed, subscribed, gave or read; made only with `SeedOptions.activity`. */
+  supporters?: SupporterDef[];
+  /** Item keys sent once as a newsletter to the confirmed subscribers of their list. */
+  editions?: string[];
 }
 
 export interface SeededItem {
@@ -145,6 +173,17 @@ export interface SiteSeed {
 /** The bytes of a definition's file. */
 export type LoadMedia = (media: MediaDef) => Promise<Uint8Array>;
 
+export interface SeedOptions {
+  load: LoadMedia;
+  /**
+   * The present, as the tenant's clock has it. A definition has fixed dates: a first publication
+   * after `now` is published without its date, a schedule before `now` is published at once.
+   */
+  now?: Date;
+  /** What supporters and editions need beyond the use cases; without it the run makes neither. */
+  activity?: Activity;
+}
+
 function lookup(kind: string, ids: Map<string, string>) {
   return (key: string) => {
     const id = ids.get(key);
@@ -154,7 +193,9 @@ function lookup(kind: string, ids: Map<string, string>) {
 }
 
 /** Every page of a cursor list. */
-async function all<T>(page: (after?: string) => Promise<{ rows: T[]; next: string | null }>) {
+export async function all<T>(
+  page: (after?: string) => Promise<{ rows: T[]; next: string | null }>
+) {
   const rows: T[] = [];
   let after: string | undefined;
   do {
@@ -166,7 +207,7 @@ async function all<T>(page: (after?: string) => Promise<{ rows: T[]; next: strin
 }
 
 /** One run of a definition: who runs it, what it found or made, and when "now" is. */
-interface Run {
+export interface Run {
   invoker: Invoker;
   principal: Principal;
   site: SiteDefinition;
@@ -177,7 +218,7 @@ interface Run {
 }
 
 /** The name in the site's default locale: how a group, form or pattern is recognised. */
-const nameIn = (run: Run, name: L) => name[run.site.defaultLocale] ?? Object.values(name)[0];
+export const nameIn = (run: Run, name: L) => name[run.site.defaultLocale] ?? Object.values(name)[0];
 
 /** For every definition: the id of what the tenant has, else of what `make` creates. */
 async function ensure<D extends { key: string }>(
@@ -201,12 +242,7 @@ export async function seedSite(
   invoker: Invoker,
   principal: Principal,
   site: SiteDefinition,
-  load: LoadMedia,
-  /**
-   * The present, as the tenant's clock has it. A definition has fixed dates: a first publication
-   * after `now` is published without its date, a schedule before `now` is published at once.
-   */
-  now: Date = new Date()
+  { load, now = new Date(), activity }: SeedOptions
 ): Promise<SiteSeed> {
   const kinds = [
     'media',
@@ -217,6 +253,7 @@ export async function seedSite(
     'item',
     'campaign',
     'pattern',
+    'tier',
   ] as const;
   const ids = Object.fromEntries(kinds.map((k) => [k, new Map<string, string>()])) as Run['ids'];
   const refs = Object.fromEntries(kinds.map((k) => [k, lookup(k, ids[k])])) as unknown as SiteRefs;
@@ -224,6 +261,8 @@ export async function seedSite(
 
   await seedMedia(run, load);
   await seedRegister(run);
+  await seedTiers(run);
+  await seedForms(run);
   const { fresh, kept } = await draftItems(run);
   await seedPatterns(run);
   const opening = await seedCampaigns(run);
@@ -238,6 +277,7 @@ export async function seedSite(
     });
   }
   await seedNavigation(run);
+  if (activity) await seedActivity(run, activity);
 
   const byKey = new Map([...kept, ...seeded].map((s) => [s.key, s]));
   return { refs, items: site.items.map((d) => byKey.get(d.key)!), created: run.created };
@@ -319,26 +359,80 @@ async function seedRegister(run: Run) {
     async ({ key: _key, ...input }) =>
       (await invoker.run(useCases.createSection, principal, input)).id
   );
+}
+
+async function seedTiers(run: Run) {
+  const { invoker, principal } = run;
+  const tiers = await all(async (after) => {
+    const page = await invoker.run(useCases.listAccessTiers, principal, { after, limit: 100 });
+    return { rows: page.tiers, next: page.next };
+  });
+  await ensure(
+    run,
+    'tier',
+    run.site.tiers,
+    (d) => tiers.find((t) => t.slug === d.slug)?.id,
+    async (d) =>
+      (await invoker.run(useCases.createAccessTier, principal, { ...d.tier, slug: d.slug })).id
+  );
+}
+
+/**
+ * Forms are made, named and shaped, and a found form gains the fields a newer definition adds.
+ * Their notifications go into the tenant's one mail document, only for a form it does not name.
+ */
+async function seedForms(run: Run) {
+  const { invoker, principal, refs } = run;
   const { forms } = await invoker.run(useCases.listForms, principal, {});
   await ensure(
     run,
     'form',
-    site.forms,
+    run.site.forms,
     (d) =>
       forms.find((f) => f.kind === d.kind && f.name && nameIn(run, f.name) === nameIn(run, d.name))
         ?.id,
-    async (d) => {
-      const form = await invoker.run(useCases.createForm, principal, { kind: d.kind });
-      const { version } = await invoker.run(useCases.getFormForAuthoring, principal, {
-        id: form.id,
-      });
-      await invoker.run(useCases.updateForm, principal, {
-        baseVersion: version,
-        value: { ...form, name: d.name },
-      });
-      return form.id;
-    }
+    async (d) =>
+      (
+        await invoker.run(useCases.createForm, principal, {
+          kind: d.kind,
+          ...(d.tier && { tierId: refs.tier(d.tier) }),
+        })
+      ).id
   );
+  for (const def of run.site.forms) {
+    const id = refs.form(def.key);
+    const { form, version } = await invoker.run(useCases.getFormForAuthoring, principal, { id });
+    const fields = def.fields ? def.fields(form.fields) : form.fields;
+    const kept = form.name && nameIn(run, form.name) === nameIn(run, def.name);
+    if (kept && JSON.stringify(fields) === JSON.stringify(form.fields)) continue;
+    await named(`form ${def.key}`, () =>
+      invoker.run(useCases.updateForm, principal, {
+        baseVersion: version,
+        value: { ...form, name: def.name, fields },
+      })
+    );
+    if (kept) (run.created['form fields'] ??= []).push(def.key);
+  }
+  const mailed = run.site.forms.filter((d) => d.mail);
+  if (!mailed.length) return;
+  const state = await invoker.run(useCases.getFormMailSettings, principal, {});
+  const missing = mailed.filter(
+    (d) => !state.value.forms.some((f) => f.formId === refs.form(d.key))
+  );
+  if (!missing.length) return;
+  await named('form mail', () =>
+    invoker.run(useCases.updateFormMailSettings, principal, {
+      baseVersion: state.version,
+      value: {
+        ...state.value,
+        forms: [
+          ...state.value.forms,
+          ...missing.map((d) => ({ ...d.mail!, formId: refs.form(d.key) })),
+        ],
+      },
+    })
+  );
+  (run.created['form mail'] ??= []).push(...missing.map((d) => d.key));
 }
 
 interface Fresh {
@@ -496,7 +590,7 @@ async function seedNavigation(run: Run) {
 }
 
 /** `work()`, with a refusal naming what the definition was making and the first issues. */
-async function named<T>(what: string, work: () => Promise<T>): Promise<T> {
+export async function named<T>(what: string, work: () => Promise<T>): Promise<T> {
   try {
     return await work();
   } catch (error) {
@@ -512,6 +606,7 @@ async function named<T>(what: string, work: () => Promise<T>): Promise<T> {
 /** Refs for reading a document's type, title and locales before anything exists. */
 const PLACEHOLDER = '00000000-0000-4000-8000-000000000000';
 const placeholderRefs: SiteRefs = {
+  tier: () => PLACEHOLDER,
   media: () => PLACEHOLDER,
   person: () => PLACEHOLDER,
   group: () => PLACEHOLDER,

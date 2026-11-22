@@ -3,12 +3,20 @@
 // against a database and prints a manifest of what is where. The realistic layer reads as a real
 // organisation; the test layer (`tests.ts`) is recognisable as a test and exhaustive per axis.
 // `otterdam.test.ts` fails when a block type or variant is missing, so the site stays complete as
-// features are added.
+// features are added. `activity.ts` adds the supporters and what they joined, gave and read.
 
 import type { BlockInput } from '../../../content/blocks.js';
 import type { NavigationDocument } from '../../../navigation/model.js';
 import { block, say } from '../rich.js';
 import type { SiteDefinition, SiteRefs } from '../runner.js';
+import {
+  CONTACT_FORM,
+  OTTERDAM_ACTIVITY_CAMPAIGNS,
+  OTTERDAM_ACTIVITY_FORMS,
+  OTTERDAM_ACTIVITY_ITEMS,
+  OTTERDAM_SUPPORTERS,
+  OTTERDAM_TIERS,
+} from './activity.js';
 import { OTTERDAM_ARTICLES } from './articles.js';
 import { OTTERDAM_MEDIA } from './media.js';
 import { OTTERDAM_PAGES } from './pages.js';
@@ -80,6 +88,7 @@ const navigation = (r: SiteRefs): NavigationDocument => ({
           label: { nl: 'Teken de petitie', en: 'Sign the petition' },
           target: { kind: 'content', itemId: r.item('petitie') },
         },
+        { id: 'doneer', kind: 'link', target: { kind: 'content', itemId: r.item('doneer') } },
       ],
     },
     {
@@ -127,7 +136,12 @@ const navigation = (r: SiteRefs): NavigationDocument => ({
   },
 });
 
-const items = [...OTTERDAM_PAGES, ...OTTERDAM_ARTICLES, ...OTTERDAM_TESTS].map((item) =>
+const items = [
+  ...OTTERDAM_PAGES,
+  ...OTTERDAM_ARTICLES,
+  ...OTTERDAM_ACTIVITY_ITEMS,
+  ...OTTERDAM_TESTS,
+].map((item) =>
   USES.includes(item.key)
     ? {
         ...item,
@@ -148,7 +162,11 @@ export const OTTERDAM: SiteDefinition = {
   people: OTTERDAM_PEOPLE,
   groups: OTTERDAM_GROUPS,
   sections: OTTERDAM_SECTIONS,
-  forms: OTTERDAM_FORMS,
+  tiers: OTTERDAM_TIERS,
+  forms: [
+    ...OTTERDAM_FORMS.map((f) => (f.key === 'contact' ? { ...f, ...CONTACT_FORM } : f)),
+    ...OTTERDAM_ACTIVITY_FORMS,
+  ],
   items,
   patterns: [
     {
@@ -166,6 +184,9 @@ export const OTTERDAM: SiteDefinition = {
       form: 'petitie',
       goal: { target: 2500, milestones: [] },
     },
+    ...OTTERDAM_ACTIVITY_CAMPAIGNS,
   ],
   navigation,
+  supporters: OTTERDAM_SUPPORTERS,
+  editions: ['nieuwsbrief-november'],
 };

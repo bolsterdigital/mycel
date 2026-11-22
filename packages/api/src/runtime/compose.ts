@@ -97,6 +97,7 @@ import {
   setStatus,
   startJobWorker,
   startOutboxWorker,
+  drainOutbox,
   uuidv7,
   uuidv7Ids,
   type JobHandlers,
@@ -270,6 +271,11 @@ export interface Runtime {
   platformApi: PlatformDeps | undefined;
   /** Start draining the outbox and running due jobs in this process. Needs DATABASE_URL. */
   startWorker(): () => Promise<void>;
+  /**
+   * Deliver what the outbox holds now to the subscribers, in this process, until nothing is due:
+   * a script that needs an event's effect before its next step (`demo:site`). Needs DATABASE_URL.
+   */
+  drainOutbox(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -507,6 +513,11 @@ export function createRuntime(
     authenticateApiKey: auth.authenticateApiKey,
     agentPrincipal: auth.agentPrincipal,
     platformApi,
+    async drainOutbox() {
+      if (!operatorDb) throw new Error('draining the outbox needs DATABASE_URL (operator role)');
+      const subs = subscribers.map(inEventContext);
+      while ((await drainOutbox(operatorDb, subs)).claimed > 0);
+    },
     startWorker() {
       if (!operatorDb) throw new Error('the worker needs DATABASE_URL (operator role)');
       const stopOutbox = startOutboxWorker(operatorDb, subscribers.map(inEventContext), {

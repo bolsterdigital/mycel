@@ -29,7 +29,6 @@
   "packages/db/src/index.ts#SITE_CACHE_TTL_MS",
   "packages/db/src/index.ts#WorkerErrorContext",
   "packages/db/src/index.ts#WorkerHooks",
-  "packages/db/src/index.ts#drainOutbox",
   "packages/db/src/index.ts#ensureEventPartitions",
   "packages/db/src/index.ts#mediaRepository",
   "packages/db/src/index.ts#nextPeriod",

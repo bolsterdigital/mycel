@@ -1,7 +1,9 @@
 // A demo site from `@mycel/core/testing` into a tenant of this installation (MY-264): makes the
 // tenant when it is missing, invites an operator as its administrator when `--admin` names one,
 // runs the site definition through the use cases (`seedSite`) and prints a manifest of every
-// page, article, person and campaign with its admin and public address. A second run adds what
+// page, article, person, form, campaign and supporter with its admin and public address. With the
+// fake payment provider it also makes the supporters: it drains the outbox itself so a signature
+// counts before the next step, and pays their gifts at the fake provider. A second run adds what
 // a newer definition has and keeps the rest, so a test server is brought up to date without a
 // reseed. Development and test servers only: it lives beside `seed-demo.ts`, not in
 // the `mycel` CLI, which is operator tooling for production where demo content does not belong.
@@ -13,7 +15,7 @@
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
-import { contentPath, systemPrincipal } from '@mycel/core';
+import { contentPath, systemPrincipal, useCases } from '@mycel/core';
 import {
   OTTERDAM,
   PODCAST_BASE64,
@@ -79,13 +81,31 @@ const load = async (media: MediaDef): Promise<Uint8Array> =>
       : new Uint8Array(await readFile(new URL(media.filename, files)));
 
 const runtime = createRuntime(config, { service: 'cli' });
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 try {
   const principal = systemPrincipal(tenant.id, 'seed');
-  const result = await seedSite(runtime.invoker, principal, site, load);
+  const where = { slug: tenant.slug, primaryHostname: null };
+  const fake = runtime.fakePayments;
+  if (!fake) console.log('no supporters or gifts: they need PAYMENT_PROVIDER=fake');
+  const result = await seedSite(runtime.invoker, principal, site, {
+    load,
+    ...(fake && {
+      activity: {
+        origin: runtime.siteUrl(where, '/').replace(/\/$/, ''),
+        uow: runtime.uow,
+        // A running worker may hold an event of ours: a second pass after it had time to finish.
+        deliver: async () => {
+          await runtime.drainOutbox();
+          await pause(300);
+          await runtime.drainOutbox();
+        },
+        settle: async (ref) => void fake.settle(ref, 'paid'),
+      },
+    }),
+  });
   const made = Object.entries(result.created).map(([kind, keys]) => `${keys.length} ${kind}`);
   console.log(made.length ? `made: ${made.join(', ')}` : 'nothing to make: the site was complete');
 
-  const where = { slug: tenant.slug, primaryHostname: null };
   const admin = `${runtime.platform.platformOrigin}/admin/${tenant.slug}`;
   const defaultLocale = site.defaultLocale;
   const manifest = {
@@ -120,6 +140,20 @@ try {
       key: c.key,
       admin: `${admin}/campaigns/${result.refs.campaign(c.key)}`,
     })),
+    forms: site.forms.map((f) => ({
+      key: f.key,
+      admin: `${admin}/forms/${result.refs.form(f.key)}`,
+    })),
+    tiers: { admin: `${admin}/access` },
+    donations: { admin: `${admin}/donations`, recurring: `${admin}/donations/recurring` },
+    supporters: await Promise.all(
+      (fake ? (site.supporters ?? []) : []).map(async (s) => {
+        const { id } = await runtime.invoker.run(useCases.getSupporter, principal, {
+          email: s.email,
+        });
+        return { key: s.key, email: s.email, admin: `${admin}/supporters/${id}` };
+      })
+    ),
   };
   if (values.manifest) {
     await writeFile(values.manifest, `${JSON.stringify(manifest, null, 2)}\n`);
