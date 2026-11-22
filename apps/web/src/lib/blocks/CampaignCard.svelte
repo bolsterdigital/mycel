@@ -1,9 +1,10 @@
 <!-- A campaign card (ADR 033 rule 4, ADR 038 rules 3-5): the campaign as its landing page shows it
      now, as a reference, never a copy. Full is the campaign layout of the landing page in a card's
-     elements (`CampaignLayout`): the decorative image, the intro with the title at the card's
-     level linking to the page, the action area without a heading of its own (count and form, or
-     where participation stands) and the campaign's text from the same revision, folded in a
-     native `<details>` unless it is short, with a link to the page when it leaves blocks out.
+     elements (`CampaignLayout`): the decorative image across the card with intro and action area
+     sliding into it, the intro with the title at the card's level linking to the page, the
+     action area without a heading of its own (count and form, or where participation stands) and
+     the campaign's text from the same revision, open, a long one shortened with a fade and "read
+     more" by a script (MY-276), with a link to the page when it leaves blocks out.
      Compact stays a teaser on the same intro and count: image beside text, one link to the
      landing page that invites taking part only while participation is open. Outside open
      participation both keep their layout. An unavailable campaign renders nothing here;
@@ -16,6 +17,7 @@
   import CampaignAction from './CampaignAction.svelte';
   import CampaignLayout from './CampaignLayout.svelte';
   import Picture from './Picture.svelte';
+  import { IMAGE_SIZES } from './sizes.js';
 
   let {
     block,
@@ -86,8 +88,8 @@
             level: depth + 1,
             href: c.href,
             image: c.image,
-            sizes,
-            fold: block.body && !block.body.open ? copy.read[c.kind] : null,
+            sizes: IMAGE_SIZES[block.width],
+            clamp: !!block.body && !block.body.open,
           }}
           {model}
           {id}

@@ -14,7 +14,7 @@
               /media/01900000-0000-7000-8000-00000000d001/w640.avif 640w,
               /media/01900000-0000-7000-8000-00000000d001/w960.avif 960w
             "
-            sizes="(min-width: 48rem) 24rem, 100vw" />
+            sizes="(min-width: 72rem) 68rem, calc(100vw - 2rem)" />
           <img
             src="/media/01900000-0000-7000-8000-00000000d001/w960.webp"
             srcset="
@@ -22,7 +22,7 @@
               /media/01900000-0000-7000-8000-00000000d001/w640.webp 640w,
               /media/01900000-0000-7000-8000-00000000d001/w960.webp 960w
             "
-            sizes="(min-width: 48rem) 24rem, 100vw"
+            sizes="(min-width: 72rem) 68rem, calc(100vw - 2rem)"
             alt=""
             width="1600"
             height="900"
@@ -104,14 +104,20 @@
           </form>
         </div>
       </div>
-      <details class="campaign-body">
-        <summary>Read the petition text</summary>
-        <h3 id="block-campaign-card-full-wide-constateren" class="block heading">We note</h3>
-        <div id="block-campaign-card-full-wide-tekst" class="block rich-text">
-          <p>The park is the only green space in the neighbourhood.</p>
+      <div class="campaign-body">
+        <div
+          class="campaign-text"
+          id="campaign-campaign-card-full-wide-text"
+          data-more="Read more"
+          data-less="Read less"
+        >
+          <h3 id="block-campaign-card-full-wide-constateren" class="block heading">We note</h3>
+          <div id="block-campaign-card-full-wide-tekst" class="block rich-text">
+            <p>The park is the only green space in the neighbourhood.</p>
+          </div>
+          <p><a href="/en/save-the-park">Continue on the campaign page</a></p>
         </div>
-        <p><a href="/en/save-the-park">Continue on the campaign page</a></p>
-      </details>
+      </div>
     </div>
   </div>
 </section>
