@@ -16,10 +16,16 @@ export const NARROW = { width: 320, height: 900 };
 export const TEXT_SIZES = ['100%', '200%'] as const;
 export type TextSize = (typeof TEXT_SIZES)[number];
 
-/** Set the root font size, as a browser's text-size setting does. A no-op at 100%. */
+/** Set the root font size, as a browser's text-size setting does. A no-op at 100%. Where the site
+ *  header is enhanced it returns after two frames, so its re-measurement on resize (MY-266 PR D)
+ *  has settled before the caller measures; without JavaScript no frame callback runs. */
 export async function setTextSize(page: Page, size: TextSize | string) {
   if (size === '100%') return;
   await page.evaluate((s) => (document.documentElement.style.fontSize = s), size);
+  if (await page.locator('.site-header[data-enhanced]').count())
+    await page.evaluate(
+      () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))
+    );
 }
 
 /** WCAG 1.4.12 text spacing as a user stylesheet. A constructable sheet leaves the page's strict

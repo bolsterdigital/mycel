@@ -2,7 +2,7 @@
 // fits, in their order, with a margin before growing so a width on a boundary does not flicker.
 // The DOM adapter around it is proven in the browser (e2e/lib/site-navigation/visitor.ts).
 import { describe, expect, it } from 'vitest';
-import { fit } from '../../../static/_site/navigation.js';
+import { fit, priority, stickyFits } from '../../../static/_site/navigation.js';
 
 describe('site navigation bar fit', () => {
   it('takes the longest prefix that fits', () => {
@@ -27,5 +27,47 @@ describe('site navigation bar fit', () => {
     expect(fit({ costs: [100, 96], available: 200, shown: 2, slack: 8 })).toBe(2);
     expect(fit({ costs: [100, 96], available: 195, shown: 2, slack: 8 })).toBe(1);
     expect(fit({ costs: [100, 96], available: 204, shown: 1, slack: 8 })).toBe(2);
+  });
+});
+
+// Which part leaves the bar first on a narrowing screen (brief public-chrome-polish § Eén rij op
+// smal): the links, then the second call to action, then Language, then Search.
+describe('site navigation yield order', () => {
+  const parts = { search: 'S', languages: 'L', second: 'C2', links: ['A', 'B'] };
+
+  it('shows Search, Language, the second call to action, then the links', () => {
+    expect(priority(parts)).toEqual(['S', 'L', 'C2', 'A', 'B']);
+  });
+
+  it('drops what a site does not have', () => {
+    expect(priority({ search: 'S', languages: null, second: undefined, links: ['A'] })).toEqual([
+      'S',
+      'A',
+    ]);
+  });
+
+  it('lets the links leave first and Search last as the room shrinks', () => {
+    const order = priority(parts);
+    const costs = [70, 60, 90, 50, 50];
+    const kept = (available: number) => order.slice(0, fit({ costs, available, slack: 0 }));
+    expect(kept(320)).toEqual(['S', 'L', 'C2', 'A', 'B']);
+    expect(kept(270)).toEqual(['S', 'L', 'C2', 'A']);
+    expect(kept(269)).toEqual(['S', 'L', 'C2']);
+    expect(kept(219)).toEqual(['S', 'L']);
+    expect(kept(129)).toEqual(['S']);
+    expect(kept(69)).toEqual([]);
+  });
+});
+
+describe('site header sticky rule', () => {
+  it('sticks one row of at most a fifth of the viewport', () => {
+    expect(stickyFits({ oneRow: true, height: 76, viewport: 900 })).toBe(true);
+    expect(stickyFits({ oneRow: true, height: 180, viewport: 900 })).toBe(true);
+    expect(stickyFits({ oneRow: true, height: 181, viewport: 900 })).toBe(false);
+  });
+
+  it('never sticks a header of two rows, or one not laid out', () => {
+    expect(stickyFits({ oneRow: false, height: 76, viewport: 900 })).toBe(false);
+    expect(stickyFits({ oneRow: true, height: 0, viewport: 900 })).toBe(false);
   });
 });

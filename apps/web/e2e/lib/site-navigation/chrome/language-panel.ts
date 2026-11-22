@@ -54,6 +54,34 @@ async function expectPills(list: Locator, locale: string, where: string) {
   }
 }
 
+/**
+ * Opens the language choices where the visitor finds them: the bar's list while Language stands
+ * in the bar, else Menu's panel, where Language goes first when the bar narrows (MY-266 PR D).
+ * Without JavaScript Language never leaves the bar. `close` puts the page back.
+ */
+export async function openLanguageChoices(page: Page) {
+  const banner = page.getByRole('banner');
+  const summary = banner.locator('.site-languages > summary');
+  if (await summary.isVisible()) {
+    await summary.click();
+    return {
+      inBar: true,
+      list: banner.locator('.site-languages > nav'),
+      close: () => summary.click(),
+    };
+  }
+  expect(isA11y(), 'Language leaves the bar only with JavaScript').toBe(true);
+  await page.locator('.site-menu-toggle').click();
+  const dialog = page.locator('.site-dialog');
+  await expect(dialog).toHaveJSProperty('open', true);
+  await settle(page);
+  return {
+    inBar: false,
+    list: dialog.locator('.site-language-links'),
+    close: () => page.keyboard.press('Escape'),
+  };
+}
+
 const settle = (page: Page) =>
   page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
 
@@ -126,14 +154,20 @@ export async function exerciseLanguagePanel(page: Page, slug: string) {
   ] as const) {
     await page.setViewportSize({ width, height: 900 });
     await setTextSize(page, text);
-    await summary.click();
-    const edges = await list.evaluate((nav) => {
-      const r = nav.getBoundingClientRect();
-      return { start: r.left >= 0, end: r.right <= document.documentElement.clientWidth };
-    });
-    expect(edges, `open language list at ${width} px ${text}`).toEqual({ start: true, end: true });
-    await layoutGate(page, `open language list at ${width} px ${text}`, '.site-header');
-    await summary.click();
+    // With JavaScript Language may have left a phone's bar for the panel, measured below.
+    const choices = await openLanguageChoices(page);
+    if (choices.inBar) {
+      const edges = await list.evaluate((nav) => {
+        const r = nav.getBoundingClientRect();
+        return { start: r.left >= 0, end: r.right <= document.documentElement.clientWidth };
+      });
+      expect(edges, `open language list at ${width} px ${text}`).toEqual({
+        start: true,
+        end: true,
+      });
+      await layoutGate(page, `open language list at ${width} px ${text}`, '.site-header');
+    } else await expectPills(choices.list, 'nl', `panel at ${width} px ${text}`);
+    await choices.close();
   }
   await openPanel(page);
   await layoutGate(

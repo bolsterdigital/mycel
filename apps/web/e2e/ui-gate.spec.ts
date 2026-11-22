@@ -30,6 +30,7 @@ import {
   seedChromePaint,
 } from './lib/site-navigation/chrome/paint';
 import { exerciseLanguagePanel } from './lib/site-navigation/chrome/language-panel';
+import { exerciseSticky, seedSticky } from './lib/site-navigation/chrome/sticky';
 import { ADMIN_LOCALES, ADMIN_ROUTES, type GateRoute, PUBLIC_ROUTES } from './routes';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { testTenant } from '@mycel/db/testing';
@@ -653,6 +654,20 @@ test.describe('language-panel', () => {
   });
   test('language pills, panel width and the compact search row', async ({ page }) =>
     exerciseLanguagePanel(page, slug));
+});
+
+// One row on a phone and a sticky header (MY-266 PR D): the bar's candidates leave in order, the
+// header sticks only as one row of at most a fifth of the viewport, and anchors, the skip link's
+// target and the focus land below it; without JavaScript it stays in the flow.
+test.describe('sticky-header', () => {
+  test.use({ extraHTTPHeaders: forwarded() });
+  let slug: string;
+  test.beforeAll(async () => {
+    slug = `sticky-header-${test.info().project.name}-${Date.now().toString(36)}`;
+    await seedSticky(slug);
+  });
+  test('yield order, sticky rule and nothing under the header', async ({ page }) =>
+    exerciseSticky(page, slug));
 });
 
 // Browser axe over every block example in the registry (TODO #30B, brief renderer-regressions

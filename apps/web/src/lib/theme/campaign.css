@@ -51,7 +51,8 @@
   @media (min-height: 45rem) {
     .campaign-action-sticky {
       position: sticky;
-      top: var(--space-3);
+      /* Below the sticky site header when there is one (MY-266 PR D sets its height). */
+      top: calc(var(--site-sticky-block-size, 0px) + var(--space-3));
     }
   }
 }
