@@ -73,13 +73,13 @@ describe('block forms', () => {
     expect(read()).toMatchObject({ decorative: true, alt: null });
     values['p.alt.nl'] = 'Nieuw plein';
     expect(read()).toMatchObject({ decorative: false, alt: { nl: 'Nieuw plein' } });
-    // A generic image-use parser still rejects missing semantics; the shown-control marker is
-    // not emitted for gallery or legacy hero fields, and API/MCP never pass through this helper.
+    // Without the shown-control marker (gallery, legacy hero, API/MCP) a missing description
+    // stays missing: valid since ADR 020 rule 3 (2026-11-22), and a warning, never decorative.
     const missing = { ...image.props, decorative: false, alt: null };
     expect(imageAltFromForm(missing, postedValues({}))).toBe(missing);
     expect(
       Block.safeParse({ id: 'image', type: 'image', version: 1, props: missing }).success
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('makes an emptied sole description decorative, and writing in it described again', () => {

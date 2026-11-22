@@ -119,11 +119,18 @@ const CASES: Record<string, () => void> = {
       caption: { nl: 'In mei' },
       layout: 'float-right',
     });
-    // Without alt in the block or on the file the image is left out and reported.
-    expect(
-      run('<!-- wp:image {"id":2} --><figure><img src="x.jpg" alt=""/></figure><!-- /wp:image -->')
-        .mapped
-    ).toEqual({ kind: 'skip', reason: 'alt-missing' });
+    // Without alt in the block or on the file the image is placed with its alt missing (ADR 020
+    // rule 3, 2026-11-22), and reported so an editor can describe it.
+    const missing = run(
+      '<!-- wp:image {"id":2} --><figure><img src="x.jpg" alt=""/></figure><!-- /wp:image -->'
+    );
+    expect(only(missing.mapped).props).toEqual({
+      mediaId: MEDIA[2]!.ref,
+      decorative: false,
+      alt: null,
+      layout: 'content',
+    });
+    expect(missing.notes).toEqual([{ code: 'image.alt-missing', detail: '2' }]);
     expect(run('<!-- wp:image {"id":99} --><img alt="a"/><!-- /wp:image -->').mapped).toEqual({
       kind: 'skip',
       reason: 'media-missing',
@@ -141,9 +148,13 @@ const CASES: Record<string, () => void> = {
       '<!-- wp:gallery --><figure><!-- wp:image {"id":1} --><figure><img alt=""/></figure><!-- /wp:image --><!-- wp:image {"id":2} --><figure><img alt=""/></figure><!-- /wp:image --><!-- wp:image {"id":3} --><figure><img alt="Zaal"/></figure><!-- /wp:image --></figure><!-- /wp:gallery -->'
     );
     const block = only(mapped);
-    expect((block.props.images as { mediaId: string }[]).map((i) => i.mediaId)).toEqual([
-      MEDIA[1]!.ref,
-      MEDIA[3]!.ref,
+    // Every image is placed; the one without alt anywhere has its alt missing and is reported.
+    expect(
+      (block.props.images as { mediaId: string; alt: unknown }[]).map((i) => [i.mediaId, i.alt])
+    ).toEqual([
+      [MEDIA[1]!.ref, { nl: 'Een plein vol mensen' }],
+      [MEDIA[2]!.ref, null],
+      [MEDIA[3]!.ref, { nl: 'Zaal' }],
     ]);
     expect(notes).toEqual([{ code: 'image.alt-missing', detail: '2' }]);
     // Before WordPress 5.9: the ids in the attributes.

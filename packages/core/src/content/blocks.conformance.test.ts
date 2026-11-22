@@ -28,6 +28,7 @@ import { systemPrincipal } from '../principal.js';
 import { MemoryUnitOfWork, probeForm, TENANT } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { imageUsesIn } from '../media/listing.js';
+import { altWarnings } from './model.js';
 import { ContentDocument, readinessIssues } from './model.js';
 
 const examples = BLOCK_TYPES.flatMap((type) =>
@@ -364,9 +365,24 @@ describe('refusals', () => {
     expect(issue({ ...img, props: { ...img.props, decorative: true } })).toContain(
       'content.image.decorative-alt'
     );
-    expect(issue({ ...img, props: { ...img.props, alt: null } })).toContain(
-      'content.image.alt-required'
-    );
+    // Not decorative without alt is "alt missing" (ADR 020 rule 3, 2026-11-22): valid, and a
+    // warning that names the use, nested ones included, until someone describes it.
+    const missing = { ...img, props: { ...img.props, alt: null } };
+    expect(BlockInput.safeParse(missing).success).toBe(true);
+    expect(altWarnings({ blocks: [img as never] })).toEqual([]);
+    expect(altWarnings({ blocks: [img as never, missing as never] })).toEqual([
+      { path: 'blocks.1.props.alt', blockId: img.id, message: 'content.publish.alt-missing' },
+    ]);
+    const gallery = base('gallery');
+    const shots = gallery.props.images as Record<string, unknown>[];
+    const lacking = {
+      ...gallery,
+      props: { ...gallery.props, images: [shots[0], { ...shots[1], alt: null }] },
+    };
+    expect(BlockInput.safeParse(lacking).success).toBe(true);
+    expect(altWarnings({ blocks: [lacking as never] }).map((w) => w.path)).toEqual([
+      'blocks.0.props.images.1.alt',
+    ]);
     refused({ ...img, props: { ...img.props, alt: { nl: '' } } });
     expect(issue({ ...img, props: { ...img.props, alt: { nl: '   ' } } })).toContain(
       'content.image.alt-empty'
@@ -395,7 +411,6 @@ describe('refusals', () => {
     refused({ ...gallery, props: { ...gallery.props, images: [shot] } });
     refused({ ...gallery, props: { ...gallery.props, images: Array(25).fill(shot) } });
     refused({ ...gallery, props: { ...gallery.props, images: [shot, { ...shot, mediaId: '' }] } });
-    refused({ ...gallery, props: { ...gallery.props, images: [shot, { ...shot, alt: null }] } });
     refused({
       ...gallery,
       props: { ...gallery.props, images: [shot, { ...shot, decorative: true }] },

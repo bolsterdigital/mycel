@@ -20,8 +20,8 @@ Shortcodes left out (2)
   - post 203 "Contact" [nl] core/shortcode #2
   - post 304 "Plannen voor 2027" [nl] core/paragraph #3
 
-Images without alt text (not placed) (2)
-  - post 303 "Interview met de voorzitter" [nl] core/image #5
+Images placed without alt text (to describe in the admin) (2)
+  - post 303 "Interview met de voorzitter" [nl] core/image #5: 103
   - post 303 "Interview met de voorzitter" [nl] wings/image-gallery #6: 103
 
 People in a grid that are not in the export (1)

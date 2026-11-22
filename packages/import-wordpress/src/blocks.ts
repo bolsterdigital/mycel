@@ -32,13 +32,7 @@ export interface HeaderDraft {
 
 /** Why a block is left out; `empty` is silent, every other reason is a report line. */
 export type SkipReason =
-  | 'unsupported'
-  | 'shortcode'
-  | 'alt-missing'
-  | 'media-missing'
-  | 'people-missing'
-  | 'items-missing'
-  | 'empty';
+  'unsupported' | 'shortcode' | 'media-missing' | 'people-missing' | 'items-missing' | 'empty';
 
 export type Mapped =
   | { kind: 'blocks'; blocks: BlockDraft[] }
@@ -98,7 +92,12 @@ function richText(html: string, ctx: MapContext): Mapped {
     : skip('empty');
 }
 
-/** The image use of the core and Wings image blocks: alt from the block, else from the file. */
+/**
+ * The image use of the core and Wings image blocks: alt from the block, else from the file. Without
+ * either the image is placed with `alt: null`, "alt missing" (ADR 020 rule 3, 2026-11-22), and the
+ * report names it per item so an editor can describe it; decision Jaap 2026-11-22. Rejected: leaving
+ * it out (BIJ1 Rotterdam lost 114 photos) and calling it decorative (it says nothing that is true).
+ */
 function imageUse(
   id: unknown,
   alt: string,
@@ -110,11 +109,11 @@ function imageUse(
   if (!media) return 'media-missing';
   // An alt from block attributes or post meta may still carry entities (`&amp;`); markup is decoded.
   const text = decodeEntities(alt).trim() || media.alt || '';
-  if (!decorative && !text) return 'alt-missing';
+  if (!decorative && !text) ctx.note('image.alt-missing', String(id));
   return {
     mediaId: media.ref,
     decorative,
-    alt: decorative ? null : { [ctx.locale]: text },
+    alt: decorative || !text ? null : { [ctx.locale]: text },
     ...(caption && { caption: { [ctx.locale]: caption } }),
   };
 }
@@ -152,7 +151,6 @@ function gallery(images: { id: unknown; alt: string; caption: string }[], ctx: M
   const uses: Record<string, unknown>[] = [];
   for (const image of images) {
     const use = imageUse(image.id, image.alt, false, image.caption, ctx);
-    if (use === 'alt-missing') ctx.note('image.alt-missing', String(image.id));
     if (typeof use !== 'string') uses.push(use);
   }
   return blocks({ type: 'gallery', props: { images: uses } });

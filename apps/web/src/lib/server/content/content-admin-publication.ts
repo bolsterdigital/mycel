@@ -9,7 +9,8 @@
 // JavaScript, and two editors in different zones would read one plan differently) and UTC in the
 // form (an editor plans 09:00 local, not 07:00 or 08:00 depending on the season).
 
-import { UseCaseError } from '@mycel/core';
+import { UseCaseError, altWarnings, readinessIssues, type ContentDocument } from '@mycel/core';
+import { issueCopy } from './edit-copy.js';
 import { fromLocalInput, localInput } from '../../public/wall-clock.js';
 export { fromLocalInput, localInput } from '../../public/wall-clock.js';
 
@@ -68,3 +69,27 @@ export function fieldOf(path: string, locale: string): string | null {
  */
 export const issuePath = (path: string, message: string, locale: string): string =>
   message === 'content.publish.missing-translation' ? `${path}.${locale}` : path;
+
+/**
+ * What stops a publish in `locale`, with a link to the field where the page has one, and what
+ * does not stop it but is still missing: an image placed without a description (ADR 020 rule 3),
+ * the same in every locale.
+ */
+export function readiness(doc: ContentDocument, locale: string) {
+  const blockField = (path: string) => {
+    const id = doc.blocks[Number(path.split('.')[1])]?.id;
+    return id ? `block-${id}` : null;
+  };
+  return {
+    issues: readinessIssues(doc, locale).map((i) => ({
+      path: issuePath(i.path, i.message, locale),
+      field: i.path.startsWith('blocks.') ? blockField(i.path) : fieldOf(i.path, locale),
+      copy: issueCopy(i.message),
+    })),
+    warnings: altWarnings(doc).map((w) => ({
+      path: w.path,
+      field: `block-${w.blockId}`,
+      copy: issueCopy(w.message),
+    })),
+  };
+}

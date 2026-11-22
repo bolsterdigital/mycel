@@ -508,6 +508,7 @@ export const content: Partial<Record<UiKey, string>> = {
     'Je bewerkt een nieuwere revisie; die gaat niet vanzelf mee.',
   'admin.content.publication.ready': 'Klaar om te publiceren.',
   'admin.content.publication.issues': 'Wat publiceren in deze taal nog tegenhoudt:',
+  'admin.content.publication.warnings': 'Publiceren kan, maar dit mist nog:',
   'admin.content.publication.restricted':
     'Dit item is besloten: bezoekers zonder toegang zien de teaser en een uitnodiging om in te loggen.',
   'admin.content.publication.readOnly':
@@ -524,6 +525,8 @@ export const content: Partial<Record<UiKey, string>> = {
   'admin.content.publication.error.refused': 'Dit kan in {locale} nog niet:',
   'admin.content.issue.localeNotInDocument': 'het item heeft deze taal niet',
   'admin.content.issue.missingTranslation': 'de vertaling ontbreekt',
+  'admin.content.issue.altMissing':
+    'de beschrijving van het beeld ontbreekt; vul hem in of maak het beeld decoratief',
   'admin.content.issue.block': 'Blok {n}: {field}',
   'admin.content.issue.teaserLeadRequired':
     'alleen voor lezers met de intro als teaser: de intro ontbreekt',

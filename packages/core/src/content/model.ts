@@ -494,6 +494,33 @@ export function readinessIssues(
 }
 
 /**
+ * The image uses in the blocks that are not decorative and have no alt yet (ADR 020 rule 3,
+ * 2026-11-22): what an import or an editor placed without a description. A warning beside
+ * `readinessIssues`, never a refusal, and the same in every locale; `blockId` is the top-level
+ * block that holds the use, `path` the use's alt. The hero has no such state: without `heroAlt` it
+ * is decorative (ADR 025 rule 2). `media/listing.ts` asks the same question per file.
+ */
+export function altWarnings(
+  doc: Pick<ContentDocument, 'blocks'>
+): { path: string; blockId: string; message: 'content.publish.alt-missing' }[] {
+  const out: { path: string; blockId: string; message: 'content.publish.alt-missing' }[] = [];
+  const walk = (value: unknown, path: (string | number)[], blockId: string): void => {
+    if (Array.isArray(value)) return value.forEach((v, i) => walk(v, [...path, i], blockId));
+    if (typeof value !== 'object' || value === null) return;
+    const fields = value as Record<string, unknown>;
+    if (typeof fields.mediaId === 'string' && fields.decorative === false && fields.alt === null)
+      out.push({
+        path: [...path, 'alt'].join('.'),
+        blockId,
+        message: 'content.publish.alt-missing',
+      });
+    for (const [key, v] of Object.entries(fields)) walk(v, [...path, key], blockId);
+  };
+  doc.blocks.forEach((b, i) => walk(b.props, ['blocks', i, 'props'], b.id));
+  return out;
+}
+
+/**
  * The images the document itself names, outside its blocks: the hero, the featured image and the
  * share image. `slot` is the usage's block id in `media_usages`; the colon keeps it apart from every
  * block id (`BlockId`), so no block can take it. `path` is the issue path of a refusal.

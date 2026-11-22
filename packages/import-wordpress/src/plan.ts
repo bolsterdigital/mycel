@@ -416,7 +416,6 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
         const code = {
           unsupported: 'block.skipped',
           shortcode: 'block.shortcode',
-          'alt-missing': 'image.alt-missing',
           'media-missing': 'block.media-missing',
           'people-missing': 'block.people-missing',
           'items-missing': 'block.items-missing',
