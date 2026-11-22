@@ -14,10 +14,17 @@
 // sequence of block types; the localised fields then sit side by side, and a value that is not
 // localised and differs between them keeps the default language's and is reported. A pair that
 // differs in structure keeps the default language only and reports the other (§ Ontwerpkeuzes 4).
+//
+// A Dreamkit theme opens every article with its featured image as a cover header (MY-274), so for
+// a Dreamkit export the featured image is also the article's hero, with the file's alt text and
+// `presentation.header: 'cover'`. An export is a Dreamkit one when a post uses a `wings/` block.
+// Rejected: making every WordPress export's featured image a header (most themes show it only on
+// cards, and a header the old site did not have changes how the article reads).
 
 import {
   BLOCK_DEFINITIONS,
   ContentDocumentInput,
+  contentPath,
   Locale,
   Tags,
   isReservedPageSlug,
@@ -35,6 +42,7 @@ import {
   type NoteCode,
 } from './blocks.js';
 import { parseBlocks } from './grammar.js';
+import { decodeEntities } from './markup.js';
 import { linkRewriter, normalPath, plainText } from './rich.js';
 import { readWxr, type WxrPost } from './wxr.js';
 
@@ -111,6 +119,8 @@ export interface ReportLine {
 export interface ImportPlan {
   site: { title: string; url: string };
   defaultLocale: string;
+  /** Whether an article's featured image became its cover header (`PlanOptions`). */
+  featuredAsHeader: boolean;
   locales: string[];
   media: PlannedMedia[];
   people: PlannedPerson[];
@@ -122,6 +132,12 @@ export interface ImportPlan {
 export interface PlanOptions {
   /** The site's main language; else the first Polylang language, else the channel's language. */
   defaultLocale?: string;
+  /**
+   * An article with a featured image gets `presentation.header: 'cover'`, with that image as its
+   * hero (alt text from the file) unless its own Wings hero already set one. Absent: on for a
+   * Dreamkit export (a post uses a `wings/` block), off otherwise.
+   */
+  featuredAsHeader?: boolean;
 }
 
 const KIND = { media: 1, person: 2, section: 3, item: 4 } as const;
@@ -172,6 +188,8 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
   const wxr = readWxr(xml);
   const report: ReportLine[] = [];
   const defaultLocale = options.defaultLocale ?? wxr.site.languages[0] ?? wxr.site.language ?? 'en';
+  const featuredAsHeader =
+    options.featuredAsHeader ?? wxr.posts.some((p) => p.content.includes('<!-- wp:wings/'));
   const localeOf = (post: WxrPost) =>
     post.language && Locale.safeParse(post.language).success ? post.language : defaultLocale;
 
@@ -180,7 +198,7 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
   for (const post of wxr.posts.filter((p) => p.type === 'attachment' && p.attachmentUrl)) {
     const url = post.attachmentUrl!;
     const filename = decodeURIComponent(url.split('/').pop() ?? '') || `${post.id}`;
-    const alt = post.meta._wp_attachment_image_alt?.trim() || null;
+    const alt = decodeEntities(post.meta._wp_attachment_image_alt ?? '').trim() || null;
     const ref = placeholder('media', post.id);
     media.push({ ref, sourceId: post.id, url, filename, title: post.title || filename, alt });
     mediaById.set(post.id, { ref, alt, title: post.title || filename });
@@ -366,14 +384,24 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
     if (type === 'page' && isReservedPageSlug(slug)) slug = `${slug}-page`;
     for (let n = 2; slugs.has(`${type}:${slug}`); n++) slug = `${original}-${n}`;
     slugs.add(`${type}:${slug}`);
+    // The old address next to the new one, so a redirect list can be made from the report.
     if (post.slug && slug !== decodedSlug(post.slug))
-      report.push({ code: 'item.slug-changed', ...at, detail: `${post.slug} → ${slug}` });
+      report.push({
+        code: 'item.slug-changed',
+        ...at,
+        detail: `${post.link || post.slug} → ${contentPath({ type, slug }, lead!.locale, defaultLocale)}`,
+      });
     if (post.parent) report.push({ code: 'item.parent-flattened', ...at });
     if (post.status === 'private') report.push({ code: 'item.private', ...at });
     if (post.status === 'future')
       report.push({ code: 'item.scheduled', ...at, detail: post.dateGmt ?? '' });
 
     const featuredImage = mediaRef(post.meta._thumbnail_id);
+    const cover = featuredAsHeader && type === 'article' && Boolean(featuredImage);
+    if (cover && !header.heroImageId) {
+      header.heroImageId = featuredImage!.ref;
+      if (featuredImage!.alt) for (const l of locales) heroAlt[l] = featuredImage!.alt;
+    }
     const document: Record<string, unknown> = {
       type,
       title,
@@ -403,6 +431,7 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
         authorIds: author ? [author] : [],
         sectionId: first ? sectionRef(first.slug) : null,
         tags,
+        ...(cover && { presentation: { header: 'cover' } }),
       });
     }
     const parsed = ContentDocumentInput.safeParse(document);
@@ -424,6 +453,7 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
   return {
     site: { title: wxr.site.title, url: wxr.site.url },
     defaultLocale,
+    featuredAsHeader,
     locales: [...new Set([defaultLocale, ...items.flatMap((i) => i.document.locales)])],
     media,
     people,

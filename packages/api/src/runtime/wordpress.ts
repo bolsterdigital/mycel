@@ -15,11 +15,13 @@ import type { PlatformTenant } from '@mycel/db';
 export interface WordpressOptions {
   file: string;
   defaultLocale?: string;
+  featuredAsHeader?: boolean;
 }
 
 export const planOf = (options: WordpressOptions): ImportPlan =>
   plan(readFileSync(options.file, 'utf8'), {
     ...(options.defaultLocale && { defaultLocale: options.defaultLocale }),
+    ...(options.featuredAsHeader !== undefined && { featuredAsHeader: options.featuredAsHeader }),
   });
 
 /** The placeholder of each source entity back to its kind and WordPress id, for the id file. */

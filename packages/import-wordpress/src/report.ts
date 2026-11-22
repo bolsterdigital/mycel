@@ -20,7 +20,7 @@ const HEADINGS: Record<ReportCode, string> = {
   'item.invalid': 'Items that did not validate (not imported)',
   'item.private': 'Private items (imported as draft)',
   'item.scheduled': 'Scheduled items (imported as draft)',
-  'item.slug-changed': 'Slugs changed',
+  'item.slug-changed': 'Addresses changed (old → new)',
   'item.parent-flattened': 'Child pages (parent not kept)',
   'item.section-extra': 'Extra categories (only the first is the section)',
   'item.tag-invalid': 'Tags refused',
@@ -56,6 +56,7 @@ export function formatReport(plan: ImportPlan): string {
   const out = [
     `WordPress import plan for ${plan.site.title || plan.site.url}`,
     `Default locale ${plan.defaultLocale}; locales ${plan.locales.join(', ')}`,
+    `Featured image as article header: ${plan.featuredAsHeader ? 'yes' : 'no'}`,
     '',
     `Pages      ${count('page')} (${count('page', 'draft')} draft)`,
     `Articles   ${count('article')} (${count('article', 'draft')} draft)`,

@@ -9,7 +9,7 @@
 
 import { slugFromTitle, type BlockType } from '@mycel/core';
 import type { WpBlock } from './grammar.js';
-import { find, findAll, parseMarkup, textOf, type Node } from './markup.js';
+import { decodeEntities, find, findAll, parseMarkup, textOf, type Node } from './markup.js';
 import { docFromHtml, isShortcode, plainText, type LinkRewrite } from './rich.js';
 
 /** A source attachment as the blocks see it: its placeholder id and what WordPress says of it. */
@@ -85,7 +85,8 @@ function imageUse(
 ): Record<string, unknown> | SkipReason {
   const media = ctx.media(id);
   if (!media) return 'media-missing';
-  const text = alt || media.alt || '';
+  // An alt from block attributes or post meta may still carry entities (`&amp;`); markup is decoded.
+  const text = decodeEntities(alt).trim() || media.alt || '';
   if (!decorative && !text) return 'alt-missing';
   return {
     mediaId: media.ref,
@@ -308,7 +309,7 @@ function hero(block: WpBlock, ctx: MapContext): Mapped {
   const a = block.attrs;
   const image = a.heroImage as { id?: unknown; alt?: unknown } | undefined;
   const media = image?.id ? ctx.media(image.id) : null;
-  const alt = str(image?.alt) || media?.alt || '';
+  const alt = decodeEntities(str(image?.alt)).trim() || media?.alt || '';
   if (str(a.ctaText)) ctx.note('hero.action-dropped', str(a.ctaText));
   const lead = plainText(str(a.introText));
   return {
