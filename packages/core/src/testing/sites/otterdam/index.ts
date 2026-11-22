@@ -75,7 +75,6 @@ const navigation = (r: SiteRefs): NavigationDocument => ({
           ],
         },
         { id: 'contact', kind: 'link', target: { kind: 'content', itemId: r.item('contact') } },
-        { id: 'zoeken', kind: 'link', target: { kind: 'system', page: 'search' } },
       ],
     },
     {
@@ -116,6 +115,8 @@ const navigation = (r: SiteRefs): NavigationDocument => ({
           label: { nl: 'Volg ons op Bluesky', en: 'Follow us on Bluesky' },
           target: { kind: 'url', href: 'https://bsky.app/profile/otterdam.example' },
         },
+        // Search sits in the footer: the panel already opens with the search field (MY-266 C).
+        { id: 'zoeken', kind: 'link', target: { kind: 'system', page: 'search' } },
         {
           id: 'v-home',
           kind: 'link',

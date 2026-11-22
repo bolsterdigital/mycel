@@ -28,7 +28,8 @@ import {
   type ChromePaintFixture,
   exerciseChromePaint,
   seedChromePaint,
-} from './lib/site-navigation/chrome-paint';
+} from './lib/site-navigation/chrome/paint';
+import { exerciseLanguagePanel } from './lib/site-navigation/chrome/language-panel';
 import { ADMIN_LOCALES, ADMIN_ROUTES, type GateRoute, PUBLIC_ROUTES } from './routes';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { testTenant } from '@mycel/db/testing';
@@ -638,6 +639,20 @@ test.describe('chrome-paint', () => {
   });
   test('header and footer in each chrome role, links at rest', async ({ page }) =>
     exerciseChromePaint(page, fixture));
+});
+
+// The language switch and the menu panel (MY-266 PR C): a globe plus the word in the bar, the
+// choices as pills with the current one filled, a panel of at most 24rem with a compact search
+// row; switching and searching as plain links and a form, so in both projects.
+test.describe('language-panel', () => {
+  test.use({ extraHTTPHeaders: forwarded() });
+  let slug: string;
+  test.beforeAll(async () => {
+    slug = `language-panel-${test.info().project.name}-${Date.now().toString(36)}`;
+    await seedChromePaint(slug, { english: true });
+  });
+  test('language pills, panel width and the compact search row', async ({ page }) =>
+    exerciseLanguagePanel(page, slug));
 });
 
 // Browser axe over every block example in the registry (TODO #30B, brief renderer-regressions

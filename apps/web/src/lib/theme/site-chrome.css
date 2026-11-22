@@ -154,7 +154,9 @@
   z-index: 5;
   inset-block-start: 100%;
   inset-inline-end: var(--wide-inset);
-  width: min(30rem, 100% - 2 * var(--gutter));
+  /* 24rem keeps Otterdam's longest top-level label on one line at --step-1 and shows more of the
+     page than Dreamkit's 420 px drawer; rem grows with the text, 100% bounds it. */
+  width: min(24rem, 100% - 2 * var(--gutter));
   padding-block: var(--space-2) var(--space-4);
   color: var(--color-body-fg);
   background: var(--color-body-bg);
@@ -204,6 +206,7 @@
 }
 /* A chevron in borders, which forced colours keep: down when closed, up when open. */
 .site-group > summary::after,
+.site-languages > summary::after,
 .site-sub-toggle::after,
 .site-bar-group::after {
   content: '';
@@ -217,6 +220,7 @@
   transition: transform 140ms ease-out;
 }
 .site-group[open] > summary::after,
+.site-languages[open] > summary::after,
 [data-site-toggle][aria-expanded='true']::after {
   margin-block-start: 0.25em;
   transform: rotate(-135deg);
@@ -398,7 +402,7 @@
   inset-block: 0;
   inset-inline: auto 0;
   box-sizing: border-box;
-  width: min(30rem, 100%);
+  width: min(24rem, 100%);
   max-width: 100%;
   height: 100dvh;
   max-height: 100dvh;
@@ -511,21 +515,28 @@
 }
 
 /* The search and language entrances are reserved tools, never auto-fit candidates. Native
-   disclosure keeps all locale links reachable without JS; whole controls wrap on small rails. */
-.site-languages {
-  position: relative;
-}
+   disclosure keeps all locale links reachable without JS; whole controls wrap on small rails.
+   Language in the bar is a globe plus the visible word and the chevron of the other disclosures.
+   Its open list lies where the panel does, under the header on the wide rail's end: one row of
+   pills on the body pair while it fits, else they wrap, never past the gutter. Rejected: hanging
+   it from Language's own end, which Menu beside it pushes past the start edge on a phone. */
 .site-languages > summary {
   display: flex;
   align-items: center;
+  gap: 0.375em;
   min-height: var(--tap);
   padding-inline: var(--space-1);
   cursor: pointer;
+  list-style: none;
+}
+.site-languages > summary::-webkit-details-marker {
+  display: none;
 }
 .site-language-links {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1) var(--space-2);
+  align-items: center;
+  gap: var(--space-1);
 }
 .site-languages:not([open]) > .site-language-links {
   display: none;
@@ -533,8 +544,10 @@
 .site-languages[open] > .site-language-links {
   position: absolute;
   z-index: 5;
-  inset-inline-end: 0;
-  min-inline-size: min(12rem, 80vw);
+  inset-block-start: 100%;
+  inset-inline-end: var(--wide-inset);
+  inline-size: max-content;
+  max-inline-size: min(24rem, 100% - 2 * var(--gutter));
   padding: var(--space-1);
   border: 1px solid currentColor;
   border-radius: var(--radius);
@@ -545,6 +558,38 @@
 .site-panel > .site-language-links {
   margin-block-end: var(--space-2);
 }
-.site-language-links a {
-  padding-inline: var(--space-1);
+/* A language is a pill: a border in the text colour, 44 px, no underline at rest. The current
+   one is filled as the body pair inverted (the body pair's contrast) and bold, so it is never
+   told by colour alone. Forced colours would paint the fill as the canvas, so there it is not
+   filled and keeps the current page's bold underline; a fill set anyway is what axe measures
+   there, theme colour on the system canvas. Rejected: underlined links, which read as missing
+   styling. */
+.site-header .site-language-links a {
+  padding-inline: var(--space-2);
+  border: 1px solid currentColor;
+  border-radius: var(--radius);
+  white-space: nowrap;
+}
+@media (forced-colors: none) {
+  .site-header .site-language-links a[aria-current] {
+    color: var(--color-body-bg);
+    background: var(--color-body-fg);
+    text-decoration-line: none;
+  }
+}
+
+/* The panel's search row, compact: the label stays visible (WCAG 3.3.2) in small print, the
+   field gives way first, the button keeps its magnifier and word and wraps whole. */
+.site-panel .search-form label {
+  font-size: var(--step--1);
+}
+.site-panel .search-row {
+  gap: var(--space-1);
+}
+.site-panel .search-row input {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+.site-panel .search-row button {
+  gap: 0.375em;
 }
