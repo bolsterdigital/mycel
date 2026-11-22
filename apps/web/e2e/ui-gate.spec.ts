@@ -31,6 +31,7 @@ import {
 } from './lib/site-navigation/chrome/paint';
 import { exerciseLanguagePanel } from './lib/site-navigation/chrome/language-panel';
 import { exerciseSticky, seedSticky } from './lib/site-navigation/chrome/sticky';
+import { exerciseOverviewCards } from './lib/blocks/overview-cards';
 import { ADMIN_LOCALES, ADMIN_ROUTES, type GateRoute, PUBLIC_ROUTES } from './routes';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { testTenant } from '@mycel/db/testing';
@@ -668,6 +669,14 @@ test.describe('sticky-header', () => {
   });
   test('yield order, sticky rule and nothing under the header', async ({ page }) =>
     exerciseSticky(page, slug));
+});
+
+// An overview card is one link with a title sized to the card, inverted on hover and focus
+// (MY-266 PR E).
+test.describe('overview-cards', () => {
+  test.use({ locale: 'nl-NL', extraHTTPHeaders: forwarded() });
+  test('one link, a title that fits, and the inversion on hover and focus', async ({ page }) =>
+    exerciseOverviewCards(page));
 });
 
 // Browser axe over every block example in the registry (TODO #30B, brief renderer-regressions

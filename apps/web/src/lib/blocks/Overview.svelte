@@ -2,8 +2,11 @@
      (image, title, date, summary) or as a list (title, date). An event's card shows when it takes
      place instead of when it was published, and where. A restricted item says it is for members,
      as text, in both layouts; its link leads to the teaser. The cards wear the campaign card's
-     surface and image rules, so a site has two card styles, not three; overview.css only lays out
-     the grid and the list. Each title is a link and names its card, so the image is decorative.
+     surface and image rules, so a site has two card styles, not three; overview.css lays out the
+     grid and the list and gives a card its own title size and states (MY-266 PR E). Each title is
+     the card's one link and names it, so the image is decorative; overview.css stretches it over
+     the whole card. Rejected: the card as one link around everything, which reads the date and
+     summary into the link's name.
      With an archive the block ends in plain page links (`?p=2`), no JavaScript. An empty overview
      renders nothing. -->
 <script lang="ts">
@@ -48,7 +51,7 @@
                 </div>
               {/if}
               <div class="campaign-card-text">
-                <svelte:element this={headingTag(depth + 1)}>
+                <svelte:element this={headingTag(depth + 1)} class="overview-card-title">
                   <a href={withBase(model.base, entry.href)}>{entry.title}</a>
                 </svelte:element>
                 <p class="overview-date">
