@@ -1,9 +1,10 @@
 /* The timeline block (MY-278, after Dreamkit's; its own file since base.css reached its size
-   ceiling, in `blocks/` since the theme folder did): one rail down the side with a dot at each date, the date small above the title. A
-   reached event's dot is filled in the primary colour; one still to come is open and its words
-   muted, and a line "Now" stands where the two meet. The dot hangs on the date, so it stays level
-   with it whatever comes above (the "Now" line) or below. The rail runs the whole list; the dots
-   sit on it. In forced colours the dots keep their fill.
+   ceiling, in `blocks/` since the theme folder did): one rail down the side with a dot at each
+   date, the date small above the title. A reached event's dot is filled in the primary colour;
+   one still to come is open and its words muted, and a line "Now" stands where the two meet. The
+   dot hangs on the date, so it stays level with it whatever comes above (the "Now" line) or
+   below. The rail runs the whole list; the dots sit on it. In forced colours the dots keep their
+   fill.
    Rejected: the rail as segments between dots (each segment needs the next dot's position) and
    colour alone for past and future (the dot's fill and the "Now" line carry it too, the date
    says it in words). */
