@@ -5,7 +5,9 @@
 // at zero. One rule guards the stylesheets instead of a helper: a height in static `vh` is the
 // layout viewport, which a mobile browser's toolbar covers, so the theme uses `dvh` or `svh`.
 // And the public theme draws no shape with a box-shadow: forced colours (Windows High Contrast)
-// drop every shadow, so a frame or a secondary button made of one disappears there.
+// drop every shadow, so a frame or a secondary button made of one disappears there. Not counted:
+// `box-shadow: none`, and the focus halo beside the outline (MY-272), which only adds contrast
+// where the author's colours apply; forced colours keep the outline itself.
 // And the admin's own markup reaches the browser through two helpers, because a hydrated page can
 // mount it later, where Trusted Types refuse a copied script tag and a plain string.
 // And a catalog key that is written out or built from a closed union is proven by the type, so
@@ -104,7 +106,7 @@ export const RULES = {
   ],
   'public-box-shadow': [
     'a box-shadow in the public theme (forced colours drop it; draw a shape with a border or outline)',
-    /\bbox-shadow\s*:/g,
+    /\bbox-shadow\s*:(?!\s*(?:none|0 0 0 2px var\(--color-focus-halo\))\s*;)/g,
     `${WEB}lib/theme/base.css`,
   ],
 };
@@ -184,7 +186,7 @@ test('each rule sees its copy, within its scope, and not in comments or tests', 
       },
       {
         path: `${WEB}lib/theme/base.css`,
-        text: '.a { box-shadow: inset 0 0 0 2px; transition: box-shadow 0.1s; }\n/* box-shadow: 0 */',
+        text: '.a { box-shadow: inset 0 0 0 2px; transition: box-shadow 0.1s; }\n/* box-shadow: 0 */\n.f:focus-visible { box-shadow: 0 0 0 2px var(--color-focus-halo); }\n.g { box-shadow: none; }',
       },
       { path: `${WEB}lib/theme/admin.css`, text: '.b { box-shadow: 0 1px 2px; }' },
       {

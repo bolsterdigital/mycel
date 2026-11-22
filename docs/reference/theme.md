@@ -36,8 +36,8 @@ Migration 0027 keeps the two active byte sequences and their metadata in `site_s
 
 - every role pair: 4.5:1 required; `body` also reports whether it reaches 7:1 (`aaa`), which is not required;
 - `link-on-body` and `link-on-surface`: 4.5:1 (the renderer keeps links underlined);
-- `focus-on-<role>` for all six role backgrounds: 3:1;
-- per card accent, `cardAccents.<i>` (its text on the filled card, and its button, which is the pair inverted): 4.5:1, and `focus-on-cardAccents.<i>`: 3:1.
+- `focus-on-<role>` for all six role backgrounds: 3:1. The indicator is two bands: the ring in `focus` and, in its 2 px gap, a halo in whichever body colour stands furthest from `focus` (`--color-focus-halo`). On `body` the ring itself must reach 3:1, so `focus` stays a real choice; on every other role the better of the two bands counts and is the one reported, so a dark footer can stand beside a light primary colour (MY-272);
+- per card accent, `cardAccents.<i>` (its text on the filled card, and its button, which is the pair inverted): 4.5:1, and `focus-on-cardAccents.<i>`: 3:1, by the better band as above.
 
 Ratios are WCAG 2.2 relative luminance, compared unrounded; the report rounds to two decimals. Each failing colour gets one issue, its path (`palettes.dark.link`) and `theme.contrast.too-low`.
 

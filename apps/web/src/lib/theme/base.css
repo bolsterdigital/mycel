@@ -134,9 +134,14 @@
     height: auto;
     display: block;
   }
+  /* Two bands (MY-272, contrast.ts): the ring, and in its 2 px gap a halo in the body colour
+     furthest from it, so the indicator reaches 3:1 on every role background, also a dark footer
+     beside a light brand colour. On the page the halo is the page's own colour, so it looks as a
+     plain ring did. Forced colours drop the halo and keep the ring. */
   :focus-visible {
     outline: 3px solid var(--color-focus);
     outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--color-focus-halo);
   }
   @media (prefers-reduced-motion: reduce) {
     *,
@@ -632,6 +637,7 @@
   :is(.page:not(.admin), .site-header) .button:focus-visible {
     outline-color: currentColor;
     outline-offset: -0.25rem;
+    box-shadow: none;
   }
 
   /* Call to action: a band in the primary pair or a card on the surface. */
@@ -810,6 +816,7 @@
     --action-progress: 1;
     outline-color: currentColor;
     outline-offset: -0.25rem;
+    box-shadow: none;
   }
   .faq-accordion summary > :is(h2, h3) {
     grid-area: 1 / 1;
