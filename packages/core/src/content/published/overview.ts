@@ -26,6 +26,10 @@
 // Dossiers (MY-260): `dossierId` keeps the articles or pages whose published revision names that
 // dossier, so a member taken out of it leaves the list when that change is published; the source
 // `dossier` lists the dossier pages themselves, newest or oldest first like any page.
+//
+// A fixed selection (source `selection`, MY-289) is the pins and nothing else: every one that is
+// published in this locale, in the editor's order, without `limit`, without a list query and
+// without a page 2. A pin that is gone leaves no place to fill.
 
 import { z } from 'zod';
 import { Locale } from '../../i18n/locale.js';
@@ -126,6 +130,8 @@ export async function overviewOf(
       )
     : [];
   const pins = pinIds.flatMap((id) => pinRows.filter((r) => r.itemId === id).slice(0, 1));
+  if (props.source === 'selection')
+    return { entries: page === 1 ? pins.map((r) => entry(r, true)) : [], older: false };
   const shownPins = Math.min(pins.length, limit);
   const first = limit - shownPins;
   const offset = page === 1 ? 0 : first + (page - 2) * limit;
@@ -164,7 +170,7 @@ export const getOverview = defineUseCase({
   kind: 'query',
   requires: 'content:read',
   description:
-    "Read what an overview block shows in one locale: its pinned items, then the published articles, pages or dossier pages that match its filter (section, tags, dossier) (a restricted one as a teaser card marked `restricted`), newest or oldest first, or the upcoming (soonest first) or past (latest first) events on the site's clock now, as cards with featured title, summary, image and, for an event, when and where; page 2 and on continue the list without the pins.",
+    "Read what an overview block shows in one locale: for a fixed selection only its chosen items that are published, in their order; otherwise its pinned items, then the published articles, pages or dossier pages that match its filter (section, tags, dossier) (a restricted one as a teaser card marked `restricted`), newest or oldest first, or the upcoming (soonest first) or past (latest first) events on the site's clock now, as cards with featured title, summary, image and, for an event, when and where; page 2 and on continue the list without the pins.",
   input: z
     .object({
       props: OverviewProps,

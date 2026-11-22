@@ -11,11 +11,17 @@
 // visitor reads either in. Rejected: "upcoming" stored on the item (it changes without an edit).
 // A dossier (MY-260) narrows articles or pages to its members (`dossierId`, both sources), and the
 // source `dossier` lists the dossier pages themselves, for a page "All dossiers".
+// The source `selection` (MY-289) is an editor's fixed choice: exactly the pinned items, articles
+// and pages mixed, in the editor's order, up to 24, and nothing else. A pin that is not published
+// leaves a gap that nothing fills, because "these three pieces" and "the newest three" are
+// different instructions and a page that quietly swaps one for the other looks right and is
+// wrong. Rejected: more pins on an automatic list (it would still fill a gap with whatever is
+// newest) and a separate block (the same cards, layout and width; one block keeps one editor).
 import { z } from 'zod';
 import type { BlockDefinition, WIDTHS } from '../block-types.js';
 import { EXAMPLE_IDS } from './example-ids.js';
 
-export const OVERVIEW_SOURCES = ['article', 'page', 'event', 'dossier'] as const;
+export const OVERVIEW_SOURCES = ['article', 'page', 'event', 'dossier', 'selection'] as const;
 /** Which events an agenda lists, decided when the page is read (`content/published/overview.ts`). */
 export const OVERVIEW_WHEN = ['upcoming', 'past'] as const;
 export const OVERVIEW_LAYOUTS = ['cards', 'list'] as const;
@@ -25,7 +31,10 @@ export const OVERVIEW_LIMITS = Array.from({ length: 24 }, (_, i) => String(i + 1
   string,
   ...string[],
 ];
+/** Pins on top of an automatic list. */
 export const OVERVIEW_MAX_PINS = 6;
+/** Items in a fixed selection (source `selection`), the longest list a page shows at once. */
+export const OVERVIEW_MAX_SELECTION = 24;
 export const OVERVIEW_MAX_TAGS = 5;
 const OVERVIEW_WIDTHS: typeof WIDTHS = ['content', 'wide', 'full'];
 
@@ -46,7 +55,7 @@ export const OverviewProps = z
     limit: z.enum(OVERVIEW_LIMITS).default('6'),
     pinned: z
       .array(z.object({ itemId: z.string().guid() }).strict())
-      .max(OVERVIEW_MAX_PINS)
+      .max(OVERVIEW_MAX_SELECTION)
       .default([]),
     layout: z.enum(OVERVIEW_LAYOUTS).default('cards'),
     /** A plain "older" link to `?p=2` on the same page, without JavaScript. */
@@ -65,6 +74,10 @@ export const OverviewProps = z
   .refine(
     (p) => new Set(p.pinned.map((v) => v.itemId)).size === p.pinned.length,
     'content.overview.pin-duplicate'
+  )
+  .refine(
+    (p) => p.source === 'selection' || p.pinned.length <= OVERVIEW_MAX_PINS,
+    'content.overview.pin-limit'
   );
 export type OverviewProps = z.infer<typeof OverviewProps>;
 
@@ -89,7 +102,7 @@ export const overviewDefinition: BlockDefinition<typeof OverviewProps, 1> = {
       key: 'pinned',
       kind: 'list',
       min: 0,
-      max: OVERVIEW_MAX_PINS,
+      max: OVERVIEW_MAX_SELECTION,
       fields: [{ key: 'itemId', kind: 'reference', to: 'item' }],
     },
     { key: 'layout', kind: 'choice', options: OVERVIEW_LAYOUTS },
@@ -140,5 +153,10 @@ export const overviewDefinition: BlockDefinition<typeof OverviewProps, 1> = {
       props: { dossierId: EXAMPLE_IDS.dossier, limit: '6' },
     },
     { name: 'overview-dossiers', props: { source: 'dossier', layout: 'list' } },
+    {
+      name: 'overview-selection',
+      note: 'A fixed selection: these items in this order, never filled up.',
+      props: { source: 'selection', pinned: [{ itemId: EXAMPLE_IDS.item }] },
+    },
   ],
 };
