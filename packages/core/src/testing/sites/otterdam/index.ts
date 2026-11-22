@@ -109,12 +109,6 @@ const navigation = (r: SiteRefs): NavigationDocument => ({
       name: 'Voet: luister en volg',
       nodes: [
         { id: 'v-podcast', kind: 'link', target: { kind: 'content', itemId: r.item('podcast') } },
-        {
-          id: 'v-bluesky',
-          kind: 'link',
-          label: { nl: 'Volg ons op Bluesky', en: 'Follow us on Bluesky' },
-          target: { kind: 'url', href: 'https://bsky.app/profile/otterdam.example' },
-        },
         // Search sits in the footer: the panel already opens with the search field (MY-266 C).
         { id: 'zoeken', kind: 'link', target: { kind: 'system', page: 'search' } },
         {
@@ -200,6 +194,11 @@ export const OTTERDAM: SiteDefinition = {
   footerText: {
     nl: 'Stichting Otterdam, een verzonnen stichting voor de otters van de Maasdelta.',
     en: 'Stichting Otterdam, an invented charity for the otters of the Maas delta.',
+  },
+  // The footer's "Volg ons" icons (MY-273), no longer a menu link.
+  social: {
+    bluesky: 'https://bsky.app/profile/otterdam.example',
+    mastodon: 'https://mastodon.example/@otterdam',
   },
   // The end of every card's image chain (MY-277): a card without a featured or header image shows
   // this, not the placeholder.

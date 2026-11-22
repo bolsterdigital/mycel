@@ -25,6 +25,7 @@
     MAX_READER_ACTIVITY_DAYS,
     MAX_SUBMISSION_RETENTION_MONTHS,
     MIN_SUBMISSION_RETENTION_MONTHS,
+    SOCIAL_NETWORKS,
     THEME_MODES,
     THEME_ROLES,
   } from '@mycel/core';
@@ -46,6 +47,7 @@
     Table,
   } from '#lib/admin/ui/index.js';
   import ApiAccess from '#lib/admin/ApiAccess.svelte';
+  import { SOCIAL_NAMES } from '#lib/components/social-icons.js';
   import IntegrationSettings from '#lib/admin/integrations/IntegrationSettings.svelte';
   import UsageList from '#lib/admin/UsageList.svelte';
   import { fill, plural, ui, type UiKey, refusalCopy } from '../../../../../i18n/index.js';
@@ -793,6 +795,45 @@
           />
         {/each}
       </Fieldset>
+    </SettingsSection>
+    <!-- MY-273: the site's own profiles, shown as icons under "Follow us" in the footer. Same
+         chrome document, its own form (`part=social`) that leaves the footer text alone. E-mail is
+         typed as an address; the server stores it as `mailto:`. -->
+    <SettingsSection
+      id="site-social"
+      title={t('admin.site.social')}
+      action={action('social')}
+      submit={t('admin.site.saveSocial')}
+      saved={saved('social')}
+      unsaved={t('admin.site.unsaved')}
+    >
+      <p>{t('admin.site.social.hint')}</p>
+      <input type="hidden" name="part" value="social" />
+      <input
+        type="hidden"
+        name="baseVersion"
+        value={form?.action === 'social'
+          ? value('baseVersion', String(data.chrome.version))
+          : data.chrome.version}
+      />
+      {#each SOCIAL_NETWORKS as network (network)}
+        {@const stored = data.chrome.value.social?.[network] ?? ''}
+        <Field
+          id="site-social-{network}"
+          name="social.{network}"
+          label={network === 'email'
+            ? t('admin.site.social.email')
+            : network === 'website'
+              ? t('admin.site.social.website')
+              : SOCIAL_NAMES[network]}
+          locale={data.locale}
+          type={network === 'email' ? 'email' : 'url'}
+          placeholder={network === 'email' ? undefined : 'https://'}
+          value={form?.action === 'social'
+            ? value(`social.${network}`, '')
+            : stored.replace(/^mailto:/, '')}
+        />
+      {/each}
     </SettingsSection>
   {/if}
 </SettingsPage>

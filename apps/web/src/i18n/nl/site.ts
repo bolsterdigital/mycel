@@ -55,6 +55,12 @@ export const site: Partial<Record<UiKey, string>> = {
   'admin.site.logoHasName.hint':
     'Dan toont de kop alleen het logo, zonder de naam ernaast; schermlezers horen de naam nog steeds.',
   'admin.site.saveIdentity': 'Logo-instelling opslaan',
+  'admin.site.social': 'Sociale media',
+  'admin.site.saveSocial': 'Sociale media opslaan',
+  'admin.site.social.hint':
+    'Een ingevuld profiel staat als icoon onder "Volg ons" in de voettekst; een leeg veld toont niets. Een profiel is een https-adres.',
+  'admin.site.social.email': 'E-mailadres',
+  'admin.site.social.website': 'Website',
   'admin.site.mode.light': 'Lichte kleuren',
   'admin.site.mode.dark': 'Donkere kleuren',
   'admin.site.role.body': 'Lopende tekst',

@@ -27,6 +27,7 @@ const COPY = {
     columns: ['Contact', 'De site'],
     footerLinks: ['Hulp', 'Vraag', 'Welkom', 'Acties', 'English', 'Team', 'Geschiedenis'],
     legal: 'Privacyverklaring',
+    legalNav: 'Juridisch',
   },
   en: {
     main: 'Main navigation',
@@ -41,6 +42,7 @@ const COPY = {
     columns: ['Contact', 'This site'],
     footerLinks: ['Support', 'Help', 'Home', 'Actions', 'English', 'Team', 'History'],
     legal: 'Privacy policy',
+    legalNav: 'Legal',
   },
 } as const;
 
@@ -62,7 +64,10 @@ export async function exerciseChromeMenus(page: Page, locale: 'nl' | 'en') {
   const footer = page.getByRole('navigation', { name: copy.footer });
   await expect(footer.getByRole('heading', { level: 2 })).toHaveText([...copy.columns]);
   await expect(footer.locator('summary')).toHaveText(copy.group[0]);
-  await expect(footer.getByRole('link')).toHaveText([...copy.footerLinks, copy.legal]);
+  await expect(footer.getByRole('link')).toHaveText([...copy.footerLinks]);
+  // The legal menu is the small print under the rule, a landmark of its own (MY-273).
+  const legal = page.getByRole('navigation', { name: copy.legalNav });
+  await expect(legal.getByRole('link')).toHaveText([copy.legal]);
   await searchAndLanguages(page, locale);
 }
 

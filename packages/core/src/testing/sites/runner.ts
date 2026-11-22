@@ -35,7 +35,8 @@ type UploadInput = z.input<typeof useCases.uploadMedia.input>;
 type CampaignInput = z.input<typeof useCases.createCampaign.input>;
 type TierInput = Omit<z.input<typeof useCases.createAccessTier.input>, 'slug'>;
 type ThemeDef = z.input<typeof useCases.updateSiteTheme.input>['theme'];
-type FooterDef = z.input<typeof useCases.updateSiteChrome.input>['chrome']['footer'];
+type ChromeDef = z.input<typeof useCases.updateSiteChrome.input>['chrome'];
+type FooterDef = ChromeDef['footer'];
 
 /** The ids of what the run found or made, by the definition's keys. */
 export interface SiteRefs {
@@ -161,6 +162,8 @@ export interface SiteDefinition {
   footerText?: FooterDef;
   /** The logo carries the site's name, so the header shows it alone (`site.chrome`, MY-275). */
   logoHasName?: boolean;
+  /** The site's own social profiles, icons in the footer (`site.chrome`, MY-273). */
+  social?: NonNullable<ChromeDef['social']>;
   /** A media key: the site's default image, the end of every card's image chain (MY-277). */
   defaultImage?: string;
   media: MediaDef[];
@@ -388,7 +391,7 @@ async function seedLook(run: Run, load: LoadMedia) {
       made('logo');
     }
   }
-  if (site.footerText || site.logoHasName) {
+  if (site.footerText || site.logoHasName || site.social) {
     const { version } = await invoker.run(useCases.getSiteChrome, principal, {});
     if (version === 0) {
       await named('footer text', () =>
@@ -397,6 +400,7 @@ async function seedLook(run: Run, load: LoadMedia) {
           chrome: {
             footer: site.footerText ?? {},
             ...(site.logoHasName ? { logoHasName: true } : {}),
+            ...(site.social ? { social: site.social } : {}),
           },
         })
       );

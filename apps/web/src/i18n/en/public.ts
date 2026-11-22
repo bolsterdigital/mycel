@@ -123,6 +123,11 @@ export const publicSite = {
   'public.menu.close': 'Close',
   'public.menu.sublinks': '{label}: sublinks',
   'public.footerNavigation': 'Footer',
+  'public.legalNavigation': 'Legal',
+  'public.social.title': 'Follow us',
+  'public.social.on': '{site} on {network}',
+  'public.social.email': 'Email {site}',
+  'public.social.website': 'Website of {site}',
   'consent.banner.title': 'Tags on this site',
   'consent.banner.body':
     'With your consent this site loads {loads}. Without it, nothing of theirs loads.',

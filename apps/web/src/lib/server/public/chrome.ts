@@ -11,7 +11,8 @@
 // locale with no implicit fallback (rule 10): a link without a label in this locale is not there.
 // They keep their two levels here. The bar holds the top-level nodes the editor placed there; how
 // many of them show is measured in the browser (`static/_site/navigation.js`).
-import { anonymousPrincipal, entitled } from '@mycel/core';
+import { anonymousPrincipal, entitled, SOCIAL_NETWORKS } from '@mycel/core';
+import { SOCIAL_NAMES } from '../../components/social-icons.js';
 import { withBase } from '../../blocks/rich-text.js';
 import type { ChromeLink, ChromeModel, ChromeNode } from '../../components/chrome.js';
 import type { CardPlaceholder } from '../../blocks/model.js';
@@ -97,6 +98,20 @@ export async function chromeModel(
       actions: navigation.actions.map(link),
       footer: chrome.footer[locale] ?? chrome.footer[fallback] ?? '',
       columns: navigation.footer.map((c) => ({ title: c.title, nodes: tree(c.nodes) })),
+      social: SOCIAL_NETWORKS.flatMap((network) => {
+        const href = chrome.social?.[network];
+        if (!href) return [];
+        const name = site.tenant.name;
+        const label =
+          network === 'email'
+            ? t('public.social.email').replace('{site}', name)
+            : network === 'website'
+              ? t('public.social.website').replace('{site}', name)
+              : t('public.social.on')
+                  .replace('{site}', name)
+                  .replace('{network}', SOCIAL_NAMES[network]);
+        return [{ network, href, label }];
+      }),
       legal: tree(navigation.legal?.nodes ?? []),
     },
     credit: entitled(anonymousPrincipal(siteTenant(site), []), 'remove_branding')

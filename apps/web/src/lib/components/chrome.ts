@@ -1,6 +1,8 @@
 // What the site header and footer render (SiteHeader.svelte, SiteFooter.svelte), built by
 // `chromeModel` on the server. Here, not beside it, so a component never imports from server/.
 
+import type { SocialNetwork } from '@mycel/core';
+
 export interface ChromeLink {
   label: string;
   href: string;
@@ -42,6 +44,8 @@ export interface ChromeModel {
   actions: ChromeLink[];
   footer: string;
   columns: ChromeColumn[];
+  /** The site's own profiles in network order (MY-273), each with its accessible name. */
+  social: (ChromeLink & { network: SocialNetwork })[];
   legal: ChromeNode[];
 }
 

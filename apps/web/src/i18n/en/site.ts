@@ -53,6 +53,12 @@ export const site = {
   'admin.site.logoHasName.hint':
     'The header then shows the logo alone, without the name beside it; screen readers still hear the name.',
   'admin.site.saveIdentity': 'Save logo setting',
+  'admin.site.social': 'Social media',
+  'admin.site.saveSocial': 'Save social media',
+  'admin.site.social.hint':
+    'A profile that is filled in shows as an icon under "Follow us" in the footer; an empty field shows nothing. A profile is an https address.',
+  'admin.site.social.email': 'Email address',
+  'admin.site.social.website': 'Website',
   'admin.site.mode.light': 'Light colours',
   'admin.site.mode.dark': 'Dark colours',
   'admin.site.role.body': 'Body',

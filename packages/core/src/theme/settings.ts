@@ -38,7 +38,56 @@ export const SiteHref = z
     }
   }, 'site.chrome.href.invalid');
 /**
- * The site chrome keeps the footer text and whether the logo carries the name. Menus live in the navigation document (ADR 036);
+ * The networks a site can link its own profiles to (MY-273), in the order the footer shows them:
+ * Dreamkit's organisation settings plus Threads. A closed list, so every one has an icon and a
+ * name; a network that is missing is one line here and one icon. Rejected: free label and URL
+ * pairs, which give no icon and let the footer turn into a second menu.
+ */
+export const SOCIAL_NETWORKS = [
+  'bluesky',
+  'mastodon',
+  'instagram',
+  'facebook',
+  'linkedin',
+  'youtube',
+  'tiktok',
+  'x',
+  'whatsapp',
+  'threads',
+  'email',
+  'website',
+] as const;
+export type SocialNetwork = (typeof SOCIAL_NETWORKS)[number];
+// An `https:` URL without credentials; e-mail is a `mailto:` with one address and nothing else.
+const profileUrl = z
+  .string()
+  .trim()
+  .max(2048)
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' && !url.username && !url.password;
+    } catch {
+      return false;
+    }
+  }, 'site.chrome.social.invalid');
+const mailto = z
+  .string()
+  .trim()
+  .max(330)
+  .regex(/^mailto:[^\s@?&,;:/]+@[^\s@?&,;:/]+\.[^\s@?&,;:/]+$/i, 'site.chrome.social.invalid');
+const SocialProfiles = z
+  .object(
+    Object.fromEntries(
+      SOCIAL_NETWORKS.map((n) => [n, (n === 'email' ? mailto : profileUrl).optional()])
+    ) as Record<SocialNetwork, z.ZodOptional<typeof profileUrl>>
+  )
+  .strict();
+export type SocialProfiles = z.infer<typeof SocialProfiles>;
+
+/**
+ * The site chrome keeps the footer text, whether the logo carries the name and the site's social
+ * profiles. Menus live in the navigation document (ADR 036);
  * migration 0057 removed the old `navigation`, `legal`, `support` and `help` fields without moving
  * them (rule 10 as amended 2026-11-15: no production sites yet, so no compatibility). The strict
  * schema refuses them, so this setter, which writes live with `content:write`, can never bypass
@@ -51,6 +100,8 @@ export const SiteChrome = z
     // The logo already carries the site's name (MY-275): the header shows the logo alone and the
     // name stays the link's accessible name. Absent is false; it matters only with a logo.
     logoHasName: z.boolean().optional(),
+    // The site's own profiles (MY-273), shown in the footer as icons; absent or empty shows none.
+    social: SocialProfiles.optional(),
   })
   .strict();
 export type SiteChrome = z.infer<typeof SiteChrome>;
@@ -155,7 +206,8 @@ export const updateSiteTheme = defineUseCase({
 export const getSiteChrome = defineUseCase({
   name: 'site.chrome.get',
   kind: 'query',
-  description: 'Read the footer text of the public site; menus are `site.navigation.*`.',
+  description:
+    'Read the footer text, logo setting and social profiles of the public site; menus are `site.navigation.*`.',
   requires: 'content:read',
   input: z.object({}).strict(),
   output: ChromeState,
@@ -165,7 +217,8 @@ export const getSiteChrome = defineUseCase({
 export const updateSiteChrome = defineUseCase({
   name: 'site.chrome.update',
   kind: 'command',
-  description: 'Replace the footer text of the public site at a known version.',
+  description:
+    'Replace the footer text, logo setting and social profiles of the public site at a known version.',
   requires: 'content:write',
   input: z.object({ baseVersion: version, chrome: SiteChrome }).strict(),
   output: ChromeState,

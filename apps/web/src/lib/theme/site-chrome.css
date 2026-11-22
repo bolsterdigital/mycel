@@ -88,9 +88,9 @@
 /* Links in the chrome are navigation in a landmark, not links in running text (which WCAG 1.4.1
    asks to tell apart, and base.css keeps underlined): they take the text colour of the pair they
    stand on and no underline at rest. Hover and focus underline, as Dreamkit's footer does: on a
-   brand colour there is no safe colour to change to. The current page is bold and underlined,
-   never colour alone. The panel, a dropdown and the language list stand on the body pair, so
-   their links inherit that. */
+   brand colour there is no safe colour to change to. In the header the current page is bold and
+   underlined, never colour alone; the footer leaves it plain (MY-273). The panel, a dropdown and
+   the language list stand on the body pair, so their links inherit that. */
 :is(.site-header, .site-footer) a:not(.button) {
   color: inherit;
   text-decoration: none;
@@ -98,7 +98,7 @@
 :is(.site-header, .site-footer) a:not(.button):is(:hover, :focus-visible) {
   text-decoration-line: underline;
 }
-:is(.site-header, .site-footer) a:not(.button)[aria-current] {
+.site-header a:not(.button)[aria-current] {
   font-weight: 700;
   text-decoration-line: underline;
   text-decoration-thickness: 0.15em;
@@ -287,51 +287,121 @@
   font-size: var(--step-1);
 }
 
-/* The footer: its text, then the placed columns side by side as far as they fit, then the legal
-   menu in one row. Every group stays open: a footer hides nothing. The legal menu, the consent
-   link and the credit are small print under a rule. */
+/* The footer (MY-273, Jaap 2026-11-22: "nog een rommeltje"), after Dreamkit's: one row of columns
+   that wraps where it must, the site's own text first, then the placed menus side by side as far
+   as they fit, then "Follow us"; under a rule the small print. Column titles small and bold, links
+   0.5rem apart at a 24 px target (WCAG 2.5.8 with spacing), not the 44 px rows of the panel, and
+   the current page plain: a footer is not where a visitor looks for where they are. Social icons
+   are 44 px circles in a light tint of the footer's text that invert to the footer pair on hover
+   and focus, with a lift of 2 px where motion is welcome. Rejected: the primary pair on hover,
+   which vanishes into a footer that stands in `primary`, and a breakpoint for the row. */
 .site-footer {
   color: var(--chrome-footer-fg);
   background: var(--chrome-footer-bg);
   padding-block: var(--space-4);
 }
-.site-footer > p {
-  margin-block: 0 var(--space-1);
+.site-footer-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
-.site-footer > nav {
-  display: grid;
-  gap: var(--space-2);
+.site-footer-about {
+  flex: 1 1 14rem;
+  max-inline-size: 32rem;
+  margin: 0;
 }
 .site-footer-columns {
+  flex: 999 1 min(100%, 24rem);
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
-  gap: var(--space-2) var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: var(--space-3);
+}
+.site-footer-social {
+  flex: 1 1 10rem;
 }
 .site-footer-title {
-  margin: 0;
-  font-size: var(--step-0);
+  margin: 0 0 var(--space-1);
+  font-size: var(--step--1);
   font-weight: 700;
+}
+.site-footer-columns .site-tree {
+  display: grid;
+  gap: 0.5rem;
+}
+.site-footer :is(.site-footer-columns, .site-footer-legal) .site-tree a {
+  min-height: 1.5rem;
+}
+.site-social {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.site-social a {
+  justify-content: center;
+  inline-size: var(--tap);
+  block-size: var(--tap);
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    translate 0.2s ease;
+}
+.site-social a:is(:hover, :focus-visible) {
+  color: var(--chrome-footer-bg);
+  background: var(--chrome-footer-fg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .site-social a:is(:hover, :focus-visible) {
+    translate: 0 -2px;
+  }
+}
+/* In rem, so the icon grows with the text as its 44 px circle does. */
+.site-social svg {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  fill: currentColor;
+}
+.site-social svg.site-social-stroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.site-social-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.site-footer-small {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--step--1);
+}
+.site-footer-main + .site-footer-small {
+  margin-block-start: var(--space-3);
+  padding-block-start: var(--space-1);
+  border-block-start: 1px solid currentColor;
 }
 .site-footer-legal .site-tree {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--space-3);
+  gap: 0.5rem var(--space-3);
 }
-.site-footer-legal,
-.site-footer-consent {
-  font-size: var(--step--1);
-}
-.site-footer-legal,
-.site-footer > nav:not(:has(.site-footer-legal)) + :is(.site-footer-consent, .mycel-credit) {
-  margin-block-start: var(--space-2);
-  padding-block-start: var(--space-1);
-  border-block-start: 1px solid currentColor;
-}
-.site-footer .mycel-credit {
-  padding-block-start: 0;
-}
+.site-footer-small > p,
+.site-footer .mycel-credit,
 .site-footer .mycel-credit p {
   margin: 0;
+  padding: 0;
 }
 
 /* The enhancement (`static/_site/navigation.js`, step D2). Nothing below shows before the script
