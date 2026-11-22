@@ -200,8 +200,10 @@ describe('a campaign landing page (ADR 038)', () => {
         expect(at('campaign-action')).toBeLessThan(at('campaign-body'));
         expect(html.match(/<h1[\s>]/g)).toHaveLength(1);
         expect(html).toMatch(
-          /<section class="campaign-action" aria-labelledby="campaign-action">\s*<h2/
+          /<section class="campaign-action[^"]*" aria-labelledby="campaign-action">\s*<h2/
         );
+        // Sticky only with a compact form to keep in view (MY-267 PR 5): open, not before or after.
+        expect(html.includes('campaign-action-sticky')).toBe(phase === 'open');
         expect(html.slice(at('campaign-body'))).toMatch(/<h2[^>]*>\s*(Wij constateren|We note)/);
         // The form only while open, from the campaign; the placed block renders nothing.
         expect(html.match(/<form\s/g)?.length ?? 0).toBe(phase === 'open' ? 1 : 0);

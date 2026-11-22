@@ -4,9 +4,11 @@
      landing page and the card. On the landing page it is a section with its own heading
      (`level`); in a card the card title names it (`level` null), as Dreamkit's card did. The
      server still decides at submit (ADR 033 rule 3); this only keeps the page from offering a
-     post it would refuse. -->
+     post it would refuse. A compact form marks the area `campaign-action-sticky`, which
+     campaign.css keeps in view beside the text, bounded by the layout (MY-267 PR 5). -->
 <script lang="ts">
   import CampaignCount from './CampaignCount.svelte';
+  import { compactForm } from './campaign-render.js';
   import Form from './Form.svelte';
   import { headingTag } from './headings.js';
   import type { FormState, RenderLanding, RenderModel } from './model.js';
@@ -34,6 +36,7 @@
   } = $props();
 
   const copy = $derived(model.copy.campaign);
+  const sticky = $derived(compactForm(campaign.form));
   const open = $derived(campaign.phase === 'open');
   const title = $derived(
     open ? copy.act[campaign.kind] : copy.heading[campaign.phase as 'upcoming' | 'closed']
@@ -57,10 +60,14 @@
 {/snippet}
 
 {#if level !== null}
-  <section class="campaign-action" aria-labelledby="{id}-action">
+  <section
+    class="campaign-action"
+    class:campaign-action-sticky={sticky}
+    aria-labelledby="{id}-action"
+  >
     <svelte:element this={headingTag(level)} id="{id}-action">{title}</svelte:element>
     {@render body()}
   </section>
 {:else}
-  <div class="campaign-action">{@render body()}</div>
+  <div class="campaign-action" class:campaign-action-sticky={sticky}>{@render body()}</div>
 {/if}

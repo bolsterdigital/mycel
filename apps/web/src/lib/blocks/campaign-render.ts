@@ -5,6 +5,19 @@
 import type { CampaignPhase, LandingCampaign } from '@mycel/core';
 import type { RenderForm, RenderLanding } from './model.js';
 
+/** Visible fields up to which a campaign form counts as compact (MY-267 PR 5). */
+const COMPACT_FIELDS = 4;
+
+/**
+ * Whether the action area may stay in view beside a long text (ADR 038 rule 9): only for a short
+ * form, so the submit button of a sticky area never sits below the window. A membership form
+ * (its tier prices) and anything over four visible fields scroll with the page.
+ */
+export function compactForm(form: RenderForm | null): boolean {
+  if (!form || form.membership) return false;
+  return form.fields.filter((f) => f.type !== 'hidden').length <= COMPACT_FIELDS;
+}
+
 /** A campaign that has not opened yet, with a known opening: the date in the site's words. */
 export function opensOf(
   phase: CampaignPhase,

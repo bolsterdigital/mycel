@@ -33,6 +33,48 @@ export async function headingOutlineProblems(page: Page, within = 'body'): Promi
 const box = async (page: Page, selector: string) =>
   (await page.locator(selector).first().boundingBox())!;
 
+/**
+ * MY-267 PR 5 (ADR 038 rule 9): a compact action area stays in view beside the text. At 1440x800
+ * and 1280x720, at every scroll step once the area has reached the top of the window and while it
+ * still shows, its submit button is wholly inside the window; it sticks at some step; and it never
+ * leaves its layout (its bottom not below the layout's). Before that the area scrolls into view
+ * like any other content.
+ */
+async function expectStickyAction(page: Page, path: string) {
+  await expect(page.locator('.campaign-action')).toHaveClass(/campaign-action-sticky/);
+  for (const viewport of [
+    { width: 1440, height: 800 },
+    { width: 1280, height: 720 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const steps = await page.evaluate(() => Math.ceil(document.body.scrollHeight / 200));
+    let held = 0;
+    for (let step = 0; step <= steps; step++) {
+      await page.evaluate((y) => window.scrollTo(0, y), step * 200);
+      const seen = await page.evaluate(() => {
+        const area = document.querySelector('.campaign-action')!.getBoundingClientRect();
+        const body = document.querySelector('.campaign-layout')!.getBoundingClientRect();
+        const send = document
+          .querySelector('.campaign-action button[type="submit"], .campaign-action button')!
+          .getBoundingClientRect();
+        return {
+          top: area.top <= 40 && area.bottom > 0,
+          inside: send.top >= 0 && send.bottom <= innerHeight,
+          bounded: area.bottom <= body.bottom + 1,
+          moved: area.top > 0 && area.top < 40,
+        };
+      });
+      const at = `${path} ${viewport.width}x${viewport.height} at ${step * 200}px`;
+      expect(seen.bounded, `${at}: within the layout`).toBe(true);
+      if (seen.top) expect(seen.inside, `${at}: submit button in view`).toBe(true);
+      if (seen.moved) held++;
+    }
+    expect(held, `${path} ${viewport.width}x${viewport.height}: the area stuck`).toBeGreaterThan(0);
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.setViewportSize({ width: 1440, height: 900 });
+}
+
 export async function exerciseCampaignLanding(page: Page, paths: readonly string[]) {
   for (const path of paths) {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -60,6 +102,7 @@ export async function exerciseCampaignLanding(page: Page, paths: readonly string
     );
     expect(Math.abs(action.y - intro.y)).toBeLessThan(2);
     expect(body.y).toBeGreaterThan(intro.y);
+    await expectStickyAction(page, path);
 
     // Narrow: one column in DOM order, whole at default and 200% text.
     await page.setViewportSize(NARROW);
