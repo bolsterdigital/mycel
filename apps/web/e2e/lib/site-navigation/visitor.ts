@@ -12,6 +12,7 @@ import { withInvoker } from '../invoker';
 import { expectNoAxeViolations } from '../axe';
 import { forcedColorsProblems, layoutGate, setTextSize } from '../layout';
 import { isA11y } from '../project';
+import { openLanguageChoices } from './chrome/language-panel';
 
 const COPY = {
   nl: {
@@ -235,8 +236,7 @@ async function searchAndLanguages(page: Page, locale: 'nl' | 'en') {
   const query = locale === 'nl' ? 'Welkom' : 'Welcome';
   const banner = page.getByRole('banner');
   await expect(banner.locator('.site-search-link')).toHaveText(search);
-  await banner.locator('.site-languages summary').click();
-  const languages = banner.locator('.site-languages nav');
+  const { list: languages } = await openLanguageChoices(page);
   await expect(languages.getByRole('link')).toHaveText(['Nederlands', 'English']);
   await expect(languages.locator('[aria-current]')).toHaveAttribute('hreflang', locale);
   // Keyboard activation of a real link, not a scripted language replacement.
@@ -252,13 +252,17 @@ async function searchAndLanguages(page: Page, locale: 'nl' | 'en') {
     await layoutGate(page, `search/language tools at ${width}px`, '.site-header');
   }
   await setTextSize(page, '200%');
-  await banner.locator('.site-languages summary').click();
-  await layoutGate(page, 'language choices at 320px and 200% text', '.site-header');
+  const choices = await openLanguageChoices(page);
+  await layoutGate(
+    page,
+    'language choices at 320px and 200% text',
+    choices.inBar ? '.site-header' : '.site-dialog'
+  );
   await page.screenshot({
     path: test.info().outputPath(`languages-${locale}.png`),
     fullPage: true,
   });
-  await banner.locator('.site-languages summary').click();
+  await choices.close();
   await banner.locator('.site-menu-toggle').click();
   if (isA11y())
     await page.locator('.site-dialog').evaluate(async (d) => {
@@ -286,9 +290,9 @@ async function searchAndLanguages(page: Page, locale: 'nl' | 'en') {
   await expect(
     page.locator('main .search-results').getByRole('link', { name: query, exact: true })
   ).toBeVisible();
-  await banner.locator('.site-languages summary').click();
-  await banner
-    .locator('.site-languages nav')
+  await (
+    await openLanguageChoices(page)
+  ).list
     .getByRole('link', { name: locale === 'nl' ? 'English' : 'Nederlands' })
     .click();
   await expect(page).toHaveURL(new RegExp(`/search\\?q=${query}$`));

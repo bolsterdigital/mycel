@@ -35,6 +35,26 @@
   align-items: center;
   gap: var(--space-1) var(--space-3);
 }
+/* Sticky only as an enhancement and only while navigation.js measures one row of at most a fifth
+   of the viewport (`data-sticky`, MY-266 PR D); otherwise, and without JS, the header stays in the
+   flow. `sticky`, not `fixed`: the header keeps its place, so nothing below it moves and the
+   cover's `--site-header-height` still holds. The measured height is the scroll padding, so the
+   skip link's target, a block anchor and the focus land below it (WCAG 2.4.11). Under the skip
+   link (z-index 10), over the page. Rejected: hiding and showing on scroll direction, which moves
+   the header under the reader's eyes. */
+.site-header[data-sticky] {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 8;
+}
+:root:has(.site-header[data-sticky]) {
+  scroll-padding-block-start: calc(var(--site-sticky-block-size, 0px) + var(--space-1));
+}
+@media print {
+  .site-header[data-sticky] {
+    position: relative;
+  }
+}
 .site-identity {
   display: inline-flex;
   flex-wrap: wrap;
@@ -83,6 +103,26 @@
   --action-base-bg: var(--chrome-action-bg);
   --action-fg: var(--chrome-action-active-fg);
   --action-bg: var(--chrome-action-active-bg);
+}
+/* Tight (navigation.js, MY-266 PR D): logo, first call to action and Menu fit one row only when
+   the call to action's label wraps between its words inside the button, as on a Dreamkit phone
+   header. The row keeps; the button grows in height, never narrower than its longest word, and
+   never hyphenates. Rejected: dropping Menu's word (an icon alone) or shrinking the label. */
+.site-header[data-tight] {
+  flex-wrap: nowrap;
+}
+.site-header[data-tight] .site-identity {
+  flex: none;
+}
+.site-header[data-tight] .site-tools {
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.site-header[data-tight] .site-tools > .site-action:not(.secondary) {
+  flex: 0 1 auto;
+  min-width: min-content;
+  hyphens: manual;
 }
 /* Search in the bar: a magnifier before the visible word, inline so it costs no request. */
 .site-search-link {
@@ -301,8 +341,20 @@
    `overflow: hidden`, which hides a link without taking it out of the tab order. */
 .site-bar,
 .site-tools > [data-site-candidate]:not([data-shown]),
+:where(.site-header[data-enhanced]) .site-tools > [data-site-yield]:not([data-shown]),
 .site-bar > ul > li:not([data-shown]) {
   display: none;
+}
+/* Search and Language wait for the measurement where scripts run, so a phone's header loads in
+   the one row it keeps instead of collapsing from three rows after load (layout shift); on a wide
+   screen they then join the row. A browser without the `scripting` query shows them until the
+   enhancement has measured. Without JS they are in the bar. Both rules stay below the measuring
+   rule's specificity, or a hidden candidate would measure 0 px, fit, show, overflow, and hide
+   again on every frame. */
+@media (scripting: enabled) {
+  .site-tools > [data-site-yield]:not([data-shown]) {
+    display: none;
+  }
 }
 .site-header[data-enhanced] .site-bar[data-shown],
 .site-header[data-measuring] .site-bar {
@@ -322,7 +374,8 @@
   display: flex;
   align-items: center;
 }
-.site-header[data-measuring] :is(.site-bar > ul > li, .site-tools > [data-site-candidate]) {
+.site-header[data-measuring]
+  :is(.site-bar > ul > li, .site-tools > [data-site-candidate], .site-tools > [data-site-yield]) {
   display: flex;
   position: absolute;
   inset-block-start: 0;
@@ -514,9 +567,9 @@
   }
 }
 
-/* The search and language entrances are reserved tools, never auto-fit candidates. Native
-   disclosure keeps all locale links reachable without JS; whole controls wrap on small rails.
-   Language in the bar is a globe plus the visible word and the chevron of the other disclosures.
+/* Search and Language are the bar's last candidates to leave for the panel (navigation.js
+   `priority`), where both always are; without JS they stay in the bar and whole controls wrap on
+   small rails, so the native disclosure keeps every locale link reachable. Language in the bar is a globe plus the visible word and the chevron of the other disclosures.
    Its open list lies where the panel does, under the header on the wide rail's end: one row of
    pills on the body pair while it fits, else they wrap, never past the gutter. Rejected: hanging
    it from Language's own end, which Menu beside it pushes past the start edge on a phone.

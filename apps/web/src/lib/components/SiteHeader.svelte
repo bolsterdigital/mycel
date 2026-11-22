@@ -8,7 +8,9 @@
      links and the second call to action are rendered but not displayed, never clipped or wrapped
      into a second row of links. The enhancement (`static/_site/navigation.js`, step D2) turns the
      panel into a modal dialog, shows as many bar candidates as it measures to fit, and adds the
-     buttons that open sublinks. The burger turns into a cross in CSS.
+     buttons that open sublinks. Search and Language (`data-site-yield`) are candidates too, the
+     last to leave for the panel, where both always are, so a phone keeps one row that can be
+     sticky (MY-266 PR D). The burger turns into a cross in CSS.
      Rejected: a no-JS bar of every link that wraps (Wings and Dreamkit hid or clipped them on
      small screens instead) and a CSS breakpoint for the bar, which a long label overruns. -->
 <script lang="ts">
@@ -114,7 +116,7 @@
         data-site-candidate
         href={chrome.actions[1]!.href}>{chrome.actions[1]!.label}</a
       >{/if}
-    <a class="site-search-link" href={chrome.search}
+    <a class="site-search-link" data-site-yield href={chrome.search}
       >{@render magnifier()}{t('public.search.title')}</a
     >
     <SiteLanguages {languages} {locale} compact />

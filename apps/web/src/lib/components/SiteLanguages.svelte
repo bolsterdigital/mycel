@@ -50,7 +50,7 @@
 
 {#if languages.length > 1}
   {#if compact}
-    <details class="site-languages">
+    <details class="site-languages" data-site-yield>
       <summary>{@render globe()}{t('public.languages')}</summary>
       {@render links()}
     </details>

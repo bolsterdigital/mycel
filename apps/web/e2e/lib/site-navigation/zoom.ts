@@ -23,9 +23,12 @@ export async function exerciseZoomedNavigation(
     const header = page.locator('.site-header');
     await expect(header).toHaveAttribute('data-enhanced', '');
     await layoutGate(page, `header ${locale} at real 400% zoom`, '.site-header');
-    await header.locator('.site-languages summary').click();
-    await layoutGate(page, `languages ${locale} at real 400% zoom`, '.site-header');
-    await header.locator('.site-languages summary').click();
+    // At a quarter of the width Language may stand in the panel, which is measured below.
+    if (await header.locator('.site-languages summary').isVisible()) {
+      await header.locator('.site-languages summary').click();
+      await layoutGate(page, `languages ${locale} at real 400% zoom`, '.site-header');
+      await header.locator('.site-languages summary').click();
+    }
     const menu = header.locator('.site-menu-toggle');
     await menu.focus();
     await page.keyboard.press('Enter');

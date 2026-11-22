@@ -146,12 +146,17 @@ async function openMenu(page: Page) {
   if (isA11y()) await expect(page.locator('dialog.site-dialog')).toHaveJSProperty('open', true);
 }
 
-/** The block is in view, at its scroll margin below the top, its heading readable. */
+/** The block is in view, at its scroll margin below the top or below a sticky header (MY-266
+ *  PR D), its heading readable. */
 async function landed(page: Page) {
   const target = page.locator('#block-doel');
   await expect(target).toHaveText(TARGET);
   await expect(target).toBeInViewport();
-  const top = await target.evaluate((e) => e.getBoundingClientRect().top);
+  const top = await target.evaluate(
+    (e) =>
+      e.getBoundingClientRect().top -
+      Math.max(0, document.querySelector('.site-header')!.getBoundingClientRect().bottom)
+  );
   expect(top, 'the scroll margin keeps the block off the edge').toBeGreaterThan(8);
   expect(top).toBeLessThan(80);
 }
