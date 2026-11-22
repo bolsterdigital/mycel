@@ -179,6 +179,7 @@ export const publicSite = {
   'block.event.where': 'Where',
   'block.event.online': 'Online',
   'block.cover.toContent': 'To the content',
+  'block.timeline.now': 'Now',
   'block.campaign.kind.petition': 'Petition',
   'block.campaign.kind.signup': 'Sign-up',
   'block.campaign.kind.fundraiser': 'Fundraiser',

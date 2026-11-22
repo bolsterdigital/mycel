@@ -181,6 +181,7 @@ export const publicSite: Partial<Record<UiKey, string>> = {
   'block.event.where': 'Waar',
   'block.event.online': 'Online',
   'block.cover.toContent': 'Naar de inhoud',
+  'block.timeline.now': 'Nu',
   'block.campaign.kind.petition': 'Petitie',
   'block.campaign.kind.signup': 'Inschrijfactie',
   'block.campaign.kind.fundraiser': 'Inzamelingsactie',
