@@ -80,6 +80,7 @@ const API_ENTRIES = ['@mycel/api/compose', '@mycel/api/conditional'];
 const TEST_BARREL_USERS = [
   'packages/api/src/runtime/seed-demo.ts',
   'packages/api/src/runtime/seed-site.ts',
+  'packages/api/src/runtime/site-definition.ts',
   'packages/db/src/infra/seed.ts',
   'packages/db/src/testing.ts',
 ];

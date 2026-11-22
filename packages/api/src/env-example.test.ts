@@ -43,6 +43,7 @@ const INVENTORY: Record<string, string> = {
 
 /** Read by the code, deliberately not in `.env.example`. */
 const NOT_IN_EXAMPLE: Record<string, string> = {
+  INIT_CWD: 'set by npm to where a script was started (demo:site --definition)',
   PORT: 'per process, set by whoever starts it (container, scripts/dev.mjs, playwright.config.ts)',
   HOST: 'adapter-node listen address, per process',
   BODY_SIZE_LIMIT: 'set by docker/entrypoint.sh for the web container',

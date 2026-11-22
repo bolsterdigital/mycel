@@ -3,7 +3,9 @@
 // publication, references and the search index apply to demo content exactly as to real
 // content. It is additive and idempotent: what a definition names and the tenant already has
 // (found by slug, filename or name) is kept untouched, what is missing is made. That lets a test
-// server be brought up to date after a new feature without a reseed. Items are
+// server be brought up to date after a new feature without a reseed. A definition may also
+// point at items the tenant had before it, an import for instance, by slug (`refs.existing`);
+// those are looked up before anything is made and never changed. Items are
 // made in two rounds, as the WordPress importer does: every missing item first as an empty
 // draft, so any document can link to any item, then filled, revised and published. Supporters,
 // their gifts and a newsletter edition follow last (`activity.ts`), only when the caller gives
@@ -15,7 +17,7 @@
 // repeatable, not reviewed, never complete).
 
 import type { z } from 'zod';
-import type { ContentItem } from '../../content/model.js';
+import type { ContentItem, ContentType } from '../../content/model.js';
 import type { NavigationDocument } from '../../navigation/model.js';
 import type { Invoker } from '../../invoke.js';
 import type { Principal } from '../../principal.js';
@@ -46,6 +48,11 @@ export interface SiteRefs {
   campaign(key: string): string;
   pattern(key: string): string;
   tier(key: string): string;
+  /**
+   * An item the tenant already has and this definition does not make, such as an imported
+   * article, by slug. `type` is needed only when a page and an article share the slug.
+   */
+  existing(slug: string, type?: ContentType): string;
 }
 
 export interface MediaDef {
@@ -225,7 +232,7 @@ export interface Run {
   principal: Principal;
   site: SiteDefinition;
   refs: SiteRefs;
-  ids: Record<keyof SiteRefs, Map<string, string>>;
+  ids: Record<Exclude<keyof SiteRefs, 'existing'>, Map<string, string>>;
   created: Record<string, string[]>;
   now: Date;
 }
@@ -236,7 +243,7 @@ export const nameIn = (run: Run, name: L) => name[run.site.defaultLocale] ?? Obj
 /** For every definition: the id of what the tenant has, else of what `make` creates. */
 async function ensure<D extends { key: string }>(
   run: Run,
-  kind: keyof SiteRefs,
+  kind: keyof Run['ids'],
   defs: readonly D[],
   found: (def: D) => string | undefined,
   make: (def: D) => Promise<string>
@@ -269,7 +276,11 @@ export async function seedSite(
     'tier',
   ] as const;
   const ids = Object.fromEntries(kinds.map((k) => [k, new Map<string, string>()])) as Run['ids'];
-  const refs = Object.fromEntries(kinds.map((k) => [k, lookup(k, ids[k])])) as unknown as SiteRefs;
+  const existing = await findExisting(invoker, principal, site);
+  const refs = {
+    ...Object.fromEntries(kinds.map((k) => [k, lookup(k, ids[k])])),
+    existing: (slug: string, type?: ContentType) => existing.get(existingKey(slug, type))!,
+  } as unknown as SiteRefs;
   const run: Run = { invoker, principal, site, refs, ids, created: {}, now };
 
   await seedLook(run, load);
@@ -295,6 +306,49 @@ export async function seedSite(
 
   const byKey = new Map([...kept, ...seeded].map((s) => [s.key, s]));
   return { refs, items: site.items.map((d) => byKey.get(d.key)!), created: run.created };
+}
+
+const existingKey = (slug: string, type?: ContentType) => `${type ?? '*'}:${slug}`;
+
+/**
+ * Every item the definition names with `refs.existing`, found before the run makes anything, so a
+ * slug that is missing or names both a page and an article stops the run on a still untouched
+ * tenant. The names are read by calling the definition's documents, patterns and navigation
+ * once with placeholder ids. Rejected: listing the slugs in the definition beside where they are
+ * used (two places to keep in step), and a lookup during the run (the callbacks are synchronous).
+ */
+async function findExisting(invoker: Invoker, principal: Principal, site: SiteDefinition) {
+  const wanted = new Map<string, { slug: string; type?: ContentType }>();
+  const recording: SiteRefs = {
+    ...placeholderRefs,
+    existing: (slug, type) => {
+      wanted.set(existingKey(slug, type), { slug, ...(type && { type }) });
+      return PLACEHOLDER;
+    },
+  };
+  for (const item of site.items) {
+    item.document(recording);
+    item.earlier?.(recording);
+  }
+  for (const pattern of site.patterns) pattern.blocks(recording);
+  site.navigation?.(recording);
+
+  const found = new Map<string, string>();
+  for (const [key, { slug, type }] of wanted) {
+    const matches: ContentItem[] = [];
+    for (const t of type ? [type] : (['article', 'page'] as const)) {
+      const { items } = await invoker.run(useCases.listItems, principal, { type: t, slug });
+      matches.push(...items.filter((i) => i.slug === slug));
+    }
+    if (matches.length !== 1)
+      throw new Error(
+        matches.length
+          ? `site definition: "${slug}" is both a page and an article; name the type`
+          : `site definition: the tenant has no ${type ?? 'item'} "${slug}"`
+      );
+    found.set(key, matches[0]!.id);
+  }
+  return found;
 }
 
 /**
@@ -675,4 +729,5 @@ const placeholderRefs: SiteRefs = {
   item: () => PLACEHOLDER,
   campaign: () => PLACEHOLDER,
   pattern: () => PLACEHOLDER,
+  existing: () => PLACEHOLDER,
 };

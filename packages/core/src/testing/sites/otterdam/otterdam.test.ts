@@ -36,6 +36,7 @@ const refs: SiteRefs = {
   campaign: fake('campaign'),
   pattern: fake('pattern'),
   tier: fake('tier'),
+  existing: fake('existing'),
 };
 const documents = OTTERDAM.items.map((item) => ({ key: item.key, doc: item.document(refs) }));
 const blocksOf = (key: string) => documents.find((d) => d.key === key)!.doc.blocks;
