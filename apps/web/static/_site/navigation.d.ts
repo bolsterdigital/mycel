@@ -8,6 +8,7 @@ export function priority<T>(parts: {
   search?: T | null;
   languages?: T | null;
   second?: T | null;
+  name?: T | null;
   links?: T[];
 }): T[];
 export function stickyFits(input: {

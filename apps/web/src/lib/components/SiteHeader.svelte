@@ -10,7 +10,9 @@
      panel into a modal dialog, shows as many bar candidates as it measures to fit, and adds the
      buttons that open sublinks. Search and Language (`data-site-yield`) are candidates too, the
      last to leave for the panel, where both always are, so a phone keeps one row that can be
-     sticky (MY-266 PR D). The burger turns into a cross in CSS.
+     sticky (MY-266 PR D). Beside a logo the visible name (`data-site-name`) is the first of those to
+     leave (MY-266 PR F); the link keeps the name as its `aria-label`, and a logo that carries the
+     name stands alone from the start (MY-275). The burger turns into a cross in CSS.
      Rejected: a no-JS bar of every link that wraps (Wings and Dreamkit hid or clipped them on
      small screens instead) and a CSS breakpoint for the bar, which a long label overruns. -->
 <script lang="ts">
@@ -69,7 +71,10 @@
         height={chrome.logo.height}
         alt=""
       />{/if}
-    <span class:site-wordmark={chrome.wordmark}>{chrome.name}</span>
+    {#if chrome.showName}<span
+        class:site-wordmark={chrome.wordmark}
+        data-site-name={chrome.logo ? '' : undefined}>{chrome.name}</span
+      >{/if}
   </a>
   {#if chrome.bar.length}
     <!-- Displayed only once the enhancement has measured what fits; each item is a top-level

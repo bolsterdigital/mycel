@@ -25,7 +25,12 @@
   padding: var(--space-2) var(--wide-inset);
   border-block: 1px solid color-mix(in srgb, currentColor 15%, transparent);
 }
+/* About 74 px with a logo, as Dreamkit's 72 (MY-266 PR F, Jaap 2026-11-22: "tegen de 100px hoog,
+   moet zo'n 74px zijn"): 12 px above and below a logo of at most 48 px (40 on a phone), which the
+   44 px tap targets beside it do not exceed. The cover's `--site-header-height` (base.css) counts
+   the same. Rejected: a fixed height, which clips a call to action whose label wraps. */
 .site-header {
+  padding-block: calc(0.75 * var(--space-2));
   color: var(--chrome-header-fg);
   background: var(--chrome-header-bg);
   position: relative;
@@ -55,19 +60,22 @@
     position: relative;
   }
 }
+/* A tap target in both directions: a narrow logo whose name left for the panel (MY-266 PR F), or
+   a short name without a logo, still makes a 44 px link. */
 .site-identity {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
+  min-width: var(--tap);
   min-height: var(--tap);
   max-width: 100%;
   font-weight: 700;
 }
 .site-identity img {
   display: block;
-  max-width: min(12rem, 45vw);
-  max-height: 4rem;
+  max-width: min(15rem, 40vw);
+  max-height: clamp(2.5rem, 2rem + 2vw, 3rem);
   width: auto;
   height: auto;
 }
@@ -347,17 +355,19 @@
 .site-bar,
 .site-tools > [data-site-candidate]:not([data-shown]),
 :where(.site-header[data-enhanced]) .site-tools > [data-site-yield]:not([data-shown]),
+:where(.site-header[data-enhanced]) .site-identity > [data-site-name]:not([data-shown]),
 .site-bar > ul > li:not([data-shown]) {
   display: none;
 }
 /* Search and Language wait for the measurement where scripts run, so a phone's header loads in
    the one row it keeps instead of collapsing from three rows after load (layout shift); on a wide
    screen they then join the row. A browser without the `scripting` query shows them until the
-   enhancement has measured. Without JS they are in the bar. Both rules stay below the measuring
-   rule's specificity, or a hidden candidate would measure 0 px, fit, show, overflow, and hide
-   again on every frame. */
+   enhancement has measured. Without JS they are in the bar. The name beside a logo waits the
+   same way (MY-266 PR F). Both rules stay below the measuring rule's specificity, or a hidden
+   candidate would measure 0 px, fit, show, overflow, and hide again on every frame. */
 @media (scripting: enabled) {
-  .site-tools > [data-site-yield]:not([data-shown]) {
+  .site-tools > [data-site-yield]:not([data-shown]),
+  .site-identity > [data-site-name]:not([data-shown]) {
     display: none;
   }
 }
@@ -380,7 +390,12 @@
   align-items: center;
 }
 .site-header[data-measuring]
-  :is(.site-bar > ul > li, .site-tools > [data-site-candidate], .site-tools > [data-site-yield]) {
+  :is(
+    .site-bar > ul > li,
+    .site-tools > [data-site-candidate],
+    .site-tools > [data-site-yield],
+    .site-identity > [data-site-name]
+  ) {
   display: flex;
   position: absolute;
   inset-block-start: 0;

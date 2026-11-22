@@ -50,6 +50,11 @@ export const site: Partial<Record<UiKey, string>> = {
   'admin.site.workCredits': 'Werk en maker vermelden',
   'admin.site.workCredits.hint':
     'Voor een site die kunstwerken of ander werk toont: een beeld krijgt dan naast de maker van het beeld een tweede vermelding met titel en maker van het werk.',
+  'admin.site.identity': 'Logo in de kop',
+  'admin.site.logoHasName': 'Het logo bevat de naam van de site',
+  'admin.site.logoHasName.hint':
+    'Dan toont de kop alleen het logo, zonder de naam ernaast; schermlezers horen de naam nog steeds.',
+  'admin.site.saveIdentity': 'Logo-instelling opslaan',
   'admin.site.mode.light': 'Lichte kleuren',
   'admin.site.mode.dark': 'Donkere kleuren',
   'admin.site.role.body': 'Lopende tekst',

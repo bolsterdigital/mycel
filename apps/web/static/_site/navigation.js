@@ -7,9 +7,10 @@
 //   Menu, the scroll position stays, and a page with a classic scrollbar does not shift.
 // - The bar shows the longest prefix of its candidates that fits beside the logo, the first call
 //   to action and Menu, measured (`fit` below, a pure function), in the order of `priority`:
-//   Search, Language, the second call to action, then the main menu's bar links in menu order. So
-//   on a narrowing screen the links leave first and Search last, and a phone keeps one row
-//   (MY-266 PR D); a short later link never jumps in for a long earlier one. A candidate that
+//   Search, Language, the second call to action, the site's name beside a logo, then the main
+//   menu's bar links in menu order. So on a narrowing screen the links leave first, then the name
+//   (the link keeps it as its `aria-label`, MY-266 PR F), and Search last, and a phone keeps one
+//   row (MY-266 PR D); a short later link never jumps in for a long earlier one. A candidate that
 //   does not fit is `display: none`, so it is neither focusable nor in the accessibility tree;
 //   it is in the panel, which always holds everything.
 // - If the logo, the first call to action and Menu still do not fit one row, the call to action's
@@ -57,11 +58,14 @@ export function fit({ costs, available, shown = 0, slack = 8 }) {
 /**
  * The bar's candidates in the order they are shown, the reverse of the order in which they leave
  * for the panel (brief public-chrome-polish § Eén rij op smal): Search, Language, the second call
- * to action, the bar links. Search stays longest because it is the entrance a visitor looks for
- * in the bar; a link is a click away in the panel. Absent parts drop out.
+ * to action, the name beside a logo, the bar links. Search stays longest because it is the
+ * entrance a visitor looks for in the bar; a link is a click away in the panel. The name is the
+ * first of the header's own parts to go (MY-266 PR F): the logo still names the site, and the
+ * link's `aria-label` keeps the name. Absent parts drop out (a site without a logo has no name
+ * candidate: its name always stays).
  */
-export function priority({ search, languages, second, links = [] }) {
-  return [search, languages, second, ...links].filter(Boolean);
+export function priority({ search, languages, second, name, links = [] }) {
+  return [search, languages, second, name, ...links].filter(Boolean);
 }
 
 /**
@@ -210,8 +214,9 @@ function enhance(header) {
   const search = tools?.querySelector(':scope > .site-search-link[data-site-yield]');
   const languages = tools?.querySelector(':scope > .site-languages[data-site-yield]');
   const links = bar ? [...bar.querySelectorAll(':scope > ul > li')] : [];
-  const candidates = priority({ search, languages, second, links });
-  const inTools = (c) => !links.includes(c);
+  const name = identity?.querySelector(':scope > [data-site-name]');
+  const candidates = priority({ search, languages, second, name, links });
+  const inTools = (c) => !links.includes(c) && c !== name;
   let shown = 0;
   let pending = 0;
 
@@ -230,6 +235,7 @@ function enhance(header) {
     const gap = px(style.columnGap);
     const toolGap = tools ? px(getComputedStyle(tools).columnGap) : 0;
     const barGap = bar ? px(getComputedStyle(bar.querySelector('ul')).columnGap) : 0;
+    const nameGap = identity ? px(getComputedStyle(identity).columnGap) : 0;
     // The tools that always stay (the first call to action, Menu) at their natural width in one
     // row.
     const toolParts = tools
@@ -240,12 +246,15 @@ function enhance(header) {
       Math.max(0, toolParts.length - 1) * toolGap;
     const costs = candidates.map((c) => {
       const own = c.getBoundingClientRect().width;
+      if (c === name) return own + nameGap;
       if (inTools(c)) return own + toolGap;
       // The first bar link brings the gap between the bar and the tools; later ones the bar's.
       return own + (c === links[0] ? gap : barGap);
     });
+    // The identity is measured while its name lies out of the flow: the logo alone.
+    const identityWidth = identity.getBoundingClientRect().width;
     header.toggleAttribute('data-measuring', false);
-    const available = width - identity.getBoundingClientRect().width - gap - toolsWidth;
+    const available = width - identityWidth - gap - toolsWidth;
     // When the logo, the first call to action and Menu do not fit one row, the call to action's
     // label may wrap between its words inside the button (Dreamkit's phone header), if that is
     // enough: measured at its narrowest, the longest word. Otherwise whole tools wrap as before.

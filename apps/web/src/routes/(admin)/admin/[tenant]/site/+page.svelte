@@ -731,6 +731,36 @@
         {/snippet}
       </SettingsSection>
     {/each}
+    {#if data.logo.active}
+      <!-- MY-275: a logo that carries the name stands alone in the header; the setting lives in
+           the chrome document, beside the footer text, and this form leaves that text alone. -->
+      <SettingsSection
+        id="site-identity"
+        title={t('admin.site.identity')}
+        action={action('chrome')}
+        submit={t('admin.site.saveIdentity')}
+        saved={saved('identity')}
+        unsaved={t('admin.site.unsaved')}
+      >
+        <input type="hidden" name="part" value="identity" />
+        <input
+          type="hidden"
+          name="baseVersion"
+          value={form?.action === 'identity'
+            ? value('baseVersion', String(data.chrome.version))
+            : data.chrome.version}
+        />
+        <Checkbox
+          id="site-logoHasName"
+          name="logoHasName"
+          label={t('admin.site.logoHasName')}
+          hint={t('admin.site.logoHasName.hint')}
+          checked={form?.action === 'identity'
+            ? value('logoHasName', '') === 'on'
+            : !!data.chrome.value.logoHasName}
+        />
+      </SettingsSection>
+    {/if}
   {:else if data.section === 'chrome'}
     <SettingsSection
       id="site-chrome"

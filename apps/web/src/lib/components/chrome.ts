@@ -32,6 +32,8 @@ export interface ChromeModel {
   languages: ChromeLanguage[];
   logo: { src: string; width: number; height: number } | null;
   wordmark: boolean;
+  /** Whether the header shows the name beside the logo: false when the logo carries it (MY-275). */
+  showName: boolean;
   /** The whole main menu, which the panel shows (ADR 036 rule 4). */
   main: ChromeNode[];
   /** The top-level nodes the editor placed in the bar, in menu order; how many show is measured. */

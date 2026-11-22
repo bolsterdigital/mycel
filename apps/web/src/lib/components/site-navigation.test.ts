@@ -31,12 +31,24 @@ describe('site navigation bar fit', () => {
 });
 
 // Which part leaves the bar first on a narrowing screen (brief public-chrome-polish § Eén rij op
-// smal): the links, then the second call to action, then Language, then Search.
+// smal): the links, then the name beside a logo, then the second call to action, then Language,
+// then Search.
 describe('site navigation yield order', () => {
   const parts = { search: 'S', languages: 'L', second: 'C2', links: ['A', 'B'] };
 
   it('shows Search, Language, the second call to action, then the links', () => {
     expect(priority(parts)).toEqual(['S', 'L', 'C2', 'A', 'B']);
+  });
+
+  // MY-266 PR F: beside a logo the visible name leaves after the links and before the second call
+  // to action; a site without a logo has no name candidate, so its name never leaves.
+  it('puts the name beside a logo between the second call to action and the links', () => {
+    expect(priority({ ...parts, name: 'N' })).toEqual(['S', 'L', 'C2', 'N', 'A', 'B']);
+    const order = priority({ ...parts, name: 'N' });
+    const costs = [70, 60, 90, 80, 50, 50];
+    const kept = (available: number) => order.slice(0, fit({ costs, available, slack: 0 }));
+    expect(kept(300)).toEqual(['S', 'L', 'C2', 'N']);
+    expect(kept(299)).toEqual(['S', 'L', 'C2']);
   });
 
   it('drops what a site does not have', () => {

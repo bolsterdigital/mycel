@@ -57,6 +57,23 @@ describe('site settings', () => {
         })
       ).rejects.toMatchObject({ code: 'invalid_input' });
   });
+  it('keeps whether the logo carries the name, a boolean (MY-275)', async () => {
+    const c = '01900000-0000-7000-8000-00000000cc11';
+    const principal = systemPrincipal(c, 'test');
+    await invoker.run(useCases.updateSiteChrome, principal, {
+      baseVersion: 0,
+      chrome: { ...chrome, logoHasName: true },
+    });
+    expect(
+      await invoker.run(useCases.getSiteChrome, anonymousPrincipal(c, ['content:read']), {})
+    ).toMatchObject({ version: 1, value: { ...chrome, logoHasName: true } });
+    await expect(
+      invoker.run(useCases.updateSiteChrome, principal, {
+        baseVersion: 1,
+        chrome: { ...chrome, logoHasName: 'yes' as never },
+      })
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+  });
   it('rejects contrast failures at the use-case boundary', async () => {
     await expect(
       invoker.run(useCases.updateSiteTheme, systemPrincipal(b, 'test'), {

@@ -370,24 +370,32 @@ export const actions: Actions = {
     const data = await request.formData();
     const { principal, tenant } = await requireTenantPrincipal(locals, url, params.tenant);
     if (!can(principal, 'content:write')) refuse(403);
+    // Two forms share this document: the footer text here and, under Logo, whether the logo
+    // carries the name (`part=identity`, MY-275). Each keeps the other's value as stored.
+    const identity = data.get('part') === 'identity';
+    const action = identity ? 'identity' : 'chrome';
     try {
       const current = await runtime().invoker.run(useCases.getSiteChrome, principal, {});
       if (current.version !== baseVersion(data))
         return fail(409, {
-          action: 'chrome',
+          action,
           error: 'admin.site.conflict' as const,
           values: Object.fromEntries(data),
         });
       const chrome: SiteChrome = {
-        footer: localized(data, 'footer', tenant.locales, current.value.footer),
+        footer: identity
+          ? current.value.footer
+          : localized(data, 'footer', tenant.locales, current.value.footer),
+        logoHasName: identity ? data.get('logoHasName') === 'on' : current.value.logoHasName,
       };
+      if (chrome.logoHasName === undefined) delete chrome.logoHasName;
       const result = await runtime().invoker.run(useCases.updateSiteChrome, principal, {
         baseVersion: baseVersion(data),
         chrome,
       });
-      return { saved: 'chrome', version: result.version };
+      return { saved: action, version: result.version };
     } catch (e) {
-      return refused(e, 'chrome', data);
+      return refused(e, action, data);
     }
   },
   assist: async ({ request, locals, url, params }) => {

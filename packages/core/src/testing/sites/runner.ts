@@ -159,6 +159,8 @@ export interface SiteDefinition {
   logo?: FileDef;
   /** The footer text per locale (`site.chrome`); the footer's menus are the navigation's. */
   footerText?: FooterDef;
+  /** The logo carries the site's name, so the header shows it alone (`site.chrome`, MY-275). */
+  logoHasName?: boolean;
   media: MediaDef[];
   people: PersonDef[];
   groups: GroupDef[];
@@ -352,7 +354,7 @@ async function findExisting(invoker: Invoker, principal: Principal, site: SiteDe
 }
 
 /**
- * Theme, logo and footer text, each only while its document is at version 0: never saved, so
+ * Theme, logo and the chrome (footer text, a logo that carries the name), each only while its document is at version 0: never saved, so
  * still the platform default. Rejected: comparing values with the definition, which would
  * overwrite an editor's later choice on the next run.
  */
@@ -383,13 +385,16 @@ async function seedLook(run: Run, load: LoadMedia) {
       made('logo');
     }
   }
-  if (site.footerText) {
+  if (site.footerText || site.logoHasName) {
     const { version } = await invoker.run(useCases.getSiteChrome, principal, {});
     if (version === 0) {
       await named('footer text', () =>
         invoker.run(useCases.updateSiteChrome, principal, {
           baseVersion: 0,
-          chrome: { footer: site.footerText! },
+          chrome: {
+            footer: site.footerText ?? {},
+            ...(site.logoHasName ? { logoHasName: true } : {}),
+          },
         })
       );
       made('footer text');
