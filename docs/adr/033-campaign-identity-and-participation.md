@@ -2,6 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-11-12
+- **Rule 4 partly superseded and refined**: 2026-11-22 by [ADR 038](038-campaign-presentation.md). A full card also shows the text blocks of the published landing revision and keeps its layout outside open participation instead of rendering as compact.
 - **Builds on**: ADR 003 and 019 (supporter events, stable id, erasure), ADR 005 and 024 (ledger, external ownership), ADR 012 and 022 (two stored content types, type profiles), ADR 016 and 018 (access, per-locale publication, capabilities), ADR 023 (versioned forms and actions), ADR 030 (trash), ADR 032 (erasure lifecycle)
 - **Supersedes**: nothing. `page` and `article` remain the only stored content types.
 

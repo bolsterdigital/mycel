@@ -2,9 +2,9 @@
 
 - **Status**: accepted
 - **Date**: 2026-11-22
-- **Refines**: ADR 025 rules 1 and 3 (header reading order, one page header layout), ADR 033 rule 4 (what a card shows)
+- **Refines**: ADR 033 rule 4 (a full card also shows the campaign text)
 - **Builds on**: ADR 004 rule 3 (heading levels from tree depth), ADR 007 (localisation), ADR 009 (HTML first), ADR 016 (access), ADR 018 (per-locale publication), ADR 033 rules 1-3 and 6 (landing page owns publication and copy, campaign owns participation, server decides at submit, caching)
-- **Supersedes**: nothing
+- **Supersedes**: ADR 025 rules 1 (reading order) and 3 (one page header layout) only for a landing page bound to a campaign; ADR 033 rule 4 only where it renders a full card as compact outside open participation
 
 ## Context
 
@@ -12,7 +12,7 @@ ADR 033 made a campaign a participation entity whose landing page is an ordinary
 
 The predecessor (Dreamkit `wings-campaigns` and `wings/campaign-card`) has this look, but through two renderers with copied markup, two style sets with their own breakpoints, a CSS background header image without alt, collapsing by `max-height` and a script (the text stays cut off without JavaScript), and a detail page without a `main` landmark. The two drifted apart, which is the complaint. The parts of a campaign also sit at different places in the document outline: on the landing page the title is the page's `h1`, inside a card it is a heading of the host page.
 
-Two accepted rules say otherwise. ADR 025 rules 1 and 3 fix the header order (title, lead, image) and give pages one header layout. ADR 033 rule 4 lists what compact and full show and makes full render as compact outside open participation. This ADR refines both; their principles stay: the header is document metadata, a page refuses a stored layout choice, a card is a live reference to one public projection and never a copy.
+Two accepted rules say otherwise. ADR 025 rules 1 and 3 fix the header order (title, lead, image) and give pages one header layout. ADR 033 rule 4 lists what compact and full show and makes full render as compact outside open participation. This ADR supersedes those parts for a bound landing page and a full card, and refines ADR 033 rule 4 with the campaign text; their principles stay: the header is document metadata, a page refuses a stored layout choice, a card is a live reference to one public projection and never a copy.
 
 ## Decision
 
