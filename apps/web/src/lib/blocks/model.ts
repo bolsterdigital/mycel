@@ -71,6 +71,10 @@ export interface BlockCopy {
     act: Record<CampaignKind, string>;
     /** The button to the landing page otherwise. */
     more: string;
+    /** The summary of a full card's folded campaign text, per kind. */
+    read: Record<CampaignKind, string>;
+    /** Where a card's text leaves blocks out: the link to the rest on the landing page. */
+    readOn: string;
     /** In place of a form whose campaign does not accept participation now. */
     notOpen: Record<'upcoming' | 'closed', string>;
   };
@@ -212,6 +216,8 @@ export interface RenderCampaign {
     raised: { amount: number; currency: string } | null;
     target: number | null;
   } | null;
+  /** Not open yet with a known opening: the date in the site's words; else null. */
+  opens: { iso: string; label: string } | null;
   revisionId: string;
 }
 
@@ -383,6 +389,12 @@ export type RenderBlock = { id: string } & (
       campaign: RenderCampaign | null;
       /** The campaign's form, on a `full` card while participation is open; else null. */
       form: RenderForm | null;
+      /**
+       * On a `full` card, the campaign's text from the same landing revision (ADR 038 rule 4), its
+       * ids prefixed with the card's; `more` when the page holds more than the card shows, `open`
+       * when it is short enough to show without `<details>`. Null on compact or without text.
+       */
+      body: { blocks: RenderBlock[]; more: boolean; open: boolean } | null;
       /** Why `campaign` is null; set only for the admin preview (`diagnose`), never publicly. */
       diagnosis?: CampaignCardReason;
     }
@@ -404,7 +416,7 @@ export interface RenderLanding {
   kind: CampaignKind;
   phase: CampaignPhase;
   /** Not open yet with a known opening: the date in the site's words; else null. */
-  opens: { iso: string; label: string } | null;
+  opens: RenderCampaign['opens'];
   counter: RenderCampaign['counter'];
   /** The campaign's form while participation is open (in the preview: always, with `diagnosis`). */
   form: RenderForm | null;

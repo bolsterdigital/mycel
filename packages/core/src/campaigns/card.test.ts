@@ -122,6 +122,50 @@ describe('campaign.card.get (ADR 033 rule 4)', () => {
     expect(after.landing.revisionId).not.toBe(shown.landing.revisionId);
   });
 
+  it('carries the text blocks of the same revision as the body, and says when more is left out', async () => {
+    const { invoker, admin, start, publish, card } = setup();
+    const c = await start();
+    expect(await publish(c.landingItemId, 'nl')).toBeTruthy();
+    // No blocks yet: no body, not an empty one.
+    expect(await card(c.id)).toMatchObject({ landing: { body: null } });
+
+    const para = (nl: string) => ({
+      type: 'doc' as const,
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: nl }] }],
+    });
+    const { revision } = await invoker.run(useCases.getItem, admin, { itemId: c.landingItemId });
+    await invoker.run(useCases.updateItem, admin, {
+      itemId: c.landingItemId,
+      baseRevisionId: revision.id,
+      document: {
+        ...revision.document,
+        blocks: [
+          { id: 'kop', type: 'heading', version: 1, props: { text: { nl: 'Wij constateren' } } },
+          {
+            id: 'tekst',
+            type: 'rich-text',
+            version: 1,
+            props: { content: { nl: para('Het park verdwijnt.') } },
+          },
+          {
+            id: 'meer',
+            type: 'cta',
+            version: 1,
+            props: {
+              title: { nl: 'Meer' },
+              actions: [{ label: { nl: 'Lees' }, target: { kind: 'url', url: '/meer' } }],
+            },
+          },
+        ],
+      },
+    });
+    await publish(c.landingItemId, 'nl');
+    const shown = await card(c.id);
+    if (!shown.available) throw new Error('unreachable');
+    expect(shown.landing.body?.blocks.map((b) => b.id)).toEqual(['kop', 'tekst']);
+    expect(shown.landing.body?.more).toBe(true);
+  });
+
   it('gives the phase now and the form only while participation is open', async () => {
     const { clock, invoker, admin, start, publish, card, current } = setup();
     const c = await start();

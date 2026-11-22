@@ -4,7 +4,7 @@
   aria-labelledby="campaign-campaign-card-full-wide-title"
 >
   <div class="campaign-card-inner">
-    <div class="campaign-card-image">
+    <div class="campaign-hero">
       <picture
         ><source
           type="image/avif"
@@ -30,75 +30,88 @@
           class="fx-3 fy-7"
       /></picture>
     </div>
-    <div class="campaign-card-text">
-      <p class="campaign-card-kind">Petition · open</p>
-      <h2 id="campaign-campaign-card-full-wide-title">Save the park</h2>
-      <p>Sign for the park.</p>
-      <div class="campaign-count">
-        <p class="campaign-count-figure" id="campaign-campaign-card-full-wide-count">
-          <strong>1,234</strong> <span>Signatures</span>
-        </p>
-        <progress
-          max="5000"
-          value="1234"
-          aria-labelledby="campaign-campaign-card-full-wide-count campaign-campaign-card-full-wide-goal"
-        >
-          1,234
-        </progress>
-        <p class="campaign-count-goal" id="campaign-campaign-card-full-wide-goal">Goal: 5,000</p>
+    <div class="campaign-layout">
+      <div class="campaign-intro">
+        <p class="campaign-kind">Petition</p>
+        <h2 id="campaign-campaign-card-full-wide-title">
+          <a href="/en/save-the-park">Save the park</a>
+        </h2>
+        <p class="lead">Sign for the park.</p>
       </div>
-      <div class="block form form-default width-content">
-        <form
-          method="post"
-          class="signup"
-          data-proof='{"algorithm":"SHA-256","challenge":"0000000000000000000000000000000000000000000000000000000000000000","salt":"salt","maxNumber":100000,"signature":"signature"}'
-        >
-          <input type="hidden" name="formId" value="01900000-0000-7000-8000-00000000f001" />
-          <input type="hidden" name="locale" value="en" />
-          <input type="hidden" name="_started" value="started-token" />
-          <input type="hidden" name="_proof" value="" />
-          <div class="hp" aria-hidden="true">
-            <label for="f-01900000-0000-7000-8000-00000000f001-website"
-              >Leave this field empty</label
-            >
-            <input
-              id="f-01900000-0000-7000-8000-00000000f001-website"
-              name="website"
-              type="text"
-              tabindex="-1"
-              autocomplete="off"
-              data-1p-ignore=""
-              data-lpignore="true"
-              data-bwignore=""
-              data-form-type="other"
-            />
-          </div>
-          <div class="field" data-form-field="">
-            <label for="f-01900000-0000-7000-8000-00000000f001-email">E-mail address</label>
-            <input
-              id="f-01900000-0000-7000-8000-00000000f001-email"
-              name="email"
-              type="email"
-              autocomplete="email"
-              required=""
-              value=""
-            />
-          </div>
-          <div class="field check" data-form-field="">
-            <input
-              id="f-01900000-0000-7000-8000-00000000f001-consent"
-              name="consent"
-              type="checkbox"
-              required=""
-            />
-            <label for="f-01900000-0000-7000-8000-00000000f001-consent"
-              >Yes, send me the newsletter. I can unsubscribe at any time.</label
-            >
-          </div>
-          <button type="submit">Sign up</button>
-        </form>
+      <div class="campaign-action">
+        <div class="campaign-count">
+          <p class="campaign-count-figure" id="campaign-campaign-card-full-wide-count">
+            <strong>1,234</strong> <span>Signatures</span>
+          </p>
+          <progress
+            max="5000"
+            value="1234"
+            aria-labelledby="campaign-campaign-card-full-wide-count campaign-campaign-card-full-wide-goal"
+          >
+            1,234
+          </progress>
+          <p class="campaign-count-goal" id="campaign-campaign-card-full-wide-goal">Goal: 5,000</p>
+        </div>
+        <div class="block form form-default width-content">
+          <form
+            method="post"
+            class="signup"
+            data-proof='{"algorithm":"SHA-256","challenge":"0000000000000000000000000000000000000000000000000000000000000000","salt":"salt","maxNumber":100000,"signature":"signature"}'
+          >
+            <input type="hidden" name="formId" value="01900000-0000-7000-8000-00000000f001" />
+            <input type="hidden" name="locale" value="en" />
+            <input type="hidden" name="_started" value="started-token" />
+            <input type="hidden" name="_proof" value="" />
+            <div class="hp" aria-hidden="true">
+              <label for="f-01900000-0000-7000-8000-00000000f001-website"
+                >Leave this field empty</label
+              >
+              <input
+                id="f-01900000-0000-7000-8000-00000000f001-website"
+                name="website"
+                type="text"
+                tabindex="-1"
+                autocomplete="off"
+                data-1p-ignore=""
+                data-lpignore="true"
+                data-bwignore=""
+                data-form-type="other"
+              />
+            </div>
+            <div class="field" data-form-field="">
+              <label for="f-01900000-0000-7000-8000-00000000f001-email">E-mail address</label>
+              <input
+                id="f-01900000-0000-7000-8000-00000000f001-email"
+                name="email"
+                type="email"
+                autocomplete="email"
+                required=""
+                value=""
+              />
+            </div>
+            <div class="field check" data-form-field="">
+              <input
+                id="f-01900000-0000-7000-8000-00000000f001-consent"
+                name="consent"
+                type="checkbox"
+                required=""
+              />
+              <label for="f-01900000-0000-7000-8000-00000000f001-consent"
+                >Yes, send me the newsletter. I can unsubscribe at any time.</label
+              >
+            </div>
+            <button type="submit">Sign up</button>
+          </form>
+        </div>
       </div>
-      <p><a href="/en/save-the-park">View the campaign</a></p>
+      <details class="campaign-body">
+        <summary>Read the petition text</summary>
+        <h3 id="block-campaign-card-full-wide-constateren" class="block heading">We note</h3>
+        <div id="block-campaign-card-full-wide-tekst" class="block rich-text">
+          <p>The park is the only green space in the neighbourhood.</p>
+        </div>
+        <p><a href="/en/save-the-park">Continue on the campaign page</a></p>
+      </details>
     </div>
   </div>
 </section>

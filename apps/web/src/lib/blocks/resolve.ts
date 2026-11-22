@@ -63,11 +63,12 @@ import { ui } from '../../i18n/index.js';
 import { amountChoices, membershipChoices } from './amount-field.js';
 import { blockCopy } from './copy.js';
 import { headingsAboveFloats } from './float-order.js';
+import { opensInCard } from './card-body.js';
+import { opensOf, renderLanding } from './campaign-render.js';
 import type {
   RenderAction,
   RenderBlock,
   RenderCampaign,
-  RenderLanding,
   RenderForm,
   RenderImage,
   RenderCorrections,
@@ -444,11 +445,18 @@ export async function resolveDocument(
     cards.set(b.props.campaignId, card);
     if (card.available && card.landing.imageId) mediaIds.add(card.landing.imageId);
   }
+  // A full card also shows the campaign's text (ADR 038 rule 4): its blocks' media, links and
+  // credits resolve with the page's own.
+  const bodies: Block[] = [];
   for (const b of blocks)
     if (b.type === 'campaign-card' && b.props.variant === 'full') {
       const card = cards.get(b.props.campaignId);
       if (card?.available && card.formId) formIds.add(card.formId);
+      if (card?.available && card.landing.body) bodies.push(...card.landing.body.blocks);
     }
+  for (const b of bodies)
+    for (const ref of referencesOf(b).filter((ref) => ref.type === 'media' || ref.type === 'item'))
+      (ref.type === 'media' ? mediaIds : itemIds).add(ref.refId);
   const gates = new Map<string, CampaignCard | null>();
   for (const b of blocks)
     if ((b.type === 'form' || b.type === 'signup-form') && !gates.has(b.props.formId)) {
@@ -497,7 +505,7 @@ export async function resolveDocument(
     for (const child of Object.values(value)) await collect(child);
   };
   for (const asset of [...media.values(), ...Object.values(signed)]) await collect(asset?.credit);
-  for (const block of blocks) await collect(block.props);
+  for (const block of [...blocks, ...bodies]) await collect(block.props);
   const renderImage: typeof renderAssetImage = (asset, use, language) => {
     const credit = use.credit ?? asset?.credit;
     const resolved = credit?.photographerPersonId ? credits.get(credit.photographerPersonId) : null;
@@ -532,6 +540,7 @@ export async function resolveDocument(
   for (const id of itemIds) links[id] = await source.itemPath(id, locale);
 
   const defaultLocale = source.defaultLocale ?? options.fallbackLocale;
+  const timeZone = options.timeZone ?? 'UTC';
   const campaign = (card: CampaignCard | null | undefined): RenderCampaign | null =>
     card?.available
       ? {
@@ -549,6 +558,7 @@ export async function resolveDocument(
               )
             : null,
           counter: card.counter,
+          opens: opensOf(card.phase, card.opensAt, locale, timeZone),
           revisionId: card.landing.revisionId,
         }
       : null;
@@ -593,12 +603,10 @@ export async function resolveDocument(
       return href && label ? [{ label, href }] : [];
     });
 
-  const timeZone = options.timeZone ?? 'UTC';
   const pageLink = (n: number) =>
     options.path === undefined ? null : n === 1 ? options.path : `${options.path}?p=${n}`;
 
-  const out: RenderBlock[] = blocks.map((b): RenderBlock => {
-    const id = b.id;
+  const renderBlock = (b: Block, id: string): RenderBlock => {
     switch (b.type) {
       case 'overview': {
         const list = overviews.get(id) ?? { entries: [], older: false };
@@ -806,11 +814,15 @@ export async function resolveDocument(
         return formBlock(id, b.props.formId, 'default', 'content');
       case 'campaign-card': {
         const card = cards.get(b.props.campaignId);
-        const formId =
-          card?.available && b.props.variant === 'full' && !shownForms.has(card.formId ?? '')
-            ? card.formId
-            : null;
+        const full = card?.available && b.props.variant === 'full' ? card : null;
+        const formId = full && !shownForms.has(full.formId ?? '') ? full.formId : null;
         if (formId) shownForms.add(formId);
+        // Ids inside the card derive from the card's own, so two cards of one campaign differ.
+        const body = full?.landing.body
+          ? headingsAboveFloats(
+              full.landing.body.blocks.map((inner) => renderBlock(inner, `${id}-${inner.id}`))
+            )
+          : null;
         return {
           id,
           type: 'campaign-card',
@@ -818,13 +830,18 @@ export async function resolveDocument(
           width: b.props.width,
           campaign: campaign(card),
           form: formId ? (forms.get(formId) ?? null) : null,
+          body:
+            body && full?.landing.body
+              ? { blocks: body, more: full.landing.body.more, open: opensInCard(body) }
+              : null,
           ...(options.diagnose && card && !card.available ? { diagnosis: card.reason } : {}),
         };
       }
       default:
         return b satisfies never;
     }
-  });
+  };
+  const out = blocks.map((b) => renderBlock(b, b.id));
 
   return {
     locale,
@@ -843,34 +860,6 @@ export async function resolveDocument(
  * A landing page's campaign for its layout: the form only while open, except in the preview,
  * which keeps it with the reason the public page withholds it, as a bound form block does.
  */
-function renderLanding(
-  landing: LandingCampaign,
-  forms: ReadonlyMap<string, RenderForm | null>,
-  locale: string,
-  timeZone: string,
-  diagnose = false
-): RenderLanding {
-  const form = landing.formId ? (forms.get(landing.formId) ?? null) : null;
-  const open = landing.phase === 'open';
-  return {
-    kind: landing.kind,
-    phase: landing.phase,
-    opens:
-      landing.phase === 'upcoming' && landing.opensAt
-        ? {
-            iso: landing.opensAt,
-            label: new Intl.DateTimeFormat(locale, {
-              dateStyle: 'long',
-              timeZone,
-            }).format(new Date(landing.opensAt)),
-          }
-        : null,
-    counter: landing.counter,
-    form: open || diagnose ? form : null,
-    ...(diagnose && !open && form ? { diagnosis: landing.phase as 'upcoming' | 'closed' } : {}),
-  };
-}
-
 /** The references the resolver needs; rich-text links are read from the projected locale only. */
 function referencesOf(b: Block): { type: 'media' | 'form' | 'item'; refId: string }[] {
   const docs = (m: Partial<Record<string, Parameters<typeof linkedItemIds>[0]>> | undefined) =>

@@ -197,6 +197,30 @@ const fixtures: ResolveSource = {
         title: locale === 'nl' ? 'Red het park' : 'Save the park',
         summary: locale === 'nl' ? 'Teken voor het park.' : 'Sign for the park.',
         imageId: EXAMPLE_IDS.image,
+        // The campaign's text with a subheading, so a full card folds it, and one block the card
+        // leaves out, so it links to the rest (ADR 038 rule 4).
+        body: {
+          blocks: [
+            {
+              id: 'constateren',
+              type: 'heading',
+              version: 1,
+              props: { text: { nl: 'Wij constateren', en: 'We note' } },
+            },
+            {
+              id: 'tekst',
+              type: 'rich-text',
+              version: 1,
+              props: {
+                content: {
+                  nl: paragraph('Het park is de enige groene plek in de wijk.'),
+                  en: paragraph('The park is the only green space in the neighbourhood.'),
+                },
+              },
+            },
+          ],
+          more: true,
+        },
       },
       phase: 'open',
       opensAt: null,
@@ -211,6 +235,13 @@ const fixtures: ResolveSource = {
   // How a list renders, not which items it holds: `overview-fixture.ts`.
   overview: async (props, locale) => overviewFixture(props, locale),
 };
+
+function paragraph(text: string) {
+  return {
+    type: 'doc' as const,
+    content: [{ type: 'paragraph' as const, content: [{ type: 'text' as const, text }] }],
+  };
+}
 
 const examples = BLOCK_TYPES.flatMap((type) =>
   BLOCK_DEFINITIONS[type].examples.map((e) => ({
