@@ -351,7 +351,7 @@
     margin-block-end: 4px;
   }
   .page-cover {
-    --site-header-height: calc(2 * var(--space-2) + var(--tap) + 2px);
+    --site-header-height: calc(1.5 * var(--space-2) + var(--tap) + 2px);
     position: relative;
     display: grid;
     /* Not the implicit `auto` track: that grows to a long word's width, past what the cover shows. */

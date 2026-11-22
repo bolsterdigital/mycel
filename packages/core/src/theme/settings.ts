@@ -38,14 +38,21 @@ export const SiteHref = z
     }
   }, 'site.chrome.href.invalid');
 /**
- * The site chrome keeps the footer text only. Menus live in the navigation document (ADR 036);
+ * The site chrome keeps the footer text and whether the logo carries the name. Menus live in the navigation document (ADR 036);
  * migration 0057 removed the old `navigation`, `legal`, `support` and `help` fields without moving
  * them (rule 10 as amended 2026-11-15: no production sites yet, so no compatibility). The strict
  * schema refuses them, so this setter, which writes live with `content:write`, can never bypass
  * the navigation's publication. Rejected: accepting and ignoring the old fields, which would let
  * an old client believe it changed the menu.
  */
-export const SiteChrome = z.object({ footer: Footer }).strict();
+export const SiteChrome = z
+  .object({
+    footer: Footer,
+    // The logo already carries the site's name (MY-275): the header shows the logo alone and the
+    // name stays the link's accessible name. Absent is false; it matters only with a logo.
+    logoHasName: z.boolean().optional(),
+  })
+  .strict();
 export type SiteChrome = z.infer<typeof SiteChrome>;
 export const DEFAULT_CHROME: SiteChrome = { footer: {} };
 /**

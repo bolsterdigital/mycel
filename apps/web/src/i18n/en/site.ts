@@ -48,6 +48,11 @@ export const site = {
   'admin.site.workCredits': 'Credit the work shown and its maker',
   'admin.site.workCredits.hint':
     'For a site that shows artworks or other works: an image then gets a second credit with the title and maker of the work, besides the maker of the image.',
+  'admin.site.identity': 'Logo in the header',
+  'admin.site.logoHasName': "The logo contains the site's name",
+  'admin.site.logoHasName.hint':
+    'The header then shows the logo alone, without the name beside it; screen readers still hear the name.',
+  'admin.site.saveIdentity': 'Save logo setting',
   'admin.site.mode.light': 'Light colours',
   'admin.site.mode.dark': 'Dark colours',
   'admin.site.role.body': 'Body',

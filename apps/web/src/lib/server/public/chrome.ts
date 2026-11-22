@@ -75,6 +75,7 @@ export async function chromeModel(
           }
         : null,
       wordmark: brand.font.active,
+      showName: !(brand.logo.active && chrome.logoHasName),
       main: tree(navigation.main?.nodes ?? []),
       bar: tree((navigation.main?.nodes ?? []).filter((n) => bar.has(n.id))),
       actions: navigation.actions.map(link),

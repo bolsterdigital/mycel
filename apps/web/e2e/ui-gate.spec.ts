@@ -657,18 +657,20 @@ test.describe('language-panel', () => {
     exerciseLanguagePanel(page, slug));
 });
 
-// One row on a phone and a sticky header (MY-266 PR D): the bar's candidates leave in order, the
-// header sticks only as one row of at most a fifth of the viewport, and anchors, the skip link's
-// target and the focus land below it; without JavaScript it stays in the flow.
+// One row on a phone and a sticky header (MY-266 PR D and F, MY-275): the bar's candidates leave in
+// order (the name beside the logo among them), the header is about 74 px and sticks only as one
+// row of at most a fifth of the viewport, and anchors, the skip link's target and the focus land
+// below it; without JavaScript it stays in the flow.
 test.describe('sticky-header', () => {
   test.use({ extraHTTPHeaders: forwarded() });
   let slug: string;
+  let tenantId: string;
   test.beforeAll(async () => {
     slug = `sticky-header-${test.info().project.name}-${Date.now().toString(36)}`;
-    await seedSticky(slug);
+    tenantId = await seedSticky(slug);
   });
   test('yield order, sticky rule and nothing under the header', async ({ page }) =>
-    exerciseSticky(page, slug));
+    exerciseSticky(page, slug, tenantId));
 });
 
 // An overview card is one link with a title sized to the card, inverted on hover and focus
