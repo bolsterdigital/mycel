@@ -1,0 +1,61 @@
+/* Public buttons on hover and focus (MY-279, after Dreamkit's submit button): the button inverts
+   its own pair, the fill becoming the ink and the ink the fill, so the change is large also on a
+   coloured band; meanwhile it lifts by 1 px onto a soft shadow, and settles when pressed. A
+   border in the resting fill keeps its shape when the inverted fill matches the band behind it
+   (a filled card, the header's call to action). A pair is set per context with
+   `--action-base-fg`/`--action-base-bg` (the CTA band, a filled card, the header).
+   One registered progress drives it over 200 ms: the lift and the shadow follow it, the colours
+   flip at its midpoint, so every frame shows one of the two pairs, which have the same checked
+   contrast. Under reduced motion the colours still invert, without the lift or the transition.
+   The shadow is in the page's text colour, as the campaign card's lift (campaign.css), so it reads
+   as a shadow on a light page and fades away on a dark one. It is decoration, not the shape, so
+   forced colours losing it lose nothing (the border stays); that is why it lives here and not in
+   base.css, whose gate forbids shapes of shadow.
+   Rejected: fading the colours (halfway an inversion is text in its own background colour, 1:1)
+   and the softened "active" pair of before (on a primary band the difference was too small). */
+:is(.page:not(.admin), .site-header) .button {
+  --action-progress: 0;
+  --action-flip: clamp(0, (var(--action-progress) - 0.5) * 1000, 1);
+  --action-base-fg: var(--color-primary-fg);
+  --action-base-bg: var(--color-primary-bg);
+  color: color-mix(
+    in srgb,
+    var(--action-base-fg) calc((1 - var(--action-flip)) * 100%),
+    var(--action-base-bg)
+  );
+  background-color: color-mix(
+    in srgb,
+    var(--action-base-bg) calc((1 - var(--action-flip)) * 100%),
+    var(--action-base-fg)
+  );
+  border-color: var(--action-base-bg);
+  translate: 0 calc(var(--action-progress) * -1px);
+  box-shadow: 0 calc(var(--action-progress) * 0.25rem) calc(var(--action-progress) * 0.75rem)
+    color-mix(in srgb, var(--color-body-fg) calc(var(--action-progress) * 20%), transparent);
+  transition: --action-progress 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* The secondary button's shape is its border in the ink, so it keeps that border inverted too. */
+:is(.page:not(.admin), .site-header) .button.secondary {
+  --action-base-fg: var(--color-body-fg);
+  --action-base-bg: var(--color-body-bg);
+  border-color: var(--action-base-fg);
+}
+:is(.page:not(.admin), .site-header) .button:is(:hover, :focus-visible) {
+  --action-progress: 1;
+  text-decoration: none;
+}
+:is(.page:not(.admin), .site-header) .button:active {
+  translate: none;
+  box-shadow: none;
+}
+/* The outline in the inverted ink, inside the border; the lift's shadow gives way to it. */
+:is(.page:not(.admin), .site-header) .button:focus-visible {
+  outline-color: currentColor;
+  outline-offset: -0.25rem;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.page:not(.admin), .site-header) .button {
+    translate: none;
+  }
+}

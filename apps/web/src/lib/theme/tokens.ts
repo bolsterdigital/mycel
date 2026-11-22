@@ -155,13 +155,10 @@ function cardSlots(p: Palette): string[] {
   return [1, 2, 3, 4].flatMap((k) => {
     const card = accents ? accents[(k - 1) % accents.length]! : p.primary;
     const bar = accents ? card.background : p.accent.background;
-    const active = interactionPair({ foreground: card.background, background: card.foreground });
     return [
       `--card-${k}-fg: ${card.foreground};`,
       `--card-${k}-bg: ${card.background};`,
       `--card-${k}-bar: ${bar};`,
-      `--card-${k}-active-fg: ${active.foreground};`,
-      `--card-${k}-active-bg: ${active.background};`,
     ];
   });
 }
@@ -170,8 +167,8 @@ function cardSlots(p: Palette): string[] {
  * The site header and footer as the role pairs the theme chose for them (MY-266), copied, never
  * computed, so their text and focus contrast is what `checkTheme` already measured. The header's
  * first call to action is `--chrome-action-*`: the primary pair, or, on a primary header where a
- * primary button would vanish into the bar, that pair inverted (same contrast), each with an
- * active pair that keeps its polarity as `cardSlots` does. Rejected: a CSS rule that swaps the
+ * primary button would vanish into the bar, that pair inverted (same contrast); hovered, it inverts
+ * like every public button (controls/button.css, MY-279). Rejected: a CSS rule that swaps the
  * button per header role (the stylesheet would have to know which roles look alike) and
  * `color-mix` towards a header colour (no contrast check can see it).
  */
@@ -182,7 +179,6 @@ function chromeTokens(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
     chrome.header === 'primary'
       ? { foreground: p.primary.background, background: p.primary.foreground }
       : p.primary;
-  const active = interactionPair(action);
   return [
     `--chrome-header-fg: ${header.foreground};`,
     `--chrome-header-bg: ${header.background};`,
@@ -190,8 +186,6 @@ function chromeTokens(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
     `--chrome-footer-bg: ${footer.background};`,
     `--chrome-action-fg: ${action.foreground};`,
     `--chrome-action-bg: ${action.background};`,
-    `--chrome-action-active-fg: ${active.foreground};`,
-    `--chrome-action-active-bg: ${active.background};`,
   ];
 }
 
@@ -200,13 +194,12 @@ function palette(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
     `--color-${role}-fg: ${p[role].foreground};`,
     `--color-${role}-bg: ${p[role].background};`,
   ]);
-  for (const role of ['primary', 'accent', 'body'] as const) {
-    const pair = interactionPair(p[role]);
-    lines.push(
-      `--color-${role}-active-fg: ${pair.foreground};`,
-      `--color-${role}-active-bg: ${pair.background};`
-    );
-  }
+  // The FAQ bar's softened hover (base.css); buttons invert instead (controls/button.css, MY-279).
+  const active = interactionPair(p.primary);
+  lines.push(
+    `--color-primary-active-fg: ${active.foreground};`,
+    `--color-primary-active-bg: ${active.background};`
+  );
   lines.push(
     `--color-caption-fg: ${captionForeground(p)};`,
     `--color-link: ${p.link};`,

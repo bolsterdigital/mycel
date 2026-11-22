@@ -21,6 +21,7 @@
 @import './overview.css' layer(components);
 @import './blocks/timeline.css' layer(components);
 @import './site-chrome.css' layer(components);
+@import './controls/button.css' layer(components);
 
 /* A content column measured in the page's own `ch`, inherited as a length, so a heading with a
    larger font has the same column as the text under it. */
@@ -601,44 +602,25 @@
     background: var(--color-body-bg);
     border-color: currentColor;
   }
-  /* Public buttons and FAQ bars share one checked sRGB path. Only pointer/keyboard/open
-     progress animates; theme changes and initial stylesheet application set their pairs at once.
-     Without registered-property animation support the feedback changes immediately. */
-  :is(.page:not(.admin), .site-header) .button,
+  /* FAQ bars soften along one checked sRGB path (`--color-primary-active-*`, tokens.ts). Only
+     pointer/keyboard/open progress animates; theme changes and initial stylesheet application set
+     their pairs at once. Without registered-property animation support the feedback changes
+     immediately. Public buttons invert instead (controls/button.css). */
   .faq-accordion summary {
     --action-progress: 0;
-    --action-base-fg: var(--color-primary-fg);
-    --action-base-bg: var(--color-primary-bg);
-    --action-fg: var(--color-primary-active-fg);
-    --action-bg: var(--color-primary-active-bg);
-    color: var(--action-base-fg);
-    background-color: var(--action-base-bg);
+    color: var(--color-primary-fg);
+    background-color: var(--color-primary-bg);
     color: color-mix(
       in srgb,
-      var(--action-base-fg) calc((1 - var(--action-progress)) * 100%),
-      var(--action-fg)
+      var(--color-primary-fg) calc((1 - var(--action-progress)) * 100%),
+      var(--color-primary-active-fg)
     );
     background-color: color-mix(
       in srgb,
-      var(--action-base-bg) calc((1 - var(--action-progress)) * 100%),
-      var(--action-bg)
+      var(--color-primary-bg) calc((1 - var(--action-progress)) * 100%),
+      var(--color-primary-active-bg)
     );
     transition: --action-progress 150ms ease-out;
-  }
-  :is(.page:not(.admin), .site-header) .button.secondary {
-    --action-base-fg: var(--color-body-fg);
-    --action-base-bg: var(--color-body-bg);
-    --action-fg: var(--color-body-active-fg);
-    --action-bg: var(--color-body-active-bg);
-  }
-  :is(.page:not(.admin), .site-header) .button:is(:hover, :focus-visible) {
-    --action-progress: 1;
-    text-decoration: none;
-  }
-  :is(.page:not(.admin), .site-header) .button:focus-visible {
-    outline-color: currentColor;
-    outline-offset: -0.25rem;
-    box-shadow: none;
   }
 
   /* Call to action: a band in the primary pair or a card on the surface. */
@@ -656,14 +638,13 @@
   .page:not(.admin) .cta-band .button:not(.secondary) {
     --action-base-fg: var(--color-accent-fg);
     --action-base-bg: var(--color-accent-bg);
-    --action-fg: var(--color-accent-active-fg);
-    --action-bg: var(--color-accent-active-bg);
   }
-  .cta-band .button {
+  /* The admin's static pairs; `:where` lets the public buttons' inversion win on the page. */
+  :where(.cta-band) .button {
     color: var(--color-accent-fg);
     background: var(--color-accent-bg);
   }
-  .cta-band .button.secondary {
+  :where(.cta-band) .button.secondary {
     color: var(--color-body-fg);
     background: var(--color-body-bg);
   }

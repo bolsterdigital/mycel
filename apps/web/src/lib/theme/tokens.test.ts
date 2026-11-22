@@ -116,8 +116,6 @@ describe('chrome tokens', () => {
             : p.primary
         );
         expect(action.background).not.toBe(header.background);
-        const active = pairOf(block, 'action-active');
-        expect(contrastRatio(active.foreground, active.background)).toBeGreaterThanOrEqual(4.5);
       }
       checked++;
     }
@@ -128,10 +126,8 @@ describe('chrome tokens', () => {
 describe('theme tokens', () => {
   const PROPERTIES = [
     ...THEME_ROLES.flatMap((r) => [`--color-${r}-fg`, `--color-${r}-bg`]),
-    ...['primary', 'accent', 'body'].flatMap((r) => [
-      `--color-${r}-active-fg`,
-      `--color-${r}-active-bg`,
-    ]),
+    '--color-primary-active-fg',
+    '--color-primary-active-bg',
     '--color-caption-fg',
     '--color-link',
     '--color-focus',
@@ -143,10 +139,8 @@ describe('theme tokens', () => {
     '--measure',
     '--radius',
     '--density',
-    ...[1, 2, 3, 4].flatMap((k) =>
-      ['fg', 'bg', 'bar', 'active-fg', 'active-bg'].map((t) => `--card-${k}-${t}`)
-    ),
-    ...['header', 'footer', 'action', 'action-active'].flatMap((part) => [
+    ...[1, 2, 3, 4].flatMap((k) => ['fg', 'bg', 'bar'].map((t) => `--card-${k}-${t}`)),
+    ...['header', 'footer', 'action'].flatMap((part) => [
       `--chrome-${part}-fg`,
       `--chrome-${part}-bg`,
     ]),
@@ -198,7 +192,7 @@ describe('theme tokens', () => {
       const css = themeCss(theme);
       const palettes = css.split(':root {').slice(1);
       for (const [index, mode] of (['light', 'dark'] as const).entries())
-        for (const role of ['primary', 'accent', 'body'] as const) {
+        for (const role of ['primary'] as const) {
           const token = (suffix: string) =>
             new RegExp(`--color-${role}-${suffix}: (#[a-f0-9]{6});`, 'i').exec(
               palettes[index]!
@@ -215,9 +209,9 @@ describe('theme tokens', () => {
   });
 
   // The action row: four card positions take the theme's accent walk round; without one a filled card is
-  // primary and a bar accent, as before. The button on a filled card is its pair inverted, and its
-  // active pair stays readable.
-  it('walks the card accents over four positions, with a readable inverted button', () => {
+  // primary and a bar accent, as before. The button on a filled card is its pair inverted
+  // (action-row.css), so its contrast is the card's.
+  it('walks the card accents over four positions', () => {
     const slot = (css: string, k: number, t: string) =>
       new RegExp(`--card-${k}-${t}: (#[a-f0-9]{6});`, 'i').exec(css)![1]!;
     const plain = themeCss(DEFAULT_THEME);
@@ -241,10 +235,6 @@ describe('theme tokens', () => {
       [0, 1, 2, 0].map((i) => walk[i]!.background)
     );
     expect(problems(theme)).toEqual([]);
-    for (const k of [1, 2, 3, 4])
-      expect(
-        contrastRatio(slot(css, k, 'active-fg'), slot(css, k, 'active-bg'))
-      ).toBeGreaterThanOrEqual(4.5);
   });
 
   it('keeps active feedback for arbitrary readable colour pairs', () => {
