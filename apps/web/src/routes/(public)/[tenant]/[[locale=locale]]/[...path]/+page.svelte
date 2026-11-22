@@ -40,7 +40,7 @@
 </script>
 
 <svelte:head>
-  {#if data.view === 'thanks'}
+  {#if data.view === 'thanks' || data.view === 'campaign-thanks'}
     <title>{data.title}</title>
   {:else}
     <title>{hasProblem ? `${data.errorPrefix} ` : ''}{data.head.title}</title>
@@ -95,7 +95,29 @@
 
 {#if data.view === 'item' && data.structured}<StructuredData value={data.structured} />{/if}
 
-{#if data.view === 'thanks'}
+{#if data.view === 'campaign-thanks'}
+  <!-- A campaign's thank-you view (ADR 038 rule 8): its landing page's layout, the form's thanks
+       as lead, the count, then share links to the landing page and the way back. -->
+  <main class="page">
+    <CampaignLayout
+      campaign={data.model.campaign!}
+      intro={{ ...data.intro, lead: data.message || null }}
+      model={data.model}
+      actionHeading={false}
+    >
+      <section class="campaign-share" aria-labelledby="campaign-share">
+        <h2 id="campaign-share">{data.share.title}</h2>
+        <ul>
+          {#each data.share.links as link (link.href)}
+            <li><a class="button secondary" href={link.href}>{link.label}</a></li>
+          {/each}
+        </ul>
+        <p>{data.share.addressLabel}: <a href={data.share.address}>{data.share.address}</a></p>
+      </section>
+      <p><a href={data.back.href}>{data.back.label}</a></p>
+    </CampaignLayout>
+  </main>
+{:else if data.view === 'thanks'}
   <main class="page">
     <h1>{data.title}</h1>
     <p>{data.message}</p>

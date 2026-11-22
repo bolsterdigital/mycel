@@ -67,3 +67,14 @@ export function thanksPath(
 export function donationPath(locale: string, defaultLocale: string): string {
   return `${locale === defaultLocale ? '' : `/${locale}`}/donation/`;
 }
+
+/** A site path of slugs only: no scheme, no host, no `//`. */
+const PLAIN_PATH = /^\/(?!\/)[a-z0-9/_-]*$/i;
+
+/**
+ * A `back` query value kept only when it is a plain site path (the donation return page, a
+ * campaign's thank-you view); anything else is dropped, never followed.
+ */
+export function plainSitePath(asked: string | null): string | null {
+  return asked && PLAIN_PATH.test(asked) ? asked : null;
+}

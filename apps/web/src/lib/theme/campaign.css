@@ -174,3 +174,21 @@
   font-weight: 700;
   cursor: pointer;
 }
+
+/* The thank-you view's share links (ADR 038 rule 8): whole buttons that wrap to the next line
+   before a label would clip (skill ui-action-layout), and the landing page's address, which may
+   break anywhere so a long one never scrolls sideways at 320 CSS px. */
+.campaign-share ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.campaign-share .button {
+  white-space: nowrap;
+}
+.campaign-share p a {
+  overflow-wrap: anywhere;
+}

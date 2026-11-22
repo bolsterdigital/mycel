@@ -362,7 +362,9 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
   await visitor.goto(`/probe/${slug}`);
   await visitor.reload();
   await sign(email);
-  await expect(visitor.getByText('bevestig je handtekening')).toBeVisible();
+  // The thanks belong to the landing page (ADR 038 rule 8): its layout, its title, a way back.
+  await expect(visitor).toHaveURL(new RegExp(`/probe/${slug}/thanks$`));
+  await expectCampaignThanks(visitor, `Red het park ${slug}`, `/probe/${slug}`);
   const link = /https?:\/\/\S+\/confirm\?token=\S+/.exec((await waitForMail(email)).text)![0];
   await visitor.goto(link);
   await expect(
@@ -416,6 +418,27 @@ test('a campaign landing page: header image, intro, action and body in one outli
 }) => {
   await exerciseCampaignLanding(page, ['/probe/campagne', '/probe/en/campagne']);
 });
+
+// ADR 038 rule 8: a campaign's thank-you view is its landing page's, in the campaign layout: the
+// title as the one h1, the form's thanks, the count, share links as plain links (no script of a
+// third party) and a link back to where the visitor signed.
+async function expectCampaignThanks(page: Page, title: string, back: string) {
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(title);
+  await expect(page.locator('.campaign-intro .lead')).toContainText('bevestig je handtekening');
+  await expect(page.locator('.campaign-action progress')).toHaveCount(1);
+  await expect(page.locator('main form[method="post"]')).toHaveCount(0);
+  const share = page.getByRole('region', { name: 'Deel de campagne' });
+  await expect(share.getByRole('link', { name: 'WhatsApp' })).toHaveAttribute(
+    'href',
+    /^https:\/\/wa\.me\/\?text=/
+  );
+  await expect(share.getByRole('link', { name: 'E-mail' })).toHaveAttribute('href', /^mailto:\?/);
+  await expect(share.getByRole('link', { name: 'Bluesky' })).toBeVisible();
+  expect(await headingOutlineProblems(page)).toEqual([]);
+  if (isA11y()) await expectNoAxeViolations(page, { label: 'campaign thanks' });
+  await page.getByRole('link', { name: 'Terug naar de pagina' }).click();
+  await expect(page).toHaveURL(new RegExp(`${back}$`));
+}
 
 // ADR 038 rules 3 and 4: the full card's campaign text in a native <details>, closed, opened by
 // the keyboard with or without script, its heading one level under the card's title; two cards of
@@ -489,11 +512,13 @@ test('a campaign card: live on page, article and scheduled page; nothing when un
       }
     await setTextSize(page, '16px');
   }
-  // Signed from the card on the host: the host's thank-you page, as from any form.
+  // Signed from the card on the host: the landing page's thank-you view, back to the host
+  // (ADR 038 rule 8).
   await pastMinimumFillTime(page);
   await cards.first().getByLabel('E-mailadres').fill(`e2e-card-${stamp}@example.org`);
   await cards.first().getByRole('button', { name: 'Teken de petitie' }).click();
-  await expect(page.getByText('bevestig je handtekening')).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/probe/kaart-${stamp}/thanks\\?back=%2Fgast-${stamp}$`));
+  await expectCampaignThanks(page, `Kaart kaart-${stamp}`, host);
 
   await page.goto(`/probe/articles/gast-artikel-${stamp}`);
   await expect(cards).toHaveCount(1);
