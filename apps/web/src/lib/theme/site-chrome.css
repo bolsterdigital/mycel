@@ -132,6 +132,12 @@
   min-width: min-content;
   hyphens: manual;
 }
+/* Out (navigation.js, MY-284): not even the longest word of the first call to action fits beside
+   the logo and Menu, so it leaves the bar; the panel holds it at the top. Display none, so it is
+   neither focusable nor announced twice. Rejected: shrinking it below its longest word. */
+.site-header[data-action-out] .site-tools > .site-action:not(.secondary) {
+  display: none;
+}
 /* The narrowest the first call to action can be, for navigation.js to measure in one task. */
 .site-header[data-narrowest] .site-tools > .site-action:not(.secondary) {
   inline-size: min-content;
@@ -217,11 +223,13 @@
 .site-header:has(.site-menu[open]) ~ * {
   display: none;
 }
+/* The calls to action open the panel (MY-284): on a phone the first one may have left the bar for
+   here, and a long menu would push it below the fold. */
 .site-panel-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1) var(--space-2);
-  margin: var(--space-3) 0 0;
+  margin: 0 0 var(--space-3);
   padding: 0;
   list-style: none;
 }

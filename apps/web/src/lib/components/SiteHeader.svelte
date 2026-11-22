@@ -3,16 +3,17 @@
      navigation included.
 
      Without JavaScript (ADR 036 rule 12) it is the logo, the first call to action, search,
-     language choices and Menu, a
-     native `details` whose panel holds the whole main menu and both calls to action; the bar's
-     links and the second call to action are rendered but not displayed, never clipped or wrapped
-     into a second row of links. The enhancement (`static/_site/navigation.js`, step D2) turns the
+     language choices and Menu, a native `details` whose panel holds both calls to action first
+     and the whole main menu; the bar's links and the second call to action are rendered but not
+     displayed, never clipped or wrapped into a second row of links. The enhancement (`static/_site/navigation.js`, step D2) turns the
      panel into a modal dialog, shows as many bar candidates as it measures to fit, and adds the
      buttons that open sublinks. Search and Language (`data-site-yield`) are candidates too, the
      last to leave for the panel, where both always are, so a phone keeps one row that can be
      sticky (MY-266 PR D). Beside a logo the visible name (`data-site-name`) is the first of those to
      leave (MY-266 PR F); the link keeps the name as its `aria-label`, and a logo that carries the
-     name stands alone from the start (MY-275). The burger turns into a cross in CSS.
+     name stands alone from the start (MY-275). A first call to action whose longest word still
+     does not fit beside the logo and Menu leaves the bar for the top of the panel (MY-284). The
+     burger turns into a cross in CSS.
      Rejected: a no-JS bar of every link that wraps (Wings and Dreamkit hid or clipped them on
      small screens instead) and a CSS breakpoint for the bar, which a long label overruns. -->
 <script lang="ts">
@@ -131,6 +132,11 @@
         >{t('public.menu')}
       </summary>
       <div class="site-panel">
+        {#if chrome.actions.length}
+          <ul class="site-panel-actions">
+            {#each chrome.actions as _, i (i)}<li>{@render action(i)}</li>{/each}
+          </ul>
+        {/if}
         <search aria-label={t('public.search.label')}>
           <form class="search-form" method="get" action={chrome.search}>
             <label for="site-search-q">{t('public.search.label')}</label>
@@ -154,11 +160,6 @@
           <nav aria-label={t('public.navigation')}>
             <NavTree nodes={chrome.main} {current} toggleLabel={sublinks} idPrefix="site-panel" />
           </nav>
-        {/if}
-        {#if chrome.actions.length}
-          <ul class="site-panel-actions">
-            {#each chrome.actions as _, i (i)}<li>{@render action(i)}</li>{/each}
-          </ul>
         {/if}
       </div>
     </details>

@@ -14,8 +14,10 @@
 //   does not fit is `display: none`, so it is neither focusable nor in the accessibility tree;
 //   it is in the panel, which always holds everything.
 // - If the logo, the first call to action and Menu still do not fit one row, the call to action's
-//   label wraps between its words inside the button (`data-tight`) when that is enough, else
-//   whole tools wrap.
+//   label wraps between its words inside the button (`data-tight`) when that is enough (`actionFit`
+//   below); else the call to action leaves the bar for the top of the panel (`data-action-out`,
+//   MY-284), so a phone keeps the logo and Menu on one row. Only without JavaScript do whole tools
+//   wrap.
 // - While the header is one row and takes at most a fifth of the viewport's height
 //   (`stickyFits`), it gets `data-sticky` and the CSS keeps it at the top; its height goes to
 //   `--site-sticky-block-size`, the scroll padding that keeps an anchor or the focus from sliding
@@ -66,6 +68,19 @@ export function fit({ costs, available, shown = 0, slack = 8 }) {
  */
 export function priority({ search, languages, second, name, links = [] }) {
   return [search, languages, second, name, ...links].filter(Boolean);
+}
+
+/**
+ * Where the first call to action stands when the logo and the tools leave `available` pixels for
+ * the bar (negative: they overflow the row): at its `natural` width, `tight` with its label wrapped
+ * inside the button when its `narrowest` width (the longest word) makes the row fit, else `out` of
+ * the bar, in the panel, where every call to action always is (MY-284: a long label such as
+ * "Doe mee aan de massaclaim" otherwise pushed Menu to a third row on a phone). Rejected: a
+ * shorter label per site, which only moves the boundary to the next long word.
+ */
+export function actionFit({ available, natural, narrowest }) {
+  if (available >= 0) return 'natural';
+  return available + natural - narrowest >= 0 ? 'tight' : 'out';
 }
 
 /**
@@ -225,6 +240,7 @@ function enhance(header) {
     // Measured at natural widths: the tight state below is undone first, in the same task, so
     // nothing paints in between and the result does not depend on the state it is about to set.
     header.toggleAttribute('data-tight', false);
+    header.toggleAttribute('data-action-out', false);
     header.toggleAttribute('data-measuring', true);
     const row = header.getBoundingClientRect();
     const style = getComputedStyle(header);
@@ -257,16 +273,17 @@ function enhance(header) {
     const available = width - identityWidth - gap - toolsWidth;
     // When the logo, the first call to action and Menu do not fit one row, the call to action's
     // label may wrap between its words inside the button (Dreamkit's phone header), if that is
-    // enough: measured at its narrowest, the longest word. Otherwise whole tools wrap as before.
+    // enough: measured at its narrowest, the longest word. Otherwise it leaves for the panel.
     const first = tools?.querySelector(':scope > .site-action:not(.secondary)');
-    let tight = false;
+    let place = 'natural';
     // Measured through a header attribute and the CSS, never `first.style`: removing an inline
     // property leaves an empty `style` attribute behind, and public pages carry none.
     if (available < 0 && first) {
       const natural = first.getBoundingClientRect().width;
       header.toggleAttribute('data-narrowest', true);
-      tight = available + natural - first.getBoundingClientRect().width >= 0;
+      const narrowest = first.getBoundingClientRect().width;
       header.toggleAttribute('data-narrowest', false);
+      place = actionFit({ available, natural, narrowest });
     }
     const count = fit({ costs, available, shown });
     // A candidate that leaves the bar never takes the focus with it: its dropdown or language
@@ -276,9 +293,11 @@ function enhance(header) {
     const leaving = candidates.slice(count, shown);
     if (leaving.some((c) => c.querySelector('[aria-expanded="true"]'))) closeDropdowns();
     for (const c of leaving) if (c instanceof HTMLDetailsElement) c.open = false;
+    if (place === 'out') leaving.push(first);
     if (leaving.some((c) => c.contains(document.activeElement))) summary?.focus();
     shown = count;
-    header.toggleAttribute('data-tight', tight);
+    header.toggleAttribute('data-tight', place === 'tight');
+    header.toggleAttribute('data-action-out', place === 'out');
     candidates.forEach((c, i) => c.toggleAttribute('data-shown', i < count));
     bar?.toggleAttribute(
       'data-shown',

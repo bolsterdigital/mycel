@@ -1,6 +1,6 @@
 // The visitor's task on the chrome fixture (ADR 036 rule 12). Without JavaScript:
-// at 320 px the header shows the logo, the first call to action and Menu; Menu opens the whole main
-// menu with its sublink, a closed group and both calls to action, while the page behind it leaves
+// at 320 px the header shows the logo, the first call to action and Menu; Menu opens both calls to
+// action and the whole main menu with its sublink and a closed group, while the page behind it leaves
 // the screen; at 200% text nothing in the open panel is clipped or under 44 px; the footer shows
 // the main menu again as a column, its group open. With JavaScript (the a11y project) Menu opens
 // the same panel as a modal dialog instead: focus on its close button, a sublink button beside the
@@ -51,8 +51,12 @@ export async function exerciseChromeMenus(page: Page, locale: 'nl' | 'en') {
   const banner = page.getByRole('banner');
   const main = page.getByRole('navigation', { name: copy.main });
   const toggle = banner.locator('summary', { hasText: 'Menu' });
-  // Closed: the first call to action stands in the bar, the rest waits in the panel.
-  await expect(banner.getByRole('link', { name: copy.actions[0] })).toBeVisible();
+  // Closed: the first call to action stands in the bar, the rest waits in the panel. With
+  // JavaScript at 320 px it may not fit beside the name and Menu even wrapped; then it waits at the
+  // top of the panel too and the header keeps one row (MY-284).
+  const out = isA11y() && (await page.locator('.site-header[data-action-out]').count()) > 0;
+  if (out) await expect(banner.getByRole('link', { name: copy.actions[0] })).toHaveCount(0);
+  else await expect(banner.getByRole('link', { name: copy.actions[0] })).toBeVisible();
   await expect(banner.getByRole('link', { name: copy.actions[1] })).toHaveCount(0);
   await expect(main).toBeHidden();
 

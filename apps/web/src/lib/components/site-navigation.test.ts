@@ -2,7 +2,7 @@
 // fits, in their order, with a margin before growing so a width on a boundary does not flicker.
 // The DOM adapter around it is proven in the browser (e2e/lib/site-navigation/visitor.ts).
 import { describe, expect, it } from 'vitest';
-import { fit, priority, stickyFits } from '../../../static/_site/navigation.js';
+import { actionFit, fit, priority, stickyFits } from '../../../static/_site/navigation.js';
 
 describe('site navigation bar fit', () => {
   it('takes the longest prefix that fits', () => {
@@ -81,5 +81,21 @@ describe('site header sticky rule', () => {
   it('never sticks a header of two rows, or one not laid out', () => {
     expect(stickyFits({ oneRow: false, height: 76, viewport: 900 })).toBe(false);
     expect(stickyFits({ oneRow: true, height: 0, viewport: 900 })).toBe(false);
+  });
+});
+
+describe('the first call to action', () => {
+  it('keeps its width while the row fits', () => {
+    expect(actionFit({ available: 0, natural: 200, narrowest: 90 })).toBe('natural');
+    expect(actionFit({ available: 40, natural: 200, narrowest: 90 })).toBe('natural');
+  });
+
+  it('wraps its label when the longest word makes the row fit', () => {
+    expect(actionFit({ available: -110, natural: 200, narrowest: 90 })).toBe('tight');
+    expect(actionFit({ available: -60, natural: 200, narrowest: 90 })).toBe('tight');
+  });
+
+  it('leaves the bar when even its longest word overflows the row (MY-284)', () => {
+    expect(actionFit({ available: -111, natural: 200, narrowest: 90 })).toBe('out');
   });
 });
