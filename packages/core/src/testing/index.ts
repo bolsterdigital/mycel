@@ -8,4 +8,6 @@ export * from './demo-content.js';
 export * from './navigation-fixtures.js';
 export * from './email-examples.js';
 export * from './sites/runner.js';
+/** Builders for a site definition kept outside this repository (`demo:site --definition`). */
+export * as rich from './sites/rich.js';
 export * from './sites/otterdam/index.js';

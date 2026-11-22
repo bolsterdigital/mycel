@@ -9,6 +9,11 @@
 // the `mycel` CLI, which is operator tooling for production where demo content does not belong.
 //
 //   npm run demo:site -w @mycel/api -- otterdam [--tenant <slug>] [--admin <e-mail>] [--manifest <file>]
+//   npm run demo:site -w @mycel/api -- --definition <path> [--tenant <slug>] [...]
+//
+// `--definition` runs a definition from outside this repository (`site-definition.ts`), relative
+// to the directory the command was started in; it may point at items the tenant already has,
+// such as imported articles, by slug. `--manifest` is relative to the same directory.
 //
 // The definition also sets the theme, logo and footer text while the tenant still has the
 // defaults; an editor's later choice is never overwritten.
@@ -17,6 +22,7 @@
 // what is always done together on a fresh server).
 
 import { readFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { contentPath, systemPrincipal, useCases } from '@mycel/core';
 import {
@@ -37,6 +43,7 @@ import {
   platformOf,
   platformOperations,
 } from './compose.js';
+import { loadDefinition } from './site-definition.js';
 
 const SITES: Record<string, { site: SiteDefinition; files: URL }> = {
   otterdam: { site: OTTERDAM, files: new URL('../../demo-sites/otterdam/', import.meta.url) },
@@ -44,12 +51,23 @@ const SITES: Record<string, { site: SiteDefinition; files: URL }> = {
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
-  options: { tenant: { type: 'string' }, admin: { type: 'string' }, manifest: { type: 'string' } },
+  options: {
+    tenant: { type: 'string' },
+    admin: { type: 'string' },
+    manifest: { type: 'string' },
+    definition: { type: 'string' },
+  },
 });
-const chosen = SITES[positionals[0] ?? ''];
+// npm runs a workspace script in the workspace: a relative path means where the command was typed.
+const startedIn = process.env['INIT_CWD'] ?? process.cwd();
+const chosen = values.definition
+  ? positionals.length
+    ? undefined
+    : await loadDefinition(values.definition, startedIn)
+  : SITES[positionals[0] ?? ''];
 if (!chosen) {
   console.error(
-    `usage: demo:site <${Object.keys(SITES).join('|')}> [--tenant <slug>] [--admin <e-mail>] [--manifest <file>]`
+    `usage: demo:site <${Object.keys(SITES).join('|')}> | --definition <path> [--tenant <slug>] [--admin <e-mail>] [--manifest <file>]`
   );
   process.exit(2);
 }
@@ -159,7 +177,7 @@ try {
     ),
   };
   if (values.manifest) {
-    await writeFile(values.manifest, `${JSON.stringify(manifest, null, 2)}\n`);
+    await writeFile(resolve(startedIn, values.manifest), `${JSON.stringify(manifest, null, 2)}\n`);
     console.log(`manifest: ${values.manifest}`);
   } else console.log(`home: ${runtime.siteUrl(where, '/')}\nadmin: ${admin}`);
 
