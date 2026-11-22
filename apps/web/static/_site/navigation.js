@@ -251,13 +251,13 @@ function enhance(header) {
     // enough: measured at its narrowest, the longest word. Otherwise whole tools wrap as before.
     const first = tools?.querySelector(':scope > .site-action:not(.secondary)');
     let tight = false;
+    // Measured through a header attribute and the CSS, never `first.style`: removing an inline
+    // property leaves an empty `style` attribute behind, and public pages carry none.
     if (available < 0 && first) {
       const natural = first.getBoundingClientRect().width;
-      first.style.setProperty('inline-size', 'min-content');
-      first.style.setProperty('hyphens', 'manual');
+      header.toggleAttribute('data-narrowest', true);
       tight = available + natural - first.getBoundingClientRect().width >= 0;
-      first.style.removeProperty('inline-size');
-      first.style.removeProperty('hyphens');
+      header.toggleAttribute('data-narrowest', false);
     }
     const count = fit({ costs, available, shown });
     // A candidate that leaves the bar never takes the focus with it: its dropdown or language

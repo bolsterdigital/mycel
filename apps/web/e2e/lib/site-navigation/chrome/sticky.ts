@@ -196,6 +196,8 @@ export async function exerciseSticky(page: Page, slug: string) {
     await expect(page.locator('.site-header')).toHaveAttribute('data-sticky', '');
     expect((await header(page)).oneRow, `one row at ${width} px`).toBe(true);
     await layoutGate(page, `sticky header at ${width} px`, '.site-header');
+    // The measurement leaves no style attribute behind, also not in the tight state.
+    await expect(page.locator('[style]'), `no style attribute at ${width} px`).toHaveCount(0);
     await scrollDown(page);
     expect((await header(page)).top, `at the top at ${width} px`).toBeCloseTo(0, 0);
 

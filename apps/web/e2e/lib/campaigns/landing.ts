@@ -57,11 +57,17 @@ async function expectStickyAction(page: Page, path: string) {
         const send = document
           .querySelector('.campaign-action button[type="submit"], .campaign-action button')!
           .getBoundingClientRect();
+        // Measured from the sticky site header's bottom when it holds the top (MY-266 PR D).
+        const head = Math.max(
+          0,
+          document.querySelector('.site-header')!.getBoundingClientRect().bottom
+        );
+        const top = area.top - head;
         return {
-          top: area.top <= 40 && area.bottom > 0,
-          inside: send.top >= 0 && send.bottom <= innerHeight,
+          top: top <= 40 && area.bottom > head,
+          inside: send.top >= head && send.bottom <= innerHeight,
           bounded: area.bottom <= body.bottom + 1,
-          moved: area.top > 0 && area.top < 40,
+          moved: top > 0 && top < 40,
         };
       });
       const at = `${path} ${viewport.width}x${viewport.height} at ${step * 200}px`;

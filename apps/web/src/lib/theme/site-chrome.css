@@ -124,6 +124,11 @@
   min-width: min-content;
   hyphens: manual;
 }
+/* The narrowest the first call to action can be, for navigation.js to measure in one task. */
+.site-header[data-narrowest] .site-tools > .site-action:not(.secondary) {
+  inline-size: min-content;
+  hyphens: manual;
+}
 /* Search in the bar: a magnifier before the visible word, inline so it costs no request. */
 .site-search-link {
   gap: 0.375em;
