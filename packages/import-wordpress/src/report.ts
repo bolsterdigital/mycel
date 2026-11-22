@@ -9,6 +9,7 @@ import type { ImportPlan, ReportCode, ReportLine } from './plan.js';
 const HEADINGS: Record<ReportCode, string> = {
   'block.skipped': 'Blocks left out (no Mycel equivalent)',
   'block.shortcode': 'Shortcodes left out',
+  'block.unwrapped': 'Groups and columns unwrapped (their look is not kept)',
   'image.alt-missing': 'Images without alt text (not placed)',
   'block.invalid': 'Blocks that did not validate (left out)',
   'block.media-missing': 'Blocks whose file is not in the export (left out)',

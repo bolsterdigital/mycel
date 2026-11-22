@@ -138,6 +138,56 @@ describe('planning choices', () => {
     expect(formatReport(changed)).toContain('Addresses changed (old → new) (2)');
   });
 
+  describe('a layout container (MY-282)', () => {
+    const page = (content: string) =>
+      plan(
+        `<rss><channel><language>nl</language><item><title>Voorpagina</title><wp:post_id>1</wp:post_id><wp:post_name>voorpagina</wp:post_name><wp:status>publish</wp:status><wp:post_type>page</wp:post_type><content:encoded><![CDATA[${content}]]></content:encoded></item></channel></rss>`
+      );
+    const heading = (text: string) =>
+      `<!-- wp:heading --><h2 class="wp-block-heading">${text}</h2><!-- /wp:heading -->`;
+    const paragraph = (text: string) => `<!-- wp:paragraph --><p>${text}</p><!-- /wp:paragraph -->`;
+
+    it('puts the inner blocks of a group in its place and reports its look', () => {
+      const result = page(
+        `${paragraph('Voor')}<!-- wp:group {"className":"bij1-section bij1-section\\u002d\\u002dcyan"} --><div class="wp-block-group bij1-section">${heading('Wie wij zijn')}${paragraph('Een partij.')}${paragraph('Van iedereen.')}</div><!-- /wp:group -->${paragraph('Na')}`
+      );
+      const blocks = result.items[0]!.document.blocks;
+      expect(blocks.map((b) => b.type)).toEqual(['rich-text', 'heading', 'rich-text']);
+      expect(JSON.stringify(blocks)).toContain('Wie wij zijn');
+      expect(JSON.stringify(blocks[2])).toContain('Van iedereen.');
+      expect(result.report).toEqual([
+        expect.objectContaining({
+          code: 'block.unwrapped',
+          block: 'core/group',
+          position: 2,
+          detail: 'className=bij1-section bij1-section--cyan',
+        }),
+      ]);
+      expect(result.report.map((l) => l.code)).not.toContain('block.skipped');
+    });
+
+    it('unwraps columns and their columns in reading order, silently when they carry no look', () => {
+      const result = page(
+        `<!-- wp:columns --><div class="wp-block-columns"><!-- wp:column --><div class="wp-block-column">${heading('Links')}</div><!-- /wp:column --><!-- wp:column --><div class="wp-block-column">${heading('Rechts')}<!-- wp:wings/onbekend /--></div><!-- /wp:column --></div><!-- /wp:columns -->`
+      );
+      expect(JSON.stringify(result.items[0]!.document.blocks.map((b) => b.props))).toBe(
+        JSON.stringify([{ text: { nl: 'Links' } }, { text: { nl: 'Rechts' } }])
+      );
+      // An unknown block inside is still reported, at the container's top-level position.
+      expect(result.report).toEqual([
+        expect.objectContaining({ code: 'block.skipped', block: 'wings/onbekend', position: 1 }),
+      ]);
+    });
+
+    it('unwraps a group nested in a group', () => {
+      const result = page(
+        `<!-- wp:group {"layout":{"type":"constrained"}} --><div><!-- wp:group {"backgroundColor":"cyan"} --><div>${paragraph('Binnenin')}</div><!-- /wp:group --></div><!-- /wp:group -->`
+      );
+      expect(JSON.stringify(result.items[0]!.document.blocks)).toContain('Binnenin');
+      expect(result.report.map((l) => l.detail)).toEqual(['backgroundColor=cyan']);
+    });
+  });
+
   it('decodes entities in titles, leads and alt texts', () => {
     const decoded = plan(
       `<rss><channel><language>nl</language>

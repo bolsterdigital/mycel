@@ -390,6 +390,27 @@ export const BLOCK_MAP: Record<string, Entry> = {
   'core/shortcode': () => skip('shortcode'),
 };
 
+/**
+ * Layout containers whose inner blocks are the content (MY-282): the planner maps the inner blocks
+ * in the container's place, so a section of headings and paragraphs in a group keeps its text. A
+ * Mycel page has no group or column block, so what the container itself carried (a class, a
+ * colour) is a report line, see `lookOf`. Rejected: leaving the container out whole (a Dreamkit
+ * front page that puts every section in a group lost all its text) and a `section` block of our
+ * own (a layout wrapper is not a content type, ADR 013 offers block variants instead).
+ */
+export const CONTAINERS = new Set(['core/group', 'core/columns', 'core/column']);
+
+const LOOK = ['className', 'backgroundColor', 'textColor', 'gradient', 'style'] as const;
+
+/** What a container carried that the unwrapped blocks lose, as `key=value` pairs; null if none. */
+export function lookOf(block: WpBlock): string | null {
+  const pairs = LOOK.filter((key) => block.attrs[key] !== undefined).map((key) => {
+    const value = block.attrs[key];
+    return `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}`;
+  });
+  return pairs.length ? pairs.join(' ') : null;
+}
+
 /** Map one top-level block; freeform HTML has no name. */
 export function mapBlock(block: WpBlock, ctx: MapContext): Mapped {
   if (block.name === null) return freeform(block, ctx);
