@@ -30,8 +30,17 @@ export async function headingOutlineProblems(page: Page, within = 'body'): Promi
   return out;
 }
 
-const box = async (page: Page, selector: string) =>
-  (await page.locator(selector).first().boundingBox())!;
+type Box = { x: number; y: number; width: number; height: number };
+
+/** The boxes of intro, action and body in one layout: three separate reads straddle the sticky
+ *  header's re-measurement a frame after a resize or text size change, which moves everything. */
+const boxes = (page: Page) =>
+  page.evaluate(() =>
+    ['.campaign-intro', '.campaign-action', '.campaign-body'].map((s) => {
+      const r = document.querySelector(s)!.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    })
+  );
 
 /**
  * MY-267 PR 5 (ADR 038 rule 9): a compact action area stays in view beside the text. At 1440x800
@@ -98,11 +107,7 @@ export async function exerciseCampaignLanding(page: Page, paths: readonly string
     expect(await headingOutlineProblems(page, 'main'), path).toEqual([]);
 
     // Wide: the action area to the right of intro and body, its top level with the intro's.
-    const [intro, action, body] = [
-      await box(page, '.campaign-intro'),
-      await box(page, '.campaign-action'),
-      await box(page, '.campaign-body'),
-    ];
+    const [intro, action, body] = (await boxes(page)) as [Box, Box, Box];
     expect(action.x, `${path}: action beside the intro`).toBeGreaterThanOrEqual(
       intro.x + intro.width
     );
@@ -114,11 +119,7 @@ export async function exerciseCampaignLanding(page: Page, paths: readonly string
     await page.setViewportSize(NARROW);
     for (const size of TEXT_SIZES) {
       await setTextSize(page, size === '100%' ? '16px' : size);
-      const [i, a, b] = [
-        await box(page, '.campaign-intro'),
-        await box(page, '.campaign-action'),
-        await box(page, '.campaign-body'),
-      ];
+      const [i, a, b] = (await boxes(page)) as [Box, Box, Box];
       expect(a.y, `${path} ${size}: action under the intro`).toBeGreaterThanOrEqual(i.y + i.height);
       expect(b.y, `${path} ${size}: body under the action`).toBeGreaterThanOrEqual(a.y + a.height);
       await layoutGate(page, `${path} at 320 px and ${size} text`, 'main');
