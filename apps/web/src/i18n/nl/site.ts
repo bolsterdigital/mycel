@@ -31,6 +31,12 @@ export const site: Partial<Record<UiKey, string>> = {
   'admin.site.dropCap.hint': 'Een grote eerste letter aan het begin van de tekst van elk artikel.',
   'admin.site.dropCap.articles': 'Aan',
   'admin.site.dropCap.off': 'Uit',
+  'admin.site.group.chrome': 'Kop en voet',
+  'admin.site.chrome.header': 'Kleur van de kop',
+  'admin.site.chrome.header.hint':
+    'Het kleurenpaar van de balk met sitenaam en menu bovenaan elke pagina.',
+  'admin.site.chrome.footer': 'Kleur van de voet',
+  'admin.site.chrome.footer.hint': 'Het kleurenpaar van de voettekst onderaan elke pagina.',
   'admin.site.captionFont': 'Lettertype van onderschriften',
   'admin.site.captionFont.hint':
     'Het lettertype van onderschriften en naamsvermeldingen bij foto’s, video’s en galerijen.',

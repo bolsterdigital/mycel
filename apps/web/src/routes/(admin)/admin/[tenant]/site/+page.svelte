@@ -18,6 +18,7 @@
   import {
     AI_USES,
     CAPTION_FONTS,
+    CHROME_ROLES,
     DROP_CAPS,
     FONT_KEYS,
     FONTS,
@@ -552,6 +553,22 @@
         </Table>
       {/each}
       <p class="ui-hint">{t('admin.site.cards.hint')}</p>
+      <!-- MY-266: header and footer each stand in one of the role pairs above, never a colour of
+           their own, so the contrast shown in the tables is theirs too. -->
+      <Fieldset legend={t('admin.site.group.chrome')}>
+        {#each ['header', 'footer'] as const as part (part)}
+          <Select
+            id="site-chrome-{part}"
+            name="chrome.{part}"
+            label={t(`admin.site.chrome.${part}`)}
+            locale={data.locale}
+            size="m"
+            hint={t(`admin.site.chrome.${part}.hint`)}
+            options={CHROME_ROLES.map((r) => ({ value: r, label: t(`admin.site.role.${r}`) }))}
+            value={value(`chrome.${part}`, data.theme.value.chrome[part])}
+          />
+        {/each}
+      </Fieldset>
       <Fieldset legend={t('admin.site.group.type')}>
         <!-- MY-261 PR 2: each font as a radio with a line in that font, so an editor chooses on
              what they see; the faces come from /_admin/font-specimens.css, linked in the head of

@@ -165,7 +165,36 @@ function cardSlots(p: Palette): string[] {
   });
 }
 
-function palette(p: Palette): string[] {
+/**
+ * The site header and footer as the role pairs the theme chose for them (MY-266), copied, never
+ * computed, so their text and focus contrast is what `checkTheme` already measured. The header's
+ * first call to action is `--chrome-action-*`: the primary pair, or, on a primary header where a
+ * primary button would vanish into the bar, that pair inverted (same contrast), each with an
+ * active pair that keeps its polarity as `cardSlots` does. Rejected: a CSS rule that swaps the
+ * button per header role (the stylesheet would have to know which roles look alike) and
+ * `color-mix` towards a header colour (no contrast check can see it).
+ */
+function chromeTokens(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
+  const header = p[chrome.header];
+  const footer = p[chrome.footer];
+  const action =
+    chrome.header === 'primary'
+      ? { foreground: p.primary.background, background: p.primary.foreground }
+      : p.primary;
+  const active = interactionPair(action);
+  return [
+    `--chrome-header-fg: ${header.foreground};`,
+    `--chrome-header-bg: ${header.background};`,
+    `--chrome-footer-fg: ${footer.foreground};`,
+    `--chrome-footer-bg: ${footer.background};`,
+    `--chrome-action-fg: ${action.foreground};`,
+    `--chrome-action-bg: ${action.background};`,
+    `--chrome-action-active-fg: ${active.foreground};`,
+    `--chrome-action-active-bg: ${active.background};`,
+  ];
+}
+
+function palette(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
   const lines = THEME_ROLES.flatMap((role) => [
     `--color-${role}-fg: ${p[role].foreground};`,
     `--color-${role}-bg: ${p[role].background};`,
@@ -181,7 +210,8 @@ function palette(p: Palette): string[] {
     `--color-caption-fg: ${captionForeground(p)};`,
     `--color-link: ${p.link};`,
     `--color-focus: ${p.focus};`,
-    ...cardSlots(p)
+    ...cardSlots(p),
+    ...chromeTokens(p, chrome)
   );
   return lines;
 }
@@ -195,7 +225,7 @@ export function themeCss(theme: ResolvedTheme): string {
     (n) => `${stepName(n)}: ${num((theme.baseSize * theme.scaleRatio ** n) / 16)}rem;`
   );
   const root = [
-    ...palette(theme.palettes.light),
+    ...palette(theme.palettes.light, theme.chrome),
     `--font-body: ${fontStack(theme.bodyFont)};`,
     `--font-heading: ${fontStack(theme.headingFont)};`,
     ...(theme.captionFont === 'mono' ? [`--font-caption: ${CAPTION_MONO};`] : []),
@@ -210,7 +240,7 @@ export function themeCss(theme: ResolvedTheme): string {
   return [
     fontFaceRules(theme),
     `:root {\n${indent(root, '  ')}\n}`,
-    `@media (prefers-color-scheme: dark) {\n  :root {\n${indent(palette(theme.palettes.dark), '    ')}\n  }\n}`,
+    `@media (prefers-color-scheme: dark) {\n  :root {\n${indent(palette(theme.palettes.dark, theme.chrome), '    ')}\n  }\n}`,
     '',
   ].join('\n');
 }
