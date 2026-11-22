@@ -60,8 +60,8 @@ export const USAGE = `usage:
   mycel erasures apply [--tenant <slug>]
   mycel erasures status [--tenant <slug>]
   mycel search rebuild [--tenant <slug>]
-  mycel wordpress plan --file <export.xml> [--default-locale <nl>] [--json]
-  mycel wordpress import --tenant <slug> --file <export.xml> [--media-dir <uploads>] [--default-locale <nl>] [--into-existing]
+  mycel wordpress plan --file <export.xml> [--default-locale <nl>] [--featured-header on|off] [--json]
+  mycel wordpress import --tenant <slug> --file <export.xml> [--media-dir <uploads>] [--default-locale <nl>] [--featured-header on|off] [--into-existing]
   mycel version`;
 
 export type Command =
@@ -81,19 +81,33 @@ export type Command =
   | { kind: 'erasures.apply'; slug?: string }
   | { kind: 'erasures.status'; slug?: string }
   | { kind: 'search.rebuild'; slug?: string }
-  | { kind: 'wordpress.plan'; file: string; defaultLocale?: string; json: boolean }
+  | {
+      kind: 'wordpress.plan';
+      file: string;
+      defaultLocale?: string;
+      featuredAsHeader?: boolean;
+      json: boolean;
+    }
   | {
       kind: 'wordpress.import';
       slug: string;
       file: string;
       mediaDir?: string;
       defaultLocale?: string;
+      featuredAsHeader?: boolean;
       intoExisting: boolean;
     }
   | { kind: 'version' };
 
 /** A command line the parser refuses; the message says what is wrong, then the usage follows. */
 export class UsageError extends Error {}
+
+/** `--featured-header on|off`; absent leaves the importer's default (on for a Dreamkit export). */
+function featuredHeader(value: string | undefined): { featuredAsHeader?: boolean } {
+  if (value === undefined) return {};
+  if (value === 'on' || value === 'off') return { featuredAsHeader: value === 'on' };
+  throw new UsageError('--featured-header takes on or off');
+}
 
 const localesOf = (value: string | undefined) =>
   (value ?? 'nl')
@@ -172,17 +186,22 @@ export function parseCommand(argv: readonly string[]): Command {
     return { kind: 'search.rebuild', ...(f['tenant'] ? { slug: f['tenant'] } : {}) };
   }
   if (noun === 'wordpress' && verb === 'plan') {
-    const f = flags(rest, ['file', 'default-locale'], ['json']);
+    const f = flags(rest, ['file', 'default-locale', 'featured-header'], ['json']);
     if (!f['file']) throw new UsageError('wordpress plan needs --file');
     return {
       kind: 'wordpress.plan',
       file: f['file'],
       json: f['json'] === 'true',
       ...(f['default-locale'] ? { defaultLocale: f['default-locale'] } : {}),
+      ...featuredHeader(f['featured-header']),
     };
   }
   if (noun === 'wordpress' && verb === 'import') {
-    const f = flags(rest, ['tenant', 'file', 'media-dir', 'default-locale'], ['into-existing']);
+    const f = flags(
+      rest,
+      ['tenant', 'file', 'media-dir', 'default-locale', 'featured-header'],
+      ['into-existing']
+    );
     for (const key of ['tenant', 'file'])
       if (!f[key]) throw new UsageError(`wordpress import needs --${key}`);
     return {
@@ -192,6 +211,7 @@ export function parseCommand(argv: readonly string[]): Command {
       intoExisting: f['into-existing'] === 'true',
       ...(f['media-dir'] ? { mediaDir: f['media-dir'] } : {}),
       ...(f['default-locale'] ? { defaultLocale: f['default-locale'] } : {}),
+      ...featuredHeader(f['featured-header']),
     };
   }
   if (noun === 'blob' && verb === 'init' && rest.length === 0) return { kind: 'blob.init' };

@@ -76,6 +76,26 @@ describe('the plan of the fixture export', () => {
     expect(item('over-ons').document.blocks.map((b) => b.type)).not.toContain('hero');
   });
 
+  it('makes the featured image of an article its cover header in a Dreamkit export', () => {
+    expect(result.featuredAsHeader).toBe(true);
+    expect(item('grote-opkomst-bij-klimaatmars').document).toMatchObject({
+      heroImageId: placeholder('media', 101),
+      heroAlt: {
+        nl: 'Mensen met spandoeken op een vol plein',
+        en: 'Mensen met spandoeken op een vol plein',
+      },
+      featuredImageId: placeholder('media', 101),
+      presentation: { header: 'cover' },
+    });
+    // A page keeps its own header: the cover presentation is an article's (ADR 025 rule 3).
+    expect(item('over-ons').document).not.toHaveProperty('presentation');
+    const off = plan(FIXTURE, { featuredAsHeader: false }).items.find(
+      (i) => i.slug === 'grote-opkomst-bij-klimaatmars'
+    )!;
+    expect(off.document).not.toHaveProperty('heroImageId');
+    expect(off.document).not.toHaveProperty('presentation');
+  });
+
   it('links to an item of the export by id', () => {
     expect(JSON.stringify(item('contact').document.blocks)).toContain(placeholder('item', 201));
   });
@@ -100,5 +120,40 @@ describe('planning choices', () => {
     );
     expect(twice.items.map((i) => i.slug)).toEqual(['en-page', 'kopie', 'kopie-2']);
     expect(twice.report.filter((l) => l.code === 'item.slug-changed')).toHaveLength(2);
+  });
+
+  it('reports the old and the new address of every changed slug', () => {
+    const long = 'a'.repeat(70);
+    const post = (id: number, type: string, slug: string) =>
+      `<item><title>T${id}</title><link>https://oud.example/${slug}/</link><wp:post_id>${id}</wp:post_id><wp:post_name>${slug}</wp:post_name><wp:status>publish</wp:status><wp:post_type>${type}</wp:post_type><content:encoded><![CDATA[<p>x</p>]]></content:encoded></item>`;
+    const changed = plan(
+      `<rss><channel><language>nl</language>${post(1, 'page', 'faq')}${post(2, 'post', long)}${post(3, 'page', 'blijft')}</channel></rss>`
+    );
+    expect(
+      changed.report.filter((l) => l.code === 'item.slug-changed').map((l) => l.detail)
+    ).toEqual([
+      'https://oud.example/faq/ → /faq-page',
+      `https://oud.example/${long}/ → /articles/${'a'.repeat(63)}`,
+    ]);
+    expect(formatReport(changed)).toContain('Addresses changed (old → new) (2)');
+  });
+
+  it('decodes entities in titles, leads and alt texts', () => {
+    const decoded = plan(
+      `<rss><channel><language>nl</language>
+      <item><title><![CDATA[Foto &amp; zo]]></title><wp:post_id>9</wp:post_id><wp:post_type>attachment</wp:post_type><wp:status>inherit</wp:status><wp:attachment_url>https://oud.example/f.jpg</wp:attachment_url><wp:postmeta><wp:meta_key>_wp_attachment_image_alt</wp:meta_key><wp:meta_value><![CDATA[Feiten &amp; cijfers op een bord]]></wp:meta_value></wp:postmeta></item>
+      <item><title><![CDATA[Feiten &amp; cijfers]]></title><wp:post_id>1</wp:post_id><wp:post_name>feiten</wp:post_name><wp:status>publish</wp:status><wp:post_type>post</wp:post_type><content:encoded><![CDATA[<!-- wp:wings/hero {"introText":"Wat \u0026amp; waarom"} /-->]]></content:encoded><wp:postmeta><wp:meta_key>_thumbnail_id</wp:meta_key><wp:meta_value>9</wp:meta_value></wp:postmeta></item>
+      </channel></rss>`
+    );
+    expect(decoded.media[0]).toMatchObject({
+      title: 'Foto & zo',
+      alt: 'Feiten & cijfers op een bord',
+    });
+    expect(decoded.items[0]!.document).toMatchObject({
+      title: { nl: 'Feiten & cijfers' },
+      lead: { nl: 'Wat & waarom' },
+      heroAlt: { nl: 'Feiten & cijfers op een bord' },
+      presentation: { header: 'cover' },
+    });
   });
 });

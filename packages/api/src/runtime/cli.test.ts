@@ -73,6 +73,12 @@ describe('parseCommand', () => {
       mediaDir: 'uploads',
       intoExisting: true,
     });
+    expect(
+      parseCommand(['wordpress', 'plan', '--file', 'x.xml', '--featured-header', 'off'])
+    ).toEqual({ kind: 'wordpress.plan', file: 'x.xml', json: false, featuredAsHeader: false });
+    expect(() =>
+      parseCommand(['wordpress', 'plan', '--file', 'x.xml', '--featured-header', 'yes'])
+    ).toThrow(UsageError);
     expect(() => parseCommand(['wordpress', 'import', '--file', 'x.xml'])).toThrow(UsageError);
     expect(() => parseCommand(['wordpress', 'plan', '--file', 'x.xml', '--dry'])).toThrow(
       UsageError

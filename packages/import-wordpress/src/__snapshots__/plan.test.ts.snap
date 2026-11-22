@@ -3,6 +3,7 @@
 exports[`the plan of the fixture export > reports what does not come over 1`] = `
 "WordPress import plan for Voorbeeldbeweging
 Default locale nl; locales nl, en
+Featured image as article header: yes
 
 Pages      2 (0 draft)
 Articles   3 (1 draft)

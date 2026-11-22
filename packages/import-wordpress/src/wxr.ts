@@ -66,8 +66,8 @@ export interface WxrExport {
   posts: WxrPost[];
 }
 
-// WordPress stores term names HTML-escaped (`Acties &amp; campagnes`) and writes them so into the
-// CDATA of the export; they are decoded once more where they are read.
+// WordPress stores term names and post titles HTML-escaped (`Acties &amp; campagnes`) and writes
+// them so into the CDATA of the export; they are decoded once more where they are read.
 const field = (parent: Element, name: string) => {
   const element = find(parent, name);
   return element ? textOf(element).trim() : '';
@@ -91,7 +91,8 @@ function readPost(item: Element): WxrPost {
   return {
     id: Number(field(item, 'wp:post_id')),
     type: field(item, 'wp:post_type'),
-    title: field(item, 'title'),
+    // WordPress stores a title HTML-escaped (`Feiten &amp; cijfers`), as it does a term name.
+    title: decodeEntities(field(item, 'title')),
     link: field(item, 'link'),
     slug: field(item, 'wp:post_name'),
     status: field(item, 'wp:status'),
