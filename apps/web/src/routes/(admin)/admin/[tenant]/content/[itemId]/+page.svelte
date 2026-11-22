@@ -29,6 +29,7 @@
   import MergeNotice from '#lib/admin/conflict/MergeNotice.svelte';
   import EditPresence from '#lib/admin/presence/EditPresence.svelte';
   import Inherited from '#lib/admin/Inherited.svelte';
+  import IssueList from '#lib/admin/issues/IssueList.svelte';
   import PatternChoice, { offers } from '#lib/admin/patterns/PatternChoice.svelte';
   import SavePattern from '#lib/admin/patterns/SavePattern.svelte';
   import AccessFields from '#lib/admin/access/AccessFields.svelte';
@@ -330,18 +331,6 @@
       <textarea {name} maxlength={max} rows="3" {...attributes}>{v(name)}</textarea>
     {/snippet}
   </Field>
-{/snippet}
-
-{#snippet issueList(list: { path: string; field: string | null; copy: string }[])}
-  <ul>
-    {#each list as i (i.path + i.copy)}
-      <li>
-        {#if i.field}<a href="#{i.field}">{issueName(i.path)}</a>{:else}{issueName(i.path)}{/if}: {t(
-          i.copy as UiKey
-        )}
-      </li>
-    {/each}
-  </ul>
 {/snippet}
 
 {#snippet pendingCard(p: NonNullable<typeof pending>)}
@@ -893,7 +882,13 @@
     {/if}
     {#if p.issues.length}
       <p>{t('admin.content.publication.issues')}</p>
-      {@render issueList(p.issues)}
+      <IssueList list={p.issues} name={issueName} locale={data.locale} />
+    {/if}
+    {#if p.warnings.length}
+      <Notice tone="warning" live={false}>
+        <p>{t('admin.content.publication.warnings')}</p>
+        <IssueList list={p.warnings} name={issueName} locale={data.locale} />
+      </Notice>
     {/if}
     {#if data.machineTranslation[p.locale]?.length}
       <Notice tone="warning" live={false}><p>{t('admin.assist.unreviewed')}</p></Notice>
@@ -1015,7 +1010,7 @@
         <p>
           {fill(t('admin.content.publication.error.refused'), { locale: form.locale ?? '' })}
         </p>
-        {@render issueList(form.issues ?? [])}
+        <IssueList list={form.issues ?? []} name={issueName} locale={data.locale} />
       {:else}
         <p>{refusalCopy(t, form)}</p>
       {/if}

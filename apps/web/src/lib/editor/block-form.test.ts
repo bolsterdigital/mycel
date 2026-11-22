@@ -73,13 +73,38 @@ describe('block forms', () => {
     expect(read()).toMatchObject({ decorative: true, alt: null });
     values['p.alt.nl'] = 'Nieuw plein';
     expect(read()).toMatchObject({ decorative: false, alt: { nl: 'Nieuw plein' } });
-    // A generic image-use parser still rejects missing semantics; the shown-control marker is
-    // not emitted for gallery or legacy hero fields, and API/MCP never pass through this helper.
+    // Without the shown-control marker (gallery, legacy hero, API/MCP) a missing description
+    // stays missing: valid since ADR 020 rule 3 (2026-11-22), and a warning, never decorative.
     const missing = { ...image.props, decorative: false, alt: null };
     expect(imageAltFromForm(missing, postedValues({}))).toBe(missing);
     expect(
       Block.safeParse({ id: 'image', type: 'image', version: 1, props: missing }).success
-    ).toBe(false);
+    ).toBe(true);
+  });
+
+  it('keeps an image placed without a description missing until described or made decorative', () => {
+    // MY-286 review: the shown form of an "alt missing" image saved with an empty field.
+    const image = examples.find((e) => e.name === 'image-content')!;
+    const stored = { ...image.props, decorative: false, alt: null };
+    const values: Record<string, string> = {
+      ...formValues(image.fields, stored, ['nl']),
+      imageAltShown: '1',
+      imageAltMissing: String(image.props.mediaId),
+    };
+    const read = () =>
+      imageAltFromForm(
+        propsFromForm(image.fields, postedValues(values), stored).props,
+        postedValues(values)
+      );
+    expect(read()).toMatchObject({ decorative: false, alt: null });
+    values['p.alt.nl'] = 'Het plein';
+    expect(read()).toMatchObject({ decorative: false, alt: { nl: 'Het plein' } });
+    values['p.alt.nl'] = '';
+    values.imageAltClear = 'on';
+    expect(read()).toMatchObject({ decorative: true, alt: null });
+    delete values.imageAltClear;
+    values['p.mediaId'] = 'new-image';
+    expect(read()).toMatchObject({ decorative: true, alt: null });
   });
 
   it('makes an emptied sole description decorative, and writing in it described again', () => {

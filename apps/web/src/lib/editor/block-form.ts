@@ -534,8 +534,13 @@ export function arrangeRows(
  */
 export function imageAltFromForm(props: Props, form: Posted): Props {
   if (form.get('imageAltShown') !== '1') return props;
-  const alt = form.get('imageAltClear') === 'on' ? null : props.alt;
-  return { ...props, ...imageAltProps(alt) };
+  const clear = form.get('imageAltClear') === 'on';
+  // An image placed without a description (ADR 020 rule 3, 2026-11-22) stays missing until it is
+  // described or explicitly made decorative; an empty field is no answer. The marker carries the
+  // stored image, so a newly chosen one follows the ordinary rule (empty is decorative).
+  if (!clear && props.alt === null && form.get('imageAltMissing') === props.mediaId)
+    return { ...props, decorative: false, alt: null };
+  return { ...props, ...imageAltProps(clear ? null : props.alt) };
 }
 
 /**

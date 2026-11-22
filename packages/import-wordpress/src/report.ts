@@ -10,7 +10,7 @@ const HEADINGS: Record<ReportCode, string> = {
   'block.skipped': 'Blocks left out (no Mycel equivalent)',
   'block.shortcode': 'Shortcodes left out',
   'block.unwrapped': 'Groups and columns unwrapped (their look is not kept)',
-  'image.alt-missing': 'Images without alt text (not placed)',
+  'image.alt-missing': 'Images placed without alt text (to describe in the admin)',
   'block.invalid': 'Blocks that did not validate (left out)',
   'block.media-missing': 'Blocks whose file is not in the export (left out)',
   'block.people-missing': 'People grids whose people or category are not in the export (left out)',

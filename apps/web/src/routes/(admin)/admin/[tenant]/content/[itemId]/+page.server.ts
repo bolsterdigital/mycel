@@ -43,7 +43,6 @@ import {
   mergeSave,
   contentPath,
   documentMedia,
-  readinessIssues,
   useCases,
   type BlockInput,
   type ContentDocument,
@@ -82,6 +81,7 @@ import {
   issuePath,
   localInput,
   localLabel,
+  readiness,
 } from '#lib/server/content/content-admin-publication.js';
 import {
   issueCopy as blockIssueCopy,
@@ -280,15 +280,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
             at: localLabel(new Date(p.review.since), zone, zone !== site),
             note: p.review.note,
           },
-          issues: readinessIssues(doc, p.locale).map((i) => ({
-            path: issuePath(i.path, i.message, p.locale),
-            field: i.path.startsWith('blocks.')
-              ? doc.blocks[Number(i.path.split('.')[1])]?.id
-                ? `block-${doc.blocks[Number(i.path.split('.')[1])]!.id}`
-                : null
-              : fieldOf(i.path, p.locale),
-            copy: issueCopy(i.message),
-          })),
+          ...readiness(doc, p.locale),
         }))
       ),
     },

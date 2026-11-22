@@ -18,6 +18,9 @@ export const blocks = {
   'admin.block.nameHelp': 'Only used in the editor. Leave empty for the automatic name.',
   'admin.block.alt.hint':
     'Describe what the image adds, for people who cannot see it. If it adds nothing to the surrounding content, leave it empty: it is then decorative.',
+  'admin.block.alt.missingBody':
+    'Publishing works, but screen readers hear nothing about this image. Describe it, or choose decorative if it adds nothing.',
+  'admin.block.alt.decorative': 'Decorative: this image adds nothing and needs no description',
   'admin.block.alt.empty':
     'Leave empty if the image adds nothing to the surrounding content; it is then decorative.',
   'admin.block.add': 'Add a block',

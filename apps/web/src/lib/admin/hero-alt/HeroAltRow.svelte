@@ -27,6 +27,8 @@
     markerName = 'heroAltShown',
     imageName = 'heroImageId',
     block = false,
+    missing = false,
+    missingName,
     clientManaged = false,
     ontext,
   }: {
@@ -52,6 +54,10 @@
     markerName?: string;
     imageName?: string;
     block?: boolean;
+    /** A block image stored without a description, not decorative (ADR 020 rule 3, 2026-11-22). */
+    missing?: boolean;
+    /** Carries the stored image, so the server keeps it missing while the field stays empty. */
+    missingName?: string;
     clientManaged?: boolean;
     ontext?: (text: string) => void;
   } = $props();
@@ -59,7 +65,14 @@
   const t = $derived(ui(locale));
   const multi = $derived(locales.length > 1);
   const view = $derived(
-    heroAltView({ text, others, replaced: !!image && image !== savedImage, clearing, flagged })
+    heroAltView({
+      text,
+      others,
+      replaced: !!image && image !== savedImage,
+      clearing,
+      flagged,
+      missing,
+    })
   );
   const names = $derived(new Intl.DisplayNames([locale], { type: 'language' }));
   const nameOf = (l: string) => names.of(l) ?? l;
@@ -74,6 +87,7 @@
 </script>
 
 <input type="hidden" name={markerName} value="1" />
+{#if missing && missingName}<input type="hidden" name={missingName} value={savedImage} />{/if}
 <details
   class="hero-alt"
   data-hero-alt={clientManaged ? undefined : ''}
@@ -85,6 +99,7 @@
   data-saved-text={savedText}
   data-others={allOthers.length}
   data-stored-others={storedOthers.length}
+  data-stored-missing={missing ? '' : undefined}
   data-flagged={flagged ? '' : undefined}
   hidden={!image}
   open={flagged}
@@ -119,7 +134,9 @@
         <span class="head"
           >{fill(t('admin.content.heroAlt.missing'), { locale: nameOf(work) })}</span
         >
-        <span class="body">{t('admin.content.heroAlt.missingBody')}</span>
+        <span class="body"
+          >{t(missing ? 'admin.block.alt.missingBody' : 'admin.content.heroAlt.missingBody')}</span
+        >
       </span>
       <span data-hero-alt-state="decorative" hidden={view.state !== 'decorative'}>
         <span class="icon"><Icon name="circle-minus" /></span>
@@ -179,9 +196,21 @@
         >
       {/snippet}
     </Field>
-    <p class="ui-hint" data-hero-alt-empty="decorative" hidden={view.described.length > 0}>
+    <p
+      class="ui-hint"
+      data-hero-alt-empty="decorative"
+      hidden={view.described.length > 0 || (missing && image === savedImage)}
+    >
       {t(block ? 'admin.block.alt.empty' : 'admin.content.heroAlt.empty')}
     </p>
+    {#if missing && !storedOthers.length}
+      <Checkbox
+        id={`${fieldId}-clear`}
+        name={clearName}
+        label={t('admin.block.alt.decorative')}
+        checked={clearing}
+      />
+    {/if}
     {#if storedOthers.length}
       <p class="ui-hint" data-hero-alt-empty="open" hidden={view.described.length === 0}>
         {fill(t('admin.content.heroAlt.emptyPartial'), { locales: listOf(storedOthers) })}

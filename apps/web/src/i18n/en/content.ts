@@ -500,6 +500,7 @@ export const content = {
     'You are editing a newer revision; it does not go along by itself.',
   'admin.content.publication.ready': 'Ready to publish.',
   'admin.content.publication.issues': 'What still stops publishing in this language:',
+  'admin.content.publication.warnings': 'Publishing works, but this is still missing:',
   'admin.content.publication.restricted':
     'This item is restricted: visitors without access see the teaser and an invitation to sign in.',
   'admin.content.publication.readOnly':
@@ -516,6 +517,8 @@ export const content = {
   'admin.content.publication.error.refused': 'This cannot be done in {locale} yet:',
   'admin.content.issue.localeNotInDocument': 'the item does not have this language',
   'admin.content.issue.missingTranslation': 'the translation is missing',
+  'admin.content.issue.altMissing':
+    'the image has no description; write one or make the image decorative',
   'admin.content.issue.block': 'Block {n}: {field}',
   'admin.content.issue.teaserLeadRequired':
     'readers only, with the lead as teaser: the lead is missing',

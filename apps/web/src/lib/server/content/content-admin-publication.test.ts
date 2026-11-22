@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { ContentDocument, EXAMPLE_IDS } from '@mycel/core';
 import {
   fieldOf,
+  readiness,
   issuePath,
   fromLocalInput,
   localInput,
@@ -52,5 +54,35 @@ describe('fieldOf', () => {
     expect(fieldOf('locales', 'en')).toBe('publication-en');
     expect(fieldOf('blocks.0.props.text.en', 'en')).toBeNull();
     expect(issuePath('title', 'content.publish.missing-translation', 'en')).toBe('title.en');
+  });
+});
+
+describe('readiness', () => {
+  it('warns about an image without a description in every locale, and lets it publish', () => {
+    const doc = ContentDocument.parse({
+      type: 'page',
+      defaultLocale: 'nl',
+      locales: ['nl', 'en'],
+      title: { nl: 'Over ons', en: 'About us' },
+      blocks: [
+        {
+          id: 'foto',
+          type: 'image',
+          version: 1,
+          props: { mediaId: EXAMPLE_IDS.image, decorative: false, alt: null },
+        },
+      ],
+    });
+    for (const locale of doc.locales)
+      expect(readiness(doc, locale)).toEqual({
+        issues: [],
+        warnings: [
+          {
+            path: 'blocks.0.props.alt',
+            field: 'block-foto',
+            copy: 'admin.content.issue.altMissing',
+          },
+        ],
+      });
   });
 });

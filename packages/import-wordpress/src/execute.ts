@@ -174,12 +174,13 @@ export async function execute(
   /**
    * The item's document with every placeholder swapped. A top-level block that names something
    * that was not made is left out; so are the header image and the featured image, and an author
-   * or section that failed.
+   * or section that failed. `quiet` for round one of an item whose blocks wait for round two:
+   * its item links cannot resolve yet, so only round two may say what did not come over.
    */
-  const resolve = (item: PlannedItem) => {
+  const resolve = (item: PlannedItem, quiet = false) => {
     const doc = structuredClone(item.document) as Record<string, unknown>;
     const at = (lines: Omit<ReportLine, 'postId' | 'title'>) =>
-      report.push({ ...lines, postId: item.sources[0]!.id, title: titleOf(item) });
+      quiet || report.push({ ...lines, postId: item.sources[0]!.id, title: titleOf(item) });
     const known = (ref: string) => ref in ids;
     const blocks = (doc.blocks as { type: string }[]).filter((block, i) => {
       const missing = placeholders(block).filter((r) => !known(r));
@@ -204,7 +205,7 @@ export async function execute(
   for (const item of plan.items) {
     const later = placeholders(item.document.blocks).some(isItemRef);
     try {
-      const document = resolve(item);
+      const document = resolve(item, later);
       const { item: created, revision } = await invoker.run(useCases.createItem, principal, {
         slug: item.slug,
         document: later ? { ...document, blocks: [] } : document,

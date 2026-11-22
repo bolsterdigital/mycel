@@ -32,6 +32,7 @@ export const ISSUE_COPY: Record<string, UiKey> = {
   'content.publish.machine-translation-unreviewed': 'admin.assist.unreviewed',
   'content.publish.teaser-lead-required': 'admin.content.issue.teaserLeadRequired',
   'content.publish.event-start-required': 'admin.content.issue.eventStartRequired',
+  'content.publish.alt-missing': 'admin.content.issue.altMissing',
   'content.reference.author-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.author-organisation': 'admin.content.issue.authorOrganisation',
   'content.reference.section-unknown': 'admin.content.issue.referenceUnknown',

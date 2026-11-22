@@ -155,11 +155,10 @@ const IMAGE_USE = {
   caption: localized(CaptionText).optional(),
   credit: MediaCredit.optional(),
 };
+// Not decorative with `alt: null` is "alt missing" (ADR 020 rule 3, 2026-11-22): valid, a warning.
 function altRule(p: { decorative: boolean; alt: unknown }, ctx: z.RefinementCtx) {
   if (p.decorative && p.alt !== null)
     ctx.addIssue({ code: 'custom', path: ['alt'], message: 'content.image.decorative-alt' });
-  if (!p.decorative && p.alt === null)
-    ctx.addIssue({ code: 'custom', path: ['alt'], message: 'content.image.alt-required' });
 }
 function imageProps<L extends readonly [string, ...string[]]>(layouts: L) {
   return z

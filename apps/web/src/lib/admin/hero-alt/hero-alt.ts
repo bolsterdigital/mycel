@@ -18,6 +18,8 @@ export type HeroAltInput = {
   clearing: boolean;
   /** A refused save or publish named this field. */
   flagged: boolean;
+  /** A block image stored without a description, not decorative (ADR 020 rule 3, 2026-11-22). */
+  missing?: boolean;
 };
 
 export type HeroAltView = {
@@ -38,7 +40,9 @@ export function heroAltView(input: HeroAltInput): HeroAltView {
   if (input.text.trim()) return view('described', input.flagged ? 'err' : 'ok');
   if (input.flagged) return view('missing', 'err');
   if (input.replaced) return view('fresh', 'info');
-  return described.length ? view('missing', 'warn') : view('decorative', 'neutral');
+  return described.length || input.missing
+    ? view('missing', 'warn')
+    : view('decorative', 'neutral');
 }
 
 /** An editor's merged description map as the explicit existing image-use pair. */

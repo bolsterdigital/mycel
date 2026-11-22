@@ -610,7 +610,13 @@ export function textRestOf(
  */
 export interface ImageRest {
   /** All description locales for the standalone image's editor; never a legacy hero override. */
-  description?: { image: string; alt: Record<string, string> | null; locales: readonly string[] };
+  description?: {
+    image: string;
+    alt: Record<string, string> | null;
+    locales: readonly string[];
+    /** Placed without a description, not decorative (ADR 020 rule 3, 2026-11-22). */
+    missing: boolean;
+  };
   mediaId: string;
   /** The file's name, or its id when the operator cannot read it. */
   label: string;
@@ -654,7 +660,12 @@ export function imageRestOf(
   }
   const description =
     block.type === 'image'
-      ? { image: block.props.mediaId, alt: block.props.alt, locales }
+      ? {
+          image: block.props.mediaId,
+          alt: block.props.alt,
+          locales,
+          missing: !block.props.decorative && block.props.alt === null,
+        }
       : undefined;
   const own = p.caption?.[locale];
   const inherited = asset?.card?.caption[locale] ?? '';
