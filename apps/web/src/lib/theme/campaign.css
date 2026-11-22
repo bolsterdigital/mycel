@@ -5,9 +5,16 @@
    area stands beside intro and body, at least 18rem wide so an e-mail field shows some 26
    characters (as measured on Dreamkit), and the text keeps its measure. Imported into the
    `components` layer, against the theme's properties and pairs only. Rejected: viewport media
-   queries (a narrow column on a wide screen), negative margins over the header image (the
-   predecessor's overlap bled into content above it) and sticky positioning here (a later,
-   separate step of the brief). */
+   queries (a narrow column on a wide screen) and negative margins over the header image (the
+   predecessor's overlap bled into content above it).
+
+   A compact action area (`campaign-action-sticky`, set by the server for a form of at most four
+   visible fields) stays in view while the text beside it scrolls, CSS only (ADR 038 rule 9): only
+   with the columns side by side, only in a window at least 45rem high (rem, so larger text
+   counts), and bounded by its grid area, so it never leaves the page's or the card's layout
+   (Jaap's Dreamkit wish, 2026-06). At 200% zoom the layout is one column and sticky lapses.
+   Rejected: sticky to the viewport (it covered content below the campaign) and a script that
+   measures the form. */
 .campaign-hero {
   margin-block-end: var(--space-3);
 }
@@ -40,6 +47,12 @@
     grid-template-rows: auto 1fr;
     column-gap: var(--space-4);
     align-items: start;
+  }
+  @media (min-height: 45rem) {
+    .campaign-action-sticky {
+      position: sticky;
+      top: var(--space-3);
+    }
   }
 }
 .campaign-intro,
