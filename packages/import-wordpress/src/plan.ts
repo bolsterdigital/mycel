@@ -103,6 +103,7 @@ export type ReportCode =
   | 'block.invalid'
   | 'block.media-missing'
   | 'block.people-missing'
+  | 'block.items-missing'
   | 'person.link-invalid'
   | 'person.bio-too-long'
   | 'hero.extra'
@@ -364,6 +365,12 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
   const everyone = (kind: 'person' | 'organisation') =>
     profiles.filter((p) => PERSON_TYPES[p.type] === kind).map((p) => personOf.get(p.id)!);
 
+  // Old Wings ids of migrated posts, as a Dreamkit grid without `selectedNodes` names them.
+  const byWingsId = new Map<string, number>();
+  for (const post of wxr.posts)
+    for (const key of ['_wings_original_id', '_wings_original_campaign_id'])
+      if (post.meta[key]) byWingsId.set(post.meta[key]!, post.id);
+
   const build = (post: WxrPost): Built => {
     const locale = localeOf(post);
     const lines: ReportLine[] = [];
@@ -393,6 +400,14 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
         person: (id) => personOf.get(Number(id)) ?? null,
         personGroup: (id) => groupOf.get(Number(id)) ?? null,
         everyone,
+        wingsNode: (id) => {
+          const post = byWingsId.get(String(id));
+          return post === undefined ? null : (itemOf.get(post) ?? null);
+        },
+        section: (termId) => {
+          const term = wxr.terms.find((t) => t.taxonomy === 'category' && t.id === Number(termId));
+          return term ? sectionRef(term.slug) : null;
+        },
         note: (code, detail) => lines.push({ code, ...where, ...(detail && { detail }) }),
       };
       const mapped = mapBlock(block, ctx);
@@ -404,6 +419,7 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
           'alt-missing': 'image.alt-missing',
           'media-missing': 'block.media-missing',
           'people-missing': 'block.people-missing',
+          'items-missing': 'block.items-missing',
         }[mapped.reason] as ReportCode;
         lines.push({ code, ...where });
       } else if (mapped.kind === 'header') {

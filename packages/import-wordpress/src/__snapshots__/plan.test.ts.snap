@@ -13,8 +13,7 @@ Groups     1
 Sections   2
 Remarks    15
 
-Blocks left out (no Mycel equivalent) (2)
-  - post 201 "Over ons" [nl] wings/nodes-grid #9
+Blocks left out (no Mycel equivalent) (1)
   - post 304 "Plannen voor 2027" [nl] core/separator #2
 
 Shortcodes left out (2)
@@ -27,6 +26,9 @@ Images without alt text (not placed) (2)
 
 People in a grid that are not in the export (1)
   - post 203 "Contact" [nl] wings/people-organizations-grid #5: 999
+
+Grids and single items whose posts are not in the export (left out) (1)
+  - post 201 "Over ons" [nl] wings/nodes-grid #9
 
 Social links of people that are not a valid address (left out) (1)
   - post 502 "Ahmed el Amrani" [nl]: _website_url: geen adres
