@@ -1,5 +1,5 @@
 // Fixtures for the campaign card test in signup.spec.ts (ADR 033 rule 4), written through
-// the use cases: one petition with its landing page published in Dutch, a never published one and
+// the use cases: one petition with its landing page and its text published in Dutch, a never published one and
 // an archived one, and three hosts (a page with two cards to the first petition and one each to
 // the other two, published in nl and en; an article with one card; a page scheduled an hour ahead
 // with one card). Plus the two moves the test makes on the campaign, and the scheduled publish
@@ -37,7 +37,7 @@ export async function campaignCardFixture(stamp: string) {
       for (const locale of locales)
         await invoker.run(useCases.publishItem, editor, { itemId, revisionId, locale });
     };
-    const start = async (slug: string, live: boolean) => {
+    const start = async (slug: string, live: boolean, blocks: unknown[] = []) => {
       const c = await invoker.run(useCases.composeCampaign, editor, {
         kind: 'petition',
         title: { nl: `Kaart ${slug}`, en: `Card ${slug}` },
@@ -46,11 +46,28 @@ export async function campaignCardFixture(stamp: string) {
         slug,
         goal: { target: 500, milestones: [] },
       });
-      const { item } = await invoker.run(useCases.getItem, editor, { itemId: c.landingItemId });
-      if (live) await publish(item.id, item.latestRevisionId);
+      const { item, revision } = await invoker.run(useCases.getItem, editor, {
+        itemId: c.landingItemId,
+      });
+      // The campaign's text, which a full card shows folded (ADR 038 rule 4).
+      const saved = blocks.length
+        ? await invoker.run(useCases.updateItem, editor, {
+            itemId: item.id,
+            baseRevisionId: revision.id,
+            document: { ...revision.document, blocks: blocks as never },
+          })
+        : null;
+      if (live) await publish(item.id, saved?.revision.id ?? item.latestRevisionId);
       return c;
     };
-    const c = await start(`kaart-${stamp}`, true);
+    const c = await start(`kaart-${stamp}`, true, [
+      {
+        type: 'heading',
+        version: DEFS.heading.version,
+        props: { text: { nl: 'Wij constateren', en: 'We note' } },
+      },
+      text('Het park is de enige groene plek in de wijk.'),
+    ]);
     const draft = await start(`kaart-concept-${stamp}`, false);
     const old = await start(`kaart-oud-${stamp}`, true);
     await invoker.run(useCases.archiveCampaign, editor, {

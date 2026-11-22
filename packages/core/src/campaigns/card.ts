@@ -12,6 +12,7 @@ import { Locale } from '../i18n/locale.js';
 import { defineUseCase } from '../registry.js';
 import type { TransactionContext } from '../ports.js';
 import { exampleId } from '../util/ids.js';
+import { Block } from '../content/blocks.js';
 import { ContentType, Slug } from '../content/model.js';
 import { statusOf } from '../content/lifecycle.js';
 import { effectiveOf } from '../content/header/effective.js';
@@ -44,6 +45,13 @@ export type CampaignCardReason = z.infer<typeof CampaignCardReason>;
 export const CampaignPhase = z.enum(['upcoming', 'open', 'closed']);
 export type CampaignPhase = z.infer<typeof CampaignPhase>;
 
+/**
+ * The blocks of a landing page a full card shows as the campaign's text (ADR 038 rule 4): text
+ * and pictures, nothing that acts or lists. The campaign's own form is never one of them.
+ */
+export const CARD_BODY_TYPES = ['heading', 'rich-text', 'quote', 'callout', 'image'] as const;
+const bodyType = new Set<string>(CARD_BODY_TYPES);
+
 export const CampaignCard = z.discriminatedUnion('available', [
   z.object({
     available: z.literal(false),
@@ -67,6 +75,11 @@ export const CampaignCard = z.discriminatedUnion('available', [
       summary: z.string().nullable(),
       /** The featured image along the chain (own, hero, the site's default). */
       imageId: z.string().guid().nullable(),
+      /**
+       * The text blocks of the same revision, in order (ADR 038 rule 4); `more` when other blocks
+       * were left out, so the card points to the page for the rest. Null when there is no text.
+       */
+      body: z.object({ blocks: z.array(Block), more: z.boolean() }).nullable(),
     }),
     phase: CampaignPhase,
     opensAt: z.string().datetime({ offset: true }).nullable(),
@@ -127,6 +140,13 @@ export async function campaignCardOf(
   const now = ctx.clock.now();
   const phase = phaseOf(campaign, now);
   const effective = effectiveOf(doc, locale, (await ctx.siteSettings.images()).value);
+  const text = doc.blocks.filter((b) => bodyType.has(b.type));
+  // A block placing the campaign's own form renders nothing on the page either (rule 6).
+  const more = doc.blocks.some(
+    (b) =>
+      !bodyType.has(b.type) &&
+      !((b.type === 'form' || b.type === 'signup-form') && b.props.formId === campaign.formId)
+  );
   let formId: string | null = null;
   if (phase === 'open' && campaign.formId) {
     const form = await ctx.forms.findById(campaign.formId);
@@ -145,6 +165,7 @@ export async function campaignCardOf(
       title: effective.title.text,
       summary: effective.summary.text,
       imageId: effective.images.featured.mediaId,
+      body: text.length ? { blocks: text, more } : null,
     },
     phase,
     opensAt: campaign.participation.opensAt,

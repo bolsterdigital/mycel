@@ -6,6 +6,7 @@
      and for a campaign's form that the public page does not show yet or any more. -->
 <script lang="ts">
   import type { FormState, RenderBlock, RenderModel } from './model.js';
+  import Self from './Blocks.svelte';
   import Callout from './Callout.svelte';
   import CampaignCard from './CampaignCard.svelte';
   import CampaignNotice from './CampaignNotice.svelte';
@@ -166,7 +167,12 @@
       {model}
       state={formState}
       {preview}
-    />
+    >
+      {#snippet body(blocks: RenderBlock[])}
+        <!-- The campaign's text, one level under the card title (ADR 038 rule 3). -->
+        <Self model={{ ...model, blocks }} depth={depth + 1} eagerFirstImage={false} />
+      {/snippet}
+    </CampaignCard>
   {/if}
 {/snippet}
 

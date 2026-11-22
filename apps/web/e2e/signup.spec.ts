@@ -1,5 +1,12 @@
 // flow: consent
-import { expect, test, type APIRequestContext, type Page, type Response } from '@playwright/test';
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Locator,
+  type Page,
+  type Response,
+} from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { exerciseAnalyticsSettings } from './lib/analytics/settings';
 import { exerciseIntegrationSettings } from './lib/integrations/settings';
@@ -38,7 +45,7 @@ import { HmacSigner } from '@mycel/api';
 import { testTenant } from '@mycel/db/testing';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { campaignCardFixture } from './lib/blocks/campaigns';
-import { exerciseCampaignLanding } from './lib/campaigns/landing';
+import { exerciseCampaignLanding, headingOutlineProblems } from './lib/campaigns/landing';
 import { exerciseRestrictedArticle } from './lib/published/restricted';
 import { exerciseDonation } from './lib/forms/donation';
 import { exerciseRecurring } from './lib/forms/recurring';
@@ -410,6 +417,28 @@ test('a campaign landing page: header image, intro, action and body in one outli
   await exerciseCampaignLanding(page, ['/probe/campagne', '/probe/en/campagne']);
 });
 
+// ADR 038 rules 3 and 4: the full card's campaign text in a native <details>, closed, opened by
+// the keyboard with or without script, its heading one level under the card's title; two cards of
+// one campaign on a page share no element id.
+async function expectCardText(page: Page, card: Locator) {
+  const details = card.locator('details.campaign-body');
+  const summary = details.locator('summary');
+  await expect(summary).toHaveText('Lees de petitietekst');
+  await expect(details).not.toHaveAttribute('open', '');
+  await expect(card.getByRole('heading', { level: 2 })).toHaveCount(1);
+  await summary.focus();
+  await page.keyboard.press('Enter');
+  await expect(details).toHaveAttribute('open', '');
+  await expect(details.getByRole('heading', { level: 3, name: 'Wij constateren' })).toBeVisible();
+  await page.keyboard.press('Space');
+  await expect(details).not.toHaveAttribute('open', '');
+  const box = await summary.boundingBox();
+  expect(box?.height).toBeGreaterThanOrEqual(44);
+  expect(await headingOutlineProblems(page)).toEqual([]);
+  const ids = await page.locator('[id]').evaluateAll((all) => all.map((e) => e.id));
+  expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
+}
+
 // ADR 033 rule 4 (the campaign card): a card is a live reference. It shows the campaign as its landing page
 // and participation are when the host is read, on a page and an article, twice on one page, on a
 // host published by its schedule; it shows nothing for a draft, archived or untranslated campaign;
@@ -427,7 +456,10 @@ test('a campaign card: live on page, article and scheduled page; nothing when un
   await expect(cards).toHaveCount(2);
   await expect(cards.first()).toContainText('Petitie · nog niet open');
   await expect(cards.first()).toContainText(`Kaart kaart-${stamp}`);
-  await expect(page.getByRole('link', { name: 'Bekijk de campagne' })).toHaveCount(2);
+  // The full card links its title; the compact one has its button (ADR 038 rule 5).
+  await expect(page.getByRole('link', { name: 'Bekijk de campagne' })).toHaveCount(1);
+  await expect(cards.first().getByRole('link', { name: `Kaart kaart-${stamp}` })).toBeVisible();
+  await expectCardText(page, cards.first());
   await expect(page.getByRole('button', { name: 'Teken de petitie' })).toHaveCount(0);
   expect(response?.headers()['etag']).toBeTruthy();
   // Published in Dutch only: the English host shows no card for it.
@@ -465,7 +497,7 @@ test('a campaign card: live on page, article and scheduled page; nothing when un
 
   await page.goto(`/probe/articles/gast-artikel-${stamp}`);
   await expect(cards).toHaveCount(1);
-  await expect(cards).toContainText('Petitie · open');
+  await expect(cards.locator('.campaign-kind')).toHaveText('Petitie');
 
   // A tab on the host opened while the card had its form, posted after closing: the server
   // refuses (rule 3), and the page says so although the card no longer has a form to say it in.

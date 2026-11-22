@@ -93,7 +93,18 @@ async function setup() {
       diagnose,
     });
   };
-  return { invoker, admin, campaign, publishLanding, open, close, card, resolve, landing };
+  /** Gives the landing page these blocks in a new draft (publish it to show them). */
+  const write = async (blocks: Block[]) => {
+    const { revision } = await invoker.run(useCases.getItem, admin, {
+      itemId: campaign.landingItemId,
+    });
+    await invoker.run(useCases.updateItem, admin, {
+      itemId: campaign.landingItemId,
+      baseRevisionId: revision.id,
+      document: { ...revision.document, blocks },
+    });
+  };
+  return { invoker, admin, campaign, publishLanding, open, close, card, resolve, landing, write };
 }
 
 describe('a campaign card in the render model (ADR 033 rule 4)', () => {
@@ -107,6 +118,7 @@ describe('a campaign card in the render model (ADR 033 rule 4)', () => {
       width: 'content',
       campaign: null,
       form: null,
+      body: null,
     });
     const [diagnosed] = (await resolve([card('k')], { diagnose: true })).blocks;
     expect(diagnosed).toMatchObject({ campaign: null, diagnosis: 'draft' });
@@ -272,5 +284,77 @@ describe('a campaign card in the render model (ADR 033 rule 4)', () => {
       siteRoot: 'https://probe.example',
     });
     expect(markdown).toBe('# Thuis\n\n## [Red het park](<https://probe.example/red-het-park>)\n');
+  });
+});
+
+describe('the campaign text in a full card (ADR 038 rule 4)', () => {
+  const para = (text: string) => ({
+    type: 'doc' as const,
+    content: [{ type: 'paragraph' as const, content: [{ type: 'text' as const, text }] }],
+  });
+  const heading: Block = {
+    id: 'kop',
+    type: 'heading',
+    version: 1,
+    props: { text: { nl: 'Wij constateren' } },
+  };
+  const prose = (text: string): Block => ({
+    id: 'tekst',
+    type: 'rich-text',
+    version: 1,
+    props: { content: { nl: para(text) } },
+  });
+  const cta: Block = {
+    id: 'meer',
+    type: 'cta',
+    version: 1,
+    props: {
+      variant: 'band',
+      title: { nl: 'Meer' },
+      actions: [{ label: { nl: 'Lees' }, target: { kind: 'url', url: '/meer' } }],
+      width: 'content',
+      align: 'start',
+    },
+  };
+
+  it('shows the text blocks of the published revision, ids from the card, folded with a heading', async () => {
+    const { card, resolve, publishLanding, open, write } = await setup();
+    await write([heading, prose('Het park verdwijnt.'), cta]);
+    await publishLanding();
+    await open();
+    const model = await resolve([card('a'), card('b'), card('c', 'compact')]);
+    const [a, b, c] = model.blocks;
+    expect(a).toMatchObject({
+      body: {
+        blocks: [
+          { id: 'a-kop', type: 'heading', text: 'Wij constateren' },
+          { id: 'a-tekst', type: 'rich-text' },
+        ],
+        more: true,
+        open: false,
+      },
+    });
+    // A second card of the same campaign: the same text under its own ids.
+    expect(b).toMatchObject({ body: { blocks: [{ id: 'b-kop' }, { id: 'b-tekst' }] } });
+    expect(c).toMatchObject({ body: null });
+    // Markdown keeps a card a link with title and summary: no text, no count.
+    expect(
+      renderMarkdown(model, {
+        canonicalUrl: 'https://probe.example/thuis',
+        siteRoot: 'https://probe.example',
+      })
+    ).not.toContain('constateren');
+  });
+
+  it('shows a short text without a subheading open, and none at all without text', async () => {
+    const { card, resolve, publishLanding, open, write } = await setup();
+    await publishLanding();
+    await open();
+    expect((await resolve([card('k')])).blocks[0]).toMatchObject({ body: null });
+    await write([prose('Het park verdwijnt.')]);
+    await publishLanding();
+    expect((await resolve([card('k')])).blocks[0]).toMatchObject({
+      body: { more: false, open: true },
+    });
   });
 });
