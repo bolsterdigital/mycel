@@ -137,6 +137,20 @@ describe('a fundraiser', () => {
     expect(await t.read()).toMatchObject({ participants: 1, raised: { amount: 5000 } });
   });
 
+  it('starts from no earlier count: money comes from the ledger only (MY-288 PR B)', async () => {
+    const t = await setup();
+    await expectCode(
+      t.invoker.run(useCases.updateCampaign, t.admin, {
+        campaignId: t.campaign().id,
+        baseUpdatedAt: (await t.read()).updatedAt,
+        startingCount: 50,
+      }),
+      'invalid_input',
+      'campaign.starting-count.fundraiser'
+    );
+    expect(await t.read()).toMatchObject({ startingCount: 0, participants: 0 });
+  });
+
   it('refuses a gift once closed, before any checkout opens', async () => {
     const t = await setup();
     await t.step(useCases.closeCampaign);

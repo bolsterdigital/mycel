@@ -8,6 +8,7 @@ import {
   goalMilestones,
   goalTarget,
   milestonesInput,
+  startingCountOf,
 } from './campaign-count.js';
 
 describe('countFigures', () => {
@@ -55,5 +56,14 @@ describe('milestones as typed (MY-288)', () => {
     expect(goalMilestones('honderd', 'petition')).toBeNull();
     expect(milestonesInput([25_000, 50_000], 'fundraiser')).toBe('250, 500');
     expect(milestonesInput([], 'petition')).toBe('');
+  });
+});
+
+describe('a starting count as typed (MY-288 PR B)', () => {
+  it('reads a whole number of people, empty as zero, anything else as NaN', () => {
+    expect(startingCountOf('1200')).toBe(1200);
+    expect(startingCountOf(' ')).toBe(0);
+    expect(startingCountOf('12.5')).toBeNaN();
+    expect(startingCountOf('-3')).toBeNaN();
   });
 });

@@ -24,6 +24,7 @@ function read(row: Row): Campaign {
     goal: row.goal ?? null,
     counterVisible: row.counter_visible,
     erasedCount: row.erased_count,
+    startingCount: row.starting_count,
     archivedAt: toIso(row.archived_at),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
@@ -38,6 +39,7 @@ const fields = (c: Campaign) => ({
   closes_at: c.participation.closesAt,
   goal: c.goal === null ? null : JSON.stringify(c.goal),
   counter_visible: c.counterVisible,
+  starting_count: c.startingCount,
   archived_at: c.archivedAt,
   updated_at: c.updatedAt,
 });

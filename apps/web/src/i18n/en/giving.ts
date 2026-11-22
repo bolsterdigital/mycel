@@ -248,6 +248,9 @@ export const giving = {
   'admin.campaign.field.milestones': 'Milestones',
   'admin.campaign.field.milestones.hint':
     'For a goal that grows, for example 100, 500: the site shows the first milestone until 95% of it is reached, then the next, and finally the goal. Leave it empty for a fixed goal.',
+  'admin.campaign.field.startingCount': 'Starting count',
+  'admin.campaign.field.startingCount.hint':
+    'Signatures or sign-ups from before this site, for example a paper petition. Added to the count on the site, apart from those who confirmed here. Leave it empty to start at zero.',
   'admin.campaign.column.shownTarget': 'Goal on the site now',
   'admin.campaign.field.opensAt': 'Opens at',
   'admin.campaign.field.closesAt': 'Closes at',
@@ -271,7 +274,7 @@ export const giving = {
     'The form on this campaign is of another kind and cannot be used.',
   'admin.campaign.error.window': 'The closing time must be after the opening time.',
   'admin.campaign.error.goal':
-    'The goal must be a whole number above zero, and milestones rising and below the goal.',
+    'The goal must be a whole number above zero, milestones rising and below the goal, and a starting count a whole number.',
   'admin.campaign.error.archived': 'This campaign is archived and can no longer change.',
   'admin.campaign.error.invalid': 'Check the dates and the goal: one of them is not valid.',
   'admin.campaign.archivedHint': 'Archived: participation is closed for good.',

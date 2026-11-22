@@ -12,7 +12,7 @@ import type { UiKey } from '../../../i18n/index.js';
 import { fromLocalInput, localInput } from '../content/content-admin-publication.js';
 import { runtime } from '../runtime.js';
 import { text } from './admin-actions.js';
-import { goalMilestones, goalTarget } from '../../campaign-count.js';
+import { goalMilestones, goalTarget, startingCountOf } from '../../campaign-count.js';
 
 /** What the editor's side column shows of the campaign a page is the landing page of. */
 export interface CampaignPanel {
@@ -29,6 +29,8 @@ export interface CampaignPanel {
   /** The goal the site shows now: the current milestone, or `target`. */
   shownTarget: number | null;
   counterVisible: boolean;
+  /** An earlier count a petition or signup starts from (MY-288 PR B); 0 for a fundraiser. */
+  startingCount: number;
   opensAt: string;
   closesAt: string;
   baseUpdatedAt: string;
@@ -67,6 +69,7 @@ export async function campaignPanel(
       campaign.raised ? campaign.raised.amount : campaign.participants
     ),
     counterVisible: campaign.counterVisible,
+    startingCount: campaign.startingCount,
     opensAt: local(campaign.participation.opensAt),
     closesAt: local(campaign.participation.closesAt),
     baseUpdatedAt: campaign.updatedAt,
@@ -108,7 +111,8 @@ export function refusalOutcome(e: UseCaseError): CampaignOutcome {
   if (issue.startsWith('campaign.form.required')) return 'form-required';
   if (issue === 'campaign.form.kind-mismatch') return 'form-kind';
   if (issue.startsWith('campaign.window')) return 'window';
-  if (issue.startsWith('campaign.goal')) return 'goal';
+  if (issue.startsWith('campaign.goal') || issue.startsWith('campaign.starting-count'))
+    return 'goal';
   if (e.code === 'conflict') return 'conflict';
   return 'invalid';
 }
@@ -134,9 +138,13 @@ export function campaignFields(
   const closes = at('closesAt');
   const target = goalTarget(text(data, 'target'), kind);
   const milestones = goalMilestones(text(data, 'milestones'), kind);
-  if (!opens.ok || !closes.ok || Number.isNaN(target) || !milestones) return null;
+  // A fundraiser's panel has no starting count: its count is paid money (ADR 033 rule 8).
+  const starting = kind === 'fundraiser' ? 0 : startingCountOf(text(data, 'startingCount'));
+  if (!opens.ok || !closes.ok || Number.isNaN(target) || !milestones || Number.isNaN(starting))
+    return null;
   return {
     counterVisible: data.get('counterVisible') === 'on',
+    ...(kind === 'fundraiser' ? {} : { startingCount: starting }),
     goal: target === null ? null : { target, milestones },
     ...(canPublish ? { window: { opensAt: opens.at, closesAt: closes.at } } : {}),
   };

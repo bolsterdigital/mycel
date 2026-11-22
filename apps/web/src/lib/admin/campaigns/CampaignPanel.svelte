@@ -129,6 +129,21 @@
       {locale}
       value={milestonesInput(panel.milestones, panel.kind)}
     />
+    {#if panel.kind !== 'fundraiser'}
+      <Field
+        id="campaign-starting-count"
+        name="startingCount"
+        form={f}
+        type="number"
+        min={0}
+        step={1}
+        inputmode="numeric"
+        label={t('admin.campaign.field.startingCount')}
+        hint={t('admin.campaign.field.startingCount.hint')}
+        {locale}
+        value={panel.startingCount ? String(panel.startingCount) : ''}
+      />
+    {/if}
     <div class="ui-choice">
       <input
         type="checkbox"

@@ -1,6 +1,7 @@
 // Seed a campaign with a form and one participation for the portable archive round trip (ADR 033
-// rule 11). The participation row is written as the confirmation will write it. Rejected:
-// a campaign without participation, which would leave that table empty and its import unproven.
+// rule 11), with a starting count. The participation row is written as the confirmation will
+// write it. Rejected: a campaign without participation, which would leave that table empty and
+// its import unproven.
 import { sql, type Kysely } from 'kysely';
 import { useCases, type Invoker, type Principal } from '@mycel/core';
 import type { Database } from '../infra/schema.js';
@@ -29,6 +30,8 @@ export async function seedCampaign(
     landingItemId: landing.item.id,
     formId: form.id,
     goal: { target: 1000, milestones: [10, 100] },
+    // A starting count (0087, MY-288) travels as a column: a round trip that dropped it would show.
+    startingCount: 25,
   });
   await asRole(operatorDb, 'mycel_app', async (trx) => {
     await sql`select set_config('app.tenant_id', ${admin.tenantId}, true)`.execute(trx);

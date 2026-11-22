@@ -27,6 +27,7 @@ import {
   CampaignKind,
   FORM_KIND_OF,
   ParticipationWindow,
+  StartingCount,
   windowChanged,
 } from './model.js';
 import './ports.js';
@@ -55,6 +56,16 @@ async function lockCampaign(ctx: TransactionContext, id: string): Promise<Campai
   if (!campaign) throw notFound('campaign');
   return campaign;
 }
+
+/**
+ * A fundraiser starts from no earlier count (MY-288, ADR 033 rule 8 amendment 2026-11-22): its
+ * count is paid money from the ledger, and a free correction would be a gift nobody paid.
+ */
+const startsFrom = (kind: Campaign['kind'], startingCount: number) => {
+  if (kind === 'fundraiser' && startingCount !== 0)
+    throw refuse('invalid_input', 'startingCount', 'campaign.starting-count.fundraiser');
+  return startingCount;
+};
 
 const notArchived = (campaign: Campaign) => {
   if (campaign.archivedAt) throw refuse('conflict', 'campaignId', 'campaign.archived');
@@ -131,12 +142,13 @@ export const createCampaign = defineUseCase({
       formId: z.string().guid().nullable().default(null),
       goal: CampaignGoal.nullable().default(null),
       counterVisible: z.boolean().default(true),
+      startingCount: StartingCount.default(0),
       window: ParticipationWindow.default({ opensAt: null, closesAt: null }),
     })
     .strict(),
   output: CampaignView,
   examples: [{ input: { kind: 'petition', landingItemId: exampleId(0x1) } }],
-  async handler(ctx, { kind, landingItemId, formId, goal, counterVisible, window }) {
+  async handler(ctx, { kind, landingItemId, formId, goal, counterVisible, startingCount, window }) {
     const item = await lockItem(ctx, landingItemId);
     if (item.type !== 'page')
       throw refuse('invalid_input', 'landingItemId', 'campaign.landing.not-a-page');
@@ -156,6 +168,7 @@ export const createCampaign = defineUseCase({
       goal,
       counterVisible,
       erasedCount: 0,
+      startingCount: startsFrom(kind, startingCount),
       archivedAt: null,
       createdAt: now,
       updatedAt: now,
@@ -171,7 +184,7 @@ export const updateCampaign = defineUseCase({
   kind: 'command',
   requires: 'content:write',
   description:
-    'Change the form, goal, counter visibility or participation window of a campaign on the timestamp read by the caller; moving the window also requires publishing permission.',
+    'Change the form, goal, counter visibility, starting count (petition or signup only) or participation window of a campaign on the timestamp read by the caller; moving the window also requires publishing permission.',
   input: CampaignFields.extend({ campaignId: CampaignId, baseUpdatedAt: IsoDate }).strict(),
   output: CampaignView,
   examples: [
@@ -183,7 +196,10 @@ export const updateCampaign = defineUseCase({
       },
     },
   ],
-  async handler(ctx, { campaignId, baseUpdatedAt, formId, goal, counterVisible, window }) {
+  async handler(
+    ctx,
+    { campaignId, baseUpdatedAt, formId, goal, counterVisible, startingCount, window }
+  ) {
     const current = await lockCampaign(ctx, campaignId);
     if (Date.parse(current.updatedAt) !== Date.parse(baseUpdatedAt)) throw conflict();
     notArchived(current);
@@ -204,6 +220,9 @@ export const updateCampaign = defineUseCase({
         ...(formId !== undefined ? { formId } : {}),
         ...(goal !== undefined ? { goal } : {}),
         ...(counterVisible !== undefined ? { counterVisible } : {}),
+        ...(startingCount !== undefined
+          ? { startingCount: startsFrom(current.kind, startingCount) }
+          : {}),
         ...(window ? { participation: { ...current.participation, ...window } } : {}),
       },
       baseUpdatedAt

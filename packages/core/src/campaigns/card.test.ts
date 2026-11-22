@@ -289,6 +289,42 @@ describe('a goal that grows with the count (MY-288)', () => {
   });
 });
 
+describe('a starting count (MY-288 PR B)', () => {
+  it('adds to the count on card, landing and view, apart from participations, and never doubles', async () => {
+    const { uow, invoker, admin, start, publish, card, current } = setup();
+    const c = await start();
+    await publish(c.landingItemId, 'nl');
+    const set = async (startingCount: number) =>
+      invoker.run(useCases.updateCampaign, admin, {
+        campaignId: c.id,
+        baseUpdatedAt: (await current(c.id)).updatedAt,
+        goal: { target: 1000, milestones: [100, 500] },
+        startingCount,
+      });
+    await set(93);
+    await uow.run(admin, (ctx) =>
+      ctx.campaigns.recordParticipation({
+        campaignId: c.id,
+        supporterId: exampleId(0x70000),
+        submissionId: exampleId(0x71000),
+        confirmedAt: ctx.clock.now().toISOString(),
+      })
+    );
+    const landing = () => uow.run(admin, (ctx) => landingCampaignOf(ctx, c.landingItemId));
+    // 93 from before plus one confirmed: 94 of the first milestone, still under 95 %.
+    expect(await current(c.id)).toMatchObject({ startingCount: 93, participants: 94 });
+    expect(await card(c.id)).toMatchObject({ counter: { participants: 94, target: 100 } });
+    expect((await landing())!.counter).toMatchObject({ participants: 94, target: 100 });
+    // Setting the same number again, as a repeated import does, changes nothing.
+    await set(93);
+    expect(await card(c.id)).toMatchObject({ counter: { participants: 94, target: 100 } });
+    // One more counts it past 95 % of the first milestone; the participation rows stay one.
+    await set(94);
+    expect((await landing())!.counter).toMatchObject({ participants: 95, target: 500 });
+    expect(uow.store.for(TENANT).participations.size).toBe(1);
+  });
+});
+
 describe('a campaign card in a document (ADR 033 rules 4, 9 and 10)', () => {
   const host = (campaignId: string) => ({
     type: 'page' as const,

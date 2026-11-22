@@ -103,9 +103,13 @@ describe.skipIf(skip)('campaigns through Postgres', () => {
       baseUpdatedAt: created.updatedAt,
       window,
       counterVisible: false,
+      startingCount: 120,
     });
+    // A starting count (0087, MY-288) is stored as set and counts with the participations.
     expect(moved).toMatchObject({
       counterVisible: false,
+      startingCount: 120,
+      participants: 120,
       participation: { state: 'draft', ...window },
     });
     await expectCode(
@@ -140,13 +144,36 @@ describe.skipIf(skip)('campaigns through Postgres', () => {
       campaignId: created.id,
       baseUpdatedAt: closed.updatedAt,
     });
-    expect(archived).toMatchObject({ participation: { state: 'closed' }, participants: 0 });
+    expect(archived).toMatchObject({ participation: { state: 'closed' }, participants: 120 });
     expect(archived.archivedAt).not.toBeNull();
     const { campaigns } = await invoker.run(useCases.listCampaigns, admin, { archived: true });
     expect(campaigns.map((c) => c.id)).toContain(created.id);
     expect(
       (await invoker.run(useCases.listCampaigns, admin, {})).campaigns.map((c) => c.id)
     ).not.toContain(created.id);
+  });
+
+  it('refuses a starting count on a fundraiser, in the use case and in the table', async () => {
+    const fund = await invoker.run(useCases.composeCampaign, admin, {
+      kind: 'fundraiser',
+      title: { nl: 'Geef' },
+      defaultLocale: 'nl',
+      locales: ['nl'],
+      slug: 'geef-mee',
+    });
+    await expectCode(
+      invoker.run(useCases.updateCampaign, admin, {
+        campaignId: fund.id,
+        baseUpdatedAt: fund.updatedAt,
+        startingCount: 10,
+      }),
+      'invalid_input',
+      'campaign.starting-count.fundraiser'
+    );
+    // The backstop under the use case: money is counted from the ledger only (ADR 033 rule 8).
+    await expect(
+      sql`update campaigns set starting_count = 10 where id = ${fund.id}`.execute(owner)
+    ).rejects.toThrow(/campaigns_fundraiser_no_starting_count/);
   });
 
   it('holds the landing page public and out of the trash while bound', async () => {
