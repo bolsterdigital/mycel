@@ -15,7 +15,8 @@ export const onlyA11y = (reason = 'runs with JavaScript, in the a11y project'): 
 
 // The scripts a public page may carry (ADR 009 rule 4: no client framework on a content page):
 // a form's proof-of-work module (brief form-intake § D2.3), the lightbox of an image that opens
-// larger and the site navigation's enhancement (ADR 036 rule 12), all plain modules from the site's own origin. One list, so a spec that counts
+// larger, the site navigation's enhancement (ADR 036 rule 12) and the "read more" of a full
+// campaign card's long text (ADR 038 amendment), all plain modules from the site's own origin. One list, so a spec that counts
 // the other scripts on a page does not spell it again.
 // Rejected: each spec naming the files it expects, which drifted into four copies of one selector.
 
@@ -26,6 +27,7 @@ export const PUBLIC_SCRIPTS = [
   '/_form/conditions.js',
   '/_image/lightbox.js',
   NAVIGATION_SCRIPT,
+  '/_site/campaign-body.js',
 ] as const;
 
 /** Unexpected executable scripts; application/ld+json is an inert data block. */

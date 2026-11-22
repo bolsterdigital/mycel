@@ -1,6 +1,7 @@
-// When a full campaign card shows the campaign's text open instead of in `<details>` (ADR 038
-// rule 4): a short text without subheadings reads in one glance, so folding it away only adds a
-// click. The limit is a word count over what the card shows (headings, paragraphs, quotes,
+// When a full campaign card's text needs no "read more" (ADR 038 rule 4 and its amendment of
+// 2026-11-22): a short text without subheadings reads in one glance, so shortening it only adds a
+// click; a longer one loads `CAMPAIGN_BODY_SCRIPT`, which measures it and shortens it only when it
+// stands taller than its limit. The limit is a word count over what the card shows (headings, paragraphs, quotes,
 // callouts; not image captions), set here with its test. Rejected: a character count (it varies
 // with the language more than words do) and leaving the choice to the editor (a stored flag per
 // card, while the same campaign text then folds on one page and not on another).
@@ -8,7 +9,7 @@
 import type { RichTextDoc } from '@mycel/core';
 import type { RenderBlock } from './model.js';
 
-/** At most this many words and no subheading: the card shows the text open. */
+/** At most this many words and no subheading: the card shows the text whole, without a script. */
 export const CARD_BODY_OPEN_WORDS = 80;
 
 type Node = { type: string; text?: string; content?: readonly Node[] };
@@ -41,3 +42,6 @@ export function opensInCard(blocks: readonly RenderBlock[]): boolean {
   }
   return count <= CARD_BODY_OPEN_WORDS;
 }
+
+/** Shortens a long card text with a fade and adds "read more"; one module per page, own origin. */
+export const CAMPAIGN_BODY_SCRIPT = '/_site/campaign-body.js';

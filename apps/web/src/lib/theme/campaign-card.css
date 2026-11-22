@@ -78,3 +78,37 @@
 .campaign-notice-text {
   font-weight: 700;
 }
+
+/* A full card is the campaign layout itself (campaign.css, MY-276) without a frame of its own: the
+   header image runs to the card's edges, and on `width-full` to the screen's; intro and action
+   area slide into it as on the landing page. Its columns keep an inset from the image's edges
+   (the wide rail on `width-full`). The title links to the landing page, underlined only on
+   pointing and focus, at a size for the card. */
+.campaign-card-full .campaign-card-inner {
+  display: block;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+  background: none;
+}
+.campaign-card-full.width-full {
+  padding: 0;
+  background: none;
+}
+.campaign-card-full.width-full > * {
+  max-width: none;
+}
+.campaign-card .campaign-layout {
+  --campaign-edge: max(var(--wide-inset), min(var(--space-4), 4cqi));
+  margin-block-end: 0;
+}
+.campaign-card .campaign-intro :is(h2, h3, h4, h5, h6) {
+  font-size: clamp(var(--step-2), 0.5rem + 3cqi, var(--step-3));
+}
+.campaign-card .campaign-intro a {
+  color: inherit;
+  text-decoration: none;
+}
+.campaign-card .campaign-intro a:is(:hover, :focus-visible) {
+  text-decoration: underline;
+}

@@ -17,14 +17,21 @@ const card = (campaignId: string, variant = 'compact', width = 'content') => ({
   version: DEFS['campaign-card'].version,
   props: { campaignId, variant, width },
 });
-const text = (words: string) => ({
+/** One rich-text block, a paragraph per argument: two rich-text blocks may not stand adjacent. */
+const text = (...paragraphs: string[]) => ({
   type: 'rich-text' as const,
   version: DEFS['rich-text'].version,
   props: {
     content: Object.fromEntries(
       ['nl', 'en'].map((l) => [
         l,
-        { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: words }] }] },
+        {
+          type: 'doc',
+          content: paragraphs.map((p) => ({
+            type: 'paragraph',
+            content: [{ type: 'text', text: p }],
+          })),
+        },
       ])
     ),
   },
@@ -49,7 +56,8 @@ export async function campaignCardFixture(stamp: string) {
       const { item, revision } = await invoker.run(useCases.getItem, editor, {
         itemId: c.landingItemId,
       });
-      // The campaign's text, which a full card shows folded (ADR 038 rule 4).
+      // The campaign's text, which a full card shows open and, this long, shortened with "Lees
+      // verder" (ADR 038 rule 4 and its amendment).
       const saved = blocks.length
         ? await invoker.run(useCases.updateItem, editor, {
             itemId: item.id,
@@ -66,7 +74,12 @@ export async function campaignCardFixture(stamp: string) {
         version: DEFS.heading.version,
         props: { text: { nl: 'Wij constateren', en: 'We note' } },
       },
-      text('Het park is de enige groene plek in de wijk.'),
+      text(
+        'Het park is de enige groene plek in de wijk.',
+        'Elke zomer spelen er honderden kinderen, en op warme avonden zoeken bewoners er de koelte op. Zonder het park is de dichtstbijzijnde boom een kwartier lopen.',
+        'De gemeente wil op deze plek een parkeergarage bouwen. Een garage kan ook onder de grond, aan de rand van de wijk, waar al een gebouw leeg staat.',
+        'Wij vragen de gemeenteraad daarom het park te laten staan, het bestemmingsplan aan te passen en de garage elders te zoeken, samen met de bewoners.'
+      ),
     ]);
     const draft = await start(`kaart-concept-${stamp}`, false);
     const old = await start(`kaart-oud-${stamp}`, true);

@@ -68,11 +68,8 @@ export function blockCopy(locale: string): BlockCopy {
         fundraiser: t('block.campaign.act.fundraiser'),
       },
       more: t('block.campaign.more'),
-      read: {
-        petition: t('block.campaign.read.petition'),
-        signup: t('block.campaign.read.signup'),
-        fundraiser: t('block.campaign.read.fundraiser'),
-      },
+      readMore: t('block.campaign.readMore'),
+      readLess: t('block.campaign.readLess'),
       readOn: t('block.campaign.readOn'),
       notOpen: {
         upcoming: t('block.campaign.notOpen.upcoming'),

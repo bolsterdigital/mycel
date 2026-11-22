@@ -7,7 +7,9 @@
      stands) and the body (the page's own blocks, open, headings from h2). In a card (`card`) the
      image is decorative and lazy (the title names the card), the intro is a div whose title sits
      at the card's level and links to the landing page, the action area has no heading of its own,
-     and the body is the campaign's text in a native `<details>` unless it is short. DOM, reading
+     and the body is the campaign's text, open; a long one carries the words of the "read more"
+     button that `campaign-body.js` adds (ADR 038 amendment, item 2), and without the script it
+     stands whole. DOM, reading
      and tab order is intro, action, body; campaign.css puts the action beside intro and body once
      the container is wide enough, and keeps one column in that order otherwise. The landing
      page's thank-you view (ADR 038 rule 8) is the landing page's layout with the thanks as lead,
@@ -23,6 +25,7 @@
   import { headingTag } from './headings.js';
   import { withBase } from './rich-text.js';
   import { IMAGE_SIZES } from './sizes.js';
+  import { CAMPAIGN_BODY_SCRIPT } from './card-body.js';
   import type { FormState, RenderImage, RenderIntro, RenderLanding, RenderModel } from './model.js';
 
   let {
@@ -48,8 +51,8 @@
       href: string;
       image: RenderImage | null;
       sizes: string;
-      /** The `<summary>` of a folded body; null shows it open. */
-      fold: string | null;
+      /** Whether a long body may be shortened with "read more" (campaign-body.js). */
+      clamp: boolean;
     } | null;
     model: RenderModel;
     /** The action area's own heading; off on the thank-you view, where the count stands alone. */
@@ -67,6 +70,10 @@
   const lead = $derived(card ? card.lead : (intro?.lead ?? null));
   const hero = $derived(card ? !!card.image : !!intro?.hero);
 </script>
+
+<svelte:head>
+  {#if card?.clamp}<script type="module" src={CAMPAIGN_BODY_SCRIPT}></script>{/if}
+</svelte:head>
 
 <div
   class="campaign-layout"
@@ -120,11 +127,21 @@
     {note}
   />
   {#if children}
-    {#if card?.fold}
-      <details class="campaign-body">
-        <summary>{card.fold}</summary>
-        {@render children()}
-      </details>
+    {#if card}
+      <div class="campaign-body">
+        {#if card.clamp}
+          <div
+            class="campaign-text"
+            id="{id}-text"
+            data-more={copy.readMore}
+            data-less={copy.readLess}
+          >
+            {@render children()}
+          </div>
+        {:else}
+          <div class="campaign-text">{@render children()}</div>
+        {/if}
+      </div>
     {:else}
       <div class="campaign-body">{@render children()}</div>
     {/if}

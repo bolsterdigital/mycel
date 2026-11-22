@@ -1,23 +1,39 @@
-/* The campaign layout (ADR 038 rules 1, 2 and 7): one set of areas and classes for a campaign's
-   landing page and its full card, laid out by a container query, so the page (its container is
-   `.page`) and a card (its container is `.campaign-card`) each choose their arrangement from their
-   own width. Below the threshold everything is one column in DOM order: intro, action, body. From
-   it the action area stands beside intro and body, at least 18rem wide so an e-mail field shows
-   some 26 characters (as measured on Dreamkit), and the text keeps its measure. Imported into the
-   `components` layer, against the theme's properties and pairs only. Rejected: viewport media
-   queries (a narrow column on a wide screen).
+/* The campaign layout (ADR 038 rules 1, 2 and 7, and its amendment of 2026-11-22): one set of areas
+   and classes for a campaign's landing page and its full card, laid out by a container query, so
+   the page (its container is `.page`) and a card (its container is `.campaign-card`) each choose
+   their arrangement from their own width. Below the threshold everything is one column in DOM
+   order: intro, action, body. From it the action area stands beside intro and body, at least 18rem
+   wide so an e-mail field shows some 26 characters (as measured on Dreamkit), and the text keeps
+   its measure. Imported into the `components` layer, against the theme's properties and pairs
+   only. Rejected: viewport media queries (a narrow column on a wide screen).
+
+   The header image (MY-276, Jaap 2026-11-22: "zoals de petitie in Dreamkit") runs the layout's
+   full width, lower than an ordinary page header, and intro and action area slide into it as
+   cards, the action area further than the intro. The overlap comes from rows the image shares with
+   the columns, so nothing reaches outside the layout or over content above it, and without a
+   header image there is none. The columns stand at `--campaign-edge` from the image's edges: the
+   wide rail on the landing page (`--wide-inset` resolves against the layout, which is the page's
+   full width) and in a card on `width-full`, an inset in a narrower card. Rows carry no gap, since
+   a gap inside the image's rows would change its height; the areas keep their distance with
+   margins. Rejected: negative margins (the predecessor's overlap bled into content above) and the
+   image as a CSS background (no alt, no loading hint).
 
    A compact action area (`campaign-action-sticky`, set by the server for a form of at most four
    visible fields) stays in view while the text beside it scrolls, CSS only (ADR 038 rule 9): only
-   with the columns side by side, only in a window at least 45rem high (rem, so larger text
-   counts), and bounded by its grid area, so it never leaves the page's or the card's layout
+   where the columns stand side by side and the window is at least 45rem high, bounded by the
+   layout because its grid area spans the text's rows, so it never covers what follows the campaign
    (Jaap's Dreamkit wish, 2026-06). At 200% zoom the layout is one column and sticky lapses.
    Rejected: sticky to the viewport (it covered content below the campaign) and a script that
    measures the form. */
 .campaign-layout {
+  --campaign-hero-block-size: clamp(15rem, 45svh, 30rem);
+  --campaign-lift: 2.5rem;
+  --campaign-pad: var(--inset);
+  --campaign-edge: var(--wide-inset);
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-3);
+  grid-template-columns:
+    [full-start] var(--campaign-edge) [main-start] minmax(0, 1fr) [main-end] var(--campaign-edge)
+    [full-end];
   margin-block-end: var(--space-3);
 }
 /* Every area and column may shrink below its longest word, which a heading's `break-word` then
@@ -29,109 +45,49 @@
   min-width: 0;
   margin: 0;
 }
-/* In a card the areas are named; the landing page places them on lines (below), because its
-   image shares rows with the columns. */
-.campaign-card .campaign-layout {
-  grid-template-areas: 'intro' 'action' 'body';
-}
-.campaign-card .campaign-layout.campaign-with-hero {
-  grid-template-areas: 'hero' 'intro' 'action' 'body';
-}
-.campaign-card .campaign-hero {
-  grid-area: hero;
-}
-.campaign-card .campaign-intro {
-  grid-area: intro;
-}
-.campaign-card .campaign-action {
-  grid-area: action;
-}
-.campaign-card .campaign-body {
-  grid-area: body;
-}
-/* 30rem of text, an 18-22rem action area and the gap, plus the gutters. */
-@container (min-width: 56rem) {
-  .campaign-card .campaign-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
-    grid-template-areas: 'intro action' 'body action';
-    grid-template-rows: auto 1fr;
-    column-gap: var(--space-4);
-    align-items: start;
-  }
-  .campaign-card .campaign-layout.campaign-with-hero {
-    grid-template-areas: 'hero hero' 'intro action' 'body action';
-    grid-template-rows: auto auto 1fr;
-  }
-  @media (min-height: 45rem) {
-    .campaign-action-sticky {
-      position: sticky;
-      /* Below the sticky site header when there is one (MY-266 PR D sets its height). */
-      top: calc(var(--site-sticky-block-size, 0px) + var(--space-3));
-    }
-  }
-}
-
-/* The landing page (MY-276, Jaap 2026-11-22: "zoals de petitie in Dreamkit"): the header image
-   runs the page's full width, lower than an ordinary page header, and intro and action area slide
-   into it as cards, the action area further than the intro. The overlap comes from rows the image
-   shares with the columns (ADR 038 addendum 2026-11-22), so nothing reaches outside the layout or
-   over content above it, and without a header image there is none. The columns stand on the wide
-   rail: `--wide-inset` resolves against the layout, which is the page's full width. Rows carry no
-   gap, since a gap inside the image's rows would change its height; the areas keep their distance
-   with margins. Rejected: negative margins (the predecessor's overlap bled into content above) and
-   the image as a CSS background (no alt, no loading hint). */
-.campaign-landing {
-  --campaign-hero-block-size: clamp(15rem, 45svh, 30rem);
-  --campaign-lift: 2.5rem;
-  --campaign-pad: var(--inset);
-  grid-template-columns:
-    [full-start] var(--wide-inset) [main-start] minmax(0, 1fr) [main-end] var(--wide-inset)
-    [full-end];
-  gap: 0;
-}
-.campaign-landing > * {
+.campaign-layout > * {
   grid-column: main;
 }
 /* Positioned like the image (for its caption), so the later cards paint over it; without weight,
    so a sticky action area stays sticky. */
-:where(.campaign-landing) > :where(*) {
+:where(.campaign-layout) > :where(*) {
   position: relative;
 }
 /* The image meets the site header: the page's top padding would leave a strip above it. */
 .page:not(.admin):has(> .campaign-landing.campaign-with-hero:first-child) {
   padding-block-start: 0;
 }
-.campaign-landing > .campaign-action,
-.campaign-landing > .campaign-body {
+.campaign-layout > .campaign-action,
+.campaign-layout > .campaign-body {
   margin-block-start: var(--space-3);
 }
-.campaign-landing.campaign-with-hero {
+.campaign-with-hero {
   grid-template-rows: calc(var(--campaign-hero-block-size) - var(--campaign-lift)) var(
       --campaign-lift
     );
 }
-.campaign-landing > .campaign-hero {
+.campaign-layout > .campaign-hero {
   grid-column: full;
   grid-row: 1 / 3;
 }
-.campaign-landing.campaign-with-hero > .campaign-intro {
+.campaign-with-hero > .campaign-intro {
   grid-row: 2 / 4;
 }
-.campaign-landing .campaign-hero :is(picture, img) {
+.campaign-hero :is(picture, img) {
   display: block;
   width: 100%;
   height: 100%;
 }
-.campaign-landing .campaign-hero img {
+.campaign-hero img {
   object-fit: cover;
 }
 /* The caption and credit stand on the image's top corner at the wide rail's end, as a label on
    the body pair (the caption colour is checked against it): the intro and action area cover the
    image's lower edge, where a caption would otherwise go. */
-.campaign-landing .campaign-hero figcaption {
+.campaign-hero figcaption {
   position: absolute;
   inset-block-start: var(--space-2);
-  inset-inline-end: var(--wide-inset);
+  inset-inline-end: var(--campaign-edge);
   max-width: min(30rem, 100% - 2 * var(--gutter));
   margin: 0;
   padding: 0.25rem 0.5rem;
@@ -144,11 +100,11 @@
 }
 /* The text column is a card on the body pair over the image, its text inset from the image's
    edge; the body below keeps that inset, so intro and body share one left edge. */
-.campaign-landing > :is(.campaign-intro, .campaign-body) {
+.campaign-layout > :is(.campaign-intro, .campaign-body) {
   max-width: none;
   padding-inline: var(--campaign-pad);
 }
-.campaign-landing > .campaign-intro {
+.campaign-layout > .campaign-intro {
   padding-block: var(--campaign-pad) 0;
   border-radius: var(--radius) var(--radius) 0 0;
   color: var(--color-body-fg);
@@ -160,7 +116,7 @@
 /* The action area is a card of its own on the body pair, lifted by a shadow in the text colour
    (a border that only forced colours draw takes its place there); the count is a tinted band
    across its top, edge to edge, and the submit button fills the width. */
-.campaign-landing .campaign-action {
+.campaign-layout > .campaign-action {
   /* In vw, not the page's cqi: the area is a container itself, so a cqi inset would resolve
      against the page in its padding and against the area in the band's margins. */
   --campaign-pad: min(var(--space-3), 5vw);
@@ -170,7 +126,7 @@
   background: var(--color-body-bg);
   box-shadow: 0 4px 20px color-mix(in srgb, var(--color-body-fg) 14%, transparent);
 }
-.campaign-landing .campaign-action > .campaign-count {
+.campaign-layout > .campaign-action > .campaign-count {
   margin: calc(-1 * var(--campaign-pad)) calc(-1 * var(--campaign-pad)) 0;
   padding: var(--campaign-pad);
   border-radius: var(--radius) var(--radius) 0 0;
@@ -178,48 +134,72 @@
   background: var(--color-surface-bg);
 }
 /* Wide: text and action area side by side at about 2 : 1.3 (Dreamkit), the intro 5rem into the
-   image and the action area 7.5rem, so the form starts higher than the title. */
+   image and the action area 7.5rem, so the form starts higher than the title. 30rem of text, an
+   18rem action area and the gap, plus the gutters. */
 @container (min-width: 56rem) {
-  .campaign-landing {
+  .campaign-layout {
     --campaign-lift: 5rem;
     --campaign-pad: max(var(--inset), min(var(--space-4), 3cqi));
     grid-template-columns:
-      [full-start] var(--wide-inset) [main-start text-start] minmax(0, 2fr)
+      [full-start] var(--campaign-edge) [main-start text-start] minmax(0, 2fr)
       [text-end] var(--space-4) [action-start] minmax(18rem, 1.3fr) [action-end main-end] var(
-        --wide-inset
+        --campaign-edge
       )
       [full-end];
     grid-template-rows: auto 1fr;
   }
-  .campaign-landing > :is(.campaign-intro, .campaign-body) {
+  .campaign-layout > :is(.campaign-intro, .campaign-body) {
     grid-column: text;
   }
-  .campaign-landing > .campaign-action {
+  .campaign-layout > .campaign-action {
     grid-column: action;
     grid-row: 1 / 3;
     align-self: start;
     margin-block-start: 0;
   }
-  .campaign-landing > .campaign-body {
+  .campaign-layout > .campaign-body {
     grid-row: 2;
   }
-  .campaign-landing.campaign-with-hero {
+  .campaign-with-hero {
     grid-template-rows:
       calc(var(--campaign-hero-block-size) - 1.5 * var(--campaign-lift))
       calc(0.5 * var(--campaign-lift)) var(--campaign-lift) auto 1fr;
   }
-  .campaign-landing.campaign-with-hero > .campaign-hero {
+  .campaign-with-hero > .campaign-hero {
     grid-row: 1 / 4;
   }
-  .campaign-landing.campaign-with-hero > .campaign-intro {
+  .campaign-with-hero > .campaign-intro {
     grid-row: 3 / 5;
   }
-  .campaign-landing.campaign-with-hero > .campaign-action {
+  .campaign-with-hero > .campaign-action {
     grid-row: 2 / 6;
   }
-  .campaign-landing.campaign-with-hero > .campaign-body {
+  .campaign-with-hero > .campaign-body {
     grid-row: 5;
   }
+  @media (min-height: 45rem) {
+    .campaign-action-sticky {
+      position: sticky;
+      /* Below the sticky site header when there is one (MY-266 PR D sets its height). */
+      top: calc(var(--site-sticky-block-size, 0px) + var(--space-3));
+    }
+  }
+}
+/* A full card's text stands open; campaign-body.js shortens a long one with a fade and adds the
+   "read more" button after it (ADR 038 amendment, item 2). The height is about the action area's
+   beside it, never under 18rem; without the script the class never comes and the whole text
+   stands there. A mask, not a gradient in the body colour, so the fade works on any pair. */
+.campaign-text-clamped {
+  max-block-size: 18rem;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 5rem), transparent);
+}
+.campaign-more {
+  margin-block-start: var(--space-2);
+}
+/* `.button` displays as a flex box, which would show a button the script hid. */
+.campaign-more[hidden] {
+  display: none;
 }
 .campaign-intro,
 .campaign-body {
@@ -331,39 +311,13 @@
   background: var(--color-accent-bg);
 }
 
-/* In a full card (ADR 038 rule 4) the card is the surface: the action area keeps its place in the
-   grid without a second surface inside it, the image is a band above the columns, and the title
-   is the card's, a link to the landing page. The folded text is a native `<details>` with the
-   native marker, its summary a full tap target. */
-.campaign-card .campaign-layout {
-  min-width: 0;
-  margin-block-end: 0;
-}
-.campaign-card .campaign-hero img {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 2 / 1;
-  object-fit: cover;
-  border-radius: var(--radius);
-}
-.campaign-card .campaign-action {
-  padding: 0;
-  background: none;
-}
-.campaign-card .campaign-intro :is(h2, h3, h4, h5, h6) {
-  font-size: var(--step-2);
-}
-.campaign-card .campaign-body > :not(summary) {
+/* A full card's text: its blocks fill the text column, as on the landing page. */
+.campaign-card .campaign-text > * {
   max-width: none;
   margin-inline: 0;
 }
-.campaign-body > summary {
-  display: list-item;
-  min-height: var(--tap);
-  padding-block: var(--space-1);
-  font-weight: 700;
-  cursor: pointer;
+.campaign-text > :first-child {
+  margin-block-start: 0;
 }
 
 /* The thank-you view's share links (ADR 038 rule 8): whole buttons that wrap to the next line

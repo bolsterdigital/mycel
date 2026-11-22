@@ -71,8 +71,9 @@ export interface BlockCopy {
     act: Record<CampaignKind, string>;
     /** The button to the landing page otherwise. */
     more: string;
-    /** The summary of a full card's folded campaign text, per kind. */
-    read: Record<CampaignKind, string>;
+    /** The buttons under a full card's shortened campaign text (campaign-body.js). */
+    readMore: string;
+    readLess: string;
     /** Where a card's text leaves blocks out: the link to the rest on the landing page. */
     readOn: string;
     /** In place of a form whose campaign does not accept participation now. */
