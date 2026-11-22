@@ -2,6 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-11-01
+- **Rules 1 and 3 partly superseded**: 2026-11-22 by [ADR 038](038-campaign-presentation.md), for landing pages bound to a campaign (header image first; a second, fixed page header layout chosen by the binding).
 - **Refines**: ADR 004 rules 1 and 5 (document metadata, versioned block schemas), ADR 012 rule 1 (page and article fields), ADR 020 rules 1 and 6 (stable ids, revisioned operations)
 - **Builds on**: ADR 007 (localisation), ADR 009 (one registry, HTML first), ADR 018 (revisions, baseRevisionId, separate publish capability)
 
