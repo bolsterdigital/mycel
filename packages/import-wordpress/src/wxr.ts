@@ -37,6 +37,12 @@ export interface WxrTerm {
   name: string;
 }
 
+/** A term of any taxonomy as the channel declares it; a block names one by its id. */
+export interface WxrChannelTerm extends WxrTerm {
+  id: number;
+  taxonomy: string;
+}
+
 export interface WxrPost {
   id: number;
   type: string;
@@ -54,6 +60,8 @@ export interface WxrPost {
   attachmentUrl: string | null;
   categories: WxrTerm[];
   tags: WxrTerm[];
+  /** The Wings people and organisation categories (`people_category`, `organization_category`). */
+  groups: { taxonomy: string; slug: string }[];
   language: string | null;
   translationGroup: string | null;
   meta: Record<string, string>;
@@ -63,8 +71,13 @@ export interface WxrExport {
   site: WxrSite;
   authors: WxrAuthor[];
   categories: WxrTerm[];
+  /** Every `<wp:term>` of the channel, in export order. */
+  terms: WxrChannelTerm[];
   posts: WxrPost[];
 }
+
+/** The Wings taxonomies whose terms become person groups (MY-281). */
+export const GROUP_TAXONOMIES = ['people_category', 'organization_category'];
 
 // WordPress stores term names and post titles HTML-escaped (`Acties &amp; campagnes`) and writes
 // them so into the CDATA of the export; they are decoded once more where they are read.
@@ -104,6 +117,9 @@ function readPost(item: Element): WxrPost {
     attachmentUrl: field(item, 'wp:attachment_url') || null,
     categories: ofDomain('category'),
     tags: ofDomain('post_tag'),
+    groups: GROUP_TAXONOMIES.flatMap((taxonomy) =>
+      ofDomain(taxonomy).map((t) => ({ taxonomy, slug: t.slug }))
+    ),
     language: ofDomain('language')[0]?.slug ?? null,
     translationGroup: ofDomain('post_translations')[0]?.slug ?? null,
     meta,
@@ -131,6 +147,12 @@ export function readWxr(xml: string): WxrExport {
     categories: childElements(channel, 'wp:category').map((c) => ({
       slug: field(c, 'wp:category_nicename'),
       name: decodeEntities(field(c, 'wp:cat_name')),
+    })),
+    terms: childElements(channel, 'wp:term').map((t) => ({
+      id: Number(field(t, 'wp:term_id')),
+      taxonomy: field(t, 'wp:term_taxonomy'),
+      slug: field(t, 'wp:term_slug'),
+      name: decodeEntities(field(t, 'wp:term_name')),
     })),
     posts: childElements(channel, 'item').map(readPost),
   };

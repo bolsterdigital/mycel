@@ -31,7 +31,8 @@ export interface HeaderDraft {
 }
 
 /** Why a block is left out; `empty` is silent, every other reason is a report line. */
-export type SkipReason = 'unsupported' | 'shortcode' | 'alt-missing' | 'media-missing' | 'empty';
+export type SkipReason =
+  'unsupported' | 'shortcode' | 'alt-missing' | 'media-missing' | 'people-missing' | 'empty';
 
 export type Mapped =
   | { kind: 'blocks'; blocks: BlockDraft[] }
@@ -46,6 +47,12 @@ export interface MapContext {
   media(id: unknown): MediaRef | null;
   /** The placeholder id of a post in the export, for a link that names one by id. */
   item(id: unknown): string | null;
+  /** The placeholder id of a Wings person or organisation post (MY-281). */
+  person(id: unknown): string | null;
+  /** The placeholder id of the person group made from a Wings category, by its term id. */
+  personGroup(termId: unknown): string | null;
+  /** Every imported person or every organisation, in the order Wings lists them (by title). */
+  everyone(kind: 'person' | 'organisation'): string[];
   /** A remark on this block that does not leave it out. */
   note(code: NoteCode, detail?: string): void;
 }
@@ -55,7 +62,8 @@ export type NoteCode =
   | 'video.title-from-item'
   | 'timeline.date-completed'
   | 'timeline.event-without-date'
-  | 'hero.action-dropped';
+  | 'hero.action-dropped'
+  | 'people.missing';
 
 type Entry = (block: WpBlock, ctx: MapContext) => Mapped;
 
@@ -322,6 +330,49 @@ function hero(block: WpBlock, ctx: MapContext): Mapped {
   };
 }
 
+/**
+ * A Wings people grid as a `people-grid` (MY-281): a category becomes the person group made from
+ * it, a selection keeps its order, and "all" is every imported entry of that kind. A card in Wings
+ * shows a role, an organisation's description and the social links; `showName` and `showImage`
+ * have no counterpart, because a Mycel card always names its person.
+ */
+function peopleGrid(block: WpBlock, ctx: MapContext): Mapped {
+  const a = block.attrs;
+  const organisations = a.contentType === 'organizations';
+  const look = {
+    columns: String(Math.min(4, Math.max(2, Math.round(Number(a.columns) || 4)))),
+    showRole: true,
+    showBio: organisations,
+    showContact: a.showSocialMedia !== false,
+  };
+  const mode = str(a.displayMode) || 'all';
+  if (mode === 'category') {
+    const groupId = ctx.personGroup(a.selectedCategory);
+    return groupId
+      ? blocks({ type: 'people-grid', props: { source: 'group', groupId, people: [], ...look } })
+      : skip('people-missing');
+  }
+  let refs: string[];
+  if (mode === 'selected') {
+    refs = [];
+    for (const id of Array.isArray(a.selectedItems) ? a.selectedItems : []) {
+      const ref = ctx.person(id);
+      if (!ref) ctx.note('people.missing', String(id));
+      else if (!refs.includes(ref)) refs.push(ref);
+    }
+  } else refs = ctx.everyone(organisations ? 'organisation' : 'person').slice(0, 100);
+  if (!refs.length) return skip('people-missing');
+  return blocks({
+    type: 'people-grid',
+    props: {
+      source: 'selection',
+      groupId: null,
+      people: refs.map((personId) => ({ personId })),
+      ...look,
+    },
+  });
+}
+
 function file(block: WpBlock, ctx: MapContext): Mapped {
   const media = ctx.media(block.attrs.id);
   if (!media) return skip('media-missing');
@@ -385,6 +436,7 @@ export const BLOCK_MAP: Record<string, Entry> = {
   'wings/faq': faq,
   'wings/timeline': timeline,
   'wings/hero': hero,
+  'wings/people-organizations-grid': peopleGrid,
   'core/file': file,
   'core/audio': audio,
   'core/shortcode': () => skip('shortcode'),

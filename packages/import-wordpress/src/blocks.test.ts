@@ -17,6 +17,8 @@ const MEDIA: Record<number, { ref: string; alt: string | null; title: string }> 
   3: { ref: '00000000-0000-4000-8001-000000000003', alt: 'Een zaal', title: 'Zaal' },
 };
 const ITEM = '00000000-0000-4000-8004-000000000009';
+const PERSON = (n: number) => `00000000-0000-4000-8005-00000000000${n}`;
+const GROUP = '00000000-0000-4000-8006-000000000075';
 
 function run(content: string) {
   const notes: { code: NoteCode; detail?: string }[] = [];
@@ -26,6 +28,9 @@ function run(content: string) {
     link: linkRewriter('https://site.example', (path) => (path === '/over' ? ITEM : null)),
     media: (id) => MEDIA[Number(id)] ?? null,
     item: (id) => (Number(id) === 9 ? ITEM : null),
+    person: (id) => ([1, 2, 3].includes(Number(id)) ? PERSON(Number(id)) : null),
+    personGroup: (id) => (Number(id) === 75 ? GROUP : null),
+    everyone: (kind) => (kind === 'person' ? [PERSON(2), PERSON(1)] : [PERSON(3)]),
     note: (code, detail) => notes.push({ code, ...(detail && { detail }) }),
   };
   const [block] = parseBlocks(content);
@@ -247,6 +252,47 @@ const CASES: Record<string, () => void> = {
       header: { lead: 'Wij zijn er.', heroImageId: MEDIA[1]!.ref, heroAlt: 'Een plein vol mensen' },
     });
     expect(notes).toEqual([{ code: 'hero.action-dropped', detail: 'Kom' }]);
+  },
+  'wings/people-organizations-grid': () => {
+    // A category becomes its person group; the social links are the card's contact line.
+    expect(
+      only(
+        run(
+          '<!-- wp:wings/people-organizations-grid {"displayMode":"category","selectedCategory":"75","columns":4,"showSocialMedia":true} /-->'
+        ).mapped
+      ).props
+    ).toEqual({
+      source: 'group',
+      groupId: GROUP,
+      people: [],
+      columns: '4',
+      showRole: true,
+      showBio: false,
+      showContact: true,
+    });
+    // A selection keeps its order; an id outside the export is a note, a repeat is dropped.
+    const picked = run(
+      '<!-- wp:wings/people-organizations-grid {"contentType":"organizations","displayMode":"selected","selectedItems":[3,1,8,3],"columns":6,"showSocialMedia":false} /-->'
+    );
+    expect(only(picked.mapped).props).toEqual({
+      source: 'selection',
+      groupId: null,
+      people: [{ personId: PERSON(3) }, { personId: PERSON(1) }],
+      columns: '4',
+      showRole: true,
+      showBio: true,
+      showContact: false,
+    });
+    expect(picked.notes).toEqual([{ code: 'people.missing', detail: '8' }]);
+    // Without a mode Wings shows every entry of the kind, by title.
+    expect(
+      only(run('<!-- wp:wings/people-organizations-grid {"columns":1} /-->').mapped).props
+    ).toMatchObject({ people: [{ personId: PERSON(2) }, { personId: PERSON(1) }], columns: '2' });
+    expect(
+      run(
+        '<!-- wp:wings/people-organizations-grid {"displayMode":"category","selectedCategory":"9"} /-->'
+      ).mapped
+    ).toEqual({ kind: 'skip', reason: 'people-missing' });
   },
   'core/file': () => {
     const block = only(

@@ -13,7 +13,7 @@ const item = (slug: string) => {
 };
 
 describe('the plan of the fixture export', () => {
-  it('has two pages, three articles, five files, two people and two sections', () => {
+  it('has two pages, three articles, five files, two authors and two sections', () => {
     expect(result.items.map((i) => [i.document.type, i.slug, i.status])).toEqual([
       ['page', 'over-ons', 'published'],
       ['page', 'contact', 'published'],
@@ -28,7 +28,10 @@ describe('the plan of the fixture export', () => {
       'jaarverslag-2025.pdf',
       'gesprek.mp3',
     ]);
-    expect(result.people.map((p) => p.name)).toEqual(['Anna de Wit', 'Bram Jansen']);
+    expect(result.people.filter((p) => !p.profile).map((p) => p.name)).toEqual([
+      'Anna de Wit',
+      'Bram Jansen',
+    ]);
     expect(result.sections.map((s) => s.title)).toEqual([
       { nl: 'Nieuws' },
       { nl: 'Acties & campagnes' },
@@ -94,6 +97,70 @@ describe('the plan of the fixture export', () => {
     )!;
     expect(off.document).not.toHaveProperty('heroImageId');
     expect(off.document).not.toHaveProperty('presentation');
+  });
+
+  it('makes Wings people and organisations register entries, without e-mail or phone (MY-281)', () => {
+    const profiles = result.people.filter((p) => p.profile);
+    expect(profiles.map((p) => [p.name, p.profile!.kind])).toEqual([
+      ['Ahmed el Amrani', 'person'],
+      ['Buurthuis De Linde', 'organisation'],
+      ['Sanne Bakker', 'person'],
+    ]);
+    expect(profiles[2]).toEqual({
+      ref: placeholder('profile', 501),
+      sourceLogin: 'sanne-bakker',
+      sourceId: 501,
+      name: 'Sanne Bakker',
+      profile: {
+        kind: 'person',
+        bio: { nl: 'Woont in de stad & fietst overal heen.' },
+        role: { nl: 'Voorzitter' },
+        imageId: placeholder('media', 103),
+        links: [
+          {
+            label: 'LinkedIn',
+            kind: 'linkedin',
+            url: 'https://www.linkedin.com/in/sannebakker/',
+          },
+          { label: 'Instagram', kind: 'instagram', url: 'https://www.instagram.com/sannebakker' },
+        ],
+      },
+    });
+    expect(profiles[1]!.profile).toEqual({
+      kind: 'organisation',
+      bio: { nl: 'Ons vaste vergaderadres.' },
+      links: [{ label: 'Website', kind: 'website', url: 'https://delinde.example' }],
+    });
+    expect(result.report).toContainEqual(
+      expect.objectContaining({ code: 'person.link-invalid', postId: 502 })
+    );
+  });
+
+  it('makes a person group of a people category with members, in title order', () => {
+    expect(result.groups).toEqual([
+      {
+        ref: placeholder('group', 30),
+        sourceTermId: 30,
+        name: { nl: 'Bestuur' },
+        order: 0,
+        personRefs: [placeholder('profile', 502), placeholder('profile', 501)],
+      },
+    ]);
+  });
+
+  it('turns a Wings people grid into a people grid of the group or the selection', () => {
+    const grids = item('contact').document.blocks.filter((b) => b.type === 'people-grid');
+    expect(grids.map((b) => b.props)).toEqual([
+      expect.objectContaining({ source: 'group', groupId: placeholder('group', 30) }),
+      expect.objectContaining({
+        source: 'selection',
+        people: [{ personId: placeholder('profile', 503) }],
+        showBio: true,
+      }),
+    ]);
+    expect(result.report).toContainEqual(
+      expect.objectContaining({ code: 'people.missing', postId: 203, detail: '999' })
+    );
   });
 
   it('links to an item of the export by id', () => {

@@ -1,6 +1,6 @@
 // Execute an import plan against one tenant through the use-case registry (brief
 // wordpress-import-execution, PR 2), as any editor would: `media.upload`, `content.person.create`,
-// `content.section.create`, `content.item.create` and `.update`, `content.item.publish` with the
+// `content.person_group.create`, `content.section.create`, `content.item.create` and `.update`, `content.item.publish` with the
 // original date. Authorisation, validation, revisions, usages and the search index behave as for a
 // person in the admin; nothing writes to the database beside the use cases.
 //
@@ -58,7 +58,7 @@ export interface ImportResult {
 /** The tenant already has content and `intoExisting` was not given. */
 export class TenantNotEmpty extends Error {}
 
-const PLACEHOLDER = /00000000-0000-4000-800[1-4]-\d{12}/g;
+const PLACEHOLDER = /00000000-0000-4000-800[1-6]-\d{12}/g;
 const placeholders = (value: unknown) => [...new Set(JSON.stringify(value).match(PLACEHOLDER))];
 const isItemRef = (ref: string) => ref.startsWith('00000000-0000-4000-8004-');
 
@@ -117,15 +117,43 @@ export async function execute(
       }
     }
   };
-  for (const person of plan.people)
+  for (const person of plan.people) {
+    const profile = { ...person.profile };
+    if (profile.imageId && !(profile.imageId in ids)) {
+      report.push({
+        code: 'item.image-missing',
+        ...(person.sourceId !== undefined && { postId: person.sourceId }),
+        title: person.name,
+      });
+      delete profile.imageId;
+    }
+    if (profile.imageId) profile.imageId = ids[profile.imageId];
     try {
       ids[person.ref] = await unique(
         async (slug) =>
-          (await invoker.run(useCases.createPerson, principal, { slug, name: person.name })).id,
+          (
+            await invoker.run(useCases.createPerson, principal, {
+              ...profile,
+              slug,
+              name: person.name,
+            })
+          ).id,
         slugFromTitle(person.name) || slugOf(person.sourceLogin, person.sourceLogin) || 'person'
       );
     } catch (error) {
       report.push({ code: 'person.failed', detail: `${person.sourceLogin}: ${reason(error)}` });
+    }
+  }
+  for (const group of plan.groups)
+    try {
+      const made = await invoker.run(useCases.createPersonGroup, principal, {
+        name: group.name,
+        order: group.order,
+        personIds: group.personRefs.filter((r) => r in ids).map((r) => ids[r]!),
+      });
+      ids[group.ref] = made.id;
+    } catch (error) {
+      report.push({ code: 'group.failed', detail: `${group.sourceTermId}: ${reason(error)}` });
     }
   for (const section of plan.sections)
     try {

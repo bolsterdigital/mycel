@@ -76,12 +76,15 @@ describe.skipIf(skip)('WordPress import into a tenant', () => {
 
   it('creates every planned item, file, author and section, and reports no failures', () => {
     expect(result.items).toHaveLength(importPlan.items.length);
-    for (const ref of [...importPlan.media, ...importPlan.people, ...importPlan.sections].map(
-      (e) => e.ref
-    ))
+    for (const ref of [
+      ...importPlan.media,
+      ...importPlan.people,
+      ...importPlan.groups,
+      ...importPlan.sections,
+    ].map((e) => e.ref))
       expect(result.ids[ref]).toMatch(/^[0-9a-f-]{36}$/);
     const runCodes =
-      /^(media|person|section|item)\.\w*failed$|^item\.image-missing$|^block\.reference-missing$/;
+      /^(media|person|group|section|item)\.\w*failed$|^item\.image-missing$|^block\.reference-missing$/;
     expect(result.report.filter((l) => runCodes.test(l.code))).toEqual([]);
   });
 
@@ -129,6 +132,32 @@ describe.skipIf(skip)('WordPress import into a tenant', () => {
     const text = JSON.stringify(linked);
     expect(text).not.toMatch(/00000000-0000-4000-800/);
     expect([...text.matchAll(/"itemId":"([^"]+)"/g)].every(([, id]) => made.has(id!))).toBe(true);
+  });
+
+  it('makes Wings people with photo, role and links, a group of them and a grid that shows it (MY-281)', async () => {
+    const sanne = importPlan.people.find((p) => p.sourceId === 501)!;
+    const person = await invoker.run(useCases.getPerson, principal(), {
+      personId: result.ids[sanne.ref]!,
+    });
+    expect(person).toMatchObject({
+      slug: 'sanne-bakker',
+      kind: 'person',
+      role: { nl: 'Voorzitter' },
+      imageId: result.ids[importPlan.media.find((m) => m.sourceId === 103)!.ref],
+    });
+    expect(person.links.map((l) => l.kind)).toEqual(['linkedin', 'instagram']);
+    expect(person).not.toHaveProperty('email');
+    expect(person).not.toHaveProperty('phone');
+    const { groups } = await invoker.run(useCases.listPersonGroups, principal(), {});
+    expect(groups.map((g) => [g.name, g.personIds.length])).toEqual([[{ nl: 'Bestuur' }, 2]]);
+    const contact = await invoker.run(useCases.getPublished, principal(), {
+      type: 'page',
+      slug: 'contact',
+      locale: 'nl',
+    });
+    expect(
+      contact.blocks.filter((b) => b.type === 'people-grid').map((b) => b.props)
+    ).toMatchObject([{ source: 'group', groupId: groups[0]!.id }, { source: 'selection' }]);
   });
 
   it('finds an imported article through the site search', async () => {

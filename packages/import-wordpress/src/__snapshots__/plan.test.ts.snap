@@ -8,9 +8,10 @@ Featured image as article header: yes
 Pages      2 (0 draft)
 Articles   3 (1 draft)
 Media      5
-People     2
+People     5 (3 from Wings people and organisations)
+Groups     1
 Sections   2
-Remarks    13
+Remarks    15
 
 Blocks left out (no Mycel equivalent) (2)
   - post 201 "Over ons" [nl] wings/nodes-grid #9
@@ -23,6 +24,12 @@ Shortcodes left out (2)
 Images without alt text (not placed) (2)
   - post 303 "Interview met de voorzitter" [nl] core/image #5
   - post 303 "Interview met de voorzitter" [nl] wings/image-gallery #6: 103
+
+People in a grid that are not in the export (1)
+  - post 203 "Contact" [nl] wings/people-organizations-grid #5: 999
+
+Social links of people that are not a valid address (left out) (1)
+  - post 502 "Ahmed el Amrani" [nl]: _website_url: geen adres
 
 Hero buttons not carried over (1)
   - post 201 "Over ons" [nl] wings/hero #1: Doe mee
