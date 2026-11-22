@@ -178,12 +178,24 @@ export const overviewDefinition: BlockDefinition<typeof OverviewProps, 1> = {
     },
     {
       name: 'overview-signups-list',
-      note: 'Every signup campaign as a list: a title, and the phase when it is not open.',
-      props: { source: 'campaign', campaignKind: 'signup', layout: 'list', width: 'content' },
+      note: 'Every signup campaign as a list under one pinned item: a title, and the phase when it is not open.',
+      props: {
+        source: 'campaign',
+        campaignKind: 'signup',
+        pinned: [{ itemId: EXAMPLE_IDS.item }],
+        layout: 'list',
+        width: 'content',
+      },
     },
     {
       name: 'overview-fundraisers',
-      props: { source: 'campaign', campaignKind: 'fundraiser', order: 'oldest' },
+      note: 'Every fundraiser, oldest first, under one pinned item.',
+      props: {
+        source: 'campaign',
+        campaignKind: 'fundraiser',
+        pinned: [{ itemId: EXAMPLE_IDS.item }],
+        order: 'oldest',
+      },
     },
     {
       name: 'overview-selection',
