@@ -241,6 +241,9 @@ function enhance(header) {
     // nothing paints in between and the result does not depend on the state it is about to set.
     header.toggleAttribute('data-tight', false);
     header.toggleAttribute('data-action-out', false);
+    // From here on the CSS stops holding the first call to action back (site-chrome.css): it
+    // waited, so a header whose call to action leaves never paints with it first (MY-284).
+    header.toggleAttribute('data-action-placed', true);
     header.toggleAttribute('data-measuring', true);
     const row = header.getBoundingClientRect();
     const style = getComputedStyle(header);
