@@ -3,6 +3,7 @@
      shown but do not post. -->
 <script lang="ts">
   import Blocks from '#lib/blocks/Blocks.svelte';
+  import CampaignLayout from '#lib/blocks/CampaignLayout.svelte';
   import Intro from '#lib/blocks/Intro.svelte';
   import SiteFooter from '#lib/components/SiteFooter.svelte';
   import SiteHeader from '#lib/components/SiteHeader.svelte';
@@ -49,12 +50,27 @@
 <SiteHeader chrome={data.chrome} locale={data.locale} />
 
 <main class="page" data-drop-cap={data.dropCap ? '' : undefined}>
-  <Intro intro={data.intro} model={data.model} />
-  <Blocks
-    model={data.model}
-    preview={data.formNote}
-    campaignNotes={data.campaignNotes}
-    eagerFirstImage={!data.intro.hero}
-  />
+  {#snippet blocks()}
+    <Blocks
+      model={data.model}
+      preview={data.formNote}
+      campaignNotes={data.campaignNotes}
+      eagerFirstImage={!data.intro.hero}
+    />
+  {/snippet}
+  {#if data.model.campaign}
+    <CampaignLayout
+      campaign={data.model.campaign}
+      intro={data.intro}
+      model={data.model}
+      preview={data.formNote}
+      note={data.model.campaign.diagnosis
+        ? data.campaignNotes.form[data.model.campaign.diagnosis]
+        : null}>{@render blocks()}</CampaignLayout
+    >
+  {:else}
+    <Intro intro={data.intro} model={data.model} />
+    {@render blocks()}
+  {/if}
 </main>
 <SiteFooter chrome={data.chrome} credit={data.credit} locale={data.locale} />

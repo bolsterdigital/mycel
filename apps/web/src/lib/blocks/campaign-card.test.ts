@@ -69,18 +69,29 @@ async function setup() {
     version: 1,
     props: { campaignId: campaign.id, variant, width: 'content' },
   });
-  const resolve = (blocks: Block[], options: { diagnose?: boolean; tenant?: string } = {}) =>
+  const resolve = (
+    blocks: Block[],
+    options: { diagnose?: boolean; tenant?: string; itemId?: string } = {}
+  ) =>
     resolveDocument(
       sourceFor(options.tenant),
       { locale: 'nl', title: 'Thuis', blocks },
-      { base: '', fallbackLocale: 'nl', ...(options.diagnose ? { diagnose: true } : {}) }
+      {
+        base: '',
+        fallbackLocale: 'nl',
+        ...(options.diagnose ? { diagnose: true } : {}),
+        ...(options.itemId ? { itemId: options.itemId } : {}),
+      }
     );
-  /** The landing page as the public site renders it: its own form block. */
-  const landing = async () => {
+  /** The landing page as the public site (or, with `diagnose`, the preview) renders it. */
+  const landing = async (blocks?: Block[], diagnose = false) => {
     const { revision } = await invoker.run(useCases.getItem, admin, {
       itemId: campaign.landingItemId,
     });
-    return resolve(projectDocument(revision.document, 'nl').blocks);
+    return resolve(blocks ?? projectDocument(revision.document, 'nl').blocks, {
+      itemId: campaign.landingItemId,
+      diagnose,
+    });
   };
   return { invoker, admin, campaign, publishLanding, open, close, card, resolve, landing };
 }
@@ -139,20 +150,31 @@ describe('a campaign card in the render model (ADR 033 rule 4)', () => {
     expect(hasForm(closed)).toBe(false);
   });
 
-  it('renders the landing page form only while open, and its result otherwise (rule 2)', async () => {
+  it('gives a landing page its campaign: the form only while open, the stand otherwise (ADR 038)', async () => {
     const { publishLanding, open, close, landing, card, resolve, campaign } = await setup();
     await publishLanding();
-    const before = (await landing()).blocks.find((b) => b.type === 'form');
-    expect(before).toMatchObject({ form: null, campaign: { phase: 'upcoming' } });
+    // Rule 6: the landing page places no form block; the campaign brings its form.
+    const before = await landing();
+    expect(before.blocks).toEqual([]);
+    expect(before.campaign).toMatchObject({
+      kind: 'petition',
+      phase: 'upcoming',
+      opens: null,
+      form: null,
+      counter: { participants: 0, target: 500 },
+    });
+    expect(before.campaign).not.toHaveProperty('diagnosis');
+    expect(hasForm(before)).toBe(false);
+    // An ordinary page is no campaign's landing page.
+    expect(await resolve([])).not.toHaveProperty('campaign');
 
     await open();
     const during = await landing();
-    const form = during.blocks.find((b) => b.type === 'form');
-    expect(form).toMatchObject({ form: { formId: campaign.formId } });
-    expect(form).not.toHaveProperty('campaign');
+    expect(during.campaign).toMatchObject({ phase: 'open', form: { formId: campaign.formId } });
     expect(hasForm(during)).toBe(true);
-    // A card beside the campaign's own form block shows the campaign, not a second form.
-    const both = await resolve([
+    // A form block placing the campaign's own form renders nothing beside the action column, and
+    // a full card of the same campaign on its landing page does not show the form a second time.
+    const placed = await landing([
       {
         id: 'f',
         type: 'form',
@@ -161,24 +183,61 @@ describe('a campaign card in the render model (ADR 033 rule 4)', () => {
       },
       card('k'),
     ]);
-    expect(both.blocks[1]).toMatchObject({ campaign: { phase: 'open' }, form: null });
+    expect(placed.blocks[0]).toEqual({
+      id: 'f',
+      type: 'form',
+      variant: 'default',
+      width: 'content',
+      form: null,
+    });
+    expect(placed.blocks[1]).toMatchObject({ campaign: { phase: 'open' }, form: null });
 
     await close();
     const after = await landing();
-    expect(after.blocks.find((b) => b.type === 'form')).toMatchObject({
+    expect(after.campaign).toMatchObject({
+      phase: 'closed',
       form: null,
-      campaign: { phase: 'closed', counter: { participants: 0, target: 500 } },
+      counter: { participants: 0, target: 500 },
     });
     expect(hasForm(after)).toBe(false);
   });
 
-  it('keeps the form in the preview before participation opens, and says what the site shows', async () => {
-    const { invoker, admin, campaign, publishLanding, open, close, resolve } = await setup();
+  it('keeps the form in the preview of a landing page outside open participation, with the reason', async () => {
+    const { campaign, publishLanding, open, close, landing } = await setup();
+    // A draft landing page in a draft campaign: the preview shows the form and why the site will not.
+    expect((await landing(undefined, true)).campaign).toMatchObject({
+      phase: 'upcoming',
+      form: { formId: campaign.formId },
+      diagnosis: 'upcoming',
+    });
+    await publishLanding();
+    expect((await landing()).campaign).toMatchObject({ form: null });
+    await open();
+    const opened = (await landing(undefined, true)).campaign;
+    expect(opened).toMatchObject({ form: { formId: campaign.formId } });
+    expect(opened).not.toHaveProperty('diagnosis');
+    await close();
+    expect((await landing(undefined, true)).campaign).toMatchObject({
+      form: { formId: campaign.formId },
+      diagnosis: 'closed',
+    });
+  });
+
+  it('keeps a bound form block elsewhere in the preview before participation opens, with the reason', async () => {
+    const { campaign, publishLanding, open, close, resolve } = await setup();
+    // The campaign's form placed as a block on another page: gated by the campaign (ADR 033 rule 2).
     const own = async (diagnose: boolean) => {
-      const { revision } = await invoker.run(useCases.getItem, admin, {
-        itemId: campaign.landingItemId,
-      });
-      const model = await resolve(projectDocument(revision.document, 'nl').blocks, { diagnose });
+      const model = await resolve(
+        [
+          {
+            id: 'f',
+            type: 'form',
+            version: 1,
+            props: { formId: campaign.formId!, variant: 'default', width: 'content' },
+          },
+        ],
+        { diagnose }
+      );
       return model.blocks.find((b) => b.type === 'form');
     };
     // A draft landing page: the public model holds nothing, the preview the form and the reason.

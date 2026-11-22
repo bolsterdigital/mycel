@@ -2,6 +2,7 @@
      keyboard and no-JavaScript route. Block wrappers carry ids solely for click-to-edit. -->
 <script lang="ts">
   import Blocks from '#lib/blocks/Blocks.svelte';
+  import CampaignLayout from '#lib/blocks/CampaignLayout.svelte';
   import Intro from '#lib/blocks/Intro.svelte';
   import SiteFooter from '#lib/components/SiteFooter.svelte';
   import SiteHeader from '#lib/components/SiteHeader.svelte';
@@ -36,14 +37,29 @@
   <!-- `data-live-preview-rendered`: the editor shows this frame only once it carries the mark, so
        a refused draft (an error page) never replaces the last good image (#66 PR 6d). -->
   <main class="page" data-drop-cap={form.dropCap ? '' : undefined} data-live-preview-rendered>
-    <Intro intro={form.intro} model={form.model} />
-    <Blocks
-      model={form.model}
-      preview={form.formNote}
-      campaignNotes={form.campaignNotes}
-      selectable
-      eagerFirstImage={!form.intro.hero}
-    />
+    {#snippet blocks()}
+      <Blocks
+        model={form.model}
+        preview={form.formNote}
+        campaignNotes={form.campaignNotes}
+        selectable
+        eagerFirstImage={!form.intro.hero}
+      />
+    {/snippet}
+    {#if form.model.campaign}
+      <CampaignLayout
+        campaign={form.model.campaign}
+        intro={form.intro}
+        model={form.model}
+        preview={form.formNote}
+        note={form.model.campaign.diagnosis
+          ? form.campaignNotes.form[form.model.campaign.diagnosis]
+          : null}>{@render blocks()}</CampaignLayout
+      >
+    {:else}
+      <Intro intro={form.intro} model={form.model} />
+      {@render blocks()}
+    {/if}
   </main>
   <SiteFooter chrome={form.chrome} credit={form.credit} locale={form.locale} />
   <script type="module" src="/_admin/live-preview-child.js"></script>

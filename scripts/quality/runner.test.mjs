@@ -963,7 +963,7 @@ test('gate CLI retains full reports and fails for absent downloads instead of pa
   }
 });
 test('information expands both profiles/locales while historical v3 keeps its own coverage', () => {
-  assert.equal(contract.fixtureVersion, '43a-v10');
+  assert.equal(contract.fixtureVersion, '43a-v11');
   for (const locale of ['nl', 'en'])
     for (const profile of ['mobile', 'desktop']) {
       const shard = expectedShards(contract, 'local', {

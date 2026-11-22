@@ -38,6 +38,7 @@ import { HmacSigner } from '@mycel/api';
 import { testTenant } from '@mycel/db/testing';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { campaignCardFixture } from './lib/blocks/campaigns';
+import { exerciseCampaignLanding } from './lib/campaigns/landing';
 import { exerciseRestrictedArticle } from './lib/published/restricted';
 import { exerciseDonation } from './lib/forms/donation';
 import { exerciseRecurring } from './lib/forms/recurring';
@@ -289,11 +290,14 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
   await expect(panel.getByText('Campagne gestart.')).toBeVisible();
   await expect(panel.getByText('0 van 500')).toBeVisible();
 
-  // The preview of the draft page keeps the form, which does not post there, and says that the
-  // site does not show it yet: an editor checks a form without opening participation (rule 2).
+  // The preview of the draft page keeps the form, which does not post there, in the campaign
+  // layout's action column (ADR 038 rule 6), and says that the site does not show it yet: an
+  // editor checks a form without opening participation (rule 2).
   await page.goto(`/admin/probe/preview/item/${itemId}?locale=nl`);
   await expect(
-    page.getByText('Alleen in dit voorbeeld: de pagina van deze campagne is nog niet gepubliceerd')
+    page
+      .locator('.campaign-action')
+      .getByText('Alleen in dit voorbeeld: de deelname is nog niet geopend')
   ).toBeVisible();
   await expect(page.getByLabel('E-mailadres')).toBeDisabled();
   await page.goto(`/admin/probe/content/${itemId}`);
@@ -396,6 +400,14 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
   await expect(row).toContainText('Gesloten');
   await expect(row).toContainText('Gepubliceerd (nl)');
   await expect(row).toContainText('1 van 500');
+});
+
+// ADR 038 (MY-267 PR 2): a bound landing page renders in the campaign layout, header image first,
+// the action area beside the text when wide and under the intro when narrow, one outline.
+test('a campaign landing page: header image, intro, action and body in one outline', async ({
+  page,
+}) => {
+  await exerciseCampaignLanding(page, ['/probe/campagne', '/probe/en/campagne']);
 });
 
 // ADR 033 rule 4 (the campaign card): a card is a live reference. It shows the campaign as its landing page

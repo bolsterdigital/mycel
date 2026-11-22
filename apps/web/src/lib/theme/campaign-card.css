@@ -1,4 +1,5 @@
-/* The campaign card (ADR 033 rule 4) and the notice in place of a closed campaign's form. Apart
+/* The campaign card (ADR 033 rule 4) and the notice in place of a closed campaign's form; the
+   count is campaign.css's, shared with the landing page (ADR 038). Apart
    from base.css because that file stands near its size ceiling, against the same theme
    properties and pairs; imported into the `components` layer. The card is the surface pair, like
    a card of the action row; a `full` width is a band with the card on the wide rail. Image and
@@ -67,38 +68,6 @@
   padding: 0;
 }
 
-/* The count: what it counts beside the number, the bar under it in the accent. */
-.campaign-count {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 var(--space-1);
-  margin-block: 0;
-}
-.campaign-count strong {
-  font-size: var(--step-1);
-}
-/* An explicit track and fill: a native bar at zero drew as a full dark bar in Chromium. */
-:is(.campaign-card-text, .campaign-notice) progress {
-  display: block;
-  width: 100%;
-  height: 0.75rem;
-  appearance: none;
-  border: 0;
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--color-body-bg);
-  box-shadow: inset 0 0 0 1px var(--color-muted-fg);
-}
-:is(.campaign-card-text, .campaign-notice) progress::-webkit-progress-bar {
-  background: transparent;
-}
-:is(.campaign-card-text, .campaign-notice) progress::-webkit-progress-value {
-  background: var(--color-accent-bg);
-}
-:is(.campaign-card-text, .campaign-notice) progress::-moz-progress-bar {
-  background: var(--color-accent-bg);
-}
 .campaign-notice {
   display: grid;
   gap: var(--space-1);

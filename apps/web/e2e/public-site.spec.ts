@@ -217,7 +217,7 @@ test.describe('blocks', () => {
       await details.locator('summary').click();
       await expect(details).not.toHaveAttribute('open', '');
       await expect(page.locator('form[method="post"] button[type="submit"]')).toHaveText(
-        'Aanmelden'
+        'Teken de petitie'
       );
       await expect(page.getByRole('link', { name: 'Teken de petitie' }).first()).toHaveAttribute(
         'href',
@@ -1148,9 +1148,10 @@ test.describe('content-routes', () => {
 // Composition coverage uses real published documents and the existing preview renderer.
 // Rejected: standalone HTML fixtures that drift from production blocks.
 test.describe('grid-compositions', () => {
+  // `campagne` is a campaign landing page (ADR 038) with a layout of its own, measured by
+  // lib/campaigns/landing.ts; here it is only the information page's source.
   const compositions = [
     { slug: 'grid-information-v1', type: 'page', title: 'Samen zorgen voor de buurt' },
-    { slug: 'campagne', type: 'page', title: 'Schone lucht, nu' },
     { slug: 'quality-article-v3', type: 'article', title: 'De straat die ruimte maakt' },
   ];
 
@@ -1174,10 +1175,11 @@ test.describe('grid-compositions', () => {
       slug: compositions[0]!.slug,
     });
 
-    const source = await item(request, compositions[1]!);
+    const source = await item(request, { slug: 'campagne', type: 'page', title: '' });
     const doc: ContentDocument = structuredClone(source.revision.document);
     doc.title = { nl: compositions[0]!.title, en: 'Caring for the neighbourhood together' };
     doc.blocks = doc.blocks.filter((block) => !['hero', 'form'].includes(block.type));
+    for (const key of ['heroImageId', 'heroAlt', 'lead'] as const) delete doc[key];
     const prose = doc.blocks.find((block) => block.type === 'rich-text')!;
     doc.blocks.push({ ...structuredClone(prose), id: 'information-closing' });
     const created = items.length

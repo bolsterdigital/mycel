@@ -188,6 +188,7 @@ export async function loadPublicItem(
     page: archivePage,
     path: contentPath(item, locale, tenant.defaultLocale),
     timeZone,
+    itemId: item.id,
     ...(item.readerMedia ? { signedMedia: item.readerMedia } : {}),
   });
   // A later page exists only where an overview with an archive still has entries on it.

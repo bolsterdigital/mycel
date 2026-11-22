@@ -32,7 +32,7 @@ function setup() {
 }
 
 describe('campaign.landing.create', () => {
-  it('makes a form of the kind, a draft page that places it and a draft campaign', async () => {
+  it('makes a form of the kind, a draft page without a form block and a draft campaign', async () => {
     const { invoker, admin, compose } = setup();
     const campaign = await compose({ goal: { target: 500, milestones: [] } });
     expect(campaign).toMatchObject({
@@ -47,9 +47,8 @@ describe('campaign.landing.create', () => {
     expect(item).toMatchObject({ type: 'page', slug: 'red-het-park' });
     expect(item.publication.every((p) => p.status === 'draft')).toBe(true);
     expect(revision.document.title).toEqual({ nl: 'Red het park', en: 'Save the park' });
-    expect(revision.document.blocks).toMatchObject([
-      { type: 'form', props: { formId: campaign.formId } },
-    ]);
+    // ADR 038 rule 6: the landing page shows the form from the campaign, not as a block.
+    expect(revision.document.blocks).toEqual([]);
     const { form } = await invoker.run(useCases.getFormForAuthoring, admin, {
       id: campaign.formId!,
     });

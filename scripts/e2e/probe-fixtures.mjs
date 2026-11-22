@@ -84,3 +84,37 @@ async function seedDossier(invoker, admin, useCases) {
     );
   return dossier.id;
 }
+
+/**
+ * A campaign's landing page (ADR 038) with a given document: made through
+ * `campaign.landing.create` like the admin's "New campaign", so the page is bound and places no
+ * form block, then given the document as an update. Returns the item and the new revision.
+ */
+export async function landingPage(invoker, admin, useCases, kind, slug, document) {
+  const campaign = await invoker.run(useCases.composeCampaign, admin, {
+    kind,
+    title: document.title,
+    defaultLocale: document.defaultLocale,
+    locales: document.locales,
+    slug,
+    goal: { target: 2500, milestones: [] },
+  });
+  const { revision } = await invoker.run(useCases.getItem, admin, {
+    itemId: campaign.landingItemId,
+  });
+  return invoker.run(useCases.updateItem, admin, {
+    itemId: campaign.landingItemId,
+    baseRevisionId: revision.id,
+    document,
+  });
+}
+
+/** Opens participation of the campaign whose landing page `itemId` is. */
+export async function openLanding(invoker, admin, useCases, itemId) {
+  const { campaigns } = await invoker.run(useCases.listCampaigns, admin, { limit: 100 });
+  const campaign = campaigns.find((c) => c.landingItemId === itemId);
+  await invoker.run(useCases.openCampaign, admin, {
+    campaignId: campaign.id,
+    baseUpdatedAt: campaign.updatedAt,
+  });
+}

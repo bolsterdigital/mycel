@@ -7,6 +7,7 @@ import type { RenderModel } from '../../blocks/model.js';
  * as plain blocks (content/patterns.ts), so there is no nesting left to walk.
  */
 export function hasForm(model: RenderModel): boolean {
+  if (model.campaign?.form) return true;
   return model.blocks.some(
     (b) => (b.type === 'form' || b.type === 'campaign-card') && b.form !== null
   );

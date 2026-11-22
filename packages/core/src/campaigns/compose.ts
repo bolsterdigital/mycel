@@ -1,12 +1,13 @@
 // "New petition", signup or fundraiser in one step (ADR 033 rule 10 and its first example): a new form of the
-// matching kind, a draft landing page that places that form, and the campaign in `draft`, in one
+// matching kind, a draft landing page without blocks, and the campaign in `draft`, in one
 // transaction, so a refusal halfway leaves no orphan page or form behind. It runs the three
 // existing handlers in order, so every check they make (form kind and publish right, slug and
 // reserved slugs, references, the landing rules of `campaign.create`) holds here unchanged.
 // Rejected: composing them in the admin route (three transactions; a slug conflict after the form
 // was made leaves an unplaced form) and copying their bodies here (two places to keep in step).
 // Named `campaign.landing.*` beside `campaign.landing.get`: the campaign addressed through its
-// landing page, here made together with it.
+// landing page, here made together with it. The page places no `form` block: the landing page
+// renders the campaign's form from `campaigns.formId` in its action column (ADR 038 rule 6).
 
 import { z } from 'zod';
 import { Slug } from '../content/model.js';
@@ -25,7 +26,7 @@ export const composeCampaign = defineUseCase({
   alsoRequires: ['forms:write', 'content:publish'],
   consumes: null,
   description:
-    'Start a petition, signup or fundraiser in one step: a new form of the matching kind (a donation form for a fundraiser), a draft landing page with the title per locale that places the form, and the campaign with participation in draft. A fundraiser’s goal is in minor units of the site currency. Needs form rights and, as for every petition, signup or donation form, publishing permission; nothing is published or opened.',
+    'Start a petition, signup or fundraiser in one step: a new form of the matching kind (a donation form for a fundraiser), a draft landing page with the title per locale (it shows the form in its action column, not as a block), and the campaign with participation in draft. A fundraiser’s goal is in minor units of the site currency. Needs form rights and, as for every petition, signup or donation form, publishing permission; nothing is published or opened.',
   input: z
     .object({
       kind: CampaignKind,
@@ -46,7 +47,7 @@ export const composeCampaign = defineUseCase({
         defaultLocale: 'nl',
         locales: ['nl', 'en'],
       },
-      note: 'A draft page /red-het-park with a petition form on it; publish the page and open participation separately.',
+      note: 'A draft page /red-het-park whose campaign layout shows a new petition form; publish the page and open participation separately.',
     },
   ],
   async handler(ctx, { kind, title, defaultLocale, locales, slug, goal, counterVisible }) {
@@ -63,7 +64,7 @@ export const composeCampaign = defineUseCase({
           title,
           defaultLocale,
           locales,
-          blocks: [{ type: 'form', version: 1, props: { formId: form.id } }],
+          blocks: [],
         },
       })
     );

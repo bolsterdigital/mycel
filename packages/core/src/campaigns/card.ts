@@ -170,6 +170,54 @@ export async function formCampaignCard(
   return campaign ? campaignCardOf(ctx, campaign, campaign.id, locale) : null;
 }
 
+/**
+ * The campaign a landing page is bound to, as its campaign layout shows it (ADR 038 rules 2, 5-7):
+ * kind, phase now, window, the public count and the bound form of the matching kind. The page
+ * itself supplies title, lead and header image, so this reads no revision: the caller already
+ * has the one it renders (the published one publicly, any one in the preview). `formId` is given
+ * whatever the phase; the renderer offers it only while open, and the preview keeps it with a
+ * diagnosis, as a bound form block does. Null for a page that is no campaign's landing page, or
+ * whose campaign is archived (it then renders as an ordinary page).
+ */
+export const LandingCampaign = z.object({
+  campaignId: z.string().guid(),
+  kind: CampaignKind,
+  phase: CampaignPhase,
+  opensAt: z.string().datetime({ offset: true }).nullable(),
+  counter: z
+    .object({
+      participants: z.number().int().nonnegative(),
+      raised: Raised.nullable(),
+      target: z.number().int().positive().nullable(),
+    })
+    .nullable(),
+  formId: z.string().guid().nullable(),
+});
+export type LandingCampaign = z.infer<typeof LandingCampaign>;
+
+export async function landingCampaignOf(
+  ctx: TransactionContext,
+  itemId: string
+): Promise<LandingCampaign | null> {
+  const campaign = await ctx.campaigns.byLandingItem(itemId);
+  if (!campaign || campaign.archivedAt) return null;
+  let formId: string | null = null;
+  if (campaign.formId) {
+    const form = await ctx.forms.findById(campaign.formId);
+    if (form && FORM_KIND_OF[campaign.kind] === form.kind) formId = form.id;
+  }
+  return {
+    campaignId: campaign.id,
+    kind: campaign.kind,
+    phase: phaseOf(campaign, ctx.clock.now()),
+    opensAt: campaign.participation.opensAt,
+    counter: campaign.counterVisible
+      ? { ...(await tallyOf(ctx, campaign)), target: campaign.goal?.target ?? null }
+      : null,
+    formId,
+  };
+}
+
 export const getCampaignCard = defineUseCase({
   name: 'campaign.card.get',
   kind: 'query',
