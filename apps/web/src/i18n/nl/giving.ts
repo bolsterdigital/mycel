@@ -248,6 +248,10 @@ export const giving: Partial<Record<UiKey, string>> = {
   'admin.campaign.field.target': 'Doel',
   'admin.campaign.field.target.hint':
     'Het aantal deelnemers, of bij een fondsenwerving het bedrag in euro’s, waar je naartoe werkt. Laat leeg voor geen doel.',
+  'admin.campaign.field.milestones': 'Tussendoelen',
+  'admin.campaign.field.milestones.hint':
+    'Voor een doel dat meegroeit, bijvoorbeeld 100, 500: de site toont het eerste tussendoel tot 95% bereikt is, dan het volgende, en ten slotte het doel. Laat leeg voor een vast doel.',
+  'admin.campaign.column.shownTarget': 'Doel op de site nu',
   'admin.campaign.field.opensAt': 'Opent op',
   'admin.campaign.field.closesAt': 'Sluit op',
   'admin.campaign.field.counterVisible': 'Toon de teller op de site',
@@ -269,7 +273,8 @@ export const giving: Partial<Record<UiKey, string>> = {
   'admin.campaign.error.formKind':
     'Het formulier van deze campagne is van een andere soort en kan niet gebruikt worden.',
   'admin.campaign.error.window': 'Het sluitmoment moet na het openingsmoment liggen.',
-  'admin.campaign.error.goal': 'Het doel moet een heel getal boven nul zijn.',
+  'admin.campaign.error.goal':
+    'Het doel moet een heel getal boven nul zijn, en tussendoelen oplopend en kleiner dan het doel.',
   'admin.campaign.error.archived': 'Deze campagne is gearchiveerd en kan niet meer veranderen.',
   'admin.campaign.error.invalid': 'Kijk de data en het doel na: een ervan klopt niet.',
   'admin.campaign.archivedHint': 'Gearchiveerd: deelname is definitief gesloten.',

@@ -61,6 +61,23 @@ export const CampaignGoal = z
   });
 export type CampaignGoal = z.infer<typeof CampaignGoal>;
 
+/**
+ * The goal a visitor sees now (MY-288, after Dreamkit's milestone manager): with milestones the
+ * goal grows with the count, each step shown until the count reaches 95 % of it, then the next;
+ * one jump can pass several steps, and past the last milestone the target stays. Without
+ * milestones the target is the goal throughout. `count` is in the unit of the kind: people, or a
+ * fundraiser's raised minor units. Integer arithmetic, so 95 of 100 advances exactly.
+ * Rejected: a threshold per campaign (Dreamkit's editors never changed the default; a field
+ * nobody uses is a question in every panel) and advancing only on reaching a step (the bar then
+ * sits full for days before the next goal shows).
+ */
+export const GOAL_ADVANCE_PERCENT = 95;
+export function visibleTarget(goal: CampaignGoal | null, count: number): number | null {
+  if (!goal) return null;
+  for (const step of goal.milestones) if (count * 100 < step * GOAL_ADVANCE_PERCENT) return step;
+  return goal.target;
+}
+
 export const Campaign = z.object({
   id: z.string().guid(),
   kind: CampaignKind,

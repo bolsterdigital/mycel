@@ -379,6 +379,19 @@ test('a petition: start, publish, open, sign and confirm, count one, close, stal
     await expect(panel.getByText('1 van 500')).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 15_000 });
 
+  // A growing goal (MY-288): with milestones 1 and 100 the one signature has passed 95 % of the
+  // first, so the panel and the landing page show 100 as the goal now; the final goal stays 500.
+  await panel.getByLabel('Tussendoelen').fill('1, 100');
+  await panel.getByRole('button', { name: 'Campagne opslaan' }).click();
+  await expect(panel.getByText('Campagne opgeslagen.')).toBeVisible();
+  await expect(panel.getByLabel('Tussendoelen')).toHaveValue('1, 100');
+  await expect(panel.getByText('1 van 500')).toBeVisible();
+  await expect(panel.locator('dt', { hasText: 'Doel op de site nu' }).locator('+ dd')).toHaveText(
+    '100'
+  );
+  await visitor.goto(`/probe/${slug}`);
+  await expect(visitor.locator('.campaign-count progress')).toHaveAttribute('max', '100');
+
   // Two tabs from before the close: the public form and the panel on the old base.
   await visitor.goto(`/probe/${slug}`);
   const stale = await page.context().newPage();
