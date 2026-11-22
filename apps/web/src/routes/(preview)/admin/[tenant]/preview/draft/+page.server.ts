@@ -27,7 +27,7 @@ import {
   introOf,
 } from '#lib/server/content/preview.js';
 import { runtime } from '#lib/server/runtime.js';
-import { chromeModel } from '#lib/server/public/chrome.js';
+import { cardPlaceholder, chromeModel } from '#lib/server/public/chrome.js';
 import { siteTheme } from '#lib/server/public/theme.js';
 import { langOf, ui } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -93,7 +93,13 @@ export const actions: Actions = {
       resolveDocument(
         source,
         { locale, ...projectDocument(doc, locale) },
-        { base, fallbackLocale: tenant.defaultLocale, diagnose: true, itemId }
+        {
+          base,
+          fallbackLocale: tenant.defaultLocale,
+          diagnose: true,
+          itemId,
+          placeholder: await cardPlaceholder(site, base),
+        }
       ),
       introOf(principal, doc, locale, live).then((intro) => resolveIntro(source, intro, locale)),
       siteTheme(site),

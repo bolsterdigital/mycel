@@ -161,6 +161,8 @@ export interface SiteDefinition {
   footerText?: FooterDef;
   /** The logo carries the site's name, so the header shows it alone (`site.chrome`, MY-275). */
   logoHasName?: boolean;
+  /** A media key: the site's default image, the end of every card's image chain (MY-277). */
+  defaultImage?: string;
   media: MediaDef[];
   people: PersonDef[];
   groups: GroupDef[];
@@ -287,6 +289,7 @@ export async function seedSite(
 
   await seedLook(run, load);
   await seedMedia(run, load);
+  await seedDefaultImage(run);
   await seedRegister(run);
   await seedTiers(run);
   await seedForms(run);
@@ -400,6 +403,21 @@ async function seedLook(run: Run, load: LoadMedia) {
       made('footer text');
     }
   }
+}
+
+/** The site's default image, like the look only while `site.images` is at version 0. */
+async function seedDefaultImage(run: Run) {
+  const { invoker, principal, site, refs } = run;
+  if (!site.defaultImage) return;
+  const { version, value } = await invoker.run(useCases.getSiteImages, principal, {});
+  if (version !== 0) return;
+  await named('default image', () =>
+    invoker.run(useCases.updateSiteImages, principal, {
+      baseVersion: 0,
+      images: { ...value, defaultImageId: refs.media(site.defaultImage!) },
+    })
+  );
+  (run.created['default image'] ??= []).push('default image');
 }
 
 async function seedMedia(run: Run, load: LoadMedia) {

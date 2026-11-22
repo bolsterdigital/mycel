@@ -17,6 +17,7 @@
   import CampaignAction from './CampaignAction.svelte';
   import CampaignLayout from './CampaignLayout.svelte';
   import Picture from './Picture.svelte';
+  import CardPlaceholder from './CardPlaceholder.svelte';
   import { IMAGE_SIZES } from './sizes.js';
 
   let {
@@ -104,6 +105,8 @@
           <div class="campaign-card-image">
             <Picture image={c.image} base={model.base} {sizes} />
           </div>
+        {:else if model.placeholder}
+          <CardPlaceholder placeholder={model.placeholder} />
         {/if}
         <div class="campaign-card-text">
           <p class="campaign-kind">

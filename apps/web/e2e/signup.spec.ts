@@ -38,7 +38,7 @@ import { HmacSigner } from '@mycel/api';
 import { testTenant } from '@mycel/db/testing';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { campaignCardFixture } from './lib/blocks/campaigns';
-import { exerciseCardText } from './lib/campaigns/card';
+import { exerciseCardText, exerciseCompactCardColumns } from './lib/campaigns/card';
 import { exerciseCampaignLanding, headingOutlineProblems } from './lib/campaigns/landing';
 import { exerciseRestrictedArticle } from './lib/published/restricted';
 import { exerciseDonation } from './lib/forms/donation';
@@ -455,6 +455,7 @@ test('a campaign card: live on page, article and scheduled page; nothing when un
   await expect(page.getByRole('link', { name: 'Bekijk de campagne' })).toHaveCount(1);
   await expect(cards.first().getByRole('link', { name: `Kaart kaart-${stamp}` })).toBeVisible();
   await exerciseCardText(page, cards.first());
+  await exerciseCompactCardColumns(cards.nth(1));
   await expect(page.getByRole('button', { name: 'Teken de petitie' })).toHaveCount(0);
   expect(response?.headers()['etag']).toBeTruthy();
   // Published in Dutch only: the English host shows no card for it.

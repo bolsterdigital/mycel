@@ -78,6 +78,7 @@ import { READER_COOKIE, READER_PATH, readerOfRequest } from './reader.js';
 import { ogLocales } from './share-locale.js';
 import { sitePath, siteTenant, siteUrls, type Site } from '../site.js';
 import { siteBrand, siteChrome, siteNavigation, siteTheme } from './theme.js';
+import { cardPlaceholder } from './chrome.js';
 import { siteTracker } from './scripts/analytics.js';
 import { sitePlacement } from './scripts/integrations.js';
 import { refuse } from '#lib/server/http/refuse.js';
@@ -182,8 +183,10 @@ export async function loadPublicItem(
   }
   const source = runtimeSource({ invoker, uow, reader, defaultLocale: tenant.defaultLocale });
   const { timeZone } = (await invoker.run(useCases.getSiteGeneral, reader, {})).value;
+  const placeholder = await cardPlaceholder(site, sitePath(site, ''));
   const model = await resolveDocument(source, item, {
     base: sitePath(site, ''),
+    placeholder,
     fallbackLocale: tenant.defaultLocale,
     page: archivePage,
     path: contentPath(item, locale, tenant.defaultLocale),
@@ -294,6 +297,7 @@ export async function loadPublicItem(
       ? null
       : await loadZone(source, reader, locale, {
           base: sitePath(site, ''),
+          placeholder,
           fallbackLocale: tenant.defaultLocale,
           path: contentPath(item, locale, tenant.defaultLocale),
           timeZone,

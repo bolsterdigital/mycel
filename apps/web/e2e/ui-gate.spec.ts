@@ -674,7 +674,7 @@ test.describe('sticky-header', () => {
 });
 
 // An overview card is one link with a title sized to the card, inverted on hover and focus
-// (MY-266 PR E).
+// (MY-266 PR E), its image to the card's edges and a placeholder without one (MY-277).
 test.describe('overview-cards', () => {
   test.use({ locale: 'nl-NL', extraHTTPHeaders: forwarded() });
   test('one link, a title that fits, and the inversion on hover and focus', async ({ page }) =>

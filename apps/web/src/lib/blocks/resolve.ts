@@ -74,6 +74,7 @@ import type {
   RenderCorrections,
   RenderIntro,
   RenderModel,
+  CardPlaceholder,
 } from './model.js';
 import { videoPlayerUrl, videoUrl, type RenderEvent, type RenderMeta } from './model.js';
 
@@ -417,6 +418,8 @@ export async function resolveDocument(
      * with the campaign's form (ADR 038 rules 2 and 6). Absent for a zone or a fixture.
      */
     itemId?: string;
+    /** The stand-in for a card without an image (MY-277); without it such a card has none. */
+    placeholder?: CardPlaceholder;
   }
 ): Promise<RenderModel> {
   const { locale } = projection;
@@ -853,6 +856,7 @@ export async function resolveDocument(
     blocks: headingsAboveFloats(out),
     links,
     copy: blockCopy(locale),
+    ...(options.placeholder ? { placeholder: options.placeholder } : {}),
   };
 }
 

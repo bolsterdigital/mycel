@@ -436,6 +436,18 @@ export interface RenderModel {
   /** Item id to its public site-root path, or null: published in this locale and public, or not. */
   links: Record<string, string | null>;
   copy: BlockCopy;
+  /**
+   * What a card without an image shows in its image area (MY-277): the site's logo, else the
+   * first letter of its name, on the primary pair. Absent where a caller has no site (fixtures),
+   * and such a card has no image area.
+   */
+  placeholder?: CardPlaceholder;
+}
+
+/** The decorative stand-in for a card's missing image: the site's logo or its initial. */
+export interface CardPlaceholder {
+  logo: { src: string; width: number; height: number } | null;
+  initial: string;
 }
 
 /** The provider's own page for a video: a plain link, no embed (brief #8c § 2). */

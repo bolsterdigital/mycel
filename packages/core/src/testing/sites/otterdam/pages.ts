@@ -451,12 +451,7 @@ export const OTTERDAM_PAGES: ItemDef[] = [
         say({
           nl: 'Bijna zeven op de tien dode otters die we vinden, liggen langs een weg. Hier lees je waarom, en wat eraan te doen is.',
         }),
-        overview({
-          dossierId: r.item('dossier-verkeer'),
-          limit: '12',
-          layout: 'list',
-          width: 'content',
-        }),
+        overview({ dossierId: r.item('dossier-verkeer'), limit: '12', layout: 'cards' }),
         say({ nl: 'Zelf een gevaarlijke plek gezien? Meld hem via het contactformulier.' }),
       ],
     }),
