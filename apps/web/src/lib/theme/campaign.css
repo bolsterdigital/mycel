@@ -1,12 +1,11 @@
 /* The campaign layout (ADR 038 rules 1, 2 and 7): one set of areas and classes for a campaign's
-   landing page, laid out by a container query, so the page (its container is `.page`) and a card
-   (its container is `.campaign-card`) each choose their arrangement from their own width. Below
-   the threshold everything is one column in DOM order: intro, action, body. From it the action
-   area stands beside intro and body, at least 18rem wide so an e-mail field shows some 26
-   characters (as measured on Dreamkit), and the text keeps its measure. Imported into the
+   landing page and its full card, laid out by a container query, so the page (its container is
+   `.page`) and a card (its container is `.campaign-card`) each choose their arrangement from their
+   own width. Below the threshold everything is one column in DOM order: intro, action, body. From
+   it the action area stands beside intro and body, at least 18rem wide so an e-mail field shows
+   some 26 characters (as measured on Dreamkit), and the text keeps its measure. Imported into the
    `components` layer, against the theme's properties and pairs only. Rejected: viewport media
-   queries (a narrow column on a wide screen) and negative margins over the header image (the
-   predecessor's overlap bled into content above it).
+   queries (a narrow column on a wide screen).
 
    A compact action area (`campaign-action-sticky`, set by the server for a form of at most four
    visible fields) stays in view while the text beside it scrolls, CSS only (ADR 038 rule 9): only
@@ -15,38 +14,53 @@
    (Jaap's Dreamkit wish, 2026-06). At 200% zoom the layout is one column and sticky lapses.
    Rejected: sticky to the viewport (it covered content below the campaign) and a script that
    measures the form. */
-.campaign-hero {
-  margin-block-end: var(--space-3);
-}
 .campaign-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: 'intro' 'action' 'body';
   gap: var(--space-3);
   margin-block-end: var(--space-3);
 }
 /* Every area and column may shrink below its longest word, which a heading's `break-word` then
    breaks: otherwise one long title widens the column past a 320 px screen. */
-.campaign-intro {
-  grid-area: intro;
-  min-width: 0;
-}
-.campaign-action {
-  grid-area: action;
-  min-width: 0;
-}
+.campaign-hero,
+.campaign-intro,
+.campaign-action,
 .campaign-body {
-  grid-area: body;
   min-width: 0;
+  margin: 0;
+}
+/* In a card the areas are named; the landing page places them on lines (below), because its
+   image shares rows with the columns. */
+.campaign-card .campaign-layout {
+  grid-template-areas: 'intro' 'action' 'body';
+}
+.campaign-card .campaign-layout.campaign-with-hero {
+  grid-template-areas: 'hero' 'intro' 'action' 'body';
+}
+.campaign-card .campaign-hero {
+  grid-area: hero;
+}
+.campaign-card .campaign-intro {
+  grid-area: intro;
+}
+.campaign-card .campaign-action {
+  grid-area: action;
+}
+.campaign-card .campaign-body {
+  grid-area: body;
 }
 /* 30rem of text, an 18-22rem action area and the gap, plus the gutters. */
 @container (min-width: 56rem) {
-  .campaign-layout {
+  .campaign-card .campaign-layout {
     grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
     grid-template-areas: 'intro action' 'body action';
     grid-template-rows: auto 1fr;
     column-gap: var(--space-4);
     align-items: start;
+  }
+  .campaign-card .campaign-layout.campaign-with-hero {
+    grid-template-areas: 'hero hero' 'intro action' 'body action';
+    grid-template-rows: auto auto 1fr;
   }
   @media (min-height: 45rem) {
     .campaign-action-sticky {
@@ -54,6 +68,157 @@
       /* Below the sticky site header when there is one (MY-266 PR D sets its height). */
       top: calc(var(--site-sticky-block-size, 0px) + var(--space-3));
     }
+  }
+}
+
+/* The landing page (MY-276, Jaap 2026-11-22: "zoals de petitie in Dreamkit"): the header image
+   runs the page's full width, lower than an ordinary page header, and intro and action area slide
+   into it as cards, the action area further than the intro. The overlap comes from rows the image
+   shares with the columns (ADR 038 addendum 2026-11-22), so nothing reaches outside the layout or
+   over content above it, and without a header image there is none. The columns stand on the wide
+   rail: `--wide-inset` resolves against the layout, which is the page's full width. Rows carry no
+   gap, since a gap inside the image's rows would change its height; the areas keep their distance
+   with margins. Rejected: negative margins (the predecessor's overlap bled into content above) and
+   the image as a CSS background (no alt, no loading hint). */
+.campaign-landing {
+  --campaign-hero-block-size: clamp(15rem, 45svh, 30rem);
+  --campaign-lift: 2.5rem;
+  --campaign-pad: var(--inset);
+  grid-template-columns:
+    [full-start] var(--wide-inset) [main-start] minmax(0, 1fr) [main-end] var(--wide-inset)
+    [full-end];
+  gap: 0;
+}
+.campaign-landing > * {
+  grid-column: main;
+}
+/* Positioned like the image (for its caption), so the later cards paint over it; without weight,
+   so a sticky action area stays sticky. */
+:where(.campaign-landing) > :where(*) {
+  position: relative;
+}
+/* The image meets the site header: the page's top padding would leave a strip above it. */
+.page:not(.admin):has(> .campaign-landing.campaign-with-hero:first-child) {
+  padding-block-start: 0;
+}
+.campaign-landing > .campaign-action,
+.campaign-landing > .campaign-body {
+  margin-block-start: var(--space-3);
+}
+.campaign-landing.campaign-with-hero {
+  grid-template-rows: calc(var(--campaign-hero-block-size) - var(--campaign-lift)) var(
+      --campaign-lift
+    );
+}
+.campaign-landing > .campaign-hero {
+  grid-column: full;
+  grid-row: 1 / 3;
+}
+.campaign-landing.campaign-with-hero > .campaign-intro {
+  grid-row: 2 / 4;
+}
+.campaign-landing .campaign-hero :is(picture, img) {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.campaign-landing .campaign-hero img {
+  object-fit: cover;
+}
+/* The caption and credit stand on the image's top corner at the wide rail's end, as a label on
+   the body pair (the caption colour is checked against it): the intro and action area cover the
+   image's lower edge, where a caption would otherwise go. */
+.campaign-landing .campaign-hero figcaption {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-end: var(--wide-inset);
+  max-width: min(30rem, 100% - 2 * var(--gutter));
+  margin: 0;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius);
+  font-family: var(--font-caption, inherit);
+  font-size: calc(var(--step--1) * 0.92);
+  line-height: 1.35;
+  color: var(--color-caption-fg, var(--color-body-fg));
+  background: var(--color-body-bg);
+}
+/* The text column is a card on the body pair over the image, its text inset from the image's
+   edge; the body below keeps that inset, so intro and body share one left edge. */
+.campaign-landing > :is(.campaign-intro, .campaign-body) {
+  max-width: none;
+  padding-inline: var(--campaign-pad);
+}
+.campaign-landing > .campaign-intro {
+  padding-block: var(--campaign-pad) 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  color: var(--color-body-fg);
+  background: var(--color-body-bg);
+}
+.campaign-landing .campaign-intro h1 {
+  font-size: clamp(var(--step-2), 0.5rem + 4cqi, var(--step-4));
+}
+/* The action area is a card of its own on the body pair, lifted by a shadow in the text colour
+   (a border that only forced colours draw takes its place there); the count is a tinted band
+   across its top, edge to edge, and the submit button fills the width. */
+.campaign-landing .campaign-action {
+  /* In vw, not the page's cqi: the area is a container itself, so a cqi inset would resolve
+     against the page in its padding and against the area in the band's margins. */
+  --campaign-pad: min(var(--space-3), 5vw);
+  padding: var(--campaign-pad);
+  border: 1px solid transparent;
+  color: var(--color-body-fg);
+  background: var(--color-body-bg);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--color-body-fg) 14%, transparent);
+}
+.campaign-landing .campaign-action > .campaign-count {
+  margin: calc(-1 * var(--campaign-pad)) calc(-1 * var(--campaign-pad)) 0;
+  padding: var(--campaign-pad);
+  border-radius: var(--radius) var(--radius) 0 0;
+  color: var(--color-surface-fg);
+  background: var(--color-surface-bg);
+}
+/* Wide: text and action area side by side at about 2 : 1.3 (Dreamkit), the intro 5rem into the
+   image and the action area 7.5rem, so the form starts higher than the title. */
+@container (min-width: 56rem) {
+  .campaign-landing {
+    --campaign-lift: 5rem;
+    --campaign-pad: max(var(--inset), min(var(--space-4), 3cqi));
+    grid-template-columns:
+      [full-start] var(--wide-inset) [main-start text-start] minmax(0, 2fr)
+      [text-end] var(--space-4) [action-start] minmax(18rem, 1.3fr) [action-end main-end] var(
+        --wide-inset
+      )
+      [full-end];
+    grid-template-rows: auto 1fr;
+  }
+  .campaign-landing > :is(.campaign-intro, .campaign-body) {
+    grid-column: text;
+  }
+  .campaign-landing > .campaign-action {
+    grid-column: action;
+    grid-row: 1 / 3;
+    align-self: start;
+    margin-block-start: 0;
+  }
+  .campaign-landing > .campaign-body {
+    grid-row: 2;
+  }
+  .campaign-landing.campaign-with-hero {
+    grid-template-rows:
+      calc(var(--campaign-hero-block-size) - 1.5 * var(--campaign-lift))
+      calc(0.5 * var(--campaign-lift)) var(--campaign-lift) auto 1fr;
+  }
+  .campaign-landing.campaign-with-hero > .campaign-hero {
+    grid-row: 1 / 4;
+  }
+  .campaign-landing.campaign-with-hero > .campaign-intro {
+    grid-row: 3 / 5;
+  }
+  .campaign-landing.campaign-with-hero > .campaign-action {
+    grid-row: 2 / 6;
+  }
+  .campaign-landing.campaign-with-hero > .campaign-body {
+    grid-row: 5;
   }
 }
 .campaign-intro,
@@ -107,12 +272,17 @@
   max-width: none;
   margin-inline: 0;
 }
+/* The submit button fills the area: the one thing to do here. */
+.campaign-action .form button[type='submit'] {
+  width: 100%;
+}
 .campaign-stand {
   font-weight: 700;
 }
 
-/* The count: the figure large, scaled to the area it stands in, what it counts under it, the bar,
-   then the goal. */
+/* The count: the figure large in tabular figures, scaled to the area it stands in, what it counts
+   beside it (under it when the area is too narrow), the bar, then the goal at the bar's end
+   (MY-276, Dreamkit's counter). */
 .campaign-count {
   display: grid;
   gap: var(--space-1);
@@ -121,16 +291,21 @@
   margin-block: 0;
 }
 .campaign-count-figure {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.4em;
   line-height: 1.2;
 }
 .campaign-count-figure strong {
   font-family: var(--font-heading);
-  font-size: clamp(var(--step-2), 14cqi, var(--step-4));
+  font-size: clamp(2rem, 12cqi, 3.5rem);
+  font-variant-numeric: tabular-nums;
   line-height: 1.1;
 }
 .campaign-count-goal {
   font-size: var(--step--1);
+  text-align: end;
 }
 /* An explicit track and fill: a native bar at zero drew as a full dark bar in Chromium. The track
    is a tint of the text colour, without an outline, so an empty bar reads as a track, not a box. */
@@ -148,9 +323,11 @@
   background: transparent;
 }
 .campaign-count progress::-webkit-progress-value {
+  border-radius: inherit;
   background: var(--color-accent-bg);
 }
 .campaign-count progress::-moz-progress-bar {
+  border-radius: inherit;
   background: var(--color-accent-bg);
 }
 

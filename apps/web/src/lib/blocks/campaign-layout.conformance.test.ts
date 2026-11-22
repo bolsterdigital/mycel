@@ -1,5 +1,6 @@
 // A campaign's landing page in the campaign layout (ADR 038 rules 2, 3, 5-7; MY-267 PR 2),
 // rendered from the real route component per phase and locale with an HTML snapshot each,
+// (MY-276: the header image inside the layout, the count before the action area's heading)
 // reviewed like the block snapshots: the header image first in `main`, then intro, action area
 // and body in that DOM order, one h1, the action area's h2, body headings from h2, the count
 // while open, where participation stands otherwise, and no "0 of" when nothing is counted yet.
@@ -191,17 +192,23 @@ describe('a campaign landing page (ADR 038)', () => {
           `__snapshots__/campaign-landing-${phase}.${locale}.html`
         );
         const at = (s: string) => html.indexOf(s);
-        // The header image is the first element in main, eager, with its alt in this locale.
-        expect(html).toMatch(/<main[^>]*>\s*<figure class="[^"]*campaign-hero/);
+        // The header image opens the layout, which opens main (MY-276: it shares rows with the
+        // columns, so it sits inside the layout), eager, with its alt in this locale.
+        expect(html).toMatch(
+          /<main[^>]*>\s*<div\s+class="campaign-layout campaign-landing layout-full campaign-with-hero"\s*>\s*<figure class="campaign-hero"/
+        );
         expect(html).toMatch(/<img[^>]*alt="(Een zandbank in de rivier|A sandbank in the river)"/);
         expect(html).not.toContain('loading="lazy"');
         // DOM order intro, action, body; one h1; the action area's h2; body headings from h2.
         expect(at('campaign-intro')).toBeLessThan(at('campaign-action'));
         expect(at('campaign-action')).toBeLessThan(at('campaign-body'));
         expect(html.match(/<h1[\s>]/g)).toHaveLength(1);
+        // The action area's h2 names the section; the count stands above it as a band (MY-276).
         expect(html).toMatch(
-          /<section class="campaign-action[^"]*" aria-labelledby="campaign-action">\s*<h2/
+          /<section class="campaign-action[^"]*" aria-labelledby="campaign-action">\s*(<div class="campaign-count">[\s\S]*?<\/div>\s*)?<h2/
         );
+        if (phase !== 'upcoming')
+          expect(at('class="campaign-count"')).toBeLessThan(at('id="campaign-action"'));
         // Sticky only with a compact form to keep in view (MY-267 PR 5): open, not before or after.
         expect(html.includes('campaign-action-sticky')).toBe(phase === 'open');
         expect(html.slice(at('campaign-body'))).toMatch(/<h2[^>]*>\s*(Wij constateren|We note)/);

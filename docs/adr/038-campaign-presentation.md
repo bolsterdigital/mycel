@@ -2,6 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-11-22
+- **Amended**: 2026-11-22, the header image overlap and the full card's body (MY-276, below); rule 4's `<details>` and the rejected overlap give way to it
 - **Refines**: ADR 033 rule 4 (a full card also shows the campaign text)
 - **Builds on**: ADR 004 rule 3 (heading levels from tree depth), ADR 007 (localisation), ADR 009 (HTML first), ADR 016 (access), ADR 018 (per-locale publication), ADR 033 rules 1-3 and 6 (landing page owns publication and copy, campaign owns participation, server decides at submit, caching)
 - **Supersedes**: ADR 025 rules 1 (reading order) and 3 (one page header layout) only for a landing page bound to a campaign; ADR 033 rule 4 only where it renders a full card as compact outside open participation
@@ -34,6 +35,15 @@ Two accepted rules say otherwise. ADR 025 rules 1 and 3 fix the header order (ti
 
 9. **Everything works without JavaScript.** Public pages render on the server; `<details>` and `<summary>` are native and keyboard operable; the form posts natively; `<progress>` is native. A sticky action area, if added, is CSS only, bounded by the layout, and only where the columns stand side by side.
 
+### Overlap and an open card body (2026-11-22, MY-276)
+
+The owner's review of the built layout on the Otterdam proof (2026-11-22, evening) found it short of the predecessor's petition: a lower header image across the full width, the text and the form sliding into it, and the card's text open, cut off with a fade and "read more", instead of a closed disclosure. That is the decision; it amends this ADR as follows.
+
+1. **The intro and the action area overlap the campaign's own header image.** The image runs the full width of the layout, lower than an ordinary page header, and the intro and the action area stand over its lower edge as cards, the action area further than the intro on a wide container and not at all on a narrow one, where it follows the intro. The overlap comes from grid rows the image shares with the columns, so nothing reaches outside the layout or over content above it. The image stays a `<picture>` with its per-locale alt and loading hint, never a CSS background; its caption and credit stand on the image where the cards do not cover it. Without a header image there is no overlap. This replaces the rejected alternative "overlapping the header image with negative margins": negative margins stay rejected, the overlap itself is not.
+2. **A full card's body is open by default.** Replacing the `<details>` of rule 4: the text stands open; a long text is cut off with a fade and a "read more" button, and after expanding a "read less" button returns focus and scroll position to the start of the text. Without JavaScript the whole text stands there without a fade (ADR 009); the script measures, shortens with a class (never a `style` attribute, given the CSP) and adds a real `<button aria-expanded aria-controls>`. A short body gets no button, as before. On the landing page the body stays whole (rule 2).
+
+Rule 2's order (intro, action, body) and every other rule are unchanged. Item 1 is MY-276 PR 1, item 2 MY-276 PR 2.
+
 ## Rejected alternatives
 
 - **Porting the predecessor's two renderers**: the drift between card and landing page is the problem being solved.
@@ -42,7 +52,7 @@ Two accepted rules say otherwise. ADR 025 rules 1 and 3 fix the header order (ti
 - **Keeping the form a freely placed block**: then each landing page decides its own layout and there is no shared structure for the card to repeat.
 - **A stored `presentation.header` value for the campaign layout**: the binding already determines it; a stored choice could contradict the binding.
 - **A heading level stored per block**: heading levels follow the outline the block lands in (ADR 004 rule 3); the same block appears at two depths.
-- **Overlapping the header image with negative margins, or the image as a CSS background**: the overlap bled into content above in the predecessor, and a background image has no alt and no loading hint.
+- **Overlapping the header image with negative margins, or the image as a CSS background**: the overlap bled into content above in the predecessor, and a background image has no alt and no loading hint. (Since 2026-11-22 the overlap itself is decided, through shared grid rows; see the amendment above.)
 
 ## Consequences
 

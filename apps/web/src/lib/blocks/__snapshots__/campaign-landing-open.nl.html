@@ -1,59 +1,58 @@
 <main class="page">
-  <figure class="block image layout-wide page-hero campaign-hero">
-    <picture
-      ><source
-        type="image/avif"
-        srcset="
-          /media/01900000-0000-7000-8000-0000000267a1/w640.avif   640w,
-          /media/01900000-0000-7000-8000-0000000267a1/w1280.avif 1280w
-        "
-        sizes="(min-width: 72rem) 68rem, calc(100vw - 2rem)" />
-      <img
-        src="/media/01900000-0000-7000-8000-0000000267a1/w640.webp"
-        srcset="
-          /media/01900000-0000-7000-8000-0000000267a1/w640.webp   640w,
-          /media/01900000-0000-7000-8000-0000000267a1/w1280.webp 1280w
-        "
-        sizes="(min-width: 72rem) 68rem, calc(100vw - 2rem)"
-        alt="Een zandbank in de rivier"
-        width="1600"
-        height="900"
-        fetchpriority="high"
-        class="fx-5 fy-5"
-    /></picture>
-    <figcaption>
-      De zandbank bij de stuw
-      <span class="credit"
-        ><span class="credit-by"
-          ><svg
-            class="credit-icon"
-            viewBox="0 0 24 24"
-            width="14"
-            height="14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path
-              d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"
-            ></path>
-            <circle cx="12" cy="13" r="3"></circle></svg
-          ><span class="credit-word">Foto: </span>Archief</span
-        ></span
-      >
-    </figcaption>
-  </figure>
-  <div class="campaign-layout layout-wide">
+  <div class="campaign-layout campaign-landing layout-full campaign-with-hero">
+    <figure class="campaign-hero">
+      <picture
+        ><source
+          type="image/avif"
+          srcset="
+            /media/01900000-0000-7000-8000-0000000267a1/w640.avif   640w,
+            /media/01900000-0000-7000-8000-0000000267a1/w1280.avif 1280w
+          "
+          sizes="100vw" />
+        <img
+          src="/media/01900000-0000-7000-8000-0000000267a1/w640.webp"
+          srcset="
+            /media/01900000-0000-7000-8000-0000000267a1/w640.webp   640w,
+            /media/01900000-0000-7000-8000-0000000267a1/w1280.webp 1280w
+          "
+          sizes="100vw"
+          alt="Een zandbank in de rivier"
+          width="1600"
+          height="900"
+          fetchpriority="high"
+          class="fx-5 fy-5"
+      /></picture>
+      <figcaption>
+        De zandbank bij de stuw
+        <span class="credit"
+          ><span class="credit-by"
+            ><svg
+              class="credit-icon"
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"
+              ></path>
+              <circle cx="12" cy="13" r="3"></circle></svg
+            ><span class="credit-word">Foto: </span>Archief</span
+          ></span
+        >
+      </figcaption>
+    </figure>
     <header class="campaign-intro">
       <p class="campaign-kind">Petitie</p>
       <h1>Veilige vistrappen voor de otter</h1>
       <p class="lead">Vraag de waterbeheerders om hulp.</p>
     </header>
     <section class="campaign-action campaign-action-sticky" aria-labelledby="campaign-action">
-      <h2 id="campaign-action">Teken de petitie</h2>
       <div class="campaign-count">
         <p class="campaign-count-figure" id="campaign-count">
           <strong>1.234</strong> <span>Handtekeningen</span>
@@ -63,6 +62,7 @@
         </progress>
         <p class="campaign-count-goal" id="campaign-goal">Doel: 5.000</p>
       </div>
+      <h2 id="campaign-action">Teken de petitie</h2>
       <div class="block form form-default width-content">
         <form
           method="post"
