@@ -26,6 +26,7 @@ import {
   ContentDocumentInput,
   contentPath,
   Locale,
+  PersonInput,
   Tags,
   isReservedPageSlug,
   type ContentType,
@@ -46,7 +47,7 @@ import {
 import { parseBlocks, type WpBlock } from './grammar.js';
 import { decodeEntities } from './markup.js';
 import { linkRewriter, normalPath, plainText } from './rich.js';
-import { readWxr, type WxrPost } from './wxr.js';
+import { GROUP_TAXONOMIES, readWxr, type WxrPost } from './wxr.js';
 
 export interface PlannedMedia {
   ref: string;
@@ -59,8 +60,22 @@ export interface PlannedMedia {
 
 export interface PlannedPerson {
   ref: string;
+  /** The author's login, or for a Wings person or organisation post its post name. */
   sourceLogin: string;
+  /** The Wings person or organisation post it comes from; absent for an author. */
+  sourceId?: number;
   name: string;
+  /** The other `PersonInput` fields of a Wings post; the image is a media placeholder. */
+  profile?: Omit<z.input<typeof PersonInput>, 'name'>;
+}
+
+/** A person group made from a Wings people or organisation category (MY-281). */
+export interface PlannedGroup {
+  ref: string;
+  sourceTermId: number;
+  name: Record<string, string>;
+  order: number;
+  personRefs: string[];
 }
 
 export interface PlannedSection {
@@ -87,6 +102,9 @@ export type ReportCode =
   | 'block.shortcode'
   | 'block.invalid'
   | 'block.media-missing'
+  | 'block.people-missing'
+  | 'person.link-invalid'
+  | 'person.bio-too-long'
   | 'hero.extra'
   | 'item.invalid'
   | 'item.private'
@@ -101,6 +119,7 @@ export type ReportCode =
   // What happened while executing the plan against a tenant (execute.ts).
   | 'media.failed'
   | 'person.failed'
+  | 'group.failed'
   | 'section.failed'
   | 'item.failed'
   | 'item.blocks-failed'
@@ -127,6 +146,7 @@ export interface ImportPlan {
   locales: string[];
   media: PlannedMedia[];
   people: PlannedPerson[];
+  groups: PlannedGroup[];
   sections: PlannedSection[];
   items: PlannedItem[];
   report: ReportLine[];
@@ -143,7 +163,7 @@ export interface PlanOptions {
   featuredAsHeader?: boolean;
 }
 
-const KIND = { media: 1, person: 2, section: 3, item: 4 } as const;
+const KIND = { media: 1, person: 2, section: 3, item: 4, profile: 5, group: 6 } as const;
 
 /** The placeholder guid of one source entity; valid as a guid and as a v4 uuid. */
 export function placeholder(kind: keyof typeof KIND, n: number): string {
@@ -151,6 +171,24 @@ export function placeholder(kind: keyof typeof KIND, n: number): string {
 }
 
 const TYPES: Record<string, ContentType> = { page: 'page', post: 'article' };
+/** The Wings post types that become entries of the people register (ADR 031). */
+const PERSON_TYPES: Record<string, 'person' | 'organisation'> = {
+  people: 'person',
+  organizations: 'organisation',
+};
+/** Wings social fields as person links; a username field gets its network's address. */
+type LinkKind = NonNullable<z.input<typeof PersonInput>['links']>[number]['kind'];
+const LINKS: [meta: string, kind: LinkKind, label: string, base?: string][] = [
+  ['_website_url', 'website', 'Website'],
+  ['_linkedin_url', 'linkedin', 'LinkedIn'],
+  ['_instagram_username', 'instagram', 'Instagram', 'https://www.instagram.com/'],
+  ['_x_username', 'x', 'X', 'https://x.com/'],
+  ['_facebook_url', 'facebook', 'Facebook'],
+  ['_youtube_url', 'youtube', 'YouTube'],
+  ['_tiktok_url', 'tiktok', 'TikTok'],
+  ['_mastodon_url', 'mastodon', 'Mastodon'],
+  ['_bluesky_username', 'bluesky', 'Bluesky', 'https://bsky.app/profile/'],
+];
 const SKIPPED_STATUS = new Set(['trash', 'auto-draft', 'inherit']);
 /** WordPress's default category, which says nothing about a post. */
 const NO_SECTION = new Set(['uncategorized', 'geen-categorie']);
@@ -258,6 +296,74 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
     return ref;
   };
 
+  // Wings people and organisations (MY-281): one register entry per published post, with the
+  // card's fields. Their e-mail address and phone number are left behind: a Wings card never
+  // showed them, and an address that is not imported cannot leak (ADR 019 rule 7).
+  const personOf = new Map<number, string>();
+  const byTitle = (a: WxrPost, b: WxrPost) => a.title.localeCompare(b.title, defaultLocale);
+  const profiles = wxr.posts
+    .filter((p) => PERSON_TYPES[p.type] && p.status === 'publish')
+    .sort(byTitle);
+  for (const post of profiles) {
+    const kind = PERSON_TYPES[post.type]!;
+    const locale = localeOf(post);
+    const at = { postId: post.id, title: post.title, locale };
+    const meta = (key: string) => decodeEntities(post.meta[key] ?? '').trim();
+    const links = [];
+    for (const [key, linkKind, label, base] of LINKS) {
+      const value = meta(key).replace(/^@/, '');
+      if (!value) continue;
+      const link = {
+        label,
+        kind: linkKind,
+        url: base && !/^https?:/i.test(value) ? base + value : value,
+      };
+      if (PersonInput.safeParse({ name: 'x', links: [link] }).success) links.push(link);
+      else report.push({ code: 'person.link-invalid', ...at, detail: `${key}: ${value}` });
+    }
+    const bio = meta('_description');
+    if (bio.length > 5000) report.push({ code: 'person.bio-too-long', ...at });
+    const role = meta('_function_title');
+    const organisation = meta('_organization_name');
+    const image = mediaRef(post.meta._thumbnail_id);
+    const ref = placeholder('profile', post.id);
+    personOf.set(post.id, ref);
+    people.push({
+      ref,
+      sourceLogin: post.slug,
+      sourceId: post.id,
+      name: post.title,
+      profile: {
+        kind,
+        ...(bio && bio.length <= 5000 && { bio: { [locale]: bio } }),
+        ...(role && kind === 'person' && { role: { [locale]: role } }),
+        ...(organisation && { organisation: organisation.slice(0, 200) }),
+        ...(image && { imageId: image.ref }),
+        links: links.slice(0, 10),
+      },
+    });
+  }
+  // A Wings category of people becomes a group, its members in the order Wings shows them.
+  const personGroups: PlannedGroup[] = [];
+  const groupOf = new Map<number, string>();
+  for (const term of wxr.terms.filter((t) => GROUP_TAXONOMIES.includes(t.taxonomy))) {
+    const members = profiles.filter((p) =>
+      p.groups.some((g) => g.taxonomy === term.taxonomy && g.slug === term.slug)
+    );
+    if (!members.length) continue;
+    const ref = placeholder('group', term.id);
+    groupOf.set(term.id, ref);
+    personGroups.push({
+      ref,
+      sourceTermId: term.id,
+      name: { [defaultLocale]: term.name },
+      order: personGroups.length,
+      personRefs: members.map((p) => personOf.get(p.id)!),
+    });
+  }
+  const everyone = (kind: 'person' | 'organisation') =>
+    profiles.filter((p) => PERSON_TYPES[p.type] === kind).map((p) => personOf.get(p.id)!);
+
   const build = (post: WxrPost): Built => {
     const locale = localeOf(post);
     const lines: ReportLine[] = [];
@@ -284,6 +390,9 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
         link,
         media: mediaRef,
         item: (id) => itemOf.get(Number(id)) ?? null,
+        person: (id) => personOf.get(Number(id)) ?? null,
+        personGroup: (id) => groupOf.get(Number(id)) ?? null,
+        everyone,
         note: (code, detail) => lines.push({ code, ...where, ...(detail && { detail }) }),
       };
       const mapped = mapBlock(block, ctx);
@@ -294,6 +403,7 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
           shortcode: 'block.shortcode',
           'alt-missing': 'image.alt-missing',
           'media-missing': 'block.media-missing',
+          'people-missing': 'block.people-missing',
         }[mapped.reason] as ReportCode;
         lines.push({ code, ...where });
       } else if (mapped.kind === 'header') {
@@ -473,6 +583,7 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
     locales: [...new Set([defaultLocale, ...items.flatMap((i) => i.document.locales)])],
     media,
     people,
+    groups: personGroups,
     sections,
     items,
     report,
