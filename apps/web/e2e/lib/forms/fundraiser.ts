@@ -76,7 +76,9 @@ export async function exerciseFundraiser(page: Page, project: string): Promise<v
   // The card counts the paid gift against the goal, in euros; the bar measures the same.
   await visitor.goto(`/probe/${host}`);
   await visitor.reload();
-  await expect(visitor.locator('.campaign-count strong')).toHaveText(ofGoal(25, 100));
+  // The stacked counter shows the figure and the goal apart (ADR 038 rule 7).
+  await expect(visitor.locator('.campaign-count strong')).toHaveText(/^€\s?25$/);
+  await expect(visitor.locator('.campaign-count-goal')).toHaveText(/Doel: €\s?100/);
   await expect(visitor.locator('progress')).toHaveAttribute('value', '2500');
   await expect(visitor.locator('progress')).toHaveAttribute('max', '10000');
   if (isA11y()) await expectNoAxeViolations(visitor, { label: 'fundraiser card' });

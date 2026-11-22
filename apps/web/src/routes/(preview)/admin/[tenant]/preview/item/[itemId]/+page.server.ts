@@ -51,7 +51,7 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
   const model = await resolveDocument(
     source,
     { locale, ...projectDocument(doc, locale) },
-    { base, fallbackLocale: tenant.defaultLocale, diagnose: true }
+    { base, fallbackLocale: tenant.defaultLocale, diagnose: true, itemId: params.itemId }
   );
   const live = item.publication.find((p) => p.locale === locale)?.publishedAt ?? null;
   const intro = await resolveIntro(source, await introOf(principal, doc, locale, live), locale);

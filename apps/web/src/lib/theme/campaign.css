@@ -1,0 +1,134 @@
+/* The campaign layout (ADR 038 rules 1, 2 and 7): one set of areas and classes for a campaign's
+   landing page, laid out by a container query, so the page (its container is `.page`) and a card
+   (its container is `.campaign-card`) each choose their arrangement from their own width. Below
+   the threshold everything is one column in DOM order: intro, action, body. From it the action
+   area stands beside intro and body, at least 18rem wide so an e-mail field shows some 26
+   characters (as measured on Dreamkit), and the text keeps its measure. Imported into the
+   `components` layer, against the theme's properties and pairs only. Rejected: viewport media
+   queries (a narrow column on a wide screen), negative margins over the header image (the
+   predecessor's overlap bled into content above it) and sticky positioning here (a later,
+   separate step of the brief). */
+.campaign-hero {
+  margin-block-end: var(--space-3);
+}
+.campaign-layout {
+  display: grid;
+  grid-template-areas: 'intro' 'action' 'body';
+  gap: var(--space-3);
+  margin-block-end: var(--space-3);
+}
+.campaign-intro {
+  grid-area: intro;
+}
+.campaign-action {
+  grid-area: action;
+}
+.campaign-body {
+  grid-area: body;
+  min-width: 0;
+}
+/* 30rem of text, an 18-22rem action area and the gap, plus the gutters. */
+@container (min-width: 56rem) {
+  .campaign-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+    grid-template-areas: 'intro action' 'body action';
+    grid-template-rows: auto 1fr;
+    column-gap: var(--space-4);
+    align-items: start;
+  }
+}
+.campaign-intro,
+.campaign-body {
+  max-width: var(--content-width);
+}
+.campaign-intro > * {
+  margin-block: 0;
+}
+.campaign-intro {
+  display: grid;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+.campaign-kind {
+  font-size: var(--step--1);
+  font-weight: 700;
+}
+.campaign-intro .lead {
+  margin-block-start: var(--space-1);
+  font-family: var(--font-heading);
+  font-size: var(--step-1);
+  line-height: 1.4;
+}
+/* The body's blocks fill their column: the page rails do not reach inside the grid. */
+.campaign-body > :first-child {
+  margin-block-start: 0;
+}
+
+/* The action area is the surface pair, like a card. The form keeps to the area's edge. */
+.campaign-action {
+  container-type: inline-size;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--inset);
+  border-radius: var(--radius);
+  color: var(--color-surface-fg);
+  background: var(--color-surface-bg);
+  overflow-wrap: anywhere;
+}
+.campaign-action > *,
+.campaign-action .form {
+  margin-block: 0;
+}
+.campaign-action > :is(h2, h3, h4) {
+  font-size: var(--step-2);
+}
+.page .campaign-action .form > * {
+  max-width: none;
+  margin-inline: 0;
+}
+.campaign-stand {
+  font-weight: 700;
+}
+
+/* The count: the figure large, scaled to the area it stands in, what it counts under it, the bar,
+   then the goal. */
+.campaign-count {
+  display: grid;
+  gap: var(--space-1);
+}
+.campaign-count > * {
+  margin-block: 0;
+}
+.campaign-count-figure {
+  display: grid;
+  line-height: 1.2;
+}
+.campaign-count-figure strong {
+  font-family: var(--font-heading);
+  font-size: clamp(var(--step-2), 14cqi, var(--step-4));
+  line-height: 1.1;
+}
+.campaign-count-goal {
+  font-size: var(--step--1);
+}
+/* An explicit track and fill: a native bar at zero drew as a full dark bar in Chromium. The track
+   is a tint of the text colour, without an outline, so an empty bar reads as a track, not a box. */
+.campaign-count progress {
+  display: block;
+  width: 100%;
+  height: 0.75rem;
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+.campaign-count progress::-webkit-progress-bar {
+  background: transparent;
+}
+.campaign-count progress::-webkit-progress-value {
+  background: var(--color-accent-bg);
+}
+.campaign-count progress::-moz-progress-bar {
+  background: var(--color-accent-bg);
+}

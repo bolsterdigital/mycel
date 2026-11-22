@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "fixtureVersion": "43a-v10",
+  "fixtureVersion": "43a-v11",
   "tenant": "probe",
   "themeProfiles": {
     "default": {
@@ -33,7 +33,7 @@
         "form": true,
         "minImages": 1,
         "font": "Inter",
-        "headings": [1]
+        "headings": [1, 2]
       }
     },
     "article": {

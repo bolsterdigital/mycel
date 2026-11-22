@@ -28,7 +28,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ROOT, loadDotEnv } from '../lib/repo.mjs';
 import { blockExamples, everyBlockType, missingBlockTypes } from './e2e-block-examples.mjs';
-import { probeFixtures } from './probe-fixtures.mjs';
+import { landingPage, openLanding, probeFixtures } from './probe-fixtures.mjs';
 
 const root = `${ROOT}/`;
 const qualityCorpus = JSON.parse(
@@ -418,17 +418,18 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   // built from the registry's own examples with the example ids swapped for real data: two
   // uploaded images, the signup page as the linked item and its form. `artikel` stays a page:
   // the block suite is about blocks, the article route has its own fixture above.
+  // `campagne` is an open petition's landing page (ADR 038): the campaign layout shows its header
+  // image, count and form; the body places no form and no legacy hero, as a new one would not.
   const composed = {
     campagne: {
       title: { nl: 'Schone lucht, nu', en: 'Clean air, now' },
-      blocks: [
-        'hero-cover',
-        'rich-text',
-        'cta-card-two-actions',
-        'image-wide-caption-credit',
-        'faq-accordion',
-        'form-card-wide',
-      ],
+      lead: {
+        nl: 'Vraag de gemeente om de drukste schoolroutes autoluw te maken.',
+        en: 'Ask the council to keep cars off the busiest school routes.',
+      },
+      heroAlt: { nl: 'Het Malieveld vol mensen', en: 'The Malieveld full of people' },
+      campaign: 'petition',
+      blocks: ['rich-text', 'cta-card-two-actions', 'image-wide-caption-credit', 'faq-accordion'],
     },
     // Its own title for search results and a described hero, which is also its share image.
     [qualityCorpus.share.slug]: {
@@ -761,31 +762,32 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
         for (const block of blocks)
           if (block.type === 'image') block.props.mediaId = qualityImages[image++];
       }
-      const { item, revision } = await invoker.run(useCases.createItem, admin, {
-        slug,
-        document: {
-          type: pages[slug].type ?? 'page',
-          defaultLocale: 'nl',
-          locales: ['nl', 'en'],
-          title: pages[slug].title,
-          blocks,
-          ...(pages[slug].lead && { lead: pages[slug].lead }),
-          ...(pages[slug].seo && { seo: pages[slug].seo }),
-          ...(pages[slug].heroAlt && { heroImageId: landscape.id, heroAlt: pages[slug].heroAlt }),
-          ...(slug === qualityCorpus.public.article.slug && { featuredImageId: landscape.id }),
-          ...(pages[slug].type === 'article' && {
-            authorIds: [qualityAuthor.id],
-            sectionId: qualitySection.id,
-          }),
-          ...(pages[slug].access && { access: pages[slug].access }),
-        },
-      });
+      const document = {
+        type: pages[slug].type ?? 'page',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: pages[slug].title,
+        blocks,
+        ...(pages[slug].lead && { lead: pages[slug].lead }),
+        ...(pages[slug].seo && { seo: pages[slug].seo }),
+        ...(pages[slug].heroAlt && { heroImageId: landscape.id, heroAlt: pages[slug].heroAlt }),
+        ...(slug === qualityCorpus.public.article.slug && { featuredImageId: landscape.id }),
+        ...(pages[slug].type === 'article' && {
+          authorIds: [qualityAuthor.id],
+          sectionId: qualitySection.id,
+        }),
+        ...(pages[slug].access && { access: pages[slug].access }),
+      };
+      const { item, revision } = pages[slug].campaign
+        ? await landingPage(invoker, admin, useCases, pages[slug].campaign, slug, document)
+        : await invoker.run(useCases.createItem, admin, { slug, document });
       for (const locale of ['nl', 'en'])
         await invoker.run(useCases.publishItem, admin, {
           itemId: item.id,
           revisionId: revision.id,
           locale,
         });
+      if (pages[slug].campaign) await openLanding(invoker, admin, useCases, item.id);
     }
   }
   // The #46A information composition reuses the published campaign's resolved blocks.
@@ -805,6 +807,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
       Object.entries(information.locales).map(([locale, entry]) => [locale, entry.title])
     );
     document.blocks = document.blocks.filter((block) => !['hero', 'form'].includes(block.type));
+    for (const key of ['heroImageId', 'heroAlt', 'lead']) delete document[key];
     const prose = document.blocks.find((block) => block.type === 'rich-text');
     if (!prose) throw new Error('information composition requires campaign prose');
     document.blocks.push({ ...structuredClone(prose), id: 'information-closing' });

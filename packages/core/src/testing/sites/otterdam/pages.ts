@@ -3,7 +3,7 @@
 // custom block has a paragraph before and after it (Jaap, P185-79), so a reader judges blocks
 // in the flow of a page, not stacked.
 
-import { block, h, href, p, rich, say, text, to, ul } from '../rich.js';
+import { block, h, heading, href, p, rich, say, text, to, ul } from '../rich.js';
 import type { ItemDef, SiteRefs } from '../runner.js';
 import { galleryImage, headerImage, image } from './media.js';
 
@@ -279,8 +279,14 @@ export const OTTERDAM_PAGES: ItemDef[] = [
   {
     key: 'petitie',
     slug: 'petitie-veilige-vistrappen',
+    // The landing page of the petition campaign (ADR 038): the campaign layout shows kind,
+    // count and form from the campaign, so the title does not repeat "Petitie" and the page
+    // places no form block (rule 6). The text is a petition's own: what we note, what we ask.
     document: (r) => ({
-      ...page({ nl: 'Petitie: veilige vistrappen', en: 'Petition: safe fish passes' }, NL_EN),
+      ...page(
+        { nl: 'Veilige vistrappen voor de otter', en: 'Safe fish passes for the otter' },
+        NL_EN
+      ),
       ...headerImage(r, 'zandbank', NL_EN),
       lead: {
         nl: 'Vraag de waterbeheerders in de regio om elke nieuwe vistrap ook veilig te maken voor de otter.',
@@ -290,19 +296,48 @@ export const OTTERDAM_PAGES: ItemDef[] = [
         text({
           nl: [
             p(
-              'Een vistrap helpt vissen een stuw over. Maar een otter die de vis volgt, belandt vaak op de weg ernaast. Een looprichel onder de brug kost weinig en redt levens.'
+              'Aan de dijkgraven en het dagelijks bestuur van de waterschappen in de regio Otterdam.'
+            ),
+          ],
+          en: [p('To the dike reeves and executive boards of the water boards around Otterdam.')],
+        }),
+        heading({ nl: 'Wij constateren', en: 'We note' }),
+        text({
+          nl: [
+            p(
+              'Een vistrap helpt vissen een stuw over. Maar een otter die de vis volgt, belandt vaak op de weg ernaast. Sinds 2020 zijn in onze regio minstens elf otters doodgereden bij een stuw of gemaal.'
+            ),
+            p(
+              'Bij de meeste nieuwe vistrappen is aan de otter niet gedacht, terwijl een looprichel onder de brug of een faunabuis langs de stuw weinig kost en levens redt.'
             ),
           ],
           en: [
             p(
-              'A fish pass helps fish over a weir. But an otter following the fish often ends up on the road next to it. A ledge under the bridge costs little and saves lives.'
+              'A fish pass helps fish over a weir. But an otter following the fish often ends up on the road next to it. Since 2020 at least eleven otters have been killed by traffic at a weir or pumping station in our region.'
+            ),
+            p(
+              'Most new fish passes are built without the otter in mind, while a ledge under the bridge or a wildlife pipe beside the weir costs little and saves lives.'
             ),
           ],
         }),
-        block('form', { formId: r.form('petitie') }),
+        heading({ nl: 'En verzoeken', en: 'And ask' }),
         text({
-          nl: [p('Je handtekening telt zodra je hem bevestigt via de mail die je krijgt.')],
-          en: [p('Your signature counts once you confirm it through the e-mail you receive.')],
+          nl: [
+            ul(
+              'bij elke nieuwe of vernieuwde vistrap een otterpassage aan te leggen;',
+              'de tien gevaarlijkste stuwen uit de telling van Otterdam binnen twee jaar aan te passen;',
+              'elk jaar te melden hoeveel otters bij kunstwerken zijn gevonden.'
+            ),
+            p('Je handtekening telt zodra je hem bevestigt via de mail die je krijgt.'),
+          ],
+          en: [
+            ul(
+              'to build an otter passage at every new or renewed fish pass;',
+              'to adapt the ten most dangerous weirs in Otterdam’s count within two years;',
+              'to report every year how many otters were found at water structures.'
+            ),
+            p('Your signature counts once you confirm it through the e-mail you receive.'),
+          ],
         }),
       ],
     }),

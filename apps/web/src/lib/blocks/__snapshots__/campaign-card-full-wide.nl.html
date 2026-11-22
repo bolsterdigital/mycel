@@ -34,12 +34,19 @@
       <p class="campaign-card-kind">Petitie · open</p>
       <h2 id="campaign-campaign-card-full-wide-title">Red het park</h2>
       <p>Teken voor het park.</p>
-      <p class="campaign-count" id="campaign-campaign-card-full-wide-count">
-        <span>Handtekeningen</span> <strong>1.234 van 5.000</strong>
-      </p>
-      <progress max="5000" value="1234" aria-labelledby="campaign-campaign-card-full-wide-count">
-        1.234 van 5.000
-      </progress>
+      <div class="campaign-count">
+        <p class="campaign-count-figure" id="campaign-campaign-card-full-wide-count">
+          <strong>1.234</strong> <span>Handtekeningen</span>
+        </p>
+        <progress
+          max="5000"
+          value="1234"
+          aria-labelledby="campaign-campaign-card-full-wide-count campaign-campaign-card-full-wide-goal"
+        >
+          1.234
+        </progress>
+        <p class="campaign-count-goal" id="campaign-campaign-card-full-wide-goal">Doel: 5.000</p>
+      </div>
       <div class="block form form-default width-content">
         <form
           method="post"

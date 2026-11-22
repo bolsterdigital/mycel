@@ -59,8 +59,14 @@ export interface BlockCopy {
     phase: Record<CampaignPhase, string>;
     /** What the counter counts, per kind: 'Handtekeningen'. */
     unit: Record<CampaignKind, string>;
-    /** `{n}` and `{target}`: '1.234 van 5.000'. */
-    ofTarget: string;
+    /** `{target}`: 'Doel: 5.000'. */
+    goal: string;
+    /** Nothing counted yet, per kind: 'Nog geen handtekeningen'. */
+    none: Record<CampaignKind, string>;
+    /** `{date}`: a campaign that opens on a known day. */
+    opensOn: string;
+    /** The action column's heading on a landing page outside open participation. */
+    heading: Record<'upcoming' | 'closed', string>;
     /** The button to the landing page while participation is open, per kind. */
     act: Record<CampaignKind, string>;
     /** The button to the landing page otherwise. */
@@ -390,9 +396,27 @@ export interface FormState {
   values?: Record<string, string | string[]> | undefined;
 }
 
+/**
+ * The campaign of a bound landing page as its campaign layout shows it (ADR 038 rules 2, 5-7):
+ * the page itself supplies title, lead and header image. Absent on every other page.
+ */
+export interface RenderLanding {
+  kind: CampaignKind;
+  phase: CampaignPhase;
+  /** Not open yet with a known opening: the date in the site's words; else null. */
+  opens: { iso: string; label: string } | null;
+  counter: RenderCampaign['counter'];
+  /** The campaign's form while participation is open (in the preview: always, with `diagnosis`). */
+  form: RenderForm | null;
+  /** Why the public page shows no form here; the admin preview only. */
+  diagnosis?: 'upcoming' | 'closed';
+}
+
 export interface RenderModel {
   locale: string;
   title: string;
+  /** Set when this item is a campaign's landing page: it renders in the campaign layout. */
+  campaign?: RenderLanding | null;
   /** The address-form prefix HTML puts in front of a site-root path. */
   base: string;
   blocks: RenderBlock[];

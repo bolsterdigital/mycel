@@ -37,6 +37,8 @@ import {
   type BlockProps,
   type ArticleHeader,
   type CampaignCard,
+  type LandingCampaign,
+  landingCampaignOf,
   type Overview,
   formCampaignCard,
   type ProofChallenge,
@@ -59,13 +61,13 @@ import {
 } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
 import { amountChoices, membershipChoices } from './amount-field.js';
-import { creditWords } from './credit.js';
+import { blockCopy } from './copy.js';
 import { headingsAboveFloats } from './float-order.js';
 import type {
-  BlockCopy,
   RenderAction,
   RenderBlock,
   RenderCampaign,
+  RenderLanding,
   RenderForm,
   RenderImage,
   RenderCorrections,
@@ -91,6 +93,8 @@ export interface ResolveSource {
   campaignCard?(campaignId: string, locale: string): Promise<CampaignCard>;
   /** The card of the campaign a form is bound to, or null when it is bound to none. */
   formCampaign?(formId: string, locale: string): Promise<CampaignCard | null>;
+  /** The campaign a page is the landing page of, or null (ADR 038 rule 2). */
+  landingCampaign?(itemId: string): Promise<LandingCampaign | null>;
   /** What an overview block lists on one page; absent in fixtures without one. */
   overview?(props: BlockProps<'overview'>, locale: string, page: number): Promise<Overview>;
 }
@@ -143,6 +147,7 @@ export function runtimeSource(deps: {
       invoker.run(useCases.getCampaignCard, reader, { campaignId, locale }),
     formCampaign: (formId, locale) =>
       uow.run(reader, (ctx) => formCampaignCard(ctx, formId, locale)),
+    landingCampaign: (itemId) => uow.run(reader, (ctx) => landingCampaignOf(ctx, itemId)),
     overview: (props, locale, page) =>
       invoker.run(useCases.getOverview, reader, { props, locale, page }),
     itemPath: (itemId, locale) =>
@@ -150,71 +155,7 @@ export function runtimeSource(deps: {
   };
 }
 
-export function blockCopy(locale: string): BlockCopy {
-  const t = ui(locale);
-  return {
-    callout: {
-      info: t('block.callout.info'),
-      note: t('block.callout.note'),
-      warning: t('block.callout.warning'),
-    },
-    galleryRow: t('block.gallery.row'),
-    audioDownload: t('block.audio.download'),
-    audioTranscript: t('block.audio.transcript'),
-    credit: creditWords(t),
-    videoOn: t('block.video.on'),
-    videoPlay: t('block.video.play'),
-    footnotes: t('block.footnotes'),
-    footnoteBack: t('block.footnote.back'),
-    toContent: t('block.cover.toContent'),
-    lightbox: {
-      enlarge: t('block.lightbox.enlarge'),
-      dialog: t('block.lightbox.dialog'),
-      close: t('block.lightbox.close'),
-      previous: t('block.lightbox.previous'),
-      next: t('block.lightbox.next'),
-      zoom: t('block.lightbox.zoom'),
-      count: t('block.lightbox.count'),
-    },
-    honeypotLabel: t('form.honeypot.label'),
-    summaryTitle: t('error.summary.title'),
-    membershipUnavailable: t('forms.membership.unavailable'),
-    campaign: {
-      kind: {
-        petition: t('block.campaign.kind.petition'),
-        signup: t('block.campaign.kind.signup'),
-        fundraiser: t('block.campaign.kind.fundraiser'),
-      },
-      phase: {
-        upcoming: t('block.campaign.phase.upcoming'),
-        open: t('block.campaign.phase.open'),
-        closed: t('block.campaign.phase.closed'),
-      },
-      unit: {
-        petition: t('block.campaign.unit.petition'),
-        signup: t('block.campaign.unit.signup'),
-        fundraiser: t('block.campaign.unit.fundraiser'),
-      },
-      ofTarget: t('block.campaign.ofTarget'),
-      act: {
-        petition: t('block.campaign.act.petition'),
-        signup: t('block.campaign.act.signup'),
-        fundraiser: t('block.campaign.act.fundraiser'),
-      },
-      more: t('block.campaign.more'),
-      notOpen: {
-        upcoming: t('block.campaign.notOpen.upcoming'),
-        closed: t('block.campaign.notOpen.closed'),
-      },
-    },
-    overview: {
-      older: t('block.overview.older'),
-      newer: t('block.overview.newer'),
-      label: t('block.overview.pages'),
-      restricted: t('block.overview.restricted'),
-    },
-  };
-}
+export { blockCopy };
 
 /** The width `src` aims for: enough for a content column, small enough for an old browser. */
 const FALLBACK_WIDTH = 960;
@@ -470,6 +411,11 @@ export async function resolveDocument(
     timeZone?: string;
     /** The item's restricted media signed for a reader with access (`readerMedia`). */
     signedMedia?: Readonly<Record<string, MediaView>>;
+    /**
+     * The item rendered, when it is one: a campaign's landing page renders in the campaign layout
+     * with the campaign's form (ADR 038 rules 2 and 6). Absent for a zone or a fixture.
+     */
+    itemId?: string;
   }
 ): Promise<RenderModel> {
   const { locale } = projection;
@@ -485,6 +431,10 @@ export async function resolveDocument(
   // Campaign cards first: an available one adds its image to the media and, on a `full` card
   // while participation is open, its form to the forms. A form block asks whether its form is
   // bound to a campaign that does not accept participation now.
+  // The landing page's own campaign: its form comes from the campaign, not from the blocks.
+  const landing =
+    options.itemId && source.landingCampaign ? await source.landingCampaign(options.itemId) : null;
+  if (landing?.formId) formIds.add(landing.formId);
   const cards = new Map<string, CampaignCard>();
   for (const b of blocks) {
     if (b.type !== 'campaign-card' || cards.has(b.props.campaignId)) continue;
@@ -607,6 +557,7 @@ export async function resolveDocument(
   const shownForms = new Set(
     blocks.flatMap((b) => (b.type === 'form' || b.type === 'signup-form' ? [b.props.formId] : []))
   );
+  if (landing?.formId) shownForms.add(landing.formId);
   /** The bound form while participation is not open is replaced by where it stands (rule 2). */
   const formBlock = (
     id: string,
@@ -614,6 +565,8 @@ export async function resolveDocument(
     variant: 'default' | 'card',
     width: 'content' | 'wide' | 'full'
   ): RenderBlock => {
+    // The campaign's own form stands in the action column; a block placing it renders nothing.
+    if (formId === landing?.formId) return { id, type: 'form', variant, width, form: null };
     const gate = gates.get(formId) ?? null;
     const form = forms.get(formId) ?? null;
     if (!gate || (gate.available && gate.phase === 'open'))
@@ -877,9 +830,44 @@ export async function resolveDocument(
     locale,
     title: projection.title,
     base: options.base,
+    ...(landing
+      ? { campaign: renderLanding(landing, forms, locale, timeZone, options.diagnose) }
+      : {}),
     blocks: headingsAboveFloats(out),
     links,
     copy: blockCopy(locale),
+  };
+}
+
+/**
+ * A landing page's campaign for its layout: the form only while open, except in the preview,
+ * which keeps it with the reason the public page withholds it, as a bound form block does.
+ */
+function renderLanding(
+  landing: LandingCampaign,
+  forms: ReadonlyMap<string, RenderForm | null>,
+  locale: string,
+  timeZone: string,
+  diagnose = false
+): RenderLanding {
+  const form = landing.formId ? (forms.get(landing.formId) ?? null) : null;
+  const open = landing.phase === 'open';
+  return {
+    kind: landing.kind,
+    phase: landing.phase,
+    opens:
+      landing.phase === 'upcoming' && landing.opensAt
+        ? {
+            iso: landing.opensAt,
+            label: new Intl.DateTimeFormat(locale, {
+              dateStyle: 'long',
+              timeZone,
+            }).format(new Date(landing.opensAt)),
+          }
+        : null,
+    counter: landing.counter,
+    form: open || diagnose ? form : null,
+    ...(diagnose && !open && form ? { diagnosis: landing.phase as 'upcoming' | 'closed' } : {}),
   };
 }
 

@@ -16,6 +16,7 @@
 @import './search.css' layer(base);
 @import './action-row.css' layer(components);
 @import './hero.css' layer(components);
+@import './campaign.css' layer(components);
 @import './campaign-card.css' layer(components);
 @import './overview.css' layer(components);
 @import './site-chrome.css' layer(components);

@@ -9,6 +9,7 @@
   import Blocks from '#lib/blocks/Blocks.svelte';
   import Corrections from '#lib/components/public/Corrections.svelte';
   import StructuredData from '#lib/components/public/StructuredData.svelte';
+  import CampaignLayout from '#lib/blocks/CampaignLayout.svelte';
   import Intro from '#lib/blocks/Intro.svelte';
   import Prefooter from '#lib/components/public/Prefooter.svelte';
   import DossierBox from '#lib/components/public/DossierBox.svelte';
@@ -29,6 +30,7 @@
   const orphanMessage = $derived(
     form?.message &&
       data.view === 'item' &&
+      data.model.campaign?.form?.formId !== form.formId &&
       ![...data.model.blocks, ...(data.prefooter?.model.blocks ?? [])].some(
         (b) => (b.type === 'form' || b.type === 'campaign-card') && b.form?.formId === form.formId
       )
@@ -102,14 +104,30 @@
 {:else}
   {#if data.consent}<ConsentBanner consent={data.consent} />{/if}
   <main class="page" data-drop-cap={data.dropCap ? '' : undefined}>
-    <Intro intro={data.intro} model={data.model} />
-    {#if orphanMessage}
-      <div class="block error-summary" role="alert" aria-labelledby="summary-refused">
-        <h2 id="summary-refused">{data.model.copy.summaryTitle}</h2>
-        <p>{orphanMessage}</p>
-      </div>
+    {#snippet refused()}
+      {#if orphanMessage}
+        <div class="block error-summary" role="alert" aria-labelledby="summary-refused">
+          <h2 id="summary-refused">{data.model.copy.summaryTitle}</h2>
+          <p>{orphanMessage}</p>
+        </div>
+      {/if}
+    {/snippet}
+    {#if data.model.campaign}
+      <!-- A campaign's landing page (ADR 038 rule 2): the binding chooses the layout. -->
+      {@render refused()}
+      <CampaignLayout
+        campaign={data.model.campaign}
+        intro={data.intro}
+        model={data.model}
+        state={form ?? null}
+      >
+        <Blocks model={data.model} formState={form ?? null} eagerFirstImage={!data.intro.hero} />
+      </CampaignLayout>
+    {:else}
+      <Intro intro={data.intro} model={data.model} />
+      {@render refused()}
+      <Blocks model={data.model} formState={form ?? null} eagerFirstImage={!data.intro.hero} />
     {/if}
-    <Blocks model={data.model} formState={form ?? null} eagerFirstImage={!data.intro.hero} />
     {#if data.corrections}<Corrections corrections={data.corrections} />{/if}
     {#if data.gate}<ReaderGate gate={data.gate} />{/if}
     {#if data.dossiers}<DossierBox dossiers={data.dossiers} base={data.model.base} />{/if}

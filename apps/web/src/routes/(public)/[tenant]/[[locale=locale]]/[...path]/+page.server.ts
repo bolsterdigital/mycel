@@ -86,12 +86,16 @@ export const load: PageServerLoad = async ({
 
   if (route.thanks) {
     setHeaders({ 'cache-control': NO_STORE });
-    // The first form on the page; a `full` campaign card's form counts (ADR 033 rule 4), and so
-    // does one in the pre-footer zone, where a newsletter form usually stands.
+    // The first form on the page: a landing page's own campaign form (ADR 038 rule 6), else the
+    // first in the blocks; a `full` campaign card's form counts (ADR 033 rule 4), and so does one
+    // in the pre-footer zone, where a newsletter form usually stands.
     const blocks = [...view.model.blocks, ...(view.prefooter?.model.blocks ?? [])];
-    const form = blocks.flatMap((b) =>
-      (b.type === 'form' || b.type === 'campaign-card') && b.form ? [b.form] : []
-    )[0];
+    const form = [
+      ...(view.model.campaign?.form ? [view.model.campaign.form] : []),
+      ...blocks.flatMap((b) =>
+        (b.type === 'form' || b.type === 'campaign-card') && b.form ? [b.form] : []
+      ),
+    ][0];
     return {
       view: 'thanks' as const,
       title: view.model.title,

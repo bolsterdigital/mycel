@@ -93,7 +93,7 @@ export const actions: Actions = {
       resolveDocument(
         source,
         { locale, ...projectDocument(doc, locale) },
-        { base, fallbackLocale: tenant.defaultLocale, diagnose: true }
+        { base, fallbackLocale: tenant.defaultLocale, diagnose: true, itemId }
       ),
       introOf(principal, doc, locale, live).then((intro) => resolveIntro(source, intro, locale)),
       siteTheme(site),
