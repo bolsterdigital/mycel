@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localeOf, parseContentPath, thanksPath } from './content-route.js';
+import { localeOf, parseContentPath, plainSitePath, thanksPath } from './content-route.js';
 
 describe('parseContentPath', () => {
   it('reads pages, the homepage, articles and thank-you pages', () => {
@@ -59,5 +59,22 @@ describe('thanksPath', () => {
     expect(thanksPath({ type: 'page', slug: 'index' }, 'nl', 'nl')).toBe('/thanks');
     expect(thanksPath({ type: 'page', slug: 'index' }, 'en', 'nl')).toBe('/en/thanks');
     expect(thanksPath({ type: 'article', slug: 'x' }, 'nl', 'nl')).toBe('/articles/x/thanks');
+  });
+});
+
+describe('plainSitePath', () => {
+  it('keeps a plain site path and drops anything that could leave the site', () => {
+    expect(plainSitePath('/gast')).toBe('/gast');
+    expect(plainSitePath('/en/articles/story')).toBe('/en/articles/story');
+    for (const asked of [
+      null,
+      '',
+      'gast',
+      '//evil.example',
+      'https://evil.example',
+      '/a?b',
+      '/a b',
+    ])
+      expect(plainSitePath(asked)).toBeNull();
   });
 });

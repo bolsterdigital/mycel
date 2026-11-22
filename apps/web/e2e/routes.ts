@@ -84,6 +84,8 @@ export const ADMIN_ROUTES: GateRoute[] = [
 /** Public routes of the probe site, measured anonymously in Dutch. */
 export const PUBLIC_ROUTES: GateRoute[] = [
   { path: '/probe/campagne' },
+  // The landing page's thank-you view: its share links are an action group (ADR 038 rule 8).
+  { path: '/probe/campagne/thanks' },
   { path: '/probe/artikel' },
   { path: '/probe/people/e2e-auteur' },
   { path: '/probe/en/people/e2e-auteur' },

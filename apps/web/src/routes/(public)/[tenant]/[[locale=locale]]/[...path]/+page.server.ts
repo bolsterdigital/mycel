@@ -27,8 +27,10 @@ import {
   donationPath,
   localeOf,
   parseContentPath,
+  plainSitePath,
   thanksPath,
 } from '#lib/server/public/content-route.js';
+import { campaignThanksPath, shareLinks } from '#lib/server/public/campaigns/thanks.js';
 import { failureFor } from '#lib/server/public/form-post.js';
 import { NO_STORE, itemCacheHeaders } from '#lib/server/http/http-cache.js';
 import { forwardOldAddress } from '#lib/server/public/old-address.js';
@@ -96,6 +98,29 @@ export const load: PageServerLoad = async ({
         (b.type === 'form' || b.type === 'campaign-card') && b.form ? [b.form] : []
       ),
     ][0];
+    // A campaign's landing page thanks in its campaign layout (ADR 038 rule 8): the count, share
+    // links to the landing page and a way back to where the visitor signed (`campaigns/thanks.ts`).
+    if (view.model.campaign) {
+      const here = contentPath(view.item, locale, site.tenant.defaultLocale);
+      const address = await absoluteSiteUrl(site, here);
+      return {
+        view: 'campaign-thanks' as const,
+        title: view.model.title,
+        model: { ...view.model, campaign: { ...view.model.campaign, form: null } },
+        intro: view.intro,
+        message: form?.thankYou ?? '',
+        share: {
+          title: t('thanks.share.title'),
+          links: shareLinks(view.model.title, address, t),
+          address,
+          addressLabel: t('thanks.share.link'),
+        },
+        back: {
+          href: sitePath(site, plainSitePath(url.searchParams.get('back')) ?? here),
+          label: t('thanks.back'),
+        },
+      };
+    }
     return {
       view: 'thanks' as const,
       title: view.model.title,
@@ -147,7 +172,7 @@ const text = (data: FormData, name: string): string => {
 };
 
 export const actions: Actions = {
-  default: async ({ params, request, locals, getClientAddress }) => {
+  default: async ({ params, request, locals, getClientAddress, cookies }) => {
     const rt = runtime();
     const { site, route, locale } = target(locals, params);
     if (route.thanks) refuse(404);
@@ -226,13 +251,18 @@ export const actions: Actions = {
       );
 
     // A tripped honeypot and a recipient in cooldown get the same thank-you as a person, so a
-    // bot learns nothing, and nobody learns whether an address was just used.
+    // bot learns nothing, and nobody learns whether an address was just used. A campaign's form
+    // thanks on its landing page (ADR 038 rule 8), read from the page as the visitor saw it.
     if (
       result.status === 'accepted' ||
       (result.status === 'rejected' &&
         (result.reason === 'spam' || result.reason === 'recipient-limited'))
-    )
-      redirect(303, sitePath(site, thanksPath(route, locale, tenant.defaultLocale)));
+    ) {
+      const view = await loadPublicItem(site, route, locale, 1, cookies).catch(() => null);
+      const campaign =
+        view && campaignThanksPath(view.model, view.prefooter?.model.blocks ?? [], formId, here);
+      redirect(303, sitePath(site, campaign ?? thanksPath(route, locale, tenant.defaultLocale)));
+    }
 
     if (result.status === 'invalid')
       return fail(400, {

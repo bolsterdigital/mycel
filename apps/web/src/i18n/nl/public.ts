@@ -107,6 +107,11 @@ export const publicSite: Partial<Record<UiKey, string>> = {
   'confirm.invalid.body':
     'De bevestigingslink is ongeldig of verlopen. Meld je opnieuw aan om een nieuwe te krijgen.',
   'thanks.back': 'Terug naar de pagina',
+  'thanks.share.title': 'Deel de campagne',
+  'thanks.share.email': 'E-mail',
+  'thanks.share.whatsapp': 'WhatsApp',
+  'thanks.share.bluesky': 'Bluesky',
+  'thanks.share.link': 'Of kopieer de link',
   'public.notFound.title': 'Pagina niet gevonden',
   'public.notFound.body':
     'Deze pagina bestaat niet of is verhuisd. Controleer het adres of ga naar de homepage.',
