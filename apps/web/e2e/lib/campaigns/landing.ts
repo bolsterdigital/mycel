@@ -1,6 +1,7 @@
 // A campaign's landing page in the campaign layout (ADR 038 rules 2, 3 and 9; MY-267 PR 2), on
-// the quality corpus's campaign route in both locales: the header image is the first element of
-// `main`, loads eagerly and is the page's largest image; one h1 and an outline without skipped
+// the quality corpus's campaign route in both locales: the header image opens the layout, which
+// opens `main`, loads eagerly, is the page's largest image and runs main's full width, with intro
+// and action area sliding into it and nothing above it (MY-276); one h1 and an outline without skipped
 // levels; from the container threshold the action area (count and form) stands beside intro and
 // body, below it one column in the order intro, action, body; nothing scrolls sideways or clips at
 // 320 CSS px with default and 200% text; axe clean. The outline check is shared: any page can ask
@@ -32,11 +33,11 @@ export async function headingOutlineProblems(page: Page, within = 'body'): Promi
 
 type Box = { x: number; y: number; width: number; height: number };
 
-/** The boxes of intro, action and body in one layout: three separate reads straddle the sticky
+/** The boxes of image, intro, action and body in one layout: three separate reads straddle the sticky
  *  header's re-measurement a frame after a resize or text size change, which moves everything. */
 const boxes = (page: Page) =>
   page.evaluate(() =>
-    ['.campaign-intro', '.campaign-action', '.campaign-body'].map((s) => {
+    ['.campaign-hero', '.campaign-intro', '.campaign-action', '.campaign-body'].map((s) => {
       const r = document.querySelector(s)!.getBoundingClientRect();
       return { x: r.x, y: r.y, width: r.width, height: r.height };
     })
@@ -97,7 +98,9 @@ export async function exerciseCampaignLanding(page: Page, paths: readonly string
     const response = await page.goto(path);
     expect(response?.status(), path).toBe(200);
     // The header image first, eager, with its alt; the form is the campaign's, in the action area.
-    const first = page.locator('main > :first-child');
+    // The image opens the layout, which opens main: it shares rows with the columns (MY-276).
+    await expect(page.locator('main > :first-child')).toHaveClass(/campaign-layout/);
+    const first = page.locator('main > .campaign-layout > :first-child');
     await expect(first).toHaveClass(/campaign-hero/);
     await expect(first.locator('img')).not.toHaveAttribute('loading', 'lazy');
     await expect(first.locator('img')).toHaveAttribute('alt', /\S/);
@@ -106,12 +109,17 @@ export async function exerciseCampaignLanding(page: Page, paths: readonly string
     await expect(page.locator('.campaign-action progress')).toHaveCount(1);
     expect(await headingOutlineProblems(page, 'main'), path).toEqual([]);
 
-    // Wide: the action area to the right of intro and body, its top level with the intro's.
-    const [intro, action, body] = (await boxes(page)) as [Box, Box, Box];
+    // Wide: the image across main's full width; intro and action area slide into it, the action
+    // area further, and nothing reaches above it; the action area beside intro and body.
+    const [hero, intro, action, body] = (await boxes(page)) as [Box, Box, Box, Box];
+    const main = await page.locator('main').boundingBox();
+    expect(hero.width, `${path}: image full width`).toBeCloseTo(main!.width, 0);
+    expect(intro.y, `${path}: intro into the image`).toBeLessThan(hero.y + hero.height);
+    expect(action.y, `${path}: action above the intro`).toBeLessThan(intro.y);
+    expect(action.y, `${path}: nothing above the image`).toBeGreaterThan(hero.y);
     expect(action.x, `${path}: action beside the intro`).toBeGreaterThanOrEqual(
       intro.x + intro.width
     );
-    expect(Math.abs(action.y - intro.y)).toBeLessThan(2);
     expect(body.y).toBeGreaterThan(intro.y);
     await expectStickyAction(page, path);
 
@@ -119,7 +127,9 @@ export async function exerciseCampaignLanding(page: Page, paths: readonly string
     await page.setViewportSize(NARROW);
     for (const size of TEXT_SIZES) {
       await setTextSize(page, size === '100%' ? '16px' : size);
-      const [i, a, b] = (await boxes(page)) as [Box, Box, Box];
+      const [h, i, a, b] = (await boxes(page)) as [Box, Box, Box, Box];
+      expect(i.y, `${path} ${size}: intro into the image`).toBeLessThan(h.y + h.height);
+      expect(i.y, `${path} ${size}: nothing above the image`).toBeGreaterThan(h.y);
       expect(a.y, `${path} ${size}: action under the intro`).toBeGreaterThanOrEqual(i.y + i.height);
       expect(b.y, `${path} ${size}: body under the action`).toBeGreaterThanOrEqual(a.y + a.height);
       await layoutGate(page, `${path} at 320 px and ${size} text`, 'main');

@@ -4,7 +4,9 @@
      landing page and the card. On the landing page it is a section with its own heading
      (`level`); in a card the card title names it (`level` null), as Dreamkit's card did. The
      server still decides at submit (ADR 033 rule 3); this only keeps the page from offering a
-     post it would refuse. A compact form marks the area `campaign-action-sticky`, which
+     post it would refuse. The count comes first, a band across the top of the area on the
+     landing page (MY-276, Dreamkit's petition card), then the heading and the form; the section
+     keeps its name from that heading. A compact form marks the area `campaign-action-sticky`, which
      campaign.css keeps in view beside the text, bounded by the layout (MY-267 PR 5). -->
 <script lang="ts">
   import CampaignCount from './CampaignCount.svelte';
@@ -50,9 +52,12 @@
   );
 </script>
 
+{#snippet count()}
+  {#if campaign.phase !== 'upcoming'}<CampaignCount {campaign} {model} {id} />{/if}
+{/snippet}
+
 {#snippet body()}
   {#if stand}<p class="campaign-stand">{stand}</p>{/if}
-  {#if campaign.phase !== 'upcoming'}<CampaignCount {campaign} {model} {id} />{/if}
   {#if note}<p class="preview-note preview-note-warning">{note}</p>{/if}
   {#if campaign.form}
     <Form form={campaign.form} variant="default" width="content" {model} {state} {preview} />
@@ -65,9 +70,12 @@
     class:campaign-action-sticky={sticky}
     aria-labelledby="{id}-action"
   >
+    {@render count()}
     <svelte:element this={headingTag(level)} id="{id}-action">{title}</svelte:element>
     {@render body()}
   </section>
 {:else}
-  <div class="campaign-action" class:campaign-action-sticky={sticky}>{@render body()}</div>
+  <div class="campaign-action" class:campaign-action-sticky={sticky}>
+    {@render count()}{@render body()}
+  </div>
 {/if}
