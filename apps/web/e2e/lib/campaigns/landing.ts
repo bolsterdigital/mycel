@@ -70,9 +70,7 @@ export async function exerciseCampaignLanding(page: Page, paths: readonly string
         await box(page, '.campaign-action'),
         await box(page, '.campaign-body'),
       ];
-      expect(a.y, `${path} ${size}: action under the intro`).toBeGreaterThanOrEqual(
-        i.y + i.height
-      );
+      expect(a.y, `${path} ${size}: action under the intro`).toBeGreaterThanOrEqual(i.y + i.height);
       expect(b.y, `${path} ${size}: body under the action`).toBeGreaterThanOrEqual(a.y + a.height);
       await layoutGate(page, `${path} at 320 px and ${size} text`, 'main');
     }
