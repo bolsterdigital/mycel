@@ -1,6 +1,7 @@
-<!-- Who made an image. Set apart from the caption (P185-79): a line of its own with an icon for
-     the kind of image (a camera for a photo, a pen for an illustration, a frame for anything
-     else) instead of the word, which stays for a screen reader. The icons are Lucide's (ISC),
+<!-- Who made an image. Set apart from the caption (P185-79, MY-280): smaller and quieter, at the
+     image's right edge (media-blocks.css), with an icon for the kind of image (a camera for a
+     photo, a pen for an illustration, a frame for anything else) instead of the word, which
+     stays for a screen reader. The icons are Lucide's (ISC),
      inline: a public page has no icon sprite. Rejected: one generic icon for every kind (a camera
      beside a drawing says something untrue) and showing the word as well (P185-79 chose the icon).
      The licence closes the line, linked with rel="license" when it has a public text. -->

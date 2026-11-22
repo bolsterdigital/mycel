@@ -1,39 +1,64 @@
 /* Captions, credits and the file and sound blocks: what surrounds a medium on a public page. Apart
    from base.css because that file stands at its size ceiling (gate file-size), against the same
-   theme properties and under the same pair rule. A caption is quieter than the text it stands
-   in: smaller, in `--color-caption-fg` (tokens.ts) and in `--font-caption` where a house style sets one,
-   so a monospace caption is a value and not a rule. */
+   theme properties and under the same pair rule. A caption face is `--font-caption` where a house
+   style sets one, so a monospace caption is a value and not a rule.
+
+   Caption and credit (MY-280): the caption starts at the image's left edge in the body text
+   colour and keeps the content measure; the credit, smaller and quieter, ends at the image's
+   right edge, on the caption's line while both fit and on a line of its own, still right, when
+   they do not (a wrapping flex row: a line breaks on the caption's length up to the measure, so
+   a caption never squeezes into a narrow column beside the credit). Without a caption the credit
+   stands alone, right. Rejected: the credit only on hover (a touch screen never shows it, and
+   Mycel hides no text) and one face for both, which made the two hard to tell apart. */
 .image figcaption,
-.video figcaption,
+.gallery figcaption,
+.campaign-hero figcaption,
+.page > .page-cover-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-2);
+  font-family: var(--font-caption, inherit);
+  line-height: 1.35;
+}
+.image figcaption,
 .gallery figcaption {
   margin-block-start: 4px;
   padding-inline: var(--caption-inset);
-  /* As wide as the image, but its lines keep the content measure (content-layout.md). */
-  max-width: calc(var(--content-width, 100%) + 2 * var(--caption-inset));
   text-align: start;
+}
+/* Scoped to the page's own caption: the lightbox clones these nodes into its dark dialog
+   (lightbox.js), where its own colour and size hold (lightbox.css). */
+:is(figcaption, .page-cover-caption) > .caption-text {
+  flex: 0 1 auto;
+  /* Its lines keep the content measure under a wide or full image (content-layout.md). */
+  max-width: var(--content-width, 100%);
+  font-size: var(--step--1);
+  color: var(--color-body-fg);
+}
+
+/* The video's caption: one paragraph without a credit, on the surface colour, which the caption
+   colour was not checked against. */
+.video figcaption {
+  margin-block-start: 4px;
+  padding-inline: var(--caption-inset);
+  max-width: calc(var(--content-width, 100%) + 2 * var(--caption-inset));
   font-family: var(--font-caption, inherit);
   font-size: calc(var(--step--1) * 0.92);
   line-height: 1.35;
-  color: var(--color-caption-fg, var(--color-muted-fg));
-}
-
-/* A cover header's caption stands under the cover as a paragraph, not in a figure (base.css), but
-     it is the same line about the same image, so it takes the same face. */
-.page > .page-cover-caption {
-  font-family: var(--font-caption, inherit);
-}
-
-/* The video's caption stands on the surface colour, which the caption colour was not checked
-     against. */
-.video figcaption {
   color: var(--color-surface-fg);
 }
 
-/* The maker is not part of the caption's sentence (P185-79): a line of its own, the camera in
-     place of the word "Photo", which stays for a screen reader. */
-.credit {
-  display: block;
-  margin-block-start: 2px;
+/* The maker (P185-79): the camera in place of the word "Photo", which stays for a screen reader;
+   smaller than the caption, in `--color-caption-fg` (tokens.ts: the muted colour moved towards
+   the page as far as it stays AA), never italic. Scoped like the caption text. */
+:is(figcaption, .page-cover-caption) > .credit {
+  flex: 0 1 auto;
+  margin-inline-start: auto;
+  text-align: end;
+  font-size: calc(var(--step--1) * 0.85);
+  font-style: normal;
+  color: var(--color-caption-fg, var(--color-muted-fg));
 }
 .credit-by {
   /* Anchors the hidden word: positioned against the page it would widen a scrolling gallery row. */

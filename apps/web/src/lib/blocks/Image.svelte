@@ -42,7 +42,7 @@
   />
   {#if image.caption || image.credit}
     <figcaption>
-      {#if image.caption}{image.caption}{/if}
+      {#if image.caption}<span class="caption-text">{image.caption}</span>{/if}
       {#if image.credit}<Credit
           credit={image.credit}
           words={model.copy.credit}
