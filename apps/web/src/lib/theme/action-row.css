@@ -25,8 +25,6 @@
   --card-fg: var(--card-1-fg, var(--color-primary-fg));
   --card-bg: var(--card-1-bg, var(--color-primary-bg));
   --card-bar: var(--card-1-bar, var(--color-accent-bg));
-  --card-active-fg: var(--card-1-active-fg, var(--color-primary-active-fg));
-  --card-active-bg: var(--card-1-active-bg, var(--color-primary-active-bg));
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -40,22 +38,16 @@
   --card-fg: var(--card-2-fg, var(--color-primary-fg));
   --card-bg: var(--card-2-bg, var(--color-primary-bg));
   --card-bar: var(--card-2-bar, var(--color-accent-bg));
-  --card-active-fg: var(--card-2-active-fg, var(--color-primary-active-fg));
-  --card-active-bg: var(--card-2-active-bg, var(--color-primary-active-bg));
 }
 .cards-item:nth-child(3) {
   --card-fg: var(--card-3-fg, var(--color-primary-fg));
   --card-bg: var(--card-3-bg, var(--color-primary-bg));
   --card-bar: var(--card-3-bar, var(--color-accent-bg));
-  --card-active-fg: var(--card-3-active-fg, var(--color-primary-active-fg));
-  --card-active-bg: var(--card-3-active-bg, var(--color-primary-active-bg));
 }
 .cards-item:nth-child(4) {
   --card-fg: var(--card-4-fg, var(--color-primary-fg));
   --card-bg: var(--card-4-bg, var(--color-primary-bg));
   --card-bar: var(--card-4-bar, var(--color-accent-bg));
-  --card-active-fg: var(--card-4-active-fg, var(--color-primary-active-fg));
-  --card-active-bg: var(--card-4-active-bg, var(--color-primary-active-bg));
 }
 .cards-item > * {
   margin-block: 0;
@@ -87,11 +79,9 @@
   background: var(--card-bg);
 }
 /* The button on a filled card is the card's pair inverted: readable whatever the accent is, where
-   the accent button reached 1.1 to 1.5 : 1 on a light card in dark mode. Its active pair is checked
-   in tokens.ts along the whole transition. */
+   the accent button reached 1.1 to 1.5 : 1 on a light card in dark mode. On hover it inverts back
+   to the card's own pair, its border keeping the shape (controls/button.css). */
 .page:not(.admin) .cards-filled .cards-item .button:not(.secondary) {
   --action-base-fg: var(--card-bg);
   --action-base-bg: var(--card-fg);
-  --action-fg: var(--card-active-fg);
-  --action-bg: var(--card-active-bg);
 }
