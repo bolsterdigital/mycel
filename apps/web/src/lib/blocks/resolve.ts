@@ -29,6 +29,7 @@
 import { personPath } from '../public/person-path.js';
 import { formatBytes } from '../admin/format.js';
 import {
+  wallClock,
   fieldPattern,
   type FormDefinition,
   type PublicPersonCard,
@@ -411,6 +412,13 @@ export async function resolveDocument(
     path?: string;
     /** The site's time zone for an overview's dates; UTC where a caller has none. */
     timeZone?: string;
+    /**
+     * Today on the site's clock (`YYYY-MM-DD`), which splits a timeline into what happened and
+     * what is to come (MY-278); by default the date in `timeZone` now. Read at render, never
+     * stored, like an agenda's upcoming events: the page's ETag hashes the model, so the day an
+     * event is reached gives a new tag.
+     */
+    today?: string;
     /** The item's restricted media signed for a reader with access (`readerMedia`). */
     signedMedia?: Readonly<Record<string, MediaView>>;
     /**
@@ -544,6 +552,7 @@ export async function resolveDocument(
 
   const defaultLocale = source.defaultLocale ?? options.fallbackLocale;
   const timeZone = options.timeZone ?? 'UTC';
+  const today = options.today ?? wallClock(new Date(), timeZone).slice(0, 10);
   const campaign = (card: CampaignCard | null | undefined): RenderCampaign | null =>
     card?.available
       ? {
@@ -761,6 +770,7 @@ export async function resolveDocument(
             .map((e) => ({
               date: e.date,
               dateLabel: dateLabel.format(new Date(`${e.date}T00:00:00Z`)),
+              when: e.date <= today ? ('past' as const) : ('future' as const),
               title: text(e.title) ?? '',
               body: text(e.body),
               actions: actions(e.actions),
