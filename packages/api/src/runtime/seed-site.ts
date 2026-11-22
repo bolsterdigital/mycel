@@ -10,6 +10,9 @@
 //
 //   npm run demo:site -w @mycel/api -- otterdam [--tenant <slug>] [--admin <e-mail>] [--manifest <file>]
 //
+// The definition also sets the theme, logo and footer text while the tenant still has the
+// defaults; an editor's later choice is never overwritten.
+//
 // Rejected: a CLI command (see above), and requiring the tenant to exist first (two commands for
 // what is always done together on a fresh server).
 

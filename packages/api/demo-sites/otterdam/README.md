@@ -20,3 +20,5 @@ Each file is the Commons thumbnail of the original at 1920 or 1280 pixels, auto-
 The source SHA-1 is the one Wikimedia Commons reports for the original upload, checked on 2026-11-21. `demo-photos.test.ts` holds the file hashes and dimensions, so a replaced or recompressed file fails until this table and `OTTERDAM_PHOTOS` in `@mycel/core/testing` agree with it.
 
 A photo from a state or local agency, a zoo or a "courtesy of" credit does not belong here, even when Commons tags it as public domain: only a federal employee's own work is.
+
+`otterdam-logo.svg` is the site's logo: an otter's head above two waves, drawn for this repository as plain SVG shapes (no text, no external references), so it passes the logo upload's SVG check. It is not a photograph and has no row in the table.
