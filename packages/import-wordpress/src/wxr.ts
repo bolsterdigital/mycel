@@ -41,6 +41,8 @@ export interface WxrTerm {
 export interface WxrChannelTerm extends WxrTerm {
   id: number;
   taxonomy: string;
+  /** `wp:termmeta`, such as a Wings dossier term's `_dossier_post_id`. */
+  meta: Record<string, string>;
 }
 
 export interface WxrPost {
@@ -62,6 +64,8 @@ export interface WxrPost {
   tags: WxrTerm[];
   /** The Wings people and organisation categories (`people_category`, `organization_category`). */
   groups: { taxonomy: string; slug: string }[];
+  /** The Wings dossiers (taxonomy `dossier`) the post belongs to, in export order (MY-290). */
+  dossiers: WxrTerm[];
   language: string | null;
   translationGroup: string | null;
   meta: Record<string, string>;
@@ -92,15 +96,19 @@ function gmt(value: string): string | null {
   return `${m[1]}T${m[2]}Z`;
 }
 
+function metaOf(parent: Element, name: string): Record<string, string> {
+  const meta: Record<string, string> = {};
+  for (const entry of childElements(parent, name))
+    meta[field(entry, 'wp:meta_key')] = textOf(find(entry, 'wp:meta_value') ?? '');
+  return meta;
+}
+
 function readPost(item: Element): WxrPost {
   const terms = childElements(item, 'category');
   const ofDomain = (domain: string) =>
     terms
       .filter((t) => t.attrs.domain === domain)
       .map((t) => ({ slug: t.attrs.nicename ?? '', name: decodeEntities(textOf(t).trim()) }));
-  const meta: Record<string, string> = {};
-  for (const entry of childElements(item, 'wp:postmeta'))
-    meta[field(entry, 'wp:meta_key')] = textOf(find(entry, 'wp:meta_value') ?? '');
   return {
     id: Number(field(item, 'wp:post_id')),
     type: field(item, 'wp:post_type'),
@@ -120,9 +128,10 @@ function readPost(item: Element): WxrPost {
     groups: GROUP_TAXONOMIES.flatMap((taxonomy) =>
       ofDomain(taxonomy).map((t) => ({ taxonomy, slug: t.slug }))
     ),
+    dossiers: ofDomain('dossier'),
     language: ofDomain('language')[0]?.slug ?? null,
     translationGroup: ofDomain('post_translations')[0]?.slug ?? null,
-    meta,
+    meta: metaOf(item, 'wp:postmeta'),
   };
 }
 
@@ -153,6 +162,7 @@ export function readWxr(xml: string): WxrExport {
       taxonomy: field(t, 'wp:term_taxonomy'),
       slug: field(t, 'wp:term_slug'),
       name: decodeEntities(field(t, 'wp:term_name')),
+      meta: metaOf(t, 'wp:termmeta'),
     })),
     posts: childElements(channel, 'item').map(readPost),
   };

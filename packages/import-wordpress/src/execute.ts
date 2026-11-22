@@ -6,7 +6,8 @@
 //
 // Items are made in two rounds. A link from one item to another is checked at every save
 // (`content.reference.item-unknown`), so an item whose blocks name another item of the export is
-// first created without blocks and gets them once every item exists. Every placeholder of the plan
+// first created without blocks and gets them once every item exists; so is an item that names its
+// dossier pages (MY-290). Every placeholder of the plan
 // is swapped for the id a use case returned; a block whose file or linked item did not make it is
 // left out with a report line, so one missing image does not cost the whole article. One failed
 // item does not stop the run. Rejected: creating items in dependency order (two pages that link to
@@ -197,18 +198,35 @@ export async function execute(
       }
     if (Array.isArray(doc.authorIds)) doc.authorIds = doc.authorIds.filter((r) => known(r));
     if (typeof doc.sectionId === 'string' && !known(doc.sectionId)) doc.sectionId = null;
+    if (Array.isArray(doc.dossiers)) {
+      const dossiers = (doc.dossiers as { itemId: string }[]).filter(({ itemId }) => {
+        if (!known(itemId)) at({ code: 'dossier.unlinked', detail: 'dossier page not created' });
+        return known(itemId);
+      });
+      if (dossiers.length) doc.dossiers = dossiers;
+      else {
+        delete doc.dossiers;
+        delete doc.showDossier;
+      }
+    }
     return JSON.parse(JSON.stringify(doc).replace(PLACEHOLDER, (ref) => ids[ref] ?? ref));
   };
 
-  // Round one: every item as a draft; blocks that link to another item wait for round two.
+  // Round one: every item as a draft; blocks that link to another item and dossier memberships
+  // wait for round two.
   const made: { item: PlannedItem; itemId: string; revisionId: string; later: boolean }[] = [];
   for (const item of plan.items) {
-    const later = placeholders(item.document.blocks).some(isItemRef);
+    const later = placeholders([item.document.blocks, item.document.dossiers]).some(isItemRef);
     try {
       const document = resolve(item, later);
+      if (later) {
+        document.blocks = [];
+        delete document.dossiers;
+        delete document.showDossier;
+      }
       const { item: created, revision } = await invoker.run(useCases.createItem, principal, {
         slug: item.slug,
-        document: later ? { ...document, blocks: [] } : document,
+        document,
       });
       ids[item.ref] = created.id;
       made.push({ item, itemId: created.id, revisionId: revision.id, later });

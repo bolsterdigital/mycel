@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Synthetic export of a made-up Dreamkit site with Wings dossiers (MY-290), written by hand:
+     dossier "Schoon water" (landing page 501 with intro and image, term 40) with an article and a
+     page as members, the article hiding its dossier box; a regular category with the same name
+     and slug that must not add a membership; a dossier grid in "all" mode on the landing page;
+     a dossier term without a landing page (Cultuur), an article in five dossiers of which four
+     have a landing page, and two landing pages that claim one term (Verkeer). A landing page is
+     linked through its own `_dossier_term_id`, the term's `_dossier_post_id` or both. No client content. -->
+<rss version="2.0"
+	xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:wp="http://wordpress.org/export/1.2/"
+>
+<channel>
+	<title>Voorbeeldbeweging</title>
+	<link>https://voorbeeld.example</link>
+	<language>nl-NL</language>
+	<wp:wxr_version>1.2</wp:wxr_version>
+	<wp:base_blog_url>https://voorbeeld.example</wp:base_blog_url>
+
+	<wp:author><wp:author_id>1</wp:author_id><wp:author_login><![CDATA[anna]]></wp:author_login><wp:author_display_name><![CDATA[Anna de Wit]]></wp:author_display_name></wp:author>
+
+	<wp:category><wp:term_id>2</wp:term_id><wp:category_nicename><![CDATA[schoon-water]]></wp:category_nicename><wp:category_parent><![CDATA[]]></wp:category_parent><wp:cat_name><![CDATA[Schoon water]]></wp:cat_name></wp:category>
+	<wp:term><wp:term_id>2</wp:term_id><wp:term_taxonomy><![CDATA[category]]></wp:term_taxonomy><wp:term_slug><![CDATA[schoon-water]]></wp:term_slug><wp:term_parent><![CDATA[]]></wp:term_parent><wp:term_name><![CDATA[Schoon water]]></wp:term_name></wp:term>
+	<wp:term><wp:term_id>40</wp:term_id><wp:term_taxonomy><![CDATA[dossier]]></wp:term_taxonomy><wp:term_slug><![CDATA[schoon-water]]></wp:term_slug><wp:term_parent><![CDATA[]]></wp:term_parent><wp:term_name><![CDATA[Schoon water]]></wp:term_name><wp:termmeta><wp:meta_key><![CDATA[_dossier_post_id]]></wp:meta_key><wp:meta_value><![CDATA[501]]></wp:meta_value></wp:termmeta></wp:term>
+	<wp:term><wp:term_id>41</wp:term_id><wp:term_taxonomy><![CDATA[dossier]]></wp:term_taxonomy><wp:term_slug><![CDATA[verkeer]]></wp:term_slug><wp:term_parent><![CDATA[]]></wp:term_parent><wp:term_name><![CDATA[Verkeer]]></wp:term_name></wp:term>
+	<wp:term><wp:term_id>42</wp:term_id><wp:term_taxonomy><![CDATA[dossier]]></wp:term_taxonomy><wp:term_slug><![CDATA[wonen]]></wp:term_slug><wp:term_parent><![CDATA[]]></wp:term_parent><wp:term_name><![CDATA[Wonen]]></wp:term_name></wp:term>
+	<wp:term><wp:term_id>43</wp:term_id><wp:term_taxonomy><![CDATA[dossier]]></wp:term_taxonomy><wp:term_slug><![CDATA[groen]]></wp:term_slug><wp:term_parent><![CDATA[]]></wp:term_parent><wp:term_name><![CDATA[Groen]]></wp:term_name><wp:termmeta><wp:meta_key><![CDATA[_dossier_post_id]]></wp:meta_key><wp:meta_value><![CDATA[506]]></wp:meta_value></wp:termmeta></wp:term>
+	<wp:term><wp:term_id>45</wp:term_id><wp:term_taxonomy><![CDATA[dossier]]></wp:term_taxonomy><wp:term_slug><![CDATA[cultuur]]></wp:term_slug><wp:term_parent><![CDATA[]]></wp:term_parent><wp:term_name><![CDATA[Cultuur]]></wp:term_name></wp:term>
+	<wp:term><wp:term_id>44</wp:term_id><wp:term_taxonomy><![CDATA[dossier]]></wp:term_taxonomy><wp:term_slug><![CDATA[zorg]]></wp:term_slug><wp:term_parent><![CDATA[]]></wp:term_parent><wp:term_name><![CDATA[Zorg]]></wp:term_name><wp:termmeta><wp:meta_key><![CDATA[_dossier_post_id]]></wp:meta_key><wp:meta_value><![CDATA[504]]></wp:meta_value></wp:termmeta></wp:term>
+
+	<item>
+		<title><![CDATA[Rivier bij de brug]]></title>
+		<link>https://voorbeeld.example/rivier/</link>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[]]></content:encoded>
+		<wp:post_id>101</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-01 10:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[rivier]]></wp:post_name>
+		<wp:status><![CDATA[inherit]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[attachment]]></wp:post_type>
+		<wp:attachment_url><![CDATA[https://voorbeeld.example/wp-content/uploads/2025/03/rivier.jpg]]></wp:attachment_url>
+		<wp:postmeta><wp:meta_key><![CDATA[_wp_attachment_image_alt]]></wp:meta_key><wp:meta_value><![CDATA[Een rivier onder een stenen brug]]></wp:meta_value></wp:postmeta>
+	</item>
+
+	<item>
+		<title><![CDATA[Schoon water]]></title>
+		<link>https://voorbeeld.example/dossiers/schoon-water/</link>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>Alles over schoon water in de stad.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:wings/nodes-grid {"variationType":"dossier","selectedDossier":40,"dossierPostType":"all","latestPostsCount":6} /-->
+
+<!-- wp:paragraph -->
+<p>Mis je iets? Laat het ons weten.</p>
+<!-- /wp:paragraph -->]]></content:encoded>
+		<excerpt:encoded><![CDATA[Waarom schoon water ons allemaal raakt.]]></excerpt:encoded>
+		<wp:post_id>501</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-02 10:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[schoon-water]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[dossier]]></wp:post_type>
+		<wp:postmeta><wp:meta_key><![CDATA[_thumbnail_id]]></wp:meta_key><wp:meta_value><![CDATA[101]]></wp:meta_value></wp:postmeta>
+		<wp:postmeta><wp:meta_key><![CDATA[_dossier_term_id]]></wp:meta_key><wp:meta_value><![CDATA[40]]></wp:meta_value></wp:postmeta>
+	</item>
+
+	<item>
+		<title><![CDATA[Verkeer]]></title>
+		<link>https://voorbeeld.example/dossiers/verkeer/</link>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>Veilig over straat.</p>
+<!-- /wp:paragraph -->]]></content:encoded>
+		<wp:post_id>502</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-02 11:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[verkeer]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[dossier]]></wp:post_type>
+		<wp:postmeta><wp:meta_key><![CDATA[_dossier_term_id]]></wp:meta_key><wp:meta_value><![CDATA[41]]></wp:meta_value></wp:postmeta>
+	</item>
+
+	<item>
+		<title><![CDATA[Verkeer (oud)]]></title>
+		<link>https://voorbeeld.example/dossiers/verkeer-oud/</link>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>Een oudere versie.</p>
+<!-- /wp:paragraph -->]]></content:encoded>
+		<wp:post_id>503</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-02 12:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[verkeer-oud]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[dossier]]></wp:post_type>
+		<wp:postmeta><wp:meta_key><![CDATA[_dossier_term_id]]></wp:meta_key><wp:meta_value><![CDATA[41]]></wp:meta_value></wp:postmeta>
+	</item>
+
+	<item>
+		<title><![CDATA[Zorg]]></title>
+		<link>https://voorbeeld.example/dossiers/zorg/</link>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>Zorg dichtbij.</p>
+<!-- /wp:paragraph -->]]></content:encoded>
+		<wp:post_id>504</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-02 13:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[zorg]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[dossier]]></wp:post_type>
+		<wp:postmeta><wp:meta_key><![CDATA[_dossier_term_id]]></wp:meta_key><wp:meta_value><![CDATA[44]]></wp:meta_value></wp:postmeta>
+	</item>
+
+	<item>
+		<title><![CDATA[Wonen]]></title>
+		<link>https://voorbeeld.example/dossiers/wonen/</link>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>Betaalbaar wonen.</p>
+<!-- /wp:paragraph -->]]></content:encoded>
+		<wp:post_id>505</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-02 14:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[wonen]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[dossier]]></wp:post_type>
+		<wp:postmeta><wp:meta_key><![CDATA[_dossier_term_id]]></wp:meta_key><wp:meta_value><![CDATA[42]]></wp:meta_value></wp:postmeta>
+	</item>
+
+	<item>
+		<title><![CDATA[Groen]]></title>
+		<link>https://voorbeeld.example/dossiers/groen/</link>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>Meer groen in de wijk.</p>
+<!-- /wp:paragraph -->]]></content:encoded>
+		<wp:post_id>506</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-02 14:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[groen]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[dossier]]></wp:post_type>
+	</item>
+
+	<item>
+		<title><![CDATA[Meetresultaten van de rivier]]></title>
+		<link>https://voorbeeld.example/2025/03/meetresultaten/</link>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>De nieuwe metingen zijn binnen.</p>
+<!-- /wp:paragraph -->]]></content:encoded>
+		<wp:post_id>601</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-05 09:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[meetresultaten]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[post]]></wp:post_type>
+		<category domain="category" nicename="schoon-water"><![CDATA[Schoon water]]></category>
+		<category domain="dossier" nicename="schoon-water"><![CDATA[Schoon water]]></category>
+		<wp:postmeta><wp:meta_key><![CDATA[_hide_dossier_section]]></wp:meta_key><wp:meta_value><![CDATA[1]]></wp:meta_value></wp:postmeta>
+	</item>
+
+	<item>
+		<title><![CDATA[Zo meten wij]]></title>
+		<link>https://voorbeeld.example/zo-meten-wij/</link>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>Onze methode, stap voor stap.</p>
+<!-- /wp:paragraph -->]]></content:encoded>
+		<wp:post_id>602</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-04 09:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[zo-meten-wij]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[page]]></wp:post_type>
+		<category domain="dossier" nicename="schoon-water"><![CDATA[Schoon water]]></category>
+		<category domain="dossier" nicename="cultuur"><![CDATA[Cultuur]]></category>
+	</item>
+
+	<item>
+		<title><![CDATA[Alles tegelijk]]></title>
+		<link>https://voorbeeld.example/2025/03/alles-tegelijk/</link>
+		<dc:creator><![CDATA[anna]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>Over water, verkeer, wonen, groen en zorg.</p>
+<!-- /wp:paragraph -->]]></content:encoded>
+		<wp:post_id>603</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2025-03-03 09:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[alles-tegelijk]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[post]]></wp:post_type>
+		<category domain="dossier" nicename="schoon-water"><![CDATA[Schoon water]]></category>
+		<category domain="dossier" nicename="verkeer"><![CDATA[Verkeer]]></category>
+		<category domain="dossier" nicename="wonen"><![CDATA[Wonen]]></category>
+		<category domain="dossier" nicename="groen"><![CDATA[Groen]]></category>
+		<category domain="dossier" nicename="zorg"><![CDATA[Zorg]]></category>
+	</item>
+</channel>
+</rss>

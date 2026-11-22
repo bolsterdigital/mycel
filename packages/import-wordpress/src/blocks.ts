@@ -60,6 +60,8 @@ export interface MapContext {
   wingsNode(id: unknown): string | null;
   /** The placeholder id of the section made from a WordPress category, by its term id (MY-285). */
   section(termId: unknown): string | null;
+  /** The placeholder id of the dossier page a Wings dossier term leads to, by term id (MY-290). */
+  dossier(termId: unknown): string | null;
   /** A remark on this block that does not leave it out. */
   note(code: NoteCode, detail?: string): void;
 }
@@ -72,7 +74,8 @@ export type NoteCode =
   | 'hero.action-dropped'
   | 'people.missing'
   | 'items.missing'
-  | 'overview.more-dropped';
+  | 'overview.more-dropped'
+  | 'overview.dossier-split';
 
 type Entry = (block: WpBlock, ctx: MapContext) => Mapped;
 
@@ -419,7 +422,9 @@ const overview = (props: Record<string, unknown>): BlockDraft => ({
  * gap is never filled by a newer article. "Latest" is the newest articles, of the section made from
  * the category when one is chosen; "events" is the agenda's upcoming events. Wings shows a running
  * event only until its start day has passed, Mycel until its end: a visible difference that stays.
- * A dossier grid waits for the dossiers themselves (MY-290) and is left out. The "all posts" or
+ * A dossier grid lists the members of the dossier page made from its term (MY-290), newest first:
+ * articles, pages, or for "all" an overview of articles and one of pages, because an overview
+ * narrows one source to a dossier; Wings mixed them by date, so that is a note. The "all posts" or
  * "all events" link has no destination in Mycel yet (no section or archive page), so it is a note.
  * `columns` and `showDate` have no counterpart: an overview lays out its cards itself.
  */
@@ -445,6 +450,19 @@ function nodesGrid(block: WpBlock, ctx: MapContext): Mapped {
       : chosen(Array.isArray(a.wingsNodeIds) ? a.wingsNodeIds : [], ctx, 'wings');
     if (!refs.length) return skip('items-missing');
     list = overview({ source: 'selection', pinned: refs.map((itemId) => ({ itemId })) });
+  } else if (mode === 'dossier') {
+    const dossierId = ctx.dossier(a.selectedDossier);
+    if (!dossierId) {
+      ctx.note('items.missing', `dossier ${String(a.selectedDossier ?? '')}`);
+      return skip('items-missing');
+    }
+    const kind = str(a.dossierPostType) || 'all';
+    const of = (source: 'article' | 'page') =>
+      overview({ source, order: 'newest', limit, dossierId });
+    if (kind === 'post') return blocks(...headerOf(block, ctx), of('article'));
+    if (kind === 'page') return blocks(...headerOf(block, ctx), of('page'));
+    ctx.note('overview.dossier-split');
+    return blocks(...headerOf(block, ctx), of('article'), of('page'));
   } else return skip('unsupported');
   return blocks(...headerOf(block, ctx), list);
 }
