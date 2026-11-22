@@ -92,7 +92,7 @@
       <Picture image={intro.hero} base={model.base} sizes={IMAGE_SIZES.full} eager />
       {#if intro.hero.caption || intro.hero.credit}
         <figcaption>
-          {#if intro.hero.caption}{intro.hero.caption}{/if}
+          {#if intro.hero.caption}<span class="caption-text">{intro.hero.caption}</span>{/if}
           {#if intro.hero.credit}<Credit
               credit={intro.hero.credit}
               words={model.copy.credit}

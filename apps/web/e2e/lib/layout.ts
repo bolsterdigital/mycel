@@ -590,6 +590,7 @@ export function mediaBlocks(
     }),
     image('media-content-small', media.small, 'content', {
       caption: { nl: 'Klein bronbeeld.', en: 'Small source.' },
+      credit: { work: null, photographer: 'Sam de Vries' },
     }),
     video('media-video-full', 'full', {
       provider: 'youtube',
@@ -606,8 +607,9 @@ export function mediaBlocks(
  *  rails: each figure sits on the rail its layout names, a float stays inside the gutters and
  *  leaves the text beside it a readable line, every image fills its figure in its own aspect
  *  ratio, a caption starts at the image's edge (the gutter for a full image) and keeps the
- *  content measure, a video's title and caption keep the content rail, nothing framed or broad
- *  sits beside a hanging float, the page contains its last float, and with `sizes` (default text)
+ *  content measure while its credit ends at the image's other edge without covering it, a
+ *  video's title and caption keep the content rail, nothing framed or broad sits beside a
+ *  hanging float, the page contains its last float, and with `sizes` (default text)
  *  each image's `sizes` picks the srcset candidate its rendered width would. */
 export function mediaBlockProblems(page: Page, sizes: boolean): Promise<string[]> {
   return page.evaluate(async (checkSizes) => {
@@ -633,8 +635,8 @@ export function mediaBlockProblems(page: Page, sizes: boolean): Promise<string[]
     probe.remove();
     const off = (a: DOMRect, b: DOMRect) =>
       Math.abs(a.left - b.left) > 1 || Math.abs(a.right - b.right) > 1;
-    // The boxes of the text itself, not of the elements around it: a credit is a block as wide
-    // as its caption, whatever the length of the name in it.
+    // The boxes of the text itself, not of the elements around it: a credit or a caption box may
+    // be wider than the words in it.
     const lines = (el: Element) => {
       const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
       const rects: DOMRect[] = [];
@@ -701,23 +703,38 @@ export function mediaBlockProblems(page: Page, sizes: boolean): Promise<string[]
             out.push(`${label}: sizes says ${Math.round(claimed)}px for ${Math.round(r.width)}px`);
         }
       }
+      // The caption text starts at the image's left edge and keeps the measure; the credit ends
+      // at its right edge, never over the caption (MY-280). An edgeless (full) image insets both.
       const inner = block.matches('.video')
         ? [...block.children]
-        : [...block.querySelectorAll('figcaption')];
+        : [...block.querySelectorAll('figcaption > .caption-text, figcaption > .credit')];
+      const taken: DOMRect[] = [];
       for (const part of inner) {
         const text = lines(part);
         if (!text.length) continue;
         const left = Math.min(...text.map((r) => r.left));
         const right = Math.max(...text.map((r) => r.right));
         if (block.matches('.image')) {
-          const edge =
-            img!.getBoundingClientRect().left + (box.left <= rails.full!.left + 1 ? gutter : 0);
-          if (Math.abs(left - edge) > 1) out.push(`${label}: caption not at the image's edge`);
+          const r = img!.getBoundingClientRect();
+          const inset = box.left <= rails.full!.left + 1 ? gutter : 0;
+          const credit = part.matches('.credit');
+          if (!credit && Math.abs(left - (r.left + inset)) > 1)
+            out.push(`${label}: caption not at the image's edge`);
+          if (credit && Math.abs(right - (r.right - inset)) > 1)
+            out.push(`${label}: credit not at the image's right edge`);
           if (right > rails.full!.right - (box.right >= rails.full!.right - 1 ? gutter : 0) + 1)
             out.push(`${label}: caption against the edge`);
+          for (const t of text)
+            if (
+              taken.some(
+                (o) => t.left < o.right && t.right > o.left && t.top < o.bottom && t.bottom > o.top
+              )
+            )
+              out.push(`${label}: credit over the caption`);
+          taken.push(...text);
         } else if (left < rails.content!.left - 1 || right > rails.content!.right + 1)
           out.push(`${label}: ${part.tagName.toLowerCase()} past the content rail`);
-        if (right - left > rails.content!.width + 1)
+        if (!part.matches('.credit') && right - left > rails.content!.width + 1)
           out.push(`${label}: a caption line past the measure`);
       }
       for (const el of block.querySelectorAll('*'))

@@ -1372,9 +1372,8 @@ test.describe('grid-compositions', () => {
     for (const key of ['wide', 'full', 'float'] as const) {
       const f = wide[key];
       expect(f.caption.left).toBeCloseTo(f.img.left, 0);
-      // As wide as the image, up to the content measure (content-layout.md).
-      const measure = wide.prose.right - wide.prose.left + 2 * f.inset;
-      expect(f.caption.width).toBeCloseTo(Math.min(f.img.width, measure), 0);
+      // As wide as the image, its credit at the far end (MY-280; the measure: mediaBlockProblems).
+      expect(f.caption.width).toBeCloseTo(f.img.width, 0);
       expect(f.caption.gap).toBeCloseTo(4, 1);
     }
     expect(wide.wide.inset).toBe(0);

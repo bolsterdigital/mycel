@@ -1635,7 +1635,7 @@ test.describe('media blocks keep their rails', () => {
     onlyA11y('composition measurements run in a11y');
     const principal = systemPrincipal(await tenantId(), 'e2e');
     await withInvoker(async (invoker, uow) => {
-      const slug = 'grid-media-v1';
+      const slug = 'grid-media-v2';
       if ((await invoker.run(useCases.listItems, principal, { type: 'page', slug })).items.length)
         return;
       const find = async (q: string) =>
@@ -1687,7 +1687,7 @@ test.describe('media blocks keep their rails', () => {
           page.on('request', (r) => {
             if (/youtube|youtu\.be|vimeo/.test(r.url())) hosts.push(r.url());
           });
-          const route = `/probe/${locale === 'en' ? 'en/' : ''}grid-media-v1`;
+          const route = `/probe/${locale === 'en' ? 'en/' : ''}grid-media-v2`;
           expect((await page.goto(route))?.status()).toBe(200);
           await setTextSize(page, size);
           await page.evaluate(() => document.fonts.ready);
@@ -1696,6 +1696,17 @@ test.describe('media blocks keep their rails', () => {
           await page.screenshot({ path, fullPage: true });
           await info.attach('page', { path, contentType: 'image/png' });
           expect(await mediaBlockProblems(page, size === '100%')).toEqual([]);
+          // A short caption and its credit share one line while both fit (MY-280).
+          if (size === '100%') {
+            const small = page.locator('figcaption', { hasText: /Klein bronbeeld|Small source/ });
+            const [caption, credit] = await Promise.all(
+              ['.caption-text', '.credit'].map((s) => small.locator(s).boundingBox())
+            );
+            expect(credit!.y, 'credit beside the caption').toBeLessThan(
+              caption!.y + caption!.height
+            );
+            expect(credit!.x).toBeGreaterThan(caption!.x + caption!.width);
+          }
           await layoutGate(page, `${width}px ${size}`, 'main');
           // A video is a link to its host: the page asks the host for nothing (no-JS fallback).
           expect(hosts).toEqual([]);
