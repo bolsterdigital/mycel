@@ -317,7 +317,10 @@
   gap: var(--space-3);
 }
 .site-footer-social {
-  flex: 1 1 10rem;
+  /* As wide as its icons in one row; it shrinks and wraps them only when the row has no room.
+     Rejected: a basis of 10rem, which the menu columns' flex-grow kept at three icons, so a
+     fourth profile wrapped at 1366 px (Frisse Wind). */
+  flex: 0 1 auto;
 }
 .site-footer-title {
   margin: 0 0 var(--space-1);
