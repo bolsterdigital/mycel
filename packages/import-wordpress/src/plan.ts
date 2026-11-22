@@ -32,7 +32,9 @@ import {
 } from '@mycel/core';
 import type { z } from 'zod';
 import {
+  CONTAINERS,
   decodedSlug,
+  lookOf,
   mapBlock,
   slugOf,
   type BlockDraft,
@@ -41,7 +43,7 @@ import {
   type MediaRef,
   type NoteCode,
 } from './blocks.js';
-import { parseBlocks } from './grammar.js';
+import { parseBlocks, type WpBlock } from './grammar.js';
 import { decodeEntities } from './markup.js';
 import { linkRewriter, normalPath, plainText } from './rich.js';
 import { readWxr, type WxrPost } from './wxr.js';
@@ -81,6 +83,7 @@ export interface PlannedItem {
 export type ReportCode =
   | NoteCode
   | 'block.skipped'
+  | 'block.unwrapped'
   | 'block.shortcode'
   | 'block.invalid'
   | 'block.media-missing'
@@ -261,8 +264,20 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
     const at = { postId: post.id, title: post.title, locale };
     const drafts: BlockDraft[] = [];
     let header: HeaderDraft | null = null;
-    parseBlocks(post.content).forEach((block, i) => {
-      const where = { ...at, block: block.name ?? 'freeform', position: i + 1 };
+    // A layout container is unwrapped: its inner blocks take its place, and their report lines
+    // keep the container's top-level position (MY-282).
+    const visit = (block: WpBlock, position: number): void => {
+      if (block.name && CONTAINERS.has(block.name)) {
+        const look = lookOf(block);
+        if (look)
+          lines.push({ code: 'block.unwrapped', ...at, block: block.name, position, detail: look });
+        for (const inner of block.innerBlocks) visit(inner, position);
+        return;
+      }
+      mapOne(block, position);
+    };
+    const mapOne = (block: WpBlock, position: number) => {
+      const where = { ...at, block: block.name ?? 'freeform', position };
       const ctx: MapContext = {
         locale,
         postTitle: post.title,
@@ -290,7 +305,8 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
           if (result.success) drafts.push(draft);
           else lines.push({ code: 'block.invalid', ...where, detail: firstIssue(result.error) });
         }
-    });
+    };
+    parseBlocks(post.content).forEach((block, i) => visit(block, i + 1));
     // Rich text next to rich text is one block (ADR 020 rule 4); a skipped block between two
     // paragraphs would otherwise leave two.
     const blocks: BlockDraft[] = [];
