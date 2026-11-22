@@ -15,7 +15,7 @@ import {
   introOf,
 } from '#lib/server/content/preview.js';
 import { runtime } from '#lib/server/runtime.js';
-import { chromeModel } from '#lib/server/public/chrome.js';
+import { cardPlaceholder, chromeModel } from '#lib/server/public/chrome.js';
 import { siteTheme } from '#lib/server/public/theme.js';
 import { resolveDocument, resolveIntro, runtimeSource } from '#lib/blocks/resolve.js';
 import { langOf, ui } from '../../../../../../../i18n/index.js';
@@ -51,7 +51,13 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
   const model = await resolveDocument(
     source,
     { locale, ...projectDocument(doc, locale) },
-    { base, fallbackLocale: tenant.defaultLocale, diagnose: true, itemId: params.itemId }
+    {
+      base,
+      fallbackLocale: tenant.defaultLocale,
+      diagnose: true,
+      itemId: params.itemId,
+      placeholder: await cardPlaceholder(site, base),
+    }
   );
   const live = item.publication.find((p) => p.locale === locale)?.publishedAt ?? null;
   const intro = await resolveIntro(source, await introOf(principal, doc, locale, live), locale);

@@ -17,10 +17,33 @@
   color: var(--color-surface-fg);
   background: var(--color-surface-bg);
 }
+/* The image runs to the card's top and side edges, and the card clips it with its own radius;
+   the text keeps the inset (MY-277, Jaap 2026-11-22). Side by side it runs to the top, bottom and
+   start edges, as tall as the text where the text is taller. Rejected: an image inside the
+   padding with corners of its own, a frame around a picture. */
+.campaign-card-inner:has(> .campaign-card-image) {
+  gap: 0;
+  padding: 0;
+  overflow: clip;
+}
+.campaign-card-inner:has(> .campaign-card-image) > .campaign-card-text {
+  padding: var(--inset);
+}
 @container (min-width: 34rem) {
   .campaign-card-inner:has(> .campaign-card-image) {
     grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
     align-items: start;
+  }
+  .campaign-card-inner > .campaign-card-image {
+    position: relative;
+    align-self: stretch;
+    aspect-ratio: 3 / 2;
+  }
+  .campaign-card-inner > .campaign-card-image:not(.card-placeholder) img {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    aspect-ratio: auto;
   }
 }
 .campaign-card-image img {
@@ -29,7 +52,27 @@
   height: auto;
   aspect-ratio: 3 / 2;
   object-fit: cover;
-  border-radius: var(--radius);
+}
+/* A card without an image (MY-277, CardPlaceholder.svelte): the primary pair with the site's logo
+   or initial, centred in the same 3:2 area. */
+.card-placeholder {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 3 / 2;
+  color: var(--color-primary-fg);
+  background: var(--color-primary-bg);
+}
+.campaign-card-image.card-placeholder img {
+  width: auto;
+  max-width: 50%;
+  max-height: 40%;
+  aspect-ratio: auto;
+  object-fit: contain;
+}
+.card-placeholder span {
+  font-size: var(--step-4);
+  font-weight: 700;
+  line-height: 1;
 }
 .campaign-card-text {
   display: flex;

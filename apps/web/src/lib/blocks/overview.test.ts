@@ -5,6 +5,7 @@
 // holds is proven over both adapters in packages/db/src/adapter-rules.test.ts; the agenda below
 // runs the real source over the in-memory unit of work so its clock can pass an event's end.
 import { describe, expect, it } from 'vitest';
+import { render } from 'svelte/server';
 import {
   anonymousPrincipal,
   Block,
@@ -18,6 +19,8 @@ import {
 } from '@mycel/core';
 import { FakeClock, MemoryUnitOfWork } from '@mycel/core/testing';
 import { resolveDocument, runtimeSource, type ResolveSource } from './resolve.js';
+import Blocks from './Blocks.svelte';
+import type { CardPlaceholder } from './model.js';
 
 const block = (id: string, props: Record<string, unknown>) =>
   Block.parse({ id, type: 'overview', version: BLOCK_DEFINITIONS.overview.version, props });
@@ -146,5 +149,40 @@ describe('an agenda in the render model', () => {
     expect(over.map((b) => b.entries.map((e) => e.href))).toEqual([[], ['/buurtavond']]);
     // The public page's ETag digest hashes this model: a conditional GET after the turn is no 304.
     expect(JSON.stringify(over)).not.toBe(JSON.stringify(running));
+  });
+});
+
+// MY-277: a card whose item has no image along its chain shows the site's placeholder in the
+// image area, decorative; without a site (a fixture) it has no image area, as before.
+describe('a card without an image', () => {
+  const cards = (placeholder?: CardPlaceholder) =>
+    resolveDocument(
+      {
+        form: async () => null,
+        media: async () => null,
+        itemPath: async () => null,
+        overview: async () => ({ entries: [entry(1)], older: false }),
+      },
+      { locale: 'nl', title: 'Nieuws', blocks: [projectBlock(block('p', {}), 'nl')] },
+      { base: '', fallbackLocale: 'nl', ...(placeholder ? { placeholder } : {}) }
+    ).then((model) => render(Blocks, { props: { model } }).body);
+
+  it("shows the site's initial, or its logo, hidden from assistive technology", async () => {
+    const initial = await cards({ logo: null, initial: 'O' });
+    expect(initial.replace(/<!--[^>]*-->/g, '')).toContain(
+      '<div class="campaign-card-image card-placeholder" aria-hidden="true"><span>O</span></div>'
+    );
+    const logo = await cards({
+      logo: { src: '/_brand/logo-3.webp', width: 200, height: 80 },
+      initial: 'O',
+    });
+    expect(logo).toContain('src="/_brand/logo-3.webp"');
+    expect(logo.replace(/<!--[^>]*-->/g, '')).toMatch(
+      /card-placeholder[^>]*aria-hidden="true"><img[^>]*alt=""/
+    );
+  });
+
+  it('has no image area without a placeholder', async () => {
+    expect(await cards()).not.toContain('campaign-card-image');
   });
 });

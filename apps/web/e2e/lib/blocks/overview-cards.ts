@@ -3,8 +3,10 @@
 // on the text under the title opens the item; the title is not underlined at rest, is sized to
 // the card and keeps "faunapassages" inside it at 1280 px and at 320 px with 200% text; a mouse
 // hover and the keyboard focus invert the card to the primary pair at once (no transition, no
-// movement), and the focus adds a ring around the card. The generic block suite renders every
-// example; this task proves the states in a browser.
+// movement, no underline: MY-277), and the focus adds a ring around the card. The image area runs
+// to the card's top and side edges, also on a card without an image of its own, which shows the
+// site's default image or the decorative placeholder (MY-277). The generic block suite renders
+// every example; this task proves the states in a browser.
 // Assertions are relational (fits, same colour as the primary pair), never a pixel size: CI's
 // font is wider than a Mac's. Rejected: a new spec file (the spec budget is full; ui-gate.spec.ts
 // calls this).
@@ -120,6 +122,26 @@ export async function exerciseOverviewCards(page: Page) {
 
   // One link per card, its name the title; at rest not underlined, the surface pair.
   for (const card of await cards.all()) await expect(card.locator('a')).toHaveCount(1);
+  // Every card has its image area at the card's top and side edges: the card without an image
+  // gets the site's default image or the placeholder, which is decorative (MY-277).
+  for (const card of await cards.all()) {
+    const edges = await card.evaluate((c) => {
+      const area = c.querySelector(':scope > .campaign-card-image')?.getBoundingClientRect();
+      const r = c.getBoundingClientRect();
+      return (
+        area &&
+        [area.top - r.top, area.left - r.left, r.right - area.right].map((d) =>
+          Math.abs(Math.round(d))
+        )
+      );
+    });
+    expect(edges, 'image area at the top and side edges').toEqual([0, 0, 0]);
+  }
+  const stand = cards.filter({ hasNotText: LONG }).locator('.card-placeholder');
+  if (await stand.count()) {
+    await expect(stand).toHaveAttribute('aria-hidden', 'true');
+    await expect(stand).toBeVisible();
+  }
   await expect(fauna.getByRole('link')).toHaveAccessibleName(LONG);
   expect(await paint(fauna)).toMatchObject({ inverted: false, ring: false, underline: 'none' });
 
@@ -134,12 +156,12 @@ export async function exerciseOverviewCards(page: Page) {
   await setTextSize(page, '16px');
   await page.setViewportSize({ width: 1280, height: 900 });
 
-  // A mouse over the card inverts it at once and underlines the title; nothing moves.
+  // A mouse over the card inverts it at once, without an underline; nothing moves.
   await page.mouse.move(...(await middle(fauna.locator('.campaign-card-image'))));
   expect(await paint(fauna)).toMatchObject({
     inverted: true,
     ring: false,
-    underline: 'underline',
+    underline: 'none',
     transition: true,
     transform: 'none',
   });
@@ -154,7 +176,7 @@ export async function exerciseOverviewCards(page: Page) {
   )
     await page.keyboard.press('Tab');
   await expect(fauna.locator('a')).toBeFocused();
-  expect(await paint(fauna)).toMatchObject({ inverted: true, ring: true, underline: 'underline' });
+  expect(await paint(fauna)).toMatchObject({ inverted: true, ring: true, underline: 'none' });
   if (isA11y()) await expectNoAxeViolations(page, { label: 'overview card in focus' });
 
   // A click on the image or on the text under the title opens the item.

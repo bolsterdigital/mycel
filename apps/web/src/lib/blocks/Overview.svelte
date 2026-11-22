@@ -2,7 +2,8 @@
      (image, title, date, summary) or as a list (title, date). An event's card shows when it takes
      place instead of when it was published, and where. A restricted item says it is for members,
      as text, in both layouts; its link leads to the teaser. The cards wear the campaign card's
-     surface and image rules, so a site has two card styles, not three; overview.css lays out the
+     surface and image rules, so a site has two card styles, not three; a card without an image
+     gets the site's placeholder in the same area (MY-277); overview.css lays out the
      grid and the list and gives a card its own title size and states (MY-266 PR E). Each title is
      the card's one link and names it, so the image is decorative; overview.css stretches it over
      the whole card. Rejected: the card as one link around everything, which reads the date and
@@ -14,6 +15,7 @@
   import type { RenderBlock, RenderModel } from './model.js';
   import { withBase } from './rich-text.js';
   import Picture from './Picture.svelte';
+  import CardPlaceholder from './CardPlaceholder.svelte';
 
   let {
     block,
@@ -49,6 +51,8 @@
                 <div class="campaign-card-image">
                   <Picture image={entry.image} base={model.base} {sizes} eager={eager && i === 0} />
                 </div>
+              {:else if model.placeholder}
+                <CardPlaceholder placeholder={model.placeholder} />
               {/if}
               <div class="campaign-card-text">
                 <svelte:element this={headingTag(depth + 1)} class="overview-card-title">

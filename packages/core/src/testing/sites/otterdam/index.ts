@@ -201,6 +201,9 @@ export const OTTERDAM: SiteDefinition = {
     nl: 'Stichting Otterdam, een verzonnen stichting voor de otters van de Maasdelta.',
     en: 'Stichting Otterdam, an invented charity for the otters of the Maas delta.',
   },
+  // The end of every card's image chain (MY-277): a card without a featured or header image shows
+  // this, not the placeholder.
+  defaultImage: 'panorama',
   media: OTTERDAM_MEDIA,
   people: OTTERDAM_PEOPLE,
   groups: OTTERDAM_GROUPS,

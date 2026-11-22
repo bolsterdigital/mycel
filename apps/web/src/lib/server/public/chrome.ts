@@ -14,6 +14,7 @@
 import { anonymousPrincipal, entitled } from '@mycel/core';
 import { withBase } from '../../blocks/rich-text.js';
 import type { ChromeLink, ChromeModel, ChromeNode } from '../../components/chrome.js';
+import type { CardPlaceholder } from '../../blocks/model.js';
 import { languageLinks } from '../../public/language-links.js';
 import { searchPath } from '../../public/search-path.js';
 import { navigationHref } from '../../public/navigation-href.js';
@@ -23,6 +24,27 @@ import { siteTenant, type Site } from '../site.js';
 import { brandPath, siteBrand, siteChrome, siteNavigation, type SiteNavigation } from './theme.js';
 
 type ResolvedLink = SiteNavigation['actions'][number];
+
+const logoOf = (brand: Awaited<ReturnType<typeof siteBrand>>, base: string) =>
+  brand.logo.active
+    ? {
+        src: withBase(base, brandPath('logo', brand.logo.version)),
+        width: brand.logo.width!,
+        height: brand.logo.height!,
+      }
+    : null;
+
+/**
+ * What a card without an image shows instead (MY-277): the site's logo, else the first letter of
+ * its name, so a page of cards keeps one rhythm. The same logo file the header loads, so no extra
+ * request; without a logo only a letter. Rejected: a generic image (a visitor reads it as content).
+ */
+export async function cardPlaceholder(site: Site, base: string): Promise<CardPlaceholder> {
+  return {
+    logo: logoOf(await siteBrand(site), base),
+    initial: [...site.tenant.name.trim()][0]?.toLocaleUpperCase() ?? '',
+  };
+}
 type ResolvedNode = NonNullable<SiteNavigation['main']>['nodes'][number];
 
 /** The chrome of `site` in `locale`, its site-relative links and assets under `base`. */
@@ -67,13 +89,7 @@ export async function chromeModel(
           href: withBase(base, l === fallback ? '/' : `/${l}`),
         }))
       ),
-      logo: brand.logo.active
-        ? {
-            src: withBase(base, brandPath('logo', brand.logo.version)),
-            width: brand.logo.width!,
-            height: brand.logo.height!,
-          }
-        : null,
+      logo: logoOf(brand, base),
       wordmark: brand.font.active,
       showName: !(brand.logo.active && chrome.logoHasName),
       main: tree(navigation.main?.nodes ?? []),

@@ -6,7 +6,8 @@
    A card (MY-266 PR E, brief public-chrome-polish § 5) is one link: the title's, stretched over
    the card by its `::after`, so a click on the image or the summary opens the item while the
    link's name stays the title. The title is sized to the card, not the page, and hyphenates as
-   prose. Hover and keyboard focus invert the card to the primary pair at once, never through a
+   prose. The image runs to the card's edges (campaign-card.css, MY-277). Hover and keyboard focus
+   invert the card to the primary pair at once, never through a
    colour transition between opposite polarities (base.css); focus adds a ring around the card.
    Rejected: a lift and a shadow on hover (movement), and clipping the title to three lines
    (Mycel does not hide text). */
@@ -52,13 +53,17 @@
   inset: 0;
   border-radius: var(--radius);
 }
+/* Only the inversion, no underline (MY-277, Jaap 2026-11-22: "On hover hebben de titels in de
+   cards underline, dat hoort niet"); a placeholder turns to the surface pair so it stays apart
+   from the inverted card. */
 @media (hover: hover) {
   .overview-card:hover {
     color: var(--color-primary-fg);
     background: var(--color-primary-bg);
   }
-  .overview-card:hover .overview-card-title a {
-    text-decoration: underline;
+  .overview-card:hover .card-placeholder {
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
   }
 }
 .overview-card:has(a:focus-visible) {
@@ -67,8 +72,11 @@
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
+.overview-card:has(a:focus-visible) .card-placeholder {
+  color: var(--color-surface-fg);
+  background: var(--color-surface-bg);
+}
 .overview-card:has(a:focus-visible) .overview-card-title a {
-  text-decoration: underline;
   outline: none;
 }
 .overview-date,
