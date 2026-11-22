@@ -7,7 +7,7 @@
 // the planner. Rejected: rendering an unknown block to HTML and keeping it as text (the layout
 // would be lost silently, and a `wings/nodes-grid` holds a query, not words).
 
-import { slugFromTitle, type BlockType } from '@mycel/core';
+import { OVERVIEW_MAX_SELECTION, slugFromTitle, type BlockType } from '@mycel/core';
 import type { WpBlock } from './grammar.js';
 import { decodeEntities, find, findAll, parseMarkup, textOf, type Node } from './markup.js';
 import { docFromHtml, isShortcode, plainText, type LinkRewrite } from './rich.js';
@@ -32,7 +32,13 @@ export interface HeaderDraft {
 
 /** Why a block is left out; `empty` is silent, every other reason is a report line. */
 export type SkipReason =
-  'unsupported' | 'shortcode' | 'alt-missing' | 'media-missing' | 'people-missing' | 'empty';
+  | 'unsupported'
+  | 'shortcode'
+  | 'alt-missing'
+  | 'media-missing'
+  | 'people-missing'
+  | 'items-missing'
+  | 'empty';
 
 export type Mapped =
   | { kind: 'blocks'; blocks: BlockDraft[] }
@@ -53,6 +59,13 @@ export interface MapContext {
   personGroup(termId: unknown): string | null;
   /** Every imported person or every organisation, in the order Wings lists them (by title). */
   everyone(kind: 'person' | 'organisation'): string[];
+  /**
+   * The placeholder id of the post that carries this old Wings id (`_wings_original_id` or
+   * `_wings_original_campaign_id`), as a grid of a migrated site names its posts (MY-285).
+   */
+  wingsNode(id: unknown): string | null;
+  /** The placeholder id of the section made from a WordPress category, by its term id (MY-285). */
+  section(termId: unknown): string | null;
   /** A remark on this block that does not leave it out. */
   note(code: NoteCode, detail?: string): void;
 }
@@ -63,7 +76,9 @@ export type NoteCode =
   | 'timeline.date-completed'
   | 'timeline.event-without-date'
   | 'hero.action-dropped'
-  | 'people.missing';
+  | 'people.missing'
+  | 'items.missing'
+  | 'overview.more-dropped';
 
 type Entry = (block: WpBlock, ctx: MapContext) => Mapped;
 
@@ -373,6 +388,120 @@ function peopleGrid(block: WpBlock, ctx: MapContext): Mapped {
   });
 }
 
+/** A Dreamkit section header (title, description) as a heading and a paragraph above a list. */
+function headerOf(block: WpBlock, ctx: MapContext): BlockDraft[] {
+  const title = plainText(str(block.attrs.title));
+  const description = str(block.attrs.description);
+  const text = description ? richText(`<p>${description}</p>`, ctx) : null;
+  return [
+    ...(title ? [{ type: 'heading', props: { text: { [ctx.locale]: title } } } as BlockDraft] : []),
+    ...(text?.kind === 'blocks' ? text.blocks : []),
+  ];
+}
+
+/** Placeholder ids of chosen posts in their order, once each; a post not in the export is a note. */
+function chosen(ids: unknown[], ctx: MapContext, by: 'post' | 'wings' = 'post'): string[] {
+  const refs: string[] = [];
+  for (const id of ids) {
+    const ref = by === 'wings' ? ctx.wingsNode(id) : ctx.item(id);
+    if (!ref) ctx.note('items.missing', String(id));
+    else if (!refs.includes(ref)) refs.push(ref);
+  }
+  return refs.slice(0, OVERVIEW_MAX_SELECTION);
+}
+
+const overview = (props: Record<string, unknown>): BlockDraft => ({
+  type: 'overview',
+  props: { layout: 'cards', width: 'wide', ...props },
+});
+
+/**
+ * A Wings nodes grid as an `overview` (MY-285, MY-289), one mode each. A custom selection stays a
+ * fixed selection (source `selection`): those posts and pages in that order and nothing else, so a
+ * gap is never filled by a newer article. "Latest" is the newest articles, of the section made from
+ * the category when one is chosen; "events" is the agenda's upcoming events. Wings shows a running
+ * event only until its start day has passed, Mycel until its end: a visible difference that stays.
+ * A dossier grid waits for the dossiers themselves (MY-290) and is left out. The "all posts" or
+ * "all events" link has no destination in Mycel yet (no section or archive page), so it is a note.
+ * `columns` and `showDate` have no counterpart: an overview lays out its cards itself.
+ */
+function nodesGrid(block: WpBlock, ctx: MapContext): Mapped {
+  const a = block.attrs;
+  const mode = str(a.variationType) || 'custom';
+  const limit = String(Math.min(24, Math.max(1, Math.round(Number(a.latestPostsCount) || 4))));
+  let list: BlockDraft;
+  if (mode === 'latest') {
+    const category = Number(a.selectedCategory) || 0;
+    const sectionId = category > 0 ? ctx.section(category) : null;
+    if (category > 0 && !sectionId) ctx.note('items.missing', `category ${category}`);
+    list = overview({ source: 'article', order: 'newest', limit, sectionId });
+    ctx.note('overview.more-dropped', sectionId ? 'category' : 'posts page');
+  } else if (mode === 'events') {
+    list = overview({ source: 'event', when: 'upcoming', limit });
+    ctx.note('overview.more-dropped', 'events archive');
+  } else if (mode === 'custom') {
+    // Wings reads `selectedNodes` and only without them the old Wings ids, through post meta.
+    const posts = Array.isArray(a.selectedNodes) ? a.selectedNodes : [];
+    const refs = posts.length
+      ? chosen(posts, ctx)
+      : chosen(Array.isArray(a.wingsNodeIds) ? a.wingsNodeIds : [], ctx, 'wings');
+    if (!refs.length) return skip('items-missing');
+    list = overview({ source: 'selection', pinned: refs.map((itemId) => ({ itemId })) });
+  } else return skip('unsupported');
+  return blocks(...headerOf(block, ctx), list);
+}
+
+/** A Wings single node as a fixed selection of one, under its own header (MY-285). */
+function singleNode(block: WpBlock, ctx: MapContext): Mapped {
+  const refs = chosen([block.attrs.postId], ctx);
+  if (!refs.length) return skip('items-missing');
+  return blocks(
+    ...headerOf(block, ctx),
+    overview({ source: 'selection', pinned: [{ itemId: refs[0]! }] })
+  );
+}
+
+/**
+ * Wings action cards (hand-written title, text and one button each) as `cards`, four to a block,
+ * which is what `cards` holds (MY-285).
+ */
+function actionCards(block: WpBlock, ctx: MapContext): Mapped {
+  const cards = block.innerBlocks
+    .filter((b) => b.name === 'wings/action-card')
+    .map((b) => {
+      const a = b.attrs;
+      const title = plainText(str(a.title));
+      const body = plainText(str(a.text));
+      const to = target(a.link, str(a.url), ctx);
+      const label = str(a.buttonText);
+      return {
+        title: { [ctx.locale]: title },
+        ...(body && { body: { [ctx.locale]: body } }),
+        actions: label && to ? [{ label: { [ctx.locale]: label }, target: to }] : [],
+      };
+    })
+    .filter((c) => c.title[ctx.locale]);
+  if (!cards.length) return skip('empty');
+  // `cards` holds two to four; a card on its own is a call to action, or without a button a
+  // heading and its text.
+  const alone = (card: (typeof cards)[number]): BlockDraft[] => {
+    if (card.actions.length) return [{ type: 'cta', props: card }];
+    const text = card.body ? richText(`<p>${card.body[ctx.locale]}</p>`, ctx) : null;
+    return [
+      { type: 'heading', props: { text: card.title } },
+      ...(text?.kind === 'blocks' ? text.blocks : []),
+    ];
+  };
+  const accent = block.attrs.band ? 'filled' : 'none';
+  const out: BlockDraft[] = [];
+  for (let i = 0; i < cards.length; i += 4) {
+    const chunk = cards.slice(i, i + 4);
+    if (chunk.length === 1) out.push(...alone(chunk[0]!));
+    else out.push({ type: 'cards', props: { accent, cards: chunk } });
+  }
+  return blocks(...out);
+}
+
 function file(block: WpBlock, ctx: MapContext): Mapped {
   const media = ctx.media(block.attrs.id);
   if (!media) return skip('media-missing');
@@ -437,6 +566,9 @@ export const BLOCK_MAP: Record<string, Entry> = {
   'wings/timeline': timeline,
   'wings/hero': hero,
   'wings/people-organizations-grid': peopleGrid,
+  'wings/nodes-grid': nodesGrid,
+  'wings/single-node': singleNode,
+  'wings/action-cards': actionCards,
   'core/file': file,
   'core/audio': audio,
   'core/shortcode': () => skip('shortcode'),

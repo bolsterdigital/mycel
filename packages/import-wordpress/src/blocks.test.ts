@@ -17,6 +17,9 @@ const MEDIA: Record<number, { ref: string; alt: string | null; title: string }> 
   3: { ref: '00000000-0000-4000-8001-000000000003', alt: 'Een zaal', title: 'Zaal' },
 };
 const ITEM = '00000000-0000-4000-8004-000000000009';
+/** Posts 9 to 16 are in the export; 9 is `ITEM`. */
+const POST = (n: number) => `00000000-0000-4000-8004-0000000000${String(n).padStart(2, '0')}`;
+const SECTION = '00000000-0000-4000-8003-000000000004';
 const PERSON = (n: number) => `00000000-0000-4000-8005-00000000000${n}`;
 const GROUP = '00000000-0000-4000-8006-000000000075';
 
@@ -27,10 +30,12 @@ function run(content: string) {
     postTitle: 'Bericht',
     link: linkRewriter('https://site.example', (path) => (path === '/over' ? ITEM : null)),
     media: (id) => MEDIA[Number(id)] ?? null,
-    item: (id) => (Number(id) === 9 ? ITEM : null),
+    item: (id) => (Number(id) >= 9 && Number(id) <= 16 ? POST(Number(id)) : null),
     person: (id) => ([1, 2, 3].includes(Number(id)) ? PERSON(Number(id)) : null),
     personGroup: (id) => (Number(id) === 75 ? GROUP : null),
     everyone: (kind) => (kind === 'person' ? [PERSON(2), PERSON(1)] : [PERSON(3)]),
+    wingsNode: (id) => (id === 'w12' ? POST(12) : null),
+    section: (id) => (Number(id) === 4 ? SECTION : null),
     note: (code, detail) => notes.push({ code, ...(detail && { detail }) }),
   };
   const [block] = parseBlocks(content);
@@ -294,6 +299,103 @@ const CASES: Record<string, () => void> = {
       ).mapped
     ).toEqual({ kind: 'skip', reason: 'people-missing' });
   },
+  'wings/nodes-grid': () => {
+    // A custom selection stays fixed: seven in order (a repeat once), one outside the export noted.
+    const custom = run(
+      '<!-- wp:wings/nodes-grid {"selectedNodes":[16,9,12,99,10,15,12,11,13],"wingsNodeIds":["a"],"columns":3,"title":"Onze mensen","description":"Zij doen het werk."} /-->'
+    );
+    expect(custom.mapped.kind).toBe('blocks');
+    const [heading, intro, list] = (custom.mapped as { blocks: { type: string; props: unknown }[] })
+      .blocks;
+    expect(heading).toEqual({ type: 'heading', props: { text: { nl: 'Onze mensen' } } });
+    expect(JSON.stringify(intro)).toContain('Zij doen het werk.');
+    expect(list).toEqual({
+      type: 'overview',
+      props: {
+        layout: 'cards',
+        width: 'wide',
+        source: 'selection',
+        pinned: [16, 9, 12, 10, 15, 11, 13].map((n) => ({ itemId: POST(n) })),
+      },
+    });
+    expect(BLOCK_DEFINITIONS.overview.props.safeParse(list!.props).success).toBe(true);
+    expect(custom.notes).toEqual([{ code: 'items.missing', detail: '99' }]);
+    // The newest articles, of the section made from the category; the "all" link has no page.
+    const latest = run(
+      '<!-- wp:wings/nodes-grid {"variationType":"latest","latestPostsCount":3,"selectedCategory":4} /-->'
+    );
+    expect(only(latest.mapped).props).toEqual({
+      layout: 'cards',
+      width: 'wide',
+      source: 'article',
+      order: 'newest',
+      limit: '3',
+      sectionId: SECTION,
+    });
+    expect(latest.notes).toEqual([{ code: 'overview.more-dropped', detail: 'category' }]);
+    expect(
+      only(run('<!-- wp:wings/nodes-grid {"variationType":"latest"} /-->').mapped).props
+    ).toMatchObject({ source: 'article', limit: '4', sectionId: null });
+    expect(
+      only(
+        run('<!-- wp:wings/nodes-grid {"variationType":"events","latestPostsCount":2} /-->').mapped
+      ).props
+    ).toMatchObject({ source: 'event', when: 'upcoming', limit: '2' });
+    // Dossiers come with MY-290; a selection of nothing in the export is left out.
+    expect(
+      run('<!-- wp:wings/nodes-grid {"variationType":"dossier","selectedDossier":7} /-->').mapped
+    ).toEqual({ kind: 'skip', reason: 'unsupported' });
+    // Without `selectedNodes` the old Wings ids, through the posts that carry them.
+    expect(
+      only(run('<!-- wp:wings/nodes-grid {"selectedNodes":[],"wingsNodeIds":["w12"]} /-->').mapped)
+        .props
+    ).toMatchObject({ pinned: [{ itemId: POST(12) }] });
+    const gone = run('<!-- wp:wings/nodes-grid {"selectedNodes":[],"wingsNodeIds":["x1"]} /-->');
+    expect(gone).toEqual({
+      mapped: { kind: 'skip', reason: 'items-missing' },
+      notes: [{ code: 'items.missing', detail: 'x1' }],
+    });
+  },
+  'wings/single-node': () => {
+    const one = run('<!-- wp:wings/single-node {"postId":12,"postTitle":"Een stuk"} /-->');
+    expect(only(one.mapped).props).toMatchObject({
+      source: 'selection',
+      pinned: [{ itemId: POST(12) }],
+    });
+    expect(run('<!-- wp:wings/single-node {"postId":99} /-->')).toEqual({
+      mapped: { kind: 'skip', reason: 'items-missing' },
+      notes: [{ code: 'items.missing', detail: '99' }],
+    });
+  },
+  'wings/action-cards': () => {
+    const card = (title: string, url = '') =>
+      `<!-- wp:wings/action-card {"title":"${title}","text":"Tekst ${title}.","buttonText":"Doe mee","url":"${url}"} /-->`;
+    const three = only(
+      run(
+        `<!-- wp:wings/action-cards {"band":true} --><div>${card('Word lid', 'https://site.example/over/')}${card('Doneer', 'https://elders.example/geef')}${card('Kom')}</div><!-- /wp:wings/action-cards -->`
+      ).mapped
+    );
+    expect(three.type).toBe('cards');
+    expect(three.props).toMatchObject({
+      accent: 'filled',
+      cards: [
+        { title: { nl: 'Word lid' }, actions: [{ target: { kind: 'item', itemId: ITEM } }] },
+        { actions: [{ target: { kind: 'url', url: 'https://elders.example/geef' } }] },
+        { body: { nl: 'Tekst Kom.' }, actions: [] },
+      ],
+    });
+    expect(
+      only(
+        run(
+          `<!-- wp:wings/action-cards --><div>${card('Alleen', 'https://elders.example')}</div><!-- /wp:wings/action-cards -->`
+        ).mapped
+      ).type
+    ).toBe('cta');
+    const bare = run(
+      `<!-- wp:wings/action-cards --><div>${card('Zonder knop')}</div><!-- /wp:wings/action-cards -->`
+    ).mapped as { blocks: { type: string }[] };
+    expect(bare.blocks.map((b) => b.type)).toEqual(['heading', 'rich-text']);
+  },
   'core/file': () => {
     const block = only(
       run(
@@ -329,7 +431,7 @@ describe('the block translation table', () => {
   });
 
   it('leaves out a block it has no entry for, and a paragraph that is only a shortcode', () => {
-    expect(run('<!-- wp:wings/nodes-grid {"count":3} /-->').mapped).toEqual({
+    expect(run('<!-- wp:wings/onbekend {"count":3} /-->').mapped).toEqual({
       kind: 'skip',
       reason: 'unsupported',
     });
