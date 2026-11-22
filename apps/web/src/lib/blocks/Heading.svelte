@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { BLOCK_DEPTH, headingTag } from './headings.js';
+  import { headingTag } from './headings.js';
 
-  let { text, anchor }: { text: string; anchor?: string } = $props();
+  let { text, anchor, depth }: { text: string; anchor?: string; depth: number } = $props();
 </script>
 
-<svelte:element this={headingTag(BLOCK_DEPTH)} id={anchor} class="block heading"
+<svelte:element this={headingTag(depth + 1)} id={anchor} class="block heading"
   >{text}</svelte:element
 >

@@ -3,7 +3,7 @@
      organisation shows its logo whole (contained, not cropped to a portrait) and links to its site. -->
 <script lang="ts">
   import type { RenderBlock, RenderModel } from './model.js';
-  import { BLOCK_DEPTH, headingTag } from './headings.js';
+  import { headingTag } from './headings.js';
   import { withBase } from './rich-text.js';
   import Picture from './Picture.svelte';
   let {
@@ -11,12 +11,15 @@
     model,
     eager = false,
     anchor,
+    depth,
   }: {
     block: Extract<RenderBlock, { type: 'people-grid' }>;
     model: RenderModel;
     eager?: boolean;
     /** The element id a link to this block lands on (`anchor.ts`). */
     anchor?: string;
+    /** The heading depth the block sits under (1: under the document title); its own title is one deeper. */
+    depth: number;
   } = $props();
   const firstImageId = $derived(block.people.find((p) => p.image)?.id);
   const sizes = $derived(
@@ -38,7 +41,7 @@
             eager={eager && person.id === firstImageId}
           />
         {/if}
-        <svelte:element this={headingTag(BLOCK_DEPTH)}>
+        <svelte:element this={headingTag(depth + 1)}>
           {#if person.href}<a href={withBase(model.base, person.href)}>{person.name}</a
             >{:else}{person.name}{/if}
         </svelte:element>

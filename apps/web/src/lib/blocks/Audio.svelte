@@ -4,7 +4,7 @@
      deleted or failed file renders nothing. -->
 <script lang="ts">
   import DownloadIcon from './DownloadIcon.svelte';
-  import { BLOCK_DEPTH, headingTag } from './headings.js';
+  import { headingTag } from './headings.js';
   import type { RenderBlock, RenderModel } from './model.js';
   import { withBase } from './rich-text.js';
 
@@ -12,13 +12,18 @@
     block,
     model,
     anchor,
-  }: { block: Extract<RenderBlock, { type: 'audio' }>; model: RenderModel; anchor?: string } =
-    $props();
+    depth,
+  }: {
+    block: Extract<RenderBlock, { type: 'audio' }>;
+    model: RenderModel;
+    anchor?: string;
+    depth: number;
+  } = $props();
 </script>
 
 {#if block.file}
   <section id={anchor} class="block audio">
-    <svelte:element this={headingTag(BLOCK_DEPTH)}>{block.title}</svelte:element>
+    <svelte:element this={headingTag(depth + 1)}>{block.title}</svelte:element>
     <audio
       controls
       preload="metadata"

@@ -6,7 +6,7 @@
      Rejected: a script that closes the siblings (ADR 009), which would also take the native
      keyboard and find-in-page behaviour off the table. -->
 <script lang="ts">
-  import { BLOCK_DEPTH, headingTag } from './headings.js';
+  import { headingTag } from './headings.js';
   import type { RenderBlock, RenderModel } from './model.js';
   import RichText from './RichText.svelte';
 
@@ -14,25 +14,41 @@
     block,
     model,
     anchor,
-  }: { block: Extract<RenderBlock, { type: 'faq' }>; model: RenderModel; anchor?: string } =
-    $props();
+    depth,
+  }: {
+    block: Extract<RenderBlock, { type: 'faq' }>;
+    model: RenderModel;
+    anchor?: string;
+    depth: number;
+  } = $props();
 
-  const depth = $derived(block.title ? BLOCK_DEPTH + 1 : BLOCK_DEPTH);
-  const question = $derived(headingTag(depth));
+  const questionDepth = $derived(block.title ? depth + 2 : depth + 1);
+  const question = $derived(headingTag(questionDepth));
 </script>
 
 <section id={anchor} class="block faq faq-{block.variant} width-{block.width}">
-  {#if block.title}<svelte:element this={headingTag(BLOCK_DEPTH)}>{block.title}</svelte:element
-    >{/if}
+  {#if block.title}<svelte:element this={headingTag(depth + 1)}>{block.title}</svelte:element>{/if}
   {#each block.entries as entry, i (i)}
     {#if block.variant === 'accordion'}
       <details name="faq-{block.id}">
         <summary><svelte:element this={question}>{entry.question}</svelte:element></summary>
-        <RichText doc={entry.answer} {model} {depth} idPrefix="{block.id}-{i}" class="answer" />
+        <RichText
+          doc={entry.answer}
+          {model}
+          depth={questionDepth}
+          idPrefix="{block.id}-{i}"
+          class="answer"
+        />
       </details>
     {:else}
       <svelte:element this={question}>{entry.question}</svelte:element>
-      <RichText doc={entry.answer} {model} {depth} idPrefix="{block.id}-{i}" class="answer" />
+      <RichText
+        doc={entry.answer}
+        {model}
+        depth={questionDepth}
+        idPrefix="{block.id}-{i}"
+        class="answer"
+      />
     {/if}
   {/each}
 </section>

@@ -7,7 +7,7 @@
      With an archive the block ends in plain page links (`?p=2`), no JavaScript. An empty overview
      renders nothing. -->
 <script lang="ts">
-  import { BLOCK_DEPTH, headingTag } from './headings.js';
+  import { headingTag } from './headings.js';
   import type { RenderBlock, RenderModel } from './model.js';
   import { withBase } from './rich-text.js';
   import Picture from './Picture.svelte';
@@ -16,11 +16,14 @@
     block,
     model,
     anchor,
+    depth,
     eager = false,
   }: {
     block: Extract<RenderBlock, { type: 'overview' }>;
     model: RenderModel;
     anchor?: string;
+    /** The heading depth the block sits under (1: under the document title); its own title is one deeper. */
+    depth: number;
     eager?: boolean;
   } = $props();
 
@@ -45,7 +48,7 @@
                 </div>
               {/if}
               <div class="campaign-card-text">
-                <svelte:element this={headingTag(BLOCK_DEPTH)}>
+                <svelte:element this={headingTag(depth + 1)}>
                   <a href={withBase(model.base, entry.href)}>{entry.title}</a>
                 </svelte:element>
                 <p class="overview-date">

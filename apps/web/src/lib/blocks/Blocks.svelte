@@ -34,6 +34,7 @@
     selectable = false,
     eagerFirstImage = true,
     campaignNotes = null,
+    depth = 1,
   }: {
     model: RenderModel;
     formState?: FormState | null;
@@ -46,6 +47,11 @@
     selectable?: boolean;
     /** False when the page shows a hero image above the blocks, which is then the eager one. */
     eagerFirstImage?: boolean;
+    /**
+     * The heading depth the blocks sit under: 1 directly under the document title, deeper when a
+     * container with its own title nests them (ADR 038 rule 3). Every block reads its levels from it.
+     */
+    depth?: number;
   } = $props();
 
   // The first image of the page loads eagerly: it is likely above the fold.
@@ -65,13 +71,13 @@
 
 {#snippet rendered(block: RenderBlock)}
   {#if block.type === 'heading'}
-    <Heading anchor={anchors.get(block.id)} text={block.text} />
+    <Heading anchor={anchors.get(block.id)} {depth} text={block.text} />
   {:else if block.type === 'rich-text'}
     <RichText
       anchor={anchors.get(block.id)}
       doc={block.doc}
       {model}
-      depth={1}
+      {depth}
       idPrefix={block.id}
       class={block.sourceId ? 'block rich-text rich-text-opening' : 'block rich-text'}
     />
@@ -86,27 +92,39 @@
       />
     {/if}
   {:else if block.type === 'hero'}
-    <Hero anchor={anchors.get(block.id)} {block} {model} />
+    <Hero anchor={anchors.get(block.id)} {depth} {block} {model} />
   {:else if block.type === 'cta'}
-    <Cta anchor={anchors.get(block.id)} {block} {model} />
+    <Cta anchor={anchors.get(block.id)} {depth} {block} {model} />
   {:else if block.type === 'people-grid'}
-    <PeopleGrid anchor={anchors.get(block.id)} {block} {model} eager={block.id === firstImage} />
+    <PeopleGrid
+      anchor={anchors.get(block.id)}
+      {depth}
+      {block}
+      {model}
+      eager={block.id === firstImage}
+    />
   {:else if block.type === 'overview'}
-    <Overview anchor={anchors.get(block.id)} {block} {model} eager={block.id === firstImage} />
+    <Overview
+      anchor={anchors.get(block.id)}
+      {depth}
+      {block}
+      {model}
+      eager={block.id === firstImage}
+    />
   {:else if block.type === 'cards'}
-    <Cards anchor={anchors.get(block.id)} {block} {model} />
+    <Cards anchor={anchors.get(block.id)} {depth} {block} {model} />
   {:else if block.type === 'file-download'}
-    <FileDownload anchor={anchors.get(block.id)} {block} {model} />
+    <FileDownload anchor={anchors.get(block.id)} {depth} {block} {model} />
   {:else if block.type === 'gallery'}
     <Gallery anchor={anchors.get(block.id)} {block} {model} />
   {:else if block.type === 'audio'}
-    <Audio anchor={anchors.get(block.id)} {block} {model} />
+    <Audio anchor={anchors.get(block.id)} {depth} {block} {model} />
   {:else if block.type === 'timeline'}
-    <Timeline anchor={anchors.get(block.id)} {block} {model} />
+    <Timeline anchor={anchors.get(block.id)} {depth} {block} {model} />
   {:else if block.type === 'callout'}
-    <Callout anchor={anchors.get(block.id)} {block} {model} />
+    <Callout anchor={anchors.get(block.id)} {depth} {block} {model} />
   {:else if block.type === 'faq'}
-    <Faq anchor={anchors.get(block.id)} {block} {model} />
+    <Faq anchor={anchors.get(block.id)} {depth} {block} {model} />
   {:else if block.type === 'quote'}
     <Quote anchor={anchors.get(block.id)} {block} />
   {:else if block.type === 'video-embed'}
@@ -141,7 +159,14 @@
         {block.campaign ? campaignNotes.live : campaignNotes.reasons[block.diagnosis ?? 'unknown']}
       </p>
     {/if}
-    <CampaignCard anchor={anchors.get(block.id)} {block} {model} state={formState} {preview} />
+    <CampaignCard
+      anchor={anchors.get(block.id)}
+      {depth}
+      {block}
+      {model}
+      state={formState}
+      {preview}
+    />
   {/if}
 {/snippet}
 
