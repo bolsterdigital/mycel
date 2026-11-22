@@ -40,6 +40,19 @@
   >
 {/snippet}
 
+<!-- Inline, so it costs no request; beside a visible word, never instead of it. -->
+{#snippet magnifier()}
+  <svg
+    class="site-icon"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg
+  >
+{/snippet}
+
 {#snippet action(index: number)}
   <a class="button site-action" class:secondary={index > 0} href={chrome.actions[index]!.href}
     >{chrome.actions[index]!.label}</a
@@ -102,15 +115,7 @@
         href={chrome.actions[1]!.href}>{chrome.actions[1]!.label}</a
       >{/if}
     <a class="site-search-link" href={chrome.search}
-      ><svg
-        class="site-icon"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg
-      >{t('public.search.title')}</a
+      >{@render magnifier()}{t('public.search.title')}</a
     >
     <SiteLanguages {languages} {locale} compact />
     <details class="site-menu">
@@ -131,7 +136,9 @@
                 autocomplete="off"
                 enterkeyhint="search"
               />
-              <button class="button" type="submit">{t('public.search.submit')}</button>
+              <button class="button" type="submit"
+                >{@render magnifier()}{t('public.search.submit')}</button
+              >
             </div>
           </form>
         </search>

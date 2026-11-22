@@ -9,10 +9,10 @@
 import { THEME_PRESETS, systemPrincipal, useCases } from '@mycel/core';
 import { testTenant } from '@mycel/db/testing';
 import { type Page, expect } from '@playwright/test';
-import { expectNoAxeViolations } from '../axe';
-import { asOwner, withInvoker } from '../invoker';
-import { isA11y } from '../project';
-import { publishMenus } from './seed';
+import { expectNoAxeViolations } from '../../axe';
+import { asOwner, withInvoker } from '../../invoker';
+import { isA11y } from '../../project';
+import { publishMenus } from '../seed';
 
 const PRESET = THEME_PRESETS.campaign;
 /** Header and footer role per step: every role once for each, the default first. */
@@ -41,8 +41,12 @@ export interface ChromePaintFixture {
   tenantId: string;
 }
 
-/** A Dutch and English site with a home page, an article and every kind of placed menu. */
-export async function seedChromePaint(slug: string): Promise<ChromePaintFixture> {
+/** A Dutch and English site with a home page, an article and every kind of placed menu. With
+ *  `english` the home page is published in English too, so it has a language switch. */
+export async function seedChromePaint(
+  slug: string,
+  { english = false } = {}
+): Promise<ChromePaintFixture> {
   const tenant = await asOwner((owner) =>
     testTenant(owner, slug, {
       name: 'Chrome paint',
@@ -57,21 +61,30 @@ export async function seedChromePaint(slug: string): Promise<ChromePaintFixture>
       ['page', 'home', 'Welkom'],
       ['article', 'verslag', 'Een verslag'],
     ] as const) {
+      const locales = english && type === 'page' ? (['nl', 'en'] as const) : (['nl'] as const);
       const { item, revision } = await invoker.run(useCases.createItem, principal, {
         slug: itemSlug,
         document: {
           type,
           defaultLocale: 'nl',
-          locales: ['nl'],
-          title: { nl: title },
-          blocks: [{ id: 'text', type: 'rich-text', version: 1, props: { content: prose } }],
+          locales: [...locales],
+          title: locales.length > 1 ? { nl: title, en: 'Welcome' } : { nl: title },
+          blocks: [
+            {
+              id: 'text',
+              type: 'rich-text',
+              version: 1,
+              props: { content: locales.length > 1 ? { ...prose, en: prose.nl } : prose },
+            },
+          ],
         },
       });
-      await invoker.run(useCases.publishItem, principal, {
-        itemId: item.id,
-        revisionId: revision.id,
-        locale: 'nl',
-      });
+      for (const locale of locales)
+        await invoker.run(useCases.publishItem, principal, {
+          itemId: item.id,
+          revisionId: revision.id,
+          locale,
+        });
       ids.push(item.id);
     }
     const label = (nl: string) => ({ nl, en: nl });
