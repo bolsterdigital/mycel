@@ -154,11 +154,53 @@ const items = [
     : item
 );
 
+/**
+ * River water and otter brown, a light header on a white page and a dark footer: a theme of its
+ * own, so a tester sees at once whether a site's theme reaches every page (MY-268).
+ */
+const theme: SiteDefinition['theme'] = {
+  palettes: {
+    light: {
+      body: { foreground: '#14201f', background: '#ffffff' },
+      surface: { foreground: '#14201f', background: '#eef5f3' },
+      primary: { foreground: '#ffffff', background: '#1d7a80' },
+      accent: { foreground: '#14201f', background: '#e7b97f' },
+      muted: { foreground: '#4f5d5b', background: '#ffffff' },
+      warning: { foreground: '#14201f', background: '#fbe2b4' },
+      link: '#0b5e63',
+      focus: '#14201f',
+    },
+    dark: {
+      body: { foreground: '#eaf2f0', background: '#0f1716' },
+      surface: { foreground: '#eaf2f0', background: '#1b2726' },
+      primary: { foreground: '#ffffff', background: '#0f5257' },
+      accent: { foreground: '#f6dcb8', background: '#4a3216' },
+      muted: { foreground: '#a9b8b5', background: '#0f1716' },
+      warning: { foreground: '#fbe2b4', background: '#4a3000' },
+      link: '#8fd6cf',
+      focus: '#f6dcb8',
+    },
+  },
+  headingFont: 'rubik',
+  bodyFont: 'open-sans',
+  baseSize: 18,
+  scaleRatio: 1.25,
+  radius: 8,
+  headingWeight: 700,
+  chrome: { header: 'surface', footer: 'primary' },
+};
+
 export const OTTERDAM: SiteDefinition = {
   slug: 'otterdam',
   name: 'Otterdam',
   defaultLocale: 'nl',
   locales: ['nl', 'en'],
+  theme,
+  logo: { filename: 'otterdam-logo.svg', contentType: 'image/svg+xml' },
+  footerText: {
+    nl: 'Stichting Otterdam, een verzonnen stichting voor de otters van de Maasdelta.',
+    en: 'Stichting Otterdam, an invented charity for the otters of the Maas delta.',
+  },
   media: OTTERDAM_MEDIA,
   people: OTTERDAM_PEOPLE,
   groups: OTTERDAM_GROUPS,

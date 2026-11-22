@@ -143,6 +143,26 @@ describe('seedSite with Otterdam', () => {
       expect(first.items.every((s) => s.created)).toBe(true);
       expect(first.created['item']).toHaveLength(OTTERDAM.items.length);
       expect(first.created['navigation']).toEqual(['navigation']);
+      // The look: theme, logo and footer text, each only while the tenant has the default.
+      expect(first.created).toMatchObject({
+        theme: ['theme'],
+        logo: ['logo'],
+        'footer text': ['footer text'],
+      });
+      const theme = await invoker.run(useCases.getSiteTheme, admin, {});
+      expect(theme.value.chrome).toEqual({ header: 'surface', footer: 'primary' });
+      expect(theme.value.palettes.light.primary.background).toBe('#1d7a80');
+      expect(await invoker.run(useCases.getBrandAsset, admin, { kind: 'logo' })).toMatchObject({
+        active: true,
+      });
+      expect((await invoker.run(useCases.getSiteChrome, admin, {})).value.footer).toEqual(
+        OTTERDAM.footerText
+      );
+      // An editor's later choice survives the next run.
+      await invoker.run(useCases.updateSiteTheme, admin, {
+        baseVersion: theme.version,
+        theme: { ...theme.value, radius: 0 },
+      });
 
       const item = (key: string) => first.items.find((s) => s.key === key)!.item;
       const status = (key: string, locale = 'nl') =>
@@ -198,6 +218,7 @@ describe('seedSite with Otterdam', () => {
 
       const second = await seedSite(invoker, admin, OTTERDAM, options);
       expect(second.created).toEqual({});
+      expect((await invoker.run(useCases.getSiteTheme, admin, {})).value.radius).toBe(0);
       expect(second.items.map((s) => s.item.id)).toEqual(first.items.map((s) => s.item.id));
     }
   );

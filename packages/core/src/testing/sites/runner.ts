@@ -7,7 +7,9 @@
 // made in two rounds, as the WordPress importer does: every missing item first as an empty
 // draft, so any document can link to any item, then filled, revised and published. Supporters,
 // their gifts and a newsletter edition follow last (`activity.ts`), only when the caller gives
-// what lies outside the use cases: signing a confirmation, draining the outbox, paying.
+// what lies outside the use cases: signing a confirmation, draining the outbox, paying. A
+// site's look (theme, logo, footer text) is set only while the tenant still has the default,
+// that is a document nobody ever saved, so a run never undoes what an editor chose since.
 // Rejected: SQL or a repository write (skips the checks a use case makes), a WXR file through the
 // importer (knows nothing of campaigns, forms or navigation), and one script per feature (not
 // repeatable, not reviewed, never complete).
@@ -30,6 +32,8 @@ type PersonInput = Omit<z.input<typeof useCases.createPerson.input>, 'slug' | 'i
 type UploadInput = z.input<typeof useCases.uploadMedia.input>;
 type CampaignInput = z.input<typeof useCases.createCampaign.input>;
 type TierInput = Omit<z.input<typeof useCases.createAccessTier.input>, 'slug'>;
+type ThemeDef = z.input<typeof useCases.updateSiteTheme.input>['theme'];
+type FooterDef = z.input<typeof useCases.updateSiteChrome.input>['chrome']['footer'];
 
 /** The ids of what the run found or made, by the definition's keys. */
 export interface SiteRefs {
@@ -134,11 +138,20 @@ export interface CampaignDef {
   open?: boolean;
 }
 
+/** A file the definition's `load` reads, like a media file, without a library entry. */
+export type FileDef = Pick<MediaDef, 'filename' | 'contentType'>;
+
 export interface SiteDefinition {
   slug: string;
   name: string;
   defaultLocale: string;
   locales: string[];
+  /** The site's theme (ADR 013 rule 1), including the header and footer roles. */
+  theme?: ThemeDef;
+  /** The site's logo, read through `load` and processed as an upload in the admin is. */
+  logo?: FileDef;
+  /** The footer text per locale (`site.chrome`); the footer's menus are the navigation's. */
+  footerText?: FooterDef;
   media: MediaDef[];
   people: PersonDef[];
   groups: GroupDef[];
@@ -259,6 +272,7 @@ export async function seedSite(
   const refs = Object.fromEntries(kinds.map((k) => [k, lookup(k, ids[k])])) as unknown as SiteRefs;
   const run: Run = { invoker, principal, site, refs, ids, created: {}, now };
 
+  await seedLook(run, load);
   await seedMedia(run, load);
   await seedRegister(run);
   await seedTiers(run);
@@ -281,6 +295,52 @@ export async function seedSite(
 
   const byKey = new Map([...kept, ...seeded].map((s) => [s.key, s]));
   return { refs, items: site.items.map((d) => byKey.get(d.key)!), created: run.created };
+}
+
+/**
+ * Theme, logo and footer text, each only while its document is at version 0: never saved, so
+ * still the platform default. Rejected: comparing values with the definition, which would
+ * overwrite an editor's later choice on the next run.
+ */
+async function seedLook(run: Run, load: LoadMedia) {
+  const { invoker, principal, site } = run;
+  const made = (what: string) => (run.created[what] ??= []).push(what);
+  if (site.theme) {
+    const { version } = await invoker.run(useCases.getSiteTheme, principal, {});
+    if (version === 0) {
+      await named('theme', () =>
+        invoker.run(useCases.updateSiteTheme, principal, { baseVersion: 0, theme: site.theme! })
+      );
+      made('theme');
+    }
+  }
+  if (site.logo) {
+    const { version } = await invoker.run(useCases.getBrandAsset, principal, { kind: 'logo' });
+    if (version === 0) {
+      const bytes = await load({ key: 'logo', ...site.logo });
+      await named('logo', () =>
+        invoker.run(useCases.putBrandAsset, principal, {
+          kind: 'logo',
+          baseVersion: 0,
+          contentType: site.logo!.contentType,
+          bytes: bytesToBase64(bytes),
+        })
+      );
+      made('logo');
+    }
+  }
+  if (site.footerText) {
+    const { version } = await invoker.run(useCases.getSiteChrome, principal, {});
+    if (version === 0) {
+      await named('footer text', () =>
+        invoker.run(useCases.updateSiteChrome, principal, {
+          baseVersion: 0,
+          chrome: { footer: site.footerText! },
+        })
+      );
+      made('footer text');
+    }
+  }
 }
 
 async function seedMedia(run: Run, load: LoadMedia) {
