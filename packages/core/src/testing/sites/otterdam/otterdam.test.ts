@@ -156,9 +156,9 @@ describe('seedSite with Otterdam', () => {
       expect(await invoker.run(useCases.getBrandAsset, admin, { kind: 'logo' })).toMatchObject({
         active: true,
       });
-      expect((await invoker.run(useCases.getSiteChrome, admin, {})).value.footer).toEqual(
-        OTTERDAM.footerText
-      );
+      const chrome = (await invoker.run(useCases.getSiteChrome, admin, {})).value;
+      expect(chrome.footer).toEqual(OTTERDAM.footerText);
+      expect(Object.keys(chrome.social ?? {})).toEqual(['bluesky', 'mastodon']);
       // An editor's later choice survives the next run.
       await invoker.run(useCases.updateSiteTheme, admin, {
         baseVersion: theme.version,

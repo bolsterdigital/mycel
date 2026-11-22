@@ -30,6 +30,7 @@ import {
   DROP_CAPS,
   Theme,
   SiteChrome,
+  SOCIAL_NETWORKS,
   useCases,
   type AiUse,
   type Capability,
@@ -43,7 +44,7 @@ import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { saveAssistSettings } from '#lib/server/admin/assist-settings.js';
 import { timeZoneOptions } from '#lib/server/admin/time-zones.js';
 import { mediaChoices } from '#lib/server/content/content-blocks.js';
-import type { Actions, PageServerLoad } from './$types';
+import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import { langOf, ui, type UiKey } from '../../../../../i18n/index.js';
 import { refuse, refusalOf } from '#lib/server/http/refuse.js';
 
@@ -166,6 +167,56 @@ const localized = (
   }
   return values;
 };
+/** The posted profiles, empty fields left out; an e-mail address becomes a `mailto:`. */
+function socialProfiles(data: FormData): NonNullable<SiteChrome['social']> {
+  const out: Record<string, string> = {};
+  for (const network of SOCIAL_NETWORKS) {
+    const raw = text(data, `social.${network}`);
+    if (!raw) continue;
+    out[network] = network === 'email' && !/^mailto:/i.test(raw) ? `mailto:${raw}` : raw;
+  }
+  return out;
+}
+
+async function chromeForm({ request, locals, url, params }: RequestEvent) {
+  const data = await request.formData();
+  const { principal, tenant } = await requireTenantPrincipal(locals, url, params.tenant);
+  if (!can(principal, 'content:write')) refuse(403);
+  // Three forms share this document: the footer text here, under Logo whether the logo
+  // carries the name (`part=identity`, MY-275), and the social profiles (`part=social`, MY-273).
+  // Each keeps the others' values as stored.
+  const part = data.get('part');
+  const identity = part === 'identity';
+  const social = part === 'social';
+  const action = identity ? 'identity' : social ? 'social' : 'chrome';
+  try {
+    const current = await runtime().invoker.run(useCases.getSiteChrome, principal, {});
+    if (current.version !== baseVersion(data))
+      return fail(409, {
+        action,
+        error: 'admin.site.conflict' as const,
+        values: Object.fromEntries(data),
+      });
+    const chrome: SiteChrome = {
+      footer:
+        identity || social
+          ? current.value.footer
+          : localized(data, 'footer', tenant.locales, current.value.footer),
+      logoHasName: identity ? data.get('logoHasName') === 'on' : current.value.logoHasName,
+      social: social ? socialProfiles(data) : current.value.social,
+    };
+    if (chrome.logoHasName === undefined) delete chrome.logoHasName;
+    if (!chrome.social || !Object.keys(chrome.social).length) delete chrome.social;
+    const result = await runtime().invoker.run(useCases.updateSiteChrome, principal, {
+      baseVersion: baseVersion(data),
+      chrome,
+    });
+    return { saved: action, version: result.version };
+  } catch (e) {
+    return refused(e, action, data);
+  }
+}
+
 export const actions: Actions = {
   general: async ({ request, locals, url, params }) => {
     const data = await request.formData();
@@ -366,38 +417,9 @@ export const actions: Actions = {
       return refused(e, 'images', data);
     }
   },
-  chrome: async ({ request, locals, url, params }) => {
-    const data = await request.formData();
-    const { principal, tenant } = await requireTenantPrincipal(locals, url, params.tenant);
-    if (!can(principal, 'content:write')) refuse(403);
-    // Two forms share this document: the footer text here and, under Logo, whether the logo
-    // carries the name (`part=identity`, MY-275). Each keeps the other's value as stored.
-    const identity = data.get('part') === 'identity';
-    const action = identity ? 'identity' : 'chrome';
-    try {
-      const current = await runtime().invoker.run(useCases.getSiteChrome, principal, {});
-      if (current.version !== baseVersion(data))
-        return fail(409, {
-          action,
-          error: 'admin.site.conflict' as const,
-          values: Object.fromEntries(data),
-        });
-      const chrome: SiteChrome = {
-        footer: identity
-          ? current.value.footer
-          : localized(data, 'footer', tenant.locales, current.value.footer),
-        logoHasName: identity ? data.get('logoHasName') === 'on' : current.value.logoHasName,
-      };
-      if (chrome.logoHasName === undefined) delete chrome.logoHasName;
-      const result = await runtime().invoker.run(useCases.updateSiteChrome, principal, {
-        baseVersion: baseVersion(data),
-        chrome,
-      });
-      return { saved: action, version: result.version };
-    } catch (e) {
-      return refused(e, action, data);
-    }
-  },
+  chrome: (event) => chromeForm(event),
+  // Its own action so each of the three chrome forms has one address (`part` decides).
+  social: (event) => chromeForm(event),
   assist: async ({ request, locals, url, params }) => {
     const { principal, tenant } = await requireTenantPrincipal(locals, url, params.tenant);
     if (!can(principal, 'tenant:admin')) refuse(403);

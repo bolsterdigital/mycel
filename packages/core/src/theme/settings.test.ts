@@ -74,6 +74,35 @@ describe('site settings', () => {
       })
     ).rejects.toMatchObject({ code: 'invalid_input' });
   });
+  it('keeps social profiles from a closed list, https or a plain mailto (MY-273)', async () => {
+    const d = '01900000-0000-7000-8000-00000000cc12';
+    const principal = systemPrincipal(d, 'test');
+    const social = {
+      bluesky: 'https://bsky.app/profile/otterdam.example',
+      email: 'mailto:info@otterdam.example',
+    };
+    await invoker.run(useCases.updateSiteChrome, principal, {
+      baseVersion: 0,
+      chrome: { ...chrome, social },
+    });
+    expect(
+      await invoker.run(useCases.getSiteChrome, anonymousPrincipal(d, ['content:read']), {})
+    ).toMatchObject({ version: 1, value: { ...chrome, social } });
+    for (const bad of [
+      { bluesky: 'http://bsky.app/profile/x' },
+      { website: 'javascript:alert(1)' },
+      { website: 'https://user:pw@example.org' },
+      { email: 'info@otterdam.example' },
+      { email: 'mailto:a@b.example?bcc=c@d.example' },
+      { myspace: 'https://myspace.com/x' },
+    ])
+      await expect(
+        invoker.run(useCases.updateSiteChrome, principal, {
+          baseVersion: 1,
+          chrome: { ...chrome, social: bad as never },
+        })
+      ).rejects.toMatchObject({ code: 'invalid_input' });
+  });
   it('rejects contrast failures at the use-case boundary', async () => {
     await expect(
       invoker.run(useCases.updateSiteTheme, systemPrincipal(b, 'test'), {

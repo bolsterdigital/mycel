@@ -125,6 +125,11 @@ export const publicSite: Partial<Record<UiKey, string>> = {
   'public.menu.close': 'Sluiten',
   'public.menu.sublinks': "{label}: onderliggende pagina's",
   'public.footerNavigation': 'Voettekst',
+  'public.legalNavigation': 'Juridisch',
+  'public.social.title': 'Volg ons',
+  'public.social.on': '{site} op {network}',
+  'public.social.email': 'Mail {site}',
+  'public.social.website': 'Website van {site}',
   'consent.banner.title': 'Tags op deze site',
   'consent.banner.body':
     'Met je toestemming laadt deze site {loads}. Zonder toestemming laadt er niets van hen.',

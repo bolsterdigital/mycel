@@ -1,7 +1,8 @@
 // The painted chrome (MY-266 PR B, brief public-chrome-polish § Klaar als 1, 2): the header and the
 // footer stand in the role pair the theme chose for each, their links take that pair's text and
-// carry no underline at rest, hover and focus underline, the current page is bold and underlined,
-// and a link in running text keeps its underline. One site walks all four chrome roles for the
+// carry no underline at rest, hover and focus underline, the current page is bold and underlined
+// in the header and plain in the footer (MY-273, still `aria-current`), and a link in running text
+// keeps its underline. One site walks all four chrome roles for the
 // header and the footer; axe (light and dark) on its front page, an article and the open menu.
 // Assertions compare colours with the theme and elements with each other, never pixel widths.
 // Rejected: a test per role in its own tenant (four seeds for what one theme update shows) and a
@@ -144,6 +145,7 @@ const paint = (page: Page) =>
         return {
           text: a.textContent!.trim(),
           current: a.hasAttribute('aria-current'),
+          footer: !!a.closest('.site-footer'),
           line: s.textDecorationLine,
           bold: Number(s.fontWeight) >= 700,
         };
@@ -181,11 +183,14 @@ export async function exerciseChromePaint(page: Page, { slug, tenantId }: Chrome
         pair('primary').reverse()
       );
     } else expect(seen.action, step).toEqual(pair('primary'));
-    // At rest only the current page is underlined (and bold); running text keeps its underline.
+    // At rest only the header's current page is underlined (and bold); the footer marks it with
+    // `aria-current` alone (MY-273); running text keeps its underline.
     expect(seen.links.length, step).toBeGreaterThan(3);
     for (const link of seen.links)
       expect([link.text, link.line, link.bold], step).toEqual(
-        link.current ? [link.text, 'underline', true] : [link.text, 'none', link.bold]
+        link.current && !link.footer
+          ? [link.text, 'underline', true]
+          : [link.text, 'none', link.current ? false : link.bold]
       );
     expect(seen.links.some((l) => l.current)).toBe(true);
     expect(seen.prose, 'a link in running text').toBe('underline');

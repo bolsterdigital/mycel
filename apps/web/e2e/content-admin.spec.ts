@@ -13,6 +13,7 @@ import { blockPage, card, editorReady, more, newPage, reloadsEditor } from './li
 import { exercisePeople } from './lib/people/manage';
 import { exerciseErasedAuthor } from './lib/people/erased';
 import { exerciseDossierPicker } from './lib/dossiers/dossiers';
+import { exerciseSiteSocial } from './lib/site-navigation/social';
 import { exerciseAccessTiers } from './lib/access/tiers';
 import { exerciseBlockNames } from './lib/blocks/names';
 import { exerciseBlockMove } from './lib/block-move';
@@ -2092,6 +2093,8 @@ test('people management preserves edits and adds an author inline', async ({ pag
 });
 test('an item picks dossiers and drops one in the trash', ({ page }) =>
   exerciseDossierPicker(page));
+test('social profiles from the site screen show as icons in the footer', ({ page }) =>
+  exerciseSiteSocial(page));
 
 test('an erased author stays visible and can be removed', async ({ page, request }) => {
   await exerciseErasedAuthor(page, request);
