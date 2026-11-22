@@ -519,13 +519,16 @@
    Language in the bar is a globe plus the visible word and the chevron of the other disclosures.
    Its open list lies where the panel does, under the header on the wide rail's end: one row of
    pills on the body pair while it fits, else they wrap, never past the gutter. Rejected: hanging
-   it from Language's own end, which Menu beside it pushes past the start edge on a phone. */
+   it from Language's own end, which Menu beside it pushes past the start edge on a phone.
+   Its inline padding gives way on a narrow screen (1vw), so globe, "Language" and chevron stay
+   one row within the rail at 200 % text in a fallback font. Rejected: wrapping the chevron to
+   its own row, where the turned chevron overhangs the summary. */
 .site-languages > summary {
   display: flex;
   align-items: center;
   gap: 0.375em;
   min-height: var(--tap);
-  padding-inline: var(--space-1);
+  padding-inline: min(var(--space-1), 1vw);
   cursor: pointer;
   list-style: none;
 }
@@ -562,10 +565,11 @@
    one is filled as the body pair inverted (the body pair's contrast) and bold, so it is never
    told by colour alone. Forced colours would paint the fill as the canvas, so there it is not
    filled and keeps the current page's bold underline; a fill set anyway is what axe measures
-   there, theme colour on the system canvas. Rejected: underlined links, which read as missing
-   styling. */
+   there, theme colour on the system canvas. The inline padding gives way on a narrow screen
+   (5vw is 16 px at 320 px), so the longest name still fits at 200 % text in a fallback font.
+   Rejected: underlined links, which read as missing styling; breaking inside the name. */
 .site-header .site-language-links a {
-  padding-inline: var(--space-2);
+  padding-inline: min(var(--space-2), 5vw);
   border: 1px solid currentColor;
   border-radius: var(--radius);
   white-space: nowrap;
