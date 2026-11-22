@@ -4,6 +4,8 @@
 // Above h6 there is no element, so a tree that would get there is refused rather than clamped:
 // a clamp would silently put two levels on one, which is exactly the outline bug this prevents.
 // No tree reaches it today (rich text inside a FAQ answer tops out at h6).
+// Block components take the depth they render at from `Blocks` (1 under the document title, one
+// deeper inside a container with its own title, ADR 038 rule 3) and title themselves at depth + 1.
 
 export type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 
@@ -14,5 +16,5 @@ export function headingTag(depth: number): HeadingTag {
   return `h${depth}` as HeadingTag;
 }
 
-/** Depth of a top-level block's own title, right under the document title. */
+/** Depth of a top-level block's own title, right under the document title (Markdown, page chrome). */
 export const BLOCK_DEPTH = 2;

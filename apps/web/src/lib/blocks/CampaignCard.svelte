@@ -5,7 +5,7 @@
      compact. The heading names the card, so the image is decorative. An unavailable campaign
      renders nothing here; Blocks.svelte shows the preview's diagnosis instead. -->
 <script lang="ts">
-  import { BLOCK_DEPTH, headingTag } from './headings.js';
+  import { headingTag } from './headings.js';
   import type { FormState, RenderBlock, RenderModel } from './model.js';
   import { withBase } from './rich-text.js';
   import CampaignCount from './CampaignCount.svelte';
@@ -18,6 +18,7 @@
     state,
     preview = null,
     anchor,
+    depth,
   }: {
     block: Extract<RenderBlock, { type: 'campaign-card' }>;
     model: RenderModel;
@@ -25,6 +26,8 @@
     preview?: string | null;
     /** The element id a link to this block lands on (`anchor.ts`). */
     anchor?: string;
+    /** The heading depth the block sits under (1: under the document title); its own title is one deeper. */
+    depth: number;
   } = $props();
 
   const copy = $derived(model.copy.campaign);
@@ -52,7 +55,7 @@
       {/if}
       <div class="campaign-card-text">
         <p class="campaign-card-kind">{copy.kind[c.kind]} · {copy.phase[c.phase]}</p>
-        <svelte:element this={headingTag(BLOCK_DEPTH)} id="{id}-title">{c.title}</svelte:element>
+        <svelte:element this={headingTag(depth + 1)} id="{id}-title">{c.title}</svelte:element>
         {#if c.summary}<p>{c.summary}</p>{/if}
         <CampaignCount campaign={c} {model} {id} />
         {#if block.form}

@@ -3,7 +3,7 @@
      stand beside it. Nothing left to fetch: nothing at all, no heading above an empty list. -->
 <script lang="ts">
   import DownloadIcon from './DownloadIcon.svelte';
-  import { BLOCK_DEPTH, headingTag } from './headings.js';
+  import { headingTag } from './headings.js';
   import type { RenderBlock, RenderModel } from './model.js';
   import { withBase } from './rich-text.js';
 
@@ -11,16 +11,19 @@
     block,
     model,
     anchor,
+    depth,
   }: {
     block: Extract<RenderBlock, { type: 'file-download' }>;
     model: RenderModel;
     anchor?: string;
+    /** The heading depth the block sits under (1: under the document title); its own title is one deeper. */
+    depth: number;
   } = $props();
 </script>
 
 {#if block.files.length}
   <section id={anchor} class="block file-download">
-    {#if block.title}<svelte:element this={headingTag(BLOCK_DEPTH)}>{block.title}</svelte:element
+    {#if block.title}<svelte:element this={headingTag(depth + 1)}>{block.title}</svelte:element
       >{/if}
     {#if block.body}<p>{block.body}</p>{/if}
     <ul>

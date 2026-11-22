@@ -248,6 +248,16 @@ async function representations(blocks: Block[], locale: string, title = 'Titel')
   return { model, html, markdown };
 }
 
+/** A rich-text document with one heading per given relative level. */
+const richHeadings = (levels: number[]) => ({
+  type: 'doc',
+  content: levels.map((level) => ({
+    type: 'heading',
+    attrs: { level },
+    content: [{ type: 'text', text: `Niveau ${level}` }],
+  })),
+});
+
 const headingLevels = (html: string) =>
   [...html.matchAll(/<h([1-6])[\s>]/g)].map((m) => Number(m[1]));
 
@@ -364,14 +374,7 @@ describe('heading levels come from context', () => {
   });
 
   it('maps rich-text headings 1 to 3 to h2 to h4, and deeper under a question', async () => {
-    const doc = {
-      type: 'doc',
-      content: [1, 2, 3].map((level) => ({
-        type: 'heading',
-        attrs: { level },
-        content: [{ type: 'text', text: `Niveau ${level}` }],
-      })),
-    };
+    const doc = richHeadings([1, 2, 3]);
     const rich = Block.parse({
       id: 'r',
       type: 'rich-text',
@@ -391,6 +394,41 @@ describe('heading levels come from context', () => {
     const { html, markdown } = await representations([faq], 'nl');
     expect(headingLevels(html)).toEqual([2, 3, 4, 5, 6]);
     expect(markdown).toContain('###### Niveau 3');
+  });
+
+  // A container with its own title (a campaign card's body, ADR 038 rule 3) renders blocks one
+  // level deeper; every block reads that depth, none keeps a fixed level.
+  it('moves every heading of every block one level down at depth 2', async () => {
+    const atDepth = (model: Awaited<ReturnType<typeof representations>>['model'], depth: number) =>
+      headingLevels(render(Blocks, { props: { model, depth } }).body);
+    for (const { name, block } of examples) {
+      const { model } = await representations([block], 'nl');
+      const flat = atDepth(model, 1);
+      expect(atDepth(model, 2), name).toEqual(flat.map((l) => l + 1));
+    }
+    const rich = Block.parse({
+      id: 'r',
+      type: 'rich-text',
+      version: 1,
+      props: { content: { nl: richHeadings([1]) } },
+    });
+    const { model } = await representations([rich], 'nl');
+    expect(atDepth(model, 2)).toEqual([3]);
+  });
+
+  it('refuses a block that would need a level above h6 at a deeper depth', async () => {
+    const faq = Block.parse({
+      id: 'f',
+      type: 'faq',
+      version: 2,
+      props: {
+        title: { nl: 'Vragen' },
+        entries: [{ question: { nl: 'Waarom?' }, answer: { nl: richHeadings([3]) } }],
+      },
+    });
+    const { model } = await representations([faq], 'nl');
+    expect(headingLevels(render(Blocks, { props: { model, depth: 1 } }).body)).toEqual([2, 3, 6]);
+    expect(() => render(Blocks, { props: { model, depth: 2 } }).body).toThrow(RangeError);
   });
 
   it('refuses a level above h6 instead of clamping it', () => {
