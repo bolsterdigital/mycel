@@ -101,7 +101,17 @@
         data-site-candidate
         href={chrome.actions[1]!.href}>{chrome.actions[1]!.label}</a
       >{/if}
-    <a class="site-search-link" href={chrome.search}>{t('public.search.title')}</a>
+    <a class="site-search-link" href={chrome.search}
+      ><svg
+        class="site-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg
+      >{t('public.search.title')}</a
+    >
     <SiteLanguages {languages} {locale} compact />
     <details class="site-menu">
       <summary class="site-menu-toggle">

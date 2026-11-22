@@ -6,9 +6,9 @@
 
    Colour is only ever used as a validated pair: text on a role background is that role's
    foreground, and links are coloured only on body and surface, the two backgrounds the theme
-   check measures them against. Everywhere else a link inherits the pair's foreground and stays
-   underlined. The admin imports this file too and supplies its own fixed values for the same
-   properties (admin.css) until #11 designs it. */
+   check measures them against. Elsewhere a link inherits the pair's foreground; in running text
+   it stays underlined (site-chrome.css has the chrome's links). The admin imports this file too
+   and supplies its own fixed values for the same properties (admin.css) until #11 designs it. */
 @layer tokens, base, components;
 @import './media-blocks.css' layer(base);
 @import './forms.css' layer(base);

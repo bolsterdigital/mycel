@@ -38,9 +38,10 @@ export const THEME_ROLES = ['body', 'surface', 'primary', 'accent', 'muted', 'wa
  * The role pair the site header and the site footer stand in (MY-266), each chosen on its own; the
  * default is `primary` for both, as on a Dreamkit site. Only roles a header can stand in: the
  * contrast check already holds their text at 4.5:1 and the focus indicator at 3:1 on their
- * background, while `muted` and `warning` are pairs meant for something else. Rejected: free header and footer colours, which need a new pair
- * per palette, its own focus check and its own editor field per mode, while a role reference
- * cannot fall below AA. A site that provably needs a colour outside its roles is a later extension.
+ * background, while `muted` and `warning` are pairs meant for something else. Rejected: free
+ * header and footer colours, which need a new pair per palette, its own focus check and its own
+ * editor field per mode, while a role reference cannot fall below AA. A site that provably needs a
+ * colour outside its roles is a later extension.
  */
 export const CHROME_ROLES = ['body', 'surface', 'primary', 'accent'] as const;
 export type ChromeRole = (typeof CHROME_ROLES)[number];
@@ -81,7 +82,7 @@ export const Palette = z
       accent: RolePair,
       muted: RolePair,
       warning: RolePair,
-      /** Link text on body and surface; #8c keeps links underlined. */
+      /** Link text on body and surface; links in running text stay underlined (#8c). */
       link: ThemeColor,
       /** The focus indicator on every role background. */
       focus: ThemeColor,
