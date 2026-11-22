@@ -9,7 +9,9 @@
 // The site has a logo (MY-266 PR F): the name beside it leaves after the links and before the
 // second call to action, the link keeps the name as its accessible name, and at 1280 px the header
 // is no taller than its logo (at most 3rem) or a tap target, plus 0.75rem above and below. A logo
-// that carries the name stands alone (MY-275).
+// that carries the name stands alone (MY-275). A first call to action whose longest word does not
+// fit beside the logo and Menu on a phone leaves the bar for the top of the panel (MY-284, as
+// Frisse Wind's "Doe mee aan de massaclaim"); Otterdam's keeps its place.
 // Assertions are relational (a prefix of the order, one row, below the header), never a count of
 // links or a pixel width: CI's font is wider than a Mac's.
 // Rejected: a new spec file (the spec budget is full; ui-gate.spec.ts calls this) and checking
@@ -251,6 +253,8 @@ export async function exerciseSticky(page: Page, slug: string, tenantId: string)
     expect(seen.excess, `height at ${width} px`).toBeLessThanOrEqual(0.05);
     // The name leaves first of the header's own parts on a phone; the link keeps it as its name.
     expect(seen.shown[3], `name beside the logo at ${width} px`).toBe(width > 1000);
+    // Otterdam's call to action stays in the bar on a phone, wrapped if it must (MY-284).
+    await expect(page.locator('.site-tools > .site-action:not(.secondary)')).toBeVisible();
     await expect(page.locator('.site-identity')).toHaveAccessibleName('Kopbalk');
     await layoutGate(page, `sticky header at ${width} px`, '.site-header');
     // The measurement leaves no style attribute behind, also not in the tight state.
@@ -314,4 +318,51 @@ export async function exerciseSticky(page: Page, slug: string, tenantId: string)
   await expect(page.locator('.site-identity > span')).toHaveCount(0);
   await expect(page.locator('.site-identity')).toHaveAccessibleName('Kopbalk');
   await expectNoAxeViolations(page, { label: 'logo that carries the name' });
+
+  // A call to action with a long word (MY-284): wide it stands in the bar, on a phone it leaves for
+  // the top of the panel and the header keeps one row, at 200% text too without sideways scroll.
+  await withInvoker(async (invoker) => {
+    const owner = systemPrincipal(tenantId, 'e2e');
+    const nav = await invoker.run(useCases.getNavigation, owner, {});
+    const menus = nav.document.menus.map((m) =>
+      m.id === 'actions'
+        ? {
+            ...m,
+            nodes: m.nodes.map((n, i) =>
+              i === 0 ? { ...n, label: { nl: 'Steun de massaclaimprocedure' } } : n
+            ),
+          }
+        : m
+    );
+    const saved = await invoker.run(useCases.updateNavigation, owner, {
+      baseRevisionId: nav.revisionId,
+      document: { ...nav.document, menus },
+    });
+    await invoker.run(useCases.publishNavigation, owner, {
+      revisionId: saved.revisionId!,
+      locale: 'nl',
+    });
+  });
+  const first = page.locator('.site-tools > .site-action:not(.secondary)');
+  await page.reload();
+  await expect(first).toHaveText('Steun de massaclaimprocedure');
+  await expect(first).toBeVisible();
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto(`/${slug}/home`);
+  await expect(page.locator('.site-header')).toHaveAttribute('data-action-out', '');
+  await expect(first).toBeHidden();
+  const narrow = await header(page);
+  expect(narrow.oneRow, 'one row with a long call to action at 375 px').toBe(true);
+  await expect(page.locator('.site-header')).toHaveAttribute('data-sticky', '');
+  await page.locator('.site-menu-toggle').click();
+  const panelFirst = page.locator('.site-dialog .site-panel a').first();
+  await expect(panelFirst).toHaveText('Steun de massaclaimprocedure');
+  await expect(panelFirst).toBeInViewport();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.site-dialog')).toBeHidden();
+  await page.setViewportSize({ width: 320, height: 568 });
+  await setTextSize(page, '200%');
+  await expect(first).toBeHidden();
+  await layoutGate(page, 'long call to action at 320 px and 200% text', '.site-header');
+  await setTextSize(page, '');
 }

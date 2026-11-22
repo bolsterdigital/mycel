@@ -17,3 +17,8 @@ export function stickyFits(input: {
   viewport: number;
   share?: number;
 }): boolean;
+export function actionFit(input: {
+  available: number;
+  natural: number;
+  narrowest: number;
+}): 'natural' | 'tight' | 'out';

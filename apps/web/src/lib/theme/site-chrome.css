@@ -131,6 +131,25 @@
   min-width: min-content;
   hyphens: manual;
 }
+/* Out (navigation.js, MY-284): not even the longest word of the first call to action fits beside
+   the logo and Menu, so it leaves the bar; the panel holds it at the top. Display none, so it is
+   neither focusable nor announced twice. Rejected: shrinking it below its longest word. */
+.site-header[data-action-out] .site-tools > .site-action:not(.secondary) {
+  display: none;
+}
+/* Where scripts run, the first call to action waits for its first placement as Search and
+   Language do (below): shown and then sent out it would collapse the header by a row after the
+   first paint, a layout shift of the whole page on a phone whose module runs late (CLS 0.16 at
+   320 px with the script 500 ms late). `data-action-placed` is set before the first measurement,
+   so it never measures hidden. On a wide screen it then joins the row at the start of the tools,
+   which end on the rail, so nothing moves. Without JS it is in the bar, and the panel always
+   holds it. Rejected: the server guessing "out" from the label's longest word (fonts, zoom and
+   the logo decide, not a character count) and keeping the header's height until measured. */
+@media (scripting: enabled) {
+  .site-header:not([data-action-placed]) .site-tools > .site-action:not(.secondary) {
+    display: none;
+  }
+}
 /* The narrowest the first call to action can be, for navigation.js to measure in one task. */
 .site-header[data-narrowest] .site-tools > .site-action:not(.secondary) {
   inline-size: min-content;
@@ -216,11 +235,13 @@
 .site-header:has(.site-menu[open]) ~ * {
   display: none;
 }
+/* The calls to action open the panel (MY-284): on a phone the first one may have left the bar for
+   here, and a long menu would push it below the fold. */
 .site-panel-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1) var(--space-2);
-  margin: var(--space-3) 0 0;
+  margin: 0 0 var(--space-3);
   padding: 0;
   list-style: none;
 }
