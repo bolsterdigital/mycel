@@ -332,6 +332,12 @@ export const actions: Actions = {
       // A posted face goes to core as it is, so one outside the choice is refused, not dropped;
       // absent stays absent and core defaults it to the body face.
       captionFont: text(data, 'captionFont') || undefined,
+      // Like the caption face: a posted role goes to core as it is, so one outside the choice is
+      // refused; an absent one stays absent and core makes it primary.
+      chrome: {
+        header: text(data, 'chrome.header') || undefined,
+        footer: text(data, 'chrome.footer') || undefined,
+      },
     };
     try {
       const result = await runtime().invoker.run(useCases.updateSiteTheme, principal, {

@@ -219,6 +219,35 @@ describe('Theme and ThemeInput', () => {
     }
   });
 
+  // MY-266: header and footer stand in a role pair each; a theme stored before the choice is
+  // read through `Theme` like any other and gets the default, as an absent `captionFont` does.
+  it('puts header and footer in primary by default and each in one chrome role only', () => {
+    expect(resolveTheme(ThemeInput.parse({})).chrome).toEqual({
+      header: 'primary',
+      footer: 'primary',
+    });
+    expect(resolveTheme(ThemeInput.parse({ chrome: { header: 'surface' } })).chrome).toEqual({
+      header: 'surface',
+      footer: 'primary',
+    });
+    const { chrome: _, ...stored } = DEFAULT_THEME;
+    expect(Theme.parse(stored).chrome).toEqual(DEFAULT_THEME.chrome);
+    expect(
+      Theme.parse({ ...DEFAULT_THEME, chrome: { header: 'body', footer: 'accent' } }).chrome
+    ).toEqual({ header: 'body', footer: 'accent' });
+    for (const role of ['muted', 'warning', 'link', '#2d6cb5', '', null])
+      for (const part of ['header', 'footer']) {
+        const r = ThemeInput.safeParse({ chrome: { [part]: role } });
+        expect(r.success ? [] : r.error.issues.map((i) => i.message), `${part}: ${role}`).toEqual([
+          'theme.value.not-allowed',
+        ]);
+      }
+    const extra = ThemeInput.safeParse({ chrome: { header: 'primary', drawer: 'primary' } });
+    expect(extra.success ? [] : extra.error.issues.map((i) => i.message)).toEqual([
+      'theme.key.unknown',
+    ]);
+  });
+
   it('uses catalogue keys as messages', () => {
     const r = ThemeInput.safeParse({ ...withLight({ link: 'red' }), baseSize: 99, css: 'x' });
     expect(r.success).toBe(false);

@@ -6,6 +6,7 @@
 // the block conformance suite until that suite reached its size ceiling.
 import { existsSync, readFileSync } from 'node:fs';
 import {
+  CHROME_ROLES,
   DEFAULT_THEME,
   FONTS,
   FONT_KEYS,
@@ -56,6 +57,65 @@ describe('caption font tokens', () => {
   });
 });
 
+// MY-266: the site's chrome only uses pairs the theme check already measured. Over random valid
+// themes, in both palettes, the header and footer are copies of their chosen role pair and the
+// header's call to action is the primary pair, inverted on a primary header; its active pair
+// stays readable. Random primary and accent pairs, so a pair just above the floor is covered.
+describe('chrome tokens', () => {
+  const token = (block: string, name: string) =>
+    new RegExp(`--chrome-${name}: (#[a-f0-9]{6});`, 'i').exec(block)![1]!;
+  const pairOf = (block: string, part: string) => ({
+    foreground: token(block, `${part}-fg`),
+    background: token(block, `${part}-bg`),
+  });
+
+  it('copies the chosen role pairs and inverts the primary action only on a primary header', () => {
+    let seed = 266;
+    const next = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0);
+    const colour = () => '#' + (next() & 0xffffff).toString(16).padStart(6, '0');
+    const pick = () => CHROME_ROLES[next() % CHROME_ROLES.length]!;
+    const readable = () => {
+      for (;;) {
+        const pair = { foreground: colour(), background: colour() };
+        if (contrastRatio(pair.foreground, pair.background) >= 4.5) return pair;
+      }
+    };
+    let checked = 0;
+    for (let i = 0; i < 3000; i++) {
+      const theme = structuredClone(DEFAULT_THEME);
+      for (const mode of ['light', 'dark'] as const) {
+        theme.palettes[mode].primary = readable();
+        theme.palettes[mode].accent = readable();
+      }
+      theme.chrome = { header: pick(), footer: pick() };
+      // Only what a write accepts: the focus colour must also hold on the random backgrounds.
+      if (!Theme.safeParse(theme).success) continue;
+      const blocks = themeCss(theme).split(':root {').slice(1);
+      for (const [index, mode] of (['light', 'dark'] as const).entries()) {
+        const p = theme.palettes[mode];
+        const block = blocks[index]!;
+        const header = pairOf(block, 'header');
+        const footer = pairOf(block, 'footer');
+        expect(header).toEqual(p[theme.chrome.header]);
+        expect(footer).toEqual(p[theme.chrome.footer]);
+        for (const pair of [header, footer])
+          expect(contrastRatio(p.focus, pair.background)).toBeGreaterThanOrEqual(3);
+        const action = pairOf(block, 'action');
+        expect(action).toEqual(
+          theme.chrome.header === 'primary'
+            ? { foreground: p.primary.background, background: p.primary.foreground }
+            : p.primary
+        );
+        expect(action.background).not.toBe(header.background);
+        const active = pairOf(block, 'action-active');
+        expect(contrastRatio(active.foreground, active.background)).toBeGreaterThanOrEqual(4.5);
+      }
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(100);
+  });
+});
+
 describe('theme tokens', () => {
   const PROPERTIES = [
     ...THEME_ROLES.flatMap((r) => [`--color-${r}-fg`, `--color-${r}-bg`]),
@@ -76,6 +136,10 @@ describe('theme tokens', () => {
     ...[1, 2, 3, 4].flatMap((k) =>
       ['fg', 'bg', 'bar', 'active-fg', 'active-bg'].map((t) => `--card-${k}-${t}`)
     ),
+    ...['header', 'footer', 'action', 'action-active'].flatMap((part) => [
+      `--chrome-${part}-fg`,
+      `--chrome-${part}-bg`,
+    ]),
   ];
   it('keeps a caption readable on the page, lighter than muted text where there is room', () => {
     for (const theme of Object.values(THEME_PRESETS)) {

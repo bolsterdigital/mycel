@@ -34,6 +34,17 @@ export type CaptionFont = (typeof CAPTION_FONTS)[number];
 /** The role pairs of a palette: each a foreground on its background. */
 export const THEME_ROLES = ['body', 'surface', 'primary', 'accent', 'muted', 'warning'] as const;
 
+/**
+ * The role pair the site header and the site footer stand in (MY-266), each chosen on its own; the
+ * default is `primary` for both, as on a Dreamkit site. Only roles a header can stand in: the
+ * contrast check already holds their text at 4.5:1 and the focus indicator at 3:1 on their
+ * background, while `muted` and `warning` are pairs meant for something else. Rejected: free header and footer colours, which need a new pair
+ * per palette, its own focus check and its own editor field per mode, while a role reference
+ * cannot fall below AA. A site that provably needs a colour outside its roles is a later extension.
+ */
+export const CHROME_ROLES = ['body', 'surface', 'primary', 'accent'] as const;
+export type ChromeRole = (typeof CHROME_ROLES)[number];
+
 export const THEME_MODES = ['light', 'dark'] as const;
 export type ThemeMode = (typeof THEME_MODES)[number];
 
@@ -132,6 +143,17 @@ export const ThemeInput = z
       headingWeight: HeadingWeight.optional(),
       dropCap: z.enum(DROP_CAPS, notAllowed).optional(),
       captionFont: z.enum(CAPTION_FONTS, notAllowed).optional(),
+      /** Header and footer each in one of `CHROME_ROLES`; an absent one is `primary`. */
+      chrome: z
+        .object(
+          {
+            header: z.enum(CHROME_ROLES, notAllowed).optional(),
+            footer: z.enum(CHROME_ROLES, notAllowed).optional(),
+          },
+          unknownKey
+        )
+        .strict()
+        .optional(),
     },
     unknownKey
   )
@@ -152,4 +174,5 @@ export interface ResolvedTheme {
   headingWeight: (typeof HEADING_WEIGHTS)[number];
   dropCap: DropCap;
   captionFont: CaptionFont;
+  chrome: { header: ChromeRole; footer: ChromeRole };
 }

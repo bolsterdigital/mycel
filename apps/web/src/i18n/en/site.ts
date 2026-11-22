@@ -29,6 +29,12 @@ export const site = {
   'admin.site.dropCap.hint': 'A large first letter at the start of the text of every article.',
   'admin.site.dropCap.articles': 'On',
   'admin.site.dropCap.off': 'Off',
+  'admin.site.group.chrome': 'Header and footer',
+  'admin.site.chrome.header': 'Header colour',
+  'admin.site.chrome.header.hint':
+    'The colour pair of the bar with the site name and menu at the top of every page.',
+  'admin.site.chrome.footer': 'Footer colour',
+  'admin.site.chrome.footer.hint': 'The colour pair of the footer at the bottom of every page.',
   'admin.site.captionFont': 'Caption typeface',
   'admin.site.captionFont.hint':
     'The typeface of captions and credits under photos, videos and galleries.',

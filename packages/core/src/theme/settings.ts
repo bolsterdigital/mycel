@@ -7,7 +7,14 @@ import { defineUseCase } from '../registry.js';
 import { UseCaseError } from '../errors.js';
 import { Theme } from './contrast.js';
 import './ports.js';
-import { Palette, CAPTION_FONTS, DROP_CAPS, HEADING_WEIGHTS, THEME_VERSION } from './model.js';
+import {
+  Palette,
+  CAPTION_FONTS,
+  CHROME_ROLES,
+  DROP_CAPS,
+  HEADING_WEIGHTS,
+  THEME_VERSION,
+} from './model.js';
 import { DEFAULT_THEME } from './presets.js';
 import { FONT_KEYS } from './fonts.js';
 import { DEFAULT_TIME_ZONE, IanaTimeZone } from '../util/time-zone.js';
@@ -101,6 +108,8 @@ const ResolvedTheme = z
     dropCap: z.enum(DROP_CAPS).optional(),
     // Optional for the same reason: a theme stored before the choice renders its captions in body.
     captionFont: z.enum(CAPTION_FONTS).optional(),
+    // Required: the reader parses a stored theme with `Theme`, which resolves an absent choice.
+    chrome: z.object({ header: z.enum(CHROME_ROLES), footer: z.enum(CHROME_ROLES) }).strict(),
   })
   .strict();
 const ThemeState = z.object({ version, value: ResolvedTheme });

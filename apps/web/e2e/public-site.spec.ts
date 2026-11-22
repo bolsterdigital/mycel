@@ -1877,9 +1877,11 @@ test.describe('site-settings', () => {
     await page.goto(`/admin/${slug}/site?section=theme`);
     await expect(dropCap).toHaveValue('off');
     await page.getByLabel('Caption typeface').selectOption('mono');
+    await page.getByLabel('Header colour').selectOption('surface');
     await saveTheme(page);
     await savedOk(page);
-    expect((await theme()).value).toMatchObject({ dropCap: 'off', captionFont: 'mono' });
+    const chrome = { header: 'surface', footer: 'primary' };
+    expect((await theme()).value).toMatchObject({ dropCap: 'off', captionFont: 'mono', chrome });
     expect(await searchTag()).not.toBe(searchBefore);
     const image = { mediaId: mediaId!, decorative: true, alt: null, caption: { nl: 'Bij' } };
     const props = { ...image, credit: { work: null, photographer: 'Maker' } };
