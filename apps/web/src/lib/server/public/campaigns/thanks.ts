@@ -10,7 +10,7 @@
 // a web path to every front) and a landing path in the post (a visitor could type any path).
 
 import type { RenderBlock, RenderModel } from '#lib/blocks/model.js';
-import type { Ui } from '../../../i18n/index.js';
+import type { Ui } from '../../../../i18n/index.js';
 
 /** A site-root path plus `/thanks`; the homepage's is `/thanks`. */
 const thanksOf = (path: string) => `${path === '/' ? '' : path}/thanks`;

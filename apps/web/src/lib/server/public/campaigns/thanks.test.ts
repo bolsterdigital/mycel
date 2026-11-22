@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RenderBlock, RenderModel } from '#lib/blocks/model.js';
-import { ui } from '../../../i18n/index.js';
-import { campaignThanksPath, shareLinks } from './campaign-thanks.js';
+import { ui } from '../../../../i18n/index.js';
+import { campaignThanksPath, shareLinks } from './thanks.js';
 
 const form = (formId: string) => ({ formId }) as never;
 const card = (formId: string | null, href = '/petitie') =>

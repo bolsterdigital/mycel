@@ -30,7 +30,7 @@ import {
   plainSitePath,
   thanksPath,
 } from '#lib/server/public/content-route.js';
-import { campaignThanksPath, shareLinks } from '#lib/server/public/campaign-thanks.js';
+import { campaignThanksPath, shareLinks } from '#lib/server/public/campaigns/thanks.js';
 import { failureFor } from '#lib/server/public/form-post.js';
 import { NO_STORE, itemCacheHeaders } from '#lib/server/http/http-cache.js';
 import { forwardOldAddress } from '#lib/server/public/old-address.js';
@@ -99,7 +99,7 @@ export const load: PageServerLoad = async ({
       ),
     ][0];
     // A campaign's landing page thanks in its campaign layout (ADR 038 rule 8): the count, share
-    // links to the landing page and a way back to where the visitor signed (`campaign-thanks.ts`).
+    // links to the landing page and a way back to where the visitor signed (`campaigns/thanks.ts`).
     if (view.model.campaign) {
       const here = contentPath(view.item, locale, site.tenant.defaultLocale);
       const address = await absoluteSiteUrl(site, here);
