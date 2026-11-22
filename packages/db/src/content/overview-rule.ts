@@ -27,7 +27,9 @@ const article = <T extends Record<string, unknown>>(slug: string, over: T = {} a
  * out; page 2 continuing page 1. A restricted item is a card marked `restricted` with its title
  * and lead, never its body. A draft after publication, an unpublished or other locale, a
  * scheduled pin, the trash and another tenant never appear, and a republish does not move an
- * item.
+ * item. A fixed selection (MY-289) shows its published pins only, pages and articles mixed, more
+ * than six, in the editor's order, with no fill for a gap and no page 2; a new publication changes
+ * an automatic list and leaves the selection as it was.
  */
 export async function observeOverview(
   invoker: Invoker,
@@ -130,6 +132,9 @@ export async function observeOverview(
     const { entries, older } = await get(props, locale, page, by);
     return `${entries.map((e) => `${e.slug}${e.pinned ? '*' : ''}`).join(' ')}${older ? ' +' : ''}`;
   };
+  const chosen = [nieuw, pagina, weg, oud, prullenbak, gepland, midden, leden].map((i) => ({
+    itemId: i.id,
+  }));
   const first = (await get({ sectionId: buurt.id, limit: '2' })).entries[1];
   const members = (await get({ sectionId: buurt.id, limit: '1' })).entries[0];
   return {
@@ -149,6 +154,27 @@ export async function observeOverview(
     page2: await slugs({ limit: '2', pinned: [{ itemId: oud.id }] }, 'nl', 2),
     page3: await slugs({ limit: '2', pinned: [{ itemId: oud.id }] }, 'nl', 3),
     otherTenant: await slugs({}, 'nl', 1, other),
+    // Eight chosen, three of them not published here (withdrawn, trash, scheduled): no stand-ins.
+    selection: await slugs({ source: 'selection', pinned: chosen }),
+    selectionEnglish: await slugs({ source: 'selection', pinned: chosen }, 'en'),
+    selectionPage2: await slugs({ source: 'selection', pinned: chosen }, 'nl', 2),
+    // More than six pins only in a fixed selection.
+    selectionOverSix: await get({ pinned: chosen }).then(
+      () => 'answered',
+      (e: { code?: string; issues?: { message: string }[] }) =>
+        `${e.code}:${e.issues?.[0]?.message}`
+    ),
+    // One new article: the newest three change, the selection does not.
+    afterPublication: await (async () => {
+      clock.advance(1000);
+      const vers = await create('vers', article('vers', inBuurt));
+      await publish(vers, 'nl');
+      return {
+        newest: await slugs({ limit: '3' }),
+        section: await slugs({ sectionId: buurt.id, limit: '3' }),
+        selection: await slugs({ source: 'selection', pinned: chosen }),
+      };
+    })(),
     card: first && {
       title: first.title,
       summary: first.summary,
@@ -408,6 +434,15 @@ export const expectedOverview = {
   page2: 'elders-rubriek nieuw +',
   page3: 'midden',
   otherTenant: 'vreemd',
+  selection: 'nieuw* pagina* oud* midden* leden*',
+  selectionEnglish: 'oud*',
+  selectionPage2: '',
+  selectionOverSix: 'invalid_input:content.overview.pin-limit',
+  afterPublication: {
+    newest: 'vers leden elders-rubriek +',
+    section: 'vers leden nieuw +',
+    selection: 'nieuw* pagina* oud* midden* leden*',
+  },
   card: {
     title: 'Titel nieuw',
     summary: 'Kort en nieuw.',

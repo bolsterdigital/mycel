@@ -536,6 +536,13 @@ export const OTTERDAM_PAGES: ItemDef[] = [
             },
             { date: '2024-05-20', title: { nl: 'Eerste otter in de Rotterdamse singels' } },
             { date: '2025-11-03', title: { nl: 'Zes nieuwe faunapassages' } },
+            // Still to come, so the timeline shows its "Now" line (MY-278).
+            {
+              date: '2027-04-12',
+              title: { nl: 'Voorjaarstelling 2027' },
+              body: { nl: 'Alle 42 routes opnieuw gelopen; aanmelden kan vanaf maart.' },
+            },
+            { date: '2028-06-01', title: { nl: 'Otterpassage onder de A16 open' } },
           ],
         }),
         say({

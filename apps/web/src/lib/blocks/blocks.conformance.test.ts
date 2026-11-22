@@ -39,6 +39,7 @@ import { textRestOf } from '../server/content/content-blocks.js';
 import { headingTag } from './headings.js';
 import { renderMarkdown } from './markdown.js';
 import { resolveDocument, type ResolveSource } from './resolve.js';
+import type { RenderBlock } from './model.js';
 import { shownBlockIds } from './shown.js';
 import { preloadFonts, withItalicPreload } from '../theme/tokens.js';
 
@@ -263,11 +264,16 @@ const prettierConfig = await resolveConfig(fileURLToPath(import.meta.url));
 const pretty = (html: string) =>
   format(html || '<!-- empty -->', { ...prettierConfig, parser: 'html' });
 
-async function representations(blocks: Block[], locale: string, title = 'Titel') {
+async function representations(blocks: Block[], locale: string, title = 'Titel', today?: string) {
   const model = await resolveDocument(
     fixtures,
     { locale, title, blocks: blocks.map((b) => projectBlock(b, locale)) },
-    { base: '', fallbackLocale: 'nl', path: locale === 'nl' ? '/overzicht' : '/en/overview' }
+    {
+      base: '',
+      fallbackLocale: 'nl',
+      path: locale === 'nl' ? '/overzicht' : '/en/overview',
+      ...(today ? { today } : {}),
+    }
   );
   const html = render(Blocks, { props: { model } })
     .body.replace(/<!--[^>]*-->/g, '')
@@ -693,6 +699,44 @@ describe('nothing leaks into any representation', () => {
     const [petition, debate, decision] = titles(newest.html);
     expect(debate).toBeLessThan(decision!);
     expect(decision).toBeLessThan(petition!);
+  });
+
+  it('a timeline splits at today on the site clock: reached filled, to come open, "Now" between (MY-278)', async () => {
+    const block = examples.find((e) => e.name === 'timeline-oldest-titled')!.block;
+    const newest = Block.parse({
+      ...block,
+      props: { ...(block.props as object), order: 'newest' },
+    });
+    const items = (html: string) =>
+      [...html.matchAll(/<li([^>]*)>([\s\S]*?)<\/li>/g)].map((m) => ({
+        future: /timeline-future/.test(m[1]!),
+        now: /class="timeline-now" aria-hidden="true">Now</.test(m[2]!),
+        title: /<h3[^>]*>([^<]*)<\/h3>/.exec(m[2]!)![1],
+      }));
+    // Oldest first: the petition is behind us, the debate and the decision still to come.
+    const { model, html } = await representations([block], 'en', 'Titel', '2026-04-01');
+    expect(items(html)).toEqual([
+      { future: false, now: false, title: 'Petition handed over' },
+      { future: true, now: true, title: 'Debate in the council' },
+      { future: true, now: false, title: 'Decision published' },
+    ]);
+    const shown = model.blocks[0] as Extract<RenderBlock, { type: 'timeline' }>;
+    expect(shown.events.map((e) => e.when)).toEqual(['past', 'future', 'future']);
+    // Newest first: the line sits above the first reached event.
+    expect(items((await representations([newest], 'en', 'Titel', '2026-04-01')).html)).toEqual([
+      { future: true, now: false, title: 'Debate in the council' },
+      { future: true, now: false, title: 'Decision published' },
+      { future: false, now: true, title: 'Petition handed over' },
+    ]);
+    // An event on today's date counts as reached; all on one side, no line.
+    const reached = items((await representations([block], 'en', 'Titel', '2026-05-19')).html);
+    expect(reached.every((e) => !e.future && !e.now)).toBe(true);
+    const ahead = items((await representations([block], 'en', 'Titel', '2026-01-01')).html);
+    expect(ahead.every((e) => e.future && !e.now)).toBe(true);
+    // The line is decoration: the list still holds three events, and the words come from the catalog.
+    expect((await representations([block], 'nl', 'Titel', '2026-04-01')).html).toContain(
+      '<span class="timeline-now" aria-hidden="true">Nu</span>'
+    );
   });
 
   it('an event title sits one level under the title of its timeline, or at its level without one', async () => {

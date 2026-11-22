@@ -104,13 +104,12 @@
   text-decoration-thickness: 0.15em;
 }
 /* The bar's first call to action in `--chrome-action-*`: the primary pair, inverted on a primary
-   header where a primary button would vanish into the bar, each with its active pair (tokens.ts).
-   The panel's buttons stand on the body pair and stay primary. */
+   header where a primary button would vanish into the bar (tokens.ts); on hover it inverts like
+   every public button (controls/button.css). The panel's buttons stand on the body pair and stay
+   primary. */
 .site-header .site-tools > .site-action:not(.secondary) {
   --action-base-fg: var(--chrome-action-fg);
   --action-base-bg: var(--chrome-action-bg);
-  --action-fg: var(--chrome-action-active-fg);
-  --action-bg: var(--chrome-action-active-bg);
 }
 /* Tight (navigation.js, MY-266 PR D): logo, first call to action and Menu fit one row only when
    the call to action's label wraps between its words inside the button, as on a Dreamkit phone

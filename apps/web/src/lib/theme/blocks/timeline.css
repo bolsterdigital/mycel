@@ -1,0 +1,90 @@
+/* The timeline block (MY-278, after Dreamkit's; its own file since base.css reached its size
+   ceiling, in `blocks/` since the theme folder did): one rail down the side with a dot at each
+   date, the date small above the title. A reached event's dot is filled in the primary colour;
+   one still to come is open and its words muted, and a line "Now" stands where the two meet. The
+   dot hangs on the date, so it stays level with it whatever comes above (the "Now" line) or
+   below. The rail runs the whole list; the dots sit on it. In forced colours the dots keep their
+   fill.
+   Rejected: the rail as segments between dots (each segment needs the next dot's position) and
+   colour alone for past and future (the dot's fill and the "Now" line carry it too, the date
+   says it in words). */
+.timeline-list {
+  --timeline-dot: 1rem;
+  --timeline-indent: calc(var(--timeline-dot) + var(--space-2));
+  position: relative;
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  padding-inline-start: var(--timeline-indent);
+  list-style: none;
+}
+.timeline-list::before {
+  content: '';
+  position: absolute;
+  inset-block: 0.5rem;
+  inset-inline-start: calc(var(--timeline-dot) / 2 - 1px);
+  border-inline-start: 2px solid var(--color-muted-fg);
+}
+.timeline-list > li > * {
+  margin-block: 0 var(--space-1);
+}
+.timeline-list :is(h2, h3, h4, h5, h6) {
+  font-size: var(--step-1);
+}
+.timeline-list time {
+  position: relative;
+  display: block;
+  font-size: var(--step--1);
+  color: var(--color-muted-fg);
+}
+.timeline-list time::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: calc(-1 * var(--timeline-indent));
+  box-sizing: border-box;
+  width: var(--timeline-dot);
+  height: var(--timeline-dot);
+  border: 2px solid var(--color-primary-bg);
+  border-radius: 50%;
+  background: var(--color-primary-bg);
+  translate: 0 -50%;
+}
+.timeline-future time::before {
+  border-color: var(--color-muted-fg);
+  background: var(--color-body-bg);
+}
+.timeline-future > :is(h2, h3, h4, h5, h6, p) {
+  color: var(--color-muted-fg);
+}
+.timeline-now {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: calc(-1 * var(--timeline-indent));
+  margin-block-end: var(--space-2);
+  font-size: var(--step--1);
+  font-weight: 700;
+}
+.timeline-now::before,
+.timeline-now::after {
+  content: '';
+  border-block-start: 2px solid var(--color-primary-bg);
+}
+.timeline-now::before {
+  flex: 0 0 var(--timeline-dot);
+}
+.timeline-now::after {
+  flex: 1;
+}
+@media (forced-colors: active) {
+  .timeline-list time::before {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+    background: CanvasText;
+  }
+  .timeline-future time::before {
+    background: Canvas;
+  }
+}

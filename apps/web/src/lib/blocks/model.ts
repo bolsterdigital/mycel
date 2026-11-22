@@ -39,6 +39,8 @@ export interface BlockCopy {
   footnoteBack: string;
   /** The cover header's arrow down to the content. */
   toContent: string;
+  /** The line in a timeline between what happened and what is still to come (MY-278). */
+  timelineNow: string;
   /** The words of the lightbox; `count` holds `{n}` and `{total}`. */
   lightbox: {
     enlarge: string;
@@ -300,6 +302,8 @@ export type RenderBlock = { id: string } & (
       events: {
         date: string;
         dateLabel: string;
+        /** Reached on the site's clock when the page was rendered (today counts), or still to come. */
+        when: 'past' | 'future';
         title: string;
         body: string | null;
         actions: RenderAction[];

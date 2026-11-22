@@ -30,6 +30,7 @@ import {
 } from '@mycel/core';
 import { type APIRequestContext, type Page, expect, test } from '@playwright/test';
 import sharp from 'sharp';
+import { sampleHover } from './lib/blocks/action-samples';
 import { expectNoAxeViolations } from './lib/axe';
 import { editorReady, postDraftPreview } from './lib/editor';
 import { tenantId, withInvoker } from './lib/invoker';
@@ -299,50 +300,7 @@ test.describe('blocks', () => {
                   const css = getComputedStyle(el);
                   return [css.color, css.backgroundColor];
                 });
-                // Pause at transition start, so a busy runner cannot finish the 150 ms fade
-                // before the test reads it. No product duration or wall-clock wait is changed.
-                await action.evaluate((el) =>
-                  el.addEventListener(
-                    'transitionrun',
-                    () => {
-                      for (const animation of el.getAnimations()) animation.pause();
-                    },
-                    { once: true }
-                  )
-                );
-                await action.hover();
-                const samples = await action.evaluate(async (el) => {
-                  const animations = el.getAnimations();
-                  await Promise.all(animations.map((a) => a.ready));
-                  for (const a of animations) a.pause();
-                  const canvas = document.createElement('canvas');
-                  canvas.width = canvas.height = 1;
-                  const ctx = canvas.getContext('2d')!;
-                  const hex = (colour: string) => {
-                    ctx.fillStyle = colour;
-                    ctx.fillRect(0, 0, 1, 1);
-                    return (
-                      '#' +
-                      [...ctx.getImageData(0, 0, 1, 1).data]
-                        .slice(0, 3)
-                        .map((n) => n.toString(16).padStart(2, '0'))
-                        .join('')
-                    );
-                  };
-                  return [0, 0.25, 0.5, 0.75, 1].map((fraction) => {
-                    for (const a of animations)
-                      a.currentTime = Number(a.effect!.getTiming().duration) * fraction;
-                    const css = getComputedStyle(el);
-                    return {
-                      fg: css.color,
-                      bg: css.backgroundColor,
-                      fgHex: hex(css.color),
-                      bgHex: hex(css.backgroundColor),
-                      decoration: css.textDecorationLine,
-                      animations: animations.length,
-                    };
-                  });
-                });
+                const samples = await sampleHover(action);
                 expect(samples[0]!.animations, `${name}/${colorScheme}/${selector}`).toBe(1);
                 expect([samples[4]!.fg, samples[4]!.bg]).not.toEqual(before);
                 for (const sample of samples) {
@@ -351,6 +309,14 @@ test.describe('blocks', () => {
                     `${name}/${colorScheme}/${selector}`
                   ).toBeGreaterThanOrEqual(4.5);
                   if (selector.includes('button')) expect(sample.decoration).toBe('none');
+                }
+                // A button inverts and lifts (MY-279); the FAQ bar softens in place.
+                if (selector.includes('button')) {
+                  expect([samples[4]!.fgHex, samples[4]!.bgHex]).toEqual([
+                    samples[0]!.bgHex,
+                    samples[0]!.fgHex,
+                  ]);
+                  expect(samples[4]!.translate).not.toBe('none');
                 }
                 await action.evaluate((el) => {
                   for (const a of el.getAnimations()) a.finish();
@@ -388,6 +354,10 @@ test.describe('blocks', () => {
                     .first()
                     .evaluate((el) => getComputedStyle(el).transitionDuration)
                 ).toBe('0s');
+              // Under reduced motion a button still inverts, without the lift.
+              const still = page.locator('.cta .button:not(.secondary)').first();
+              await still.hover();
+              expect(await still.evaluate((el) => getComputedStyle(el).translate)).toBe('none');
               await layoutGate(
                 page,
                 `${name}/${colorScheme}/${locale} actions at 320/200%`,

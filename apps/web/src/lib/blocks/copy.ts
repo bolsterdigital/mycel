@@ -23,6 +23,7 @@ export function blockCopy(locale: string): BlockCopy {
     footnotes: t('block.footnotes'),
     footnoteBack: t('block.footnote.back'),
     toContent: t('block.cover.toContent'),
+    timelineNow: t('block.timeline.now'),
     lightbox: {
       enlarge: t('block.lightbox.enlarge'),
       dialog: t('block.lightbox.dialog'),

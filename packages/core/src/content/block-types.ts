@@ -806,10 +806,10 @@ export const BLOCK_DEFINITIONS = {
   }),
 
   // Dreamkit's timeline, without the script. An event has a date, a title, a text and at most one
-  // link, and the visitor gets all of them, sorted on the server. Rejected: Dreamkit's split into
-  // upcoming and earlier steps with a "now" marker, which needs a script to correct cached HTML and
-  // makes one revision's output depend on the day; folding each event, which hides the text for a
-  // list that is at most 24 short entries. No width: a list of dates reads best at the text's width.
+  // link, sorted on the server. Since MY-278 the renderer marks what is reached and what is to
+  // come on the site's clock at render, a "now" line between, as an agenda does: nothing stored,
+  // the ETag follows the model. Rejected: folding each event, which hides the text for a list of
+  // at most 24 short entries. No width: a list of dates reads best at the text's width.
   timeline: define({
     version: 1,
     props: z

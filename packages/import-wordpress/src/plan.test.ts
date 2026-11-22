@@ -255,6 +255,29 @@ describe('planning choices', () => {
     });
   });
 
+  it('keeps a Dreamkit grid of chosen pages and articles as a fixed selection in order (MY-285, MY-289)', () => {
+    const post = (id: number, type: string, status = 'publish') =>
+      `<item><title>Stuk ${id}</title><wp:post_id>${id}</wp:post_id><wp:post_name>stuk-${id}</wp:post_name><wp:status>${status}</wp:status><wp:post_type>${type}</wp:post_type><content:encoded><![CDATA[]]></content:encoded></item>`;
+    const grid = `<!-- wp:wings/nodes-grid {"variationType":"custom","selectedNodes":[12,3,14,13,4,5,11,6,999]} /-->`;
+    const result = plan(
+      `<rss><channel><language>nl</language><item><title>Voorpagina</title><wp:post_id>1</wp:post_id><wp:post_name>voorpagina</wp:post_name><wp:status>publish</wp:status><wp:post_type>page</wp:post_type><content:encoded><![CDATA[${grid}]]></content:encoded></item>${[3, 4, 5, 6].map((n) => post(n, 'post')).join('')}${[11, 12, 13, 14].map((n) => post(n, 'page')).join('')}${post(15, 'post', 'trash')}</channel></rss>`
+    );
+    const front = result.items.find((i) => i.slug === 'voorpagina')!;
+    const ref = (id: number) => placeholder('item', id);
+    expect(front.document.blocks).toEqual([
+      expect.objectContaining({
+        type: 'overview',
+        props: expect.objectContaining({
+          source: 'selection',
+          pinned: [12, 3, 14, 13, 4, 5, 11, 6].map((id) => ({ itemId: ref(id) })),
+        }),
+      }),
+    ]);
+    expect(result.report).toEqual([
+      expect.objectContaining({ code: 'items.missing', postId: 1, detail: '999' }),
+    ]);
+  });
+
   it('decodes entities in titles, leads and alt texts', () => {
     const decoded = plan(
       `<rss><channel><language>nl</language>
