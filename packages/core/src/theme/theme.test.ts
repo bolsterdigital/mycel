@@ -8,7 +8,7 @@ import { Invoker } from '../invoke.js';
 import { anonymousPrincipal, systemPrincipal } from '../principal.js';
 import { MemoryUnitOfWork, TENANT } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
-import { Theme, checkTheme, contrastRatio, resolveTheme } from './contrast.js';
+import { Theme, checkTheme, contrastRatio, focusHalo, resolveTheme } from './contrast.js';
 import { THEME_RANGES, THEME_VERSION, ThemeInput, type Palette } from './model.js';
 import { DEFAULT_THEME, THEME_PRESETS } from './presets.js';
 import { FONTS, FONT_KEYS, hasWeight } from './fonts.js';
@@ -99,9 +99,49 @@ describe('checkTheme', () => {
     expect(report.issues).toEqual([
       { path: 'palettes.light.focus', message: 'theme.contrast.too-low' },
     ]);
+    // On the page the ring itself counts, never the halo (MY-272).
     expect(
-      report.pairs.filter((p) => p.role.startsWith('focus') && !p.passes).length
-    ).toBeGreaterThan(1);
+      report.pairs.filter((p) => p.role.startsWith('focus') && !p.passes).map((p) => p.role)
+    ).toContain('focus-on-body');
+  });
+
+  // MY-272: a dark footer beside a light brand colour. One focus colour cannot reach 3:1 on both;
+  // the halo, the body colour furthest from the ring, carries the background the ring misses.
+  it('lets the halo carry a role background the ring misses, never the page', () => {
+    const brown = { foreground: '#ffffff', background: '#3b3228' };
+    const light = {
+      ...DEFAULT_THEME.palettes.light,
+      body: { foreground: '#1e293b', background: '#f8f8f8' },
+      primary: { foreground: '#1e293b', background: '#8dd3f6' },
+      muted: brown,
+      focus: '#102c4c',
+    };
+    expect(focusHalo(light)).toBe('#f8f8f8');
+    const report = checkTheme({ ...DEFAULT_THEME, palettes: { ...DEFAULT_THEME.palettes, light } });
+    const muted = report.pairs.find((p) => p.mode === 'light' && p.role === 'focus-on-muted')!;
+    expect(contrastRatio('#102c4c', brown.background)).toBeLessThan(3);
+    expect(muted).toMatchObject({ passes: true, required: 3 });
+    expect(muted.ratio).toBeCloseTo(contrastRatio('#f8f8f8', brown.background), 2);
+    expect(report.issues.filter((i) => i.path.endsWith('.focus'))).toEqual([]);
+    // A mid-tone where neither band reaches 3:1 still fails, at the focus path.
+    const grey = { foreground: '#000000', background: '#a0a0a0' };
+    const both = checkTheme({
+      ...DEFAULT_THEME,
+      palettes: {
+        ...DEFAULT_THEME.palettes,
+        light: {
+          ...light,
+          muted: grey,
+          focus: '#5a5a5a',
+          body: { foreground: '#000000', background: '#ffffff' },
+        },
+      },
+    });
+    expect(contrastRatio('#5a5a5a', '#ffffff')).toBeGreaterThan(3);
+    expect(both.issues).toContainEqual({
+      path: 'palettes.light.focus',
+      message: 'theme.contrast.too-low',
+    });
   });
 });
 

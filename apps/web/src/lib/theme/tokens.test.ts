@@ -16,6 +16,7 @@ import {
   THEME_ROLES,
   Theme,
   contrastRatio,
+  focusHalo,
   resolveTheme,
   type ResolvedTheme,
 } from '@mycel/core';
@@ -81,14 +82,16 @@ describe('chrome tokens', () => {
       }
     };
     let checked = 0;
-    for (let i = 0; i < 3000; i++) {
+    // Stop at 300 accepted themes: with the halo (MY-272) far more random themes pass the check,
+    // and each one renders a full stylesheet.
+    for (let i = 0; i < 3000 && checked < 300; i++) {
       const theme = structuredClone(DEFAULT_THEME);
       for (const mode of ['light', 'dark'] as const) {
         theme.palettes[mode].primary = readable();
         theme.palettes[mode].accent = readable();
       }
       theme.chrome = { header: pick(), footer: pick() };
-      // Only what a write accepts: the focus colour must also hold on the random backgrounds.
+      // Only what a write accepts: a focus band must also hold on the random backgrounds.
       if (!Theme.safeParse(theme).success) continue;
       const blocks = themeCss(theme).split(':root {').slice(1);
       for (const [index, mode] of (['light', 'dark'] as const).entries()) {
@@ -98,8 +101,14 @@ describe('chrome tokens', () => {
         const footer = pairOf(block, 'footer');
         expect(header).toEqual(p[theme.chrome.header]);
         expect(footer).toEqual(p[theme.chrome.footer]);
+        // One of the two focus bands, ring or halo, holds on the header and the footer (MY-272).
         for (const pair of [header, footer])
-          expect(contrastRatio(p.focus, pair.background)).toBeGreaterThanOrEqual(3);
+          expect(
+            Math.max(
+              contrastRatio(p.focus, pair.background),
+              contrastRatio(focusHalo(p), pair.background)
+            )
+          ).toBeGreaterThanOrEqual(3);
         const action = pairOf(block, 'action');
         expect(action).toEqual(
           theme.chrome.header === 'primary'
@@ -126,6 +135,7 @@ describe('theme tokens', () => {
     '--color-caption-fg',
     '--color-link',
     '--color-focus',
+    '--color-focus-halo',
     '--font-body',
     '--font-heading',
     '--heading-weight',

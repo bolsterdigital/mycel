@@ -3,6 +3,15 @@
 // text pair needs 4.5:1; body text at 7:1 is reported as AAA, not required. Links need 4.5:1 on
 // body and surface, the focus indicator 3:1 on every role background it can appear on. Ratios are
 // compared unrounded; only the report rounds.
+//
+// The focus indicator is two bands (MY-272): the ring in the theme's `focus` colour and, inside
+// it in the 2 px gap, a halo in whichever body colour stands furthest from `focus`
+// (`focusHalo`). The focus colour itself must reach 3:1 on the page (`focus-on-body`), so it stays
+// a real brand choice; on every other background one of the two bands is enough, so a dark footer
+// can stand beside a light primary colour. Rejected: one colour that must reach 3:1 on every role
+// (a dark footer and a light brand colour cannot both pass it), and a focus colour per role (about
+// fifty containers with a role background would each set it, and a ring that sits on its parent's
+// background would take the colour of its own).
 
 import { z } from 'zod';
 import {
@@ -20,6 +29,14 @@ import { hasWeight } from './fonts.js';
 export const TEXT_CONTRAST = 4.5;
 export const AAA_CONTRAST = 7;
 export const FOCUS_CONTRAST = 3;
+
+/** The inner band of the focus indicator: the body colour that contrasts most with `focus`. */
+export function focusHalo(p: Palette): string {
+  const { foreground, background } = p.body;
+  return contrastRatio(p.focus, background) >= contrastRatio(p.focus, foreground)
+    ? background
+    : foreground;
+}
 
 /** WCAG relative luminance of an opaque `#RRGGBB` colour. */
 export function luminance(hex: string): number {
@@ -92,6 +109,13 @@ function paletteReport(mode: ThemeMode, p: Palette): ThemePairReport[] {
       ...(aaa ? { aaa: ratio >= AAA_CONTRAST } : {}),
     };
   };
+  // The better of the two focus bands on `background`; on the page only the ring itself counts.
+  const halo = focusHalo(p);
+  const focusPair = (role: string, background: string, ringOnly: boolean) => {
+    const ring = pair(role, p.focus, background, FOCUS_CONTRAST);
+    const inner = pair(role, halo, background, FOCUS_CONTRAST);
+    return ringOnly || ring.passes || !inner.passes ? ring : inner;
+  };
   return [
     ...THEME_ROLES.map((r) =>
       pair(r, p[r].foreground, p[r].background, TEXT_CONTRAST, r === 'body')
@@ -99,11 +123,11 @@ function paletteReport(mode: ThemeMode, p: Palette): ThemePairReport[] {
     ...(['body', 'surface'] as const).map((r) =>
       pair(`link-on-${r}`, p.link, p[r].background, TEXT_CONTRAST)
     ),
-    ...THEME_ROLES.map((r) => pair(`focus-on-${r}`, p.focus, p[r].background, FOCUS_CONTRAST)),
+    ...THEME_ROLES.map((r) => focusPair(`focus-on-${r}`, p[r].background, r === 'body')),
     // A filled card is text on its accent, and its button the same pair inverted (action row).
     ...(p.cardAccents ?? []).flatMap((a, i) => [
       pair(`cardAccents.${i}`, a.foreground, a.background, TEXT_CONTRAST),
-      pair(`focus-on-cardAccents.${i}`, p.focus, a.background, FOCUS_CONTRAST),
+      focusPair(`focus-on-cardAccents.${i}`, a.background, false),
     ]),
   ];
 }

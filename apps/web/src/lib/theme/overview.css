@@ -71,6 +71,7 @@
   background: var(--color-primary-bg);
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--color-focus-halo);
 }
 .overview-card:has(a:focus-visible) .card-placeholder {
   color: var(--color-surface-fg);
@@ -78,6 +79,7 @@
 }
 .overview-card:has(a:focus-visible) .overview-card-title a {
   outline: none;
+  box-shadow: none;
 }
 .overview-date,
 .overview-place,

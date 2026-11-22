@@ -15,6 +15,7 @@
 
 import {
   contrastRatio,
+  focusHalo,
   FONT_KEYS,
   luminance,
   THEME_ROLES,
@@ -210,6 +211,7 @@ function palette(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
     `--color-caption-fg: ${captionForeground(p)};`,
     `--color-link: ${p.link};`,
     `--color-focus: ${p.focus};`,
+    `--color-focus-halo: ${focusHalo(p)};`,
     ...cardSlots(p),
     ...chromeTokens(p, chrome)
   );
