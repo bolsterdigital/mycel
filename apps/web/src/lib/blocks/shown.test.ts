@@ -69,6 +69,9 @@ describe('a menu anchor lands only on a block that renders', () => {
       'overview-events-past-list',
       'overview-dossier-members',
       'overview-dossiers',
+      'overview-campaigns',
+      'overview-signups-list',
+      'overview-fundraisers',
       'overview-selection',
     ]);
   });

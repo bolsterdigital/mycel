@@ -73,6 +73,7 @@ export function teamAndNews(personId: string | undefined): BlockInput[] {
         dossierId: null,
         tags: [],
         when: 'upcoming',
+        campaignKind: 'petition',
         order: 'newest',
         limit: '3',
         pinned: [],

@@ -30,6 +30,13 @@
 // A fixed selection (source `selection`, MY-289) is the pins and nothing else: every one that is
 // published in this locale, in the editor's order, without `limit`, without a list query and
 // without a page 2. A pin that is gone leaves no place to fill.
+//
+// A campaign index (source `campaign`, MY-292) lists the landing pages of the site's campaigns of
+// one kind that are not archived, published and public in this locale, newest or oldest first
+// like any page; each card carries where its campaign stands now (`campaignStandings`), so a
+// closed petition stays findable with its result and a hidden counter stays hidden. A restricted
+// landing page is left out, as its campaign card is (ADR 033 rule 5). Archived campaigns never
+// show: archiving is how a site takes one out of its public history.
 
 import { z } from 'zod';
 import { Locale } from '../../i18n/locale.js';
@@ -43,11 +50,15 @@ import { effectiveOf, type ChainSite } from '../header/effective.js';
 import { cardDocument } from '../access/projection.js';
 import { OverviewProps } from '../blocks/overview.js';
 import type { PublishedCardRow } from '../ports.js';
+import { CampaignStanding, campaignStandings } from '../../campaigns/card.js';
 import '../ports.js';
+import '../../campaigns/ports.js';
 import '../../theme/ports.js';
 
 /** How far `?p=` goes: 100 pages of 24 is further back than anyone pages by hand. */
 export const OVERVIEW_MAX_PAGE = 100;
+/** Campaigns of one kind an index looks through; more than a site runs in its lifetime. */
+const INDEX_MAX_CAMPAIGNS = 1000;
 
 export const OverviewEntry = z.object({
   id: z.string().guid(),
@@ -68,6 +79,8 @@ export const OverviewEntry = z.object({
   pinned: z.boolean(),
   /** For members or a tier (ADR 016): the card says so, and its address serves the teaser. */
   restricted: z.boolean(),
+  /** In a campaign index, where the campaign of this landing page stands now; absent elsewhere. */
+  campaign: CampaignStanding.nullable().optional(),
 });
 export type OverviewEntry = z.infer<typeof OverviewEntry>;
 
@@ -132,6 +145,7 @@ export async function overviewOf(
   const pins = pinIds.flatMap((id) => pinRows.filter((r) => r.itemId === id).slice(0, 1));
   if (props.source === 'selection')
     return { entries: page === 1 ? pins.map((r) => entry(r, true)) : [], older: false };
+  if (props.source === 'campaign') return campaignIndex(ctx, props, locale, page, pins, entry);
   const shownPins = Math.min(pins.length, limit);
   const first = limit - shownPins;
   const offset = page === 1 ? 0 : first + (page - 2) * limit;
@@ -143,7 +157,7 @@ export async function overviewOf(
   const rows = await ctx.content.publishedCards(
     {
       locale,
-      type: props.source === 'event' || props.source === 'dossier' ? 'page' : props.source,
+      type: props.source === 'article' ? 'article' : 'page',
       ...(events ? { events } : {}),
       ...(props.source === 'dossier' ? { profile: 'dossier' as const } : {}),
       ...(props.sectionId ? { sectionId: props.sectionId } : {}),
@@ -165,12 +179,53 @@ export async function overviewOf(
   };
 }
 
+/** One page of a campaign index: the pins, then the landing pages of one kind (MY-292). */
+async function campaignIndex(
+  ctx: TransactionContext,
+  props: OverviewProps,
+  locale: string,
+  page: number,
+  pins: PublishedCardRow[],
+  entry: (row: PublishedCardRow, pinned: boolean) => OverviewEntry
+): Promise<Overview> {
+  const limit = Number(props.limit);
+  const campaigns = await ctx.campaigns.list(
+    { kind: props.campaignKind, archived: false },
+    0,
+    INDEX_MAX_CAMPAIGNS
+  );
+  const standings = await campaignStandings(ctx, campaigns);
+  const shownPins = Math.min(pins.length, limit);
+  const first = limit - shownPins;
+  const offset = page === 1 ? 0 : first + (page - 2) * limit;
+  const take = page === 1 ? first : limit;
+  const pinIds = pins.map((r) => r.itemId);
+  const ids = [...standings.keys()].filter((id) => !pinIds.includes(id));
+  // Without `restricted`: a landing page for members only shows no card (ADR 033 rule 5).
+  const rows = await ctx.content.publishedCards(
+    { locale, type: 'page', ids, order: props.order },
+    offset,
+    take + 1
+  );
+  const card = (row: PublishedCardRow, pinned: boolean): OverviewEntry => ({
+    ...entry(row, pinned),
+    campaign: standings.get(row.itemId) ?? null,
+  });
+  return {
+    entries: [
+      ...(page === 1 ? pins.slice(0, shownPins).map((r) => card(r, true)) : []),
+      ...rows.slice(0, take).map((r) => card(r, false)),
+    ],
+    older: rows.length > take,
+  };
+}
+
 export const getOverview = defineUseCase({
   name: 'content.overview.get',
   kind: 'query',
   requires: 'content:read',
   description:
-    "Read what an overview block shows in one locale: for a fixed selection only its chosen items that are published, in their order; otherwise its pinned items, then the published articles, pages or dossier pages that match its filter (section, tags, dossier) (a restricted one as a teaser card marked `restricted`), newest or oldest first, or the upcoming (soonest first) or past (latest first) events on the site's clock now, as cards with featured title, summary, image and, for an event, when and where; page 2 and on continue the list without the pins.",
+    "Read what an overview block shows in one locale: for a fixed selection only its chosen items that are published, in their order; otherwise its pinned items, then the published articles, pages or dossier pages that match its filter (section, tags, dossier) (a restricted one as a teaser card marked `restricted`), or the public landing pages of one kind of campaign that is not archived, each with its phase and public count, newest or oldest first, or the upcoming (soonest first) or past (latest first) events on the site's clock now, as cards with featured title, summary, image and, for an event, when and where; page 2 and on continue the list without the pins.",
   input: z
     .object({
       props: OverviewProps,

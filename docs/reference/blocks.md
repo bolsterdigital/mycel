@@ -293,12 +293,13 @@ Version 1.
 
 | Prop              | Label                      | Kind                                                                                                                                         | Presence                   |
 | ----------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `source`          | Source                     | one of `article`, `page`, `event`, `dossier`, `selection`                                                                                    | required                   |
+| `source`          | Source                     | one of `article`, `page`, `event`, `dossier`, `selection`, `campaign`                                                                        | required                   |
 | `sectionId`       | Section                    | section reference (id)                                                                                                                       | optional (null when empty) |
 | `dossierId`       | Dossier                    | item reference (id)                                                                                                                          | optional (null when empty) |
 | `tags`            | Tags (all)                 | list of 0–5                                                                                                                                  | required                   |
 | `tags[].tag`      | Tag                        | text                                                                                                                                         | required                   |
 | `when`            | Which events               | one of `upcoming`, `past`                                                                                                                    | required                   |
+| `campaignKind`    | Which campaigns            | one of `petition`, `signup`, `fundraiser`                                                                                                    | required                   |
 | `order`           | Order                      | one of `newest`, `oldest`                                                                                                                    | required                   |
 | `limit`           | Number                     | one of `1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`, `10`, `11`, `12`, `13`, `14`, `15`, `16`, `17`, `18`, `19`, `20`, `21`, `22`, `23`, `24` | required                   |
 | `pinned`          | Pinned on top              | list of 0–24                                                                                                                                 | required                   |
@@ -307,7 +308,7 @@ Version 1.
 | `archive`         | Show a link to older items | yes or no                                                                                                                                    | required                   |
 | `width`           | Width                      | one of `content`, `wide`, `full`                                                                                                             | required                   |
 
-Examples: `overview-articles-cards` (The newest articles of one section, one pinned on top, with an older link), `overview-articles-list`, `overview-pages-full`, `overview-events-upcoming` (An agenda: the next events, soonest first, with when and where on each card), `overview-events-past-list`, `overview-dossier-members` (The articles of one dossier, on the dossier page itself), `overview-dossiers`, `overview-selection` (A fixed selection: these items in this order, never filled up).
+Examples: `overview-articles-cards` (The newest articles of one section, one pinned on top, with an older link), `overview-articles-list`, `overview-pages-full`, `overview-events-upcoming` (An agenda: the next events, soonest first, with when and where on each card), `overview-events-past-list`, `overview-dossier-members` (The articles of one dossier, on the dossier page itself), `overview-dossiers`, `overview-campaigns` (Every published petition, newest first, each with where it stands and its count), `overview-signups-list` (Every signup campaign as a list: a title, and the phase when it is not open), `overview-fundraisers`, `overview-selection` (A fixed selection: these items in this order, never filled up).
 
 ## Rich text in the no-JavaScript form
 

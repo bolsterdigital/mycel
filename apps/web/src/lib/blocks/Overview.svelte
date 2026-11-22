@@ -8,6 +8,9 @@
      the card's one link and names it, so the image is decorative; overview.css stretches it over
      the whole card. Rejected: the card as one link around everything, which reads the date and
      summary into the link's name.
+     In a campaign index (MY-292) a card says its kind and, unless open, where participation
+     stands, in place of the date, and shows the public count as the campaign card does; a
+     hidden counter shows nothing. The list layout names a phase other than open after the title.
      With an archive the block ends in plain page links (`?p=2`), no JavaScript. An empty overview
      renders nothing. -->
 <script lang="ts">
@@ -16,6 +19,7 @@
   import { withBase } from './rich-text.js';
   import Picture from './Picture.svelte';
   import CardPlaceholder from './CardPlaceholder.svelte';
+  import CampaignCount from './CampaignCount.svelte';
 
   let {
     block,
@@ -33,6 +37,7 @@
   } = $props();
 
   const copy = $derived(model.copy.overview);
+  const campaignCopy = $derived(model.copy.campaign);
   const sizes = $derived(
     block.width === 'content'
       ? '(min-width: 48rem) 20rem, 100vw'
@@ -58,17 +63,39 @@
                 <svelte:element this={headingTag(depth + 1)} class="overview-card-title">
                   <a href={withBase(model.base, entry.href)}>{entry.title}</a>
                 </svelte:element>
-                <p class="overview-date">
-                  <time datetime={entry.date.iso}>{entry.date.label}</time>
-                </p>
+                {#if entry.campaign}
+                  {@const c = entry.campaign}
+                  <p class="campaign-kind">
+                    {campaignCopy.kind[c.kind]}{c.phase === 'open'
+                      ? ''
+                      : ` · ${campaignCopy.phase[c.phase]}`}
+                  </p>
+                {:else}
+                  <p class="overview-date">
+                    <time datetime={entry.date.iso}>{entry.date.label}</time>
+                  </p>
+                {/if}
                 {#if entry.place}<p class="overview-place">{entry.place}</p>{/if}
                 {#if entry.restricted}<p class="overview-access">{copy.restricted}</p>{/if}
                 {#if entry.summary}<p>{entry.summary}</p>{/if}
+                {#if entry.campaign}
+                  <CampaignCount
+                    campaign={entry.campaign}
+                    {model}
+                    id="{anchor ?? block.id}-{entry.id}"
+                  />
+                {/if}
               </div>
             </article>
           {:else}
             <a href={withBase(model.base, entry.href)}>{entry.title}</a>
-            <time class="overview-date" datetime={entry.date.iso}>{entry.date.label}</time>
+            {#if entry.campaign}
+              {#if entry.campaign.phase !== 'open'}<span class="overview-access"
+                  >{campaignCopy.phase[entry.campaign.phase]}</span
+                >{/if}
+            {:else}
+              <time class="overview-date" datetime={entry.date.iso}>{entry.date.label}</time>
+            {/if}
             {#if entry.restricted}<span class="overview-access">{copy.restricted}</span>{/if}
           {/if}
         </li>

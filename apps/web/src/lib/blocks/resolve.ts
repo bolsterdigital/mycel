@@ -640,6 +640,7 @@ export async function resolveDocument(
                 : null,
             pinned: e.pinned,
             restricted: e.restricted,
+            campaign: e.campaign ?? null,
             revisionId: e.revisionId,
           })),
           older: paged && list.older ? pageLink(page + 1) : null,

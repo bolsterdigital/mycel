@@ -1,6 +1,8 @@
 // What the block conformance suite's overview reads: two published articles in the asked locale,
 // the first pinned when the block pins one, and a further page when the block keeps an archive;
-// for an agenda two events, the first with an end and a place, the second online. Which items a
+// for an agenda two events, the first with an end and a place, the second online; for a campaign
+// index two petitions, the first open with its count, the second closed with its counter hidden
+// (MY-292). Which items a
 // real list returns is packages/db/src/adapter-rules.test.ts; this fixture proves only how a list
 // renders. In a file of its own because the suite stands at its size ceiling.
 import { EXAMPLE_IDS, exampleId, type BlockProps, type Overview } from '@mycel/core';
@@ -16,6 +18,21 @@ export function overviewFixture(props: BlockProps<'overview'>, locale: string): 
           onlineUrl: n === 1 ? null : 'https://example.org/live',
           timeZone: 'Europe/Amsterdam',
         };
+  const campaign = (n: number) =>
+    props.source !== 'campaign'
+      ? null
+      : {
+          campaignId: exampleId(0xe200 + n),
+          kind: props.campaignKind,
+          phase: n === 1 ? ('open' as const) : ('closed' as const),
+          // A fundraiser counts money in minor units: 37 gifts, € 1.234,50 of € 2.000.
+          counter:
+            n !== 1
+              ? null
+              : props.campaignKind === 'fundraiser'
+                ? { participants: 37, raised: { amount: 123450, currency: 'EUR' }, target: 200000 }
+                : { participants: 1234, raised: null, target: 2000 },
+        };
   const entry = (n: number, pinned: boolean) => ({
     id: exampleId(0xe000 + n),
     type: props.source === 'article' ? ('article' as const) : ('page' as const),
@@ -28,7 +45,8 @@ export function overviewFixture(props: BlockProps<'overview'>, locale: string): 
     event: event(n),
     pinned,
     // The second is for members (an agenda leaves those out): the card names it.
-    restricted: n === 2 && props.source !== 'event',
+    restricted: n === 2 && props.source !== 'event' && props.source !== 'campaign',
+    campaign: campaign(n),
   });
   return { entries: [entry(1, props.pinned.length > 0), entry(2, false)], older: props.archive };
 }

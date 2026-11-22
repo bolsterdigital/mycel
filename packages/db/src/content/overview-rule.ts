@@ -5,6 +5,7 @@
 import type { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { useCases, wallClock, type Invoker, type Principal } from '@mycel/core';
+import { expectedCampaignIndex, observeCampaignIndex } from '../campaigns/index-rule.js';
 
 interface Clock {
   now(): Date;
@@ -194,6 +195,8 @@ export async function observeOverview(
     // Last: the agenda advances the clock past an event's end.
     agenda: await observeAgenda(invoker, admin, clock, pagina.id),
     dossiers: await observeDossiers(invoker, admin, other, clock),
+    // After every other list: its landing pages are pages too.
+    campaigns: await observeCampaignIndex(invoker, admin, other, clock),
   };
 }
 
@@ -419,6 +422,7 @@ async function observeAgenda(invoker: Invoker, admin: Principal, clock: Clock, p
 }
 
 export const expectedOverview = {
+  campaigns: expectedCampaignIndex,
   // `midden` was republished last, and stays where its first publication put it.
   articles: 'leden elders-rubriek nieuw midden oud',
   oldest: 'oud midden nieuw elders-rubriek leden',

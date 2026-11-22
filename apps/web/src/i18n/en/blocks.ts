@@ -191,6 +191,11 @@ export const blocks = {
   'admin.block.option.page': 'Pages',
   'admin.block.option.event': 'Events',
   'admin.block.option.dossier': 'Dossiers',
+  'admin.block.option.campaign': 'Campaigns',
+  'admin.block.field.campaignKind': 'Which campaigns',
+  'admin.block.option.petition': 'Petitions',
+  'admin.block.option.signup': 'Signup campaigns',
+  'admin.block.option.fundraiser': 'Fundraisers',
   'admin.block.field.dossierId': 'Dossier',
   'admin.block.dossier.all': 'No dossier filter',
   'admin.block.dossier.sources':
