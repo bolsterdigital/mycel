@@ -2,7 +2,7 @@
      where the page has one, and says what is wrong. The page words a path (`name`), since that
      needs the document's locales. Rejected: a snippet in the page, which outgrew its ceiling. -->
 <script lang="ts">
-  import { ui, type UiKey } from '../../i18n/index.js';
+  import { ui, type UiKey } from '../../../i18n/index.js';
 
   let {
     list,

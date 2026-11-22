@@ -380,8 +380,9 @@ if (form instanceof HTMLFormElement) {
         const decorative = description
           ? !!description.querySelector('input[type="checkbox"]')?.checked ||
             (!text.trim() &&
-              (Number(description.dataset.storedOthers) === 0 ||
-                description.dataset.savedImage !== controlOf(description.dataset.imageName)?.value))
+              (description.dataset.savedImage !== controlOf(description.dataset.imageName)?.value ||
+                (Number(description.dataset.storedOthers) === 0 &&
+                  !('storedMissing' in description.dataset))))
           : !!controlOf(line.dataset.restDecorative)?.checked;
         const words = line.querySelector('[data-rest-alt-text]');
         const intentional = line.querySelector('[data-rest-alt-decorative]');
@@ -644,6 +645,8 @@ if (form instanceof HTMLFormElement) {
     const { savedImage, savedText } = heroAlt.dataset;
     const others = Number(heroAlt.dataset.others);
     const storedOthers = Number(heroAlt.dataset.storedOthers);
+    // A block image placed without a description (ADR 020 rule 3): missing, not decorative.
+    const storedMissing = 'storedMissing' in heroAlt.dataset;
     const { imageName, clearName } = heroAlt.dataset;
     const box = heroAlt.querySelector(`input[name="${CSS.escape(clearName)}"]`);
     const chosenImage = () =>
@@ -666,7 +669,7 @@ if (form instanceof HTMLFormElement) {
             ? ['missing', 'err']
             : replaced
               ? ['fresh', 'info']
-              : kept
+              : kept || storedMissing
                 ? ['missing', 'warn']
                 : ['decorative', 'neutral'];
       heroAlt.hidden = !image;
@@ -681,7 +684,7 @@ if (form instanceof HTMLFormElement) {
       const edit = state === 'described' || state === 'cleared';
       part('[data-hero-alt-action="edit"]').hidden = !edit;
       part('[data-hero-alt-action="describe"]').hidden = edit;
-      part('[data-hero-alt-empty="decorative"]').hidden = kept > 0;
+      part('[data-hero-alt-empty="decorative"]').hidden = kept > 0 || (storedMissing && !replaced);
       for (const standing of heroAlt.querySelectorAll(
         '[data-hero-alt-empty="open"], [data-hero-alt-others]'
       ))

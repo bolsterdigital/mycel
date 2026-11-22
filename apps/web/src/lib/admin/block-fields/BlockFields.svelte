@@ -41,6 +41,7 @@
           image: string;
           alt: Record<string, string> | null;
           locales: readonly string[];
+          missing?: boolean;
         };
       } | null;
     };
@@ -87,6 +88,7 @@
       image: string;
       alt: Record<string, string> | null;
       locales: readonly string[];
+      missing?: boolean;
     };
   }
   let {
@@ -229,6 +231,8 @@
         fieldName={`${name}.${work}`}
         clearName={`${prefix}imageAltClear`}
         markerName={`${prefix}imageAltShown`}
+        missing={saved.missing ?? false}
+        missingName={`${prefix}imageAltMissing`}
         imageName={`${prefix}p.mediaId`}
         block
       />

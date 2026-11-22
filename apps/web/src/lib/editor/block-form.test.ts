@@ -82,6 +82,31 @@ describe('block forms', () => {
     ).toBe(true);
   });
 
+  it('keeps an image placed without a description missing until described or made decorative', () => {
+    // MY-286 review: the shown form of an "alt missing" image saved with an empty field.
+    const image = examples.find((e) => e.name === 'image-content')!;
+    const stored = { ...image.props, decorative: false, alt: null };
+    const values: Record<string, string> = {
+      ...formValues(image.fields, stored, ['nl']),
+      imageAltShown: '1',
+      imageAltMissing: String(image.props.mediaId),
+    };
+    const read = () =>
+      imageAltFromForm(
+        propsFromForm(image.fields, postedValues(values), stored).props,
+        postedValues(values)
+      );
+    expect(read()).toMatchObject({ decorative: false, alt: null });
+    values['p.alt.nl'] = 'Het plein';
+    expect(read()).toMatchObject({ decorative: false, alt: { nl: 'Het plein' } });
+    values['p.alt.nl'] = '';
+    values.imageAltClear = 'on';
+    expect(read()).toMatchObject({ decorative: true, alt: null });
+    delete values.imageAltClear;
+    values['p.mediaId'] = 'new-image';
+    expect(read()).toMatchObject({ decorative: true, alt: null });
+  });
+
   it('makes an emptied sole description decorative, and writing in it described again', () => {
     const image = examples.find((e) => e.name === 'image-full-decorative')!;
     const values: Record<string, string> = {

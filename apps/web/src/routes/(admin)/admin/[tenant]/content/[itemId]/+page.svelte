@@ -29,7 +29,7 @@
   import MergeNotice from '#lib/admin/conflict/MergeNotice.svelte';
   import EditPresence from '#lib/admin/presence/EditPresence.svelte';
   import Inherited from '#lib/admin/Inherited.svelte';
-  import IssueList from '#lib/admin/IssueList.svelte';
+  import IssueList from '#lib/admin/issues/IssueList.svelte';
   import PatternChoice, { offers } from '#lib/admin/patterns/PatternChoice.svelte';
   import SavePattern from '#lib/admin/patterns/SavePattern.svelte';
   import AccessFields from '#lib/admin/access/AccessFields.svelte';

@@ -20,6 +20,10 @@ export const blocks: Partial<Record<UiKey, string>> = {
   'admin.block.nameHelp': 'Alleen zichtbaar in de editor. Leeg gebruikt de automatische naam.',
   'admin.block.alt.hint':
     'Beschrijf wat het beeld toevoegt voor mensen die het niet kunnen zien. Voegt het niets toe aan de omringende inhoud, laat het dan leeg: het is dan decoratief.',
+  'admin.block.alt.missingBody':
+    'Publiceren kan, maar schermlezers horen niets over dit beeld. Beschrijf het, of kies decoratief als het niets toevoegt.',
+  'admin.block.alt.decorative':
+    'Decoratief: dit beeld voegt niets toe en heeft geen beschrijving nodig',
   'admin.block.alt.empty':
     'Laat leeg als het beeld niets toevoegt aan de omringende inhoud; het is dan decoratief.',
   'admin.block.add': 'Blok toevoegen',

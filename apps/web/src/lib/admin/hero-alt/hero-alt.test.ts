@@ -57,6 +57,14 @@ describe('heroAltView (#158)', () => {
       heroAltView({ ...base, text: 'Het team', others: { en: 'The team' }, clearing: true })
     ).toMatchObject({ state: 'cleared', tone: 'neutral' });
   });
+  it('keeps a block image placed without a description missing, not decorative (MY-286)', () => {
+    expect(heroAltView({ ...base, missing: true })).toMatchObject({
+      state: 'missing',
+      tone: 'warn',
+    });
+    expect(heroAltView({ ...base, missing: true, clearing: true }).state).toBe('cleared');
+    expect(heroAltView({ ...base, missing: true, replaced: true }).state).toBe('fresh');
+  });
 });
 
 // The writer's new image cards use the same explicit pair as the merged native image form.
