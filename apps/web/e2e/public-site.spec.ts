@@ -1148,8 +1148,7 @@ test.describe('content-routes', () => {
 // Composition coverage uses real published documents and the existing preview renderer.
 // Rejected: standalone HTML fixtures that drift from production blocks.
 test.describe('grid-compositions', () => {
-  // `campagne` is a campaign landing page (ADR 038) with a layout of its own, measured by
-  // lib/campaigns/landing.ts; here it is only the information page's source.
+  // `campagne` is a campaign landing (ADR 038, lib/campaigns/landing.ts); here only a source.
   const compositions = [
     { slug: 'grid-information-v1', type: 'page', title: 'Samen zorgen voor de buurt' },
     { slug: 'quality-article-v3', type: 'article', title: 'De straat die ruimte maakt' },

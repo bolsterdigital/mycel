@@ -3,7 +3,7 @@
    (its container is `.campaign-card`) each choose their arrangement from their own width. Below
    the threshold everything is one column in DOM order: intro, action, body. From it the action
    area stands beside intro and body, at least 18rem wide so an e-mail field shows some 26
-   characters (Dreamkit's #254 measurement), and the text keeps its measure. Imported into the
+   characters (as measured on Dreamkit), and the text keeps its measure. Imported into the
    `components` layer, against the theme's properties and pairs only. Rejected: viewport media
    queries (a narrow column on a wide screen), negative margins over the header image (the
    predecessor's overlap bled into content above it) and sticky positioning here (a later,
