@@ -8,10 +8,11 @@
      links to the landing page, the action area has no heading of its own, and the body is the
      campaign's text in a native `<details>` unless it is short. DOM, reading and tab order is
      intro, action, body; campaign.css puts the action beside intro and body once the container is
-     wide enough, and keeps one column in that order otherwise. Rejected: the predecessor's CSS
-     background image (no alt, no LCP hint), overlap with negative margins, which bled into
-     content above it, and a second card component (the drift between card and page is what this
-     layout ends). -->
+     wide enough, and keeps one column in that order otherwise. The landing page's thank-you view
+     (ADR 038 rule 8) is the landing page's layout with the thanks as lead, the count without a
+     heading and share links as body. Rejected: the predecessor's CSS background image (no alt,
+     no LCP hint), overlap with negative margins, which bled into content above it, and a second
+     card component (the drift between card and page is what this layout ends). -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import CampaignAction from './CampaignAction.svelte';
@@ -27,6 +28,7 @@
     intro = null,
     card = null,
     model,
+    actionHeading = true,
     id = 'campaign',
     state = null,
     preview = null,
@@ -48,6 +50,8 @@
       fold: string | null;
     } | null;
     model: RenderModel;
+    /** The action area's own heading; off on the thank-you view, where the count stands alone. */
+    actionHeading?: boolean;
     /** The prefix of every element id in the layout. */
     id?: string;
     state?: FormState | null;
@@ -98,7 +102,15 @@
     {/if}
     {#if lead}<p class="lead">{lead}</p>{/if}
   </svelte:element>
-  <CampaignAction {campaign} {model} {id} level={card ? null : 2} {state} {preview} {note} />
+  <CampaignAction
+    {campaign}
+    {model}
+    {id}
+    level={card || !actionHeading ? null : 2}
+    {state}
+    {preview}
+    {note}
+  />
   {#if children}
     {#if card?.fold}
       <details class="campaign-body">

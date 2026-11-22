@@ -105,6 +105,11 @@ export const publicSite = {
   'confirm.invalid.body':
     'The confirmation link is invalid or has expired. Sign up again to receive a new one.',
   'thanks.back': 'Back to the page',
+  'thanks.share.title': 'Share the campaign',
+  'thanks.share.email': 'Email',
+  'thanks.share.whatsapp': 'WhatsApp',
+  'thanks.share.bluesky': 'Bluesky',
+  'thanks.share.link': 'Or copy the link',
   'public.notFound.title': 'Page not found',
   'public.notFound.body':
     'This page does not exist, or it has moved. Check the address or go to the home page.',

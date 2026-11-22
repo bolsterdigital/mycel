@@ -16,9 +16,7 @@ import { formatMoney } from '../../../money.js';
 import { refuse } from '../../http/refuse.js';
 import { runtime } from '../../runtime.js';
 import { sitePath, siteTenant, type Site } from '../../site.js';
-
-/** A site path of slugs only: no scheme, no host, no `//`. */
-const PLAIN_PATH = /^\/(?!\/)[a-z0-9/_-]*$/i;
+import { plainSitePath } from '../content-route.js';
 
 export interface DonationReturn {
   state: 'paid' | 'pending' | 'failed';
@@ -68,8 +66,7 @@ export async function loadDonationReturn(
     // The provider did not answer: the payment may well be paid; it reads as being processed.
     if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
   }
-  const asked = url.searchParams.get('back');
-  const back = asked && PLAIN_PATH.test(asked) ? asked : null;
+  const back = plainSitePath(url.searchParams.get('back'));
   return {
     state,
     amount,
@@ -95,8 +92,7 @@ export async function requestMemberSignin(
   url: URL
 ): Promise<string> {
   const visitor = anonymousPrincipal(siteTenant(site), ['donations:write']);
-  const asked = url.searchParams.get('back');
-  const back = asked && PLAIN_PATH.test(asked) ? asked : null;
+  const back = plainSitePath(url.searchParams.get('back'));
   try {
     await runtime().invoker.run(useCases.requestMemberSignin, visitor, {
       token,
