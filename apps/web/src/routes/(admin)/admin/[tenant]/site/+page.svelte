@@ -17,6 +17,7 @@
 <script lang="ts">
   import {
     AI_USES,
+    BUTTON_SHAPES,
     CAPTION_FONTS,
     HEADING_CASES,
     CHROME_ROLES,
@@ -573,6 +574,11 @@
               <td></td>
               <td></td>
             </tr>
+            {@render optionalRole(
+              `${mode}.ctaHighlight`,
+              t('admin.site.role.ctaHighlight'),
+              data.theme.value.palettes[mode].ctaHighlight
+            )}
             {#each CARD_SLOTS as i (i)}
               {@render optionalRole(
                 `${mode}.cardAccents.${i}`,
@@ -672,6 +678,18 @@
             label: t(`admin.site.headingCase.${c}`),
           }))}
           value={value('headingCase', data.theme.value.headingCase ?? 'normal')}
+        />
+        <Select
+          id="site-buttonShape"
+          name="buttonShape"
+          label={t('admin.site.buttonShape')}
+          locale={data.locale}
+          size="m"
+          options={BUTTON_SHAPES.map((shape) => ({
+            value: shape,
+            label: t(`admin.site.buttonShape.${shape}`),
+          }))}
+          value={value('buttonShape', data.theme.value.buttonShape ?? 'theme')}
         />
         {#each numericFields as key (key)}
           <Field

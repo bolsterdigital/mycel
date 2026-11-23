@@ -45,6 +45,9 @@ export const site = {
     'The typeface of captions and credits under photos, videos and galleries.',
   'admin.site.captionFont.body': 'As the body text',
   'admin.site.captionFont.mono': 'Monospace (typewriter)',
+  'admin.site.buttonShape': 'Button shape',
+  'admin.site.buttonShape.theme': 'Theme corner radius',
+  'admin.site.buttonShape.pill': 'Pill',
   'admin.site.headingCase': 'Headings and buttons',
   'admin.site.headingCase.hint':
     'How headings, card titles and buttons are set. Capitals only change how they look; the text itself stays as written.',
@@ -79,6 +82,7 @@ export const site = {
   'admin.site.role.warning': 'Warning',
   'admin.site.role.link': 'Link',
   'admin.site.role.focus': 'Focus',
+  'admin.site.role.ctaHighlight': 'Highlighted call to action',
   'admin.site.role.campaignForm': 'Campaign form',
   'admin.site.role.campaignProgress': 'Campaign progress',
   'admin.site.role.campaignProgressFill': 'Campaign progress bar fill',

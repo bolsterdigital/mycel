@@ -13,7 +13,7 @@
 
 import { z } from 'zod';
 import { Locale } from '../i18n/locale.js';
-import { BLOCK_DEFINITIONS, type BlockDefinition, type LocalField } from './block-types.js';
+import { BLOCK_DEFINITIONS, WIDTHS, type BlockDefinition, type LocalField } from './block-types.js';
 import type { RichTextDoc } from './rich-text.js';
 
 export * from './block-types.js';
@@ -117,20 +117,35 @@ function blockSchema(id: z.ZodTypeAny): z.ZodTypeAny {
   return z.discriminatedUnion('type', options as unknown as [z.ZodObject, ...z.ZodObject[]]);
 }
 
-// Only this historical shape is accepted for forward conversion. Keep the current public
+// Validate each historical shape before converting it. Keep the current public
 // schema exact for OpenAPI/MCP and new writes; repository reads apply this pure conversion
 // before validating a revision. Rejected: a permissive version number or schema transform,
 // which would hide future versions or make JSON Schema generation unrepresentable.
 const FaqV1 = z
   .object({
-    id: BlockId,
+    id: BlockId.optional(),
+    name: BlockNamePatch.optional(),
     type: z.literal('faq'),
     version: z.literal(1),
     props: BLOCK_DEFINITIONS.faq.props.omit({ width: true }),
   })
   .strict();
 
-export function upgradeFaqV1InDocument(document: unknown): unknown {
+const CtaV1 = z
+  .object({
+    id: BlockId.optional(),
+    name: BlockNamePatch.optional(),
+    type: z.literal('cta'),
+    version: z.literal(1),
+    props: BLOCK_DEFINITIONS.cta.props.extend({
+      variant: z.enum(['band', 'card']).default('band'),
+      width: z.enum(WIDTHS).default('content'),
+    }),
+  })
+  .strict();
+
+/** Upgrade historical blocks for revision and pattern reads without rewriting stored content. */
+export function upgradeBlockVersions(document: unknown): unknown {
   if (!document || typeof document !== 'object' || !('blocks' in document)) return document;
   const input = document as { blocks: unknown };
   if (!Array.isArray(input.blocks)) return document;
@@ -139,9 +154,13 @@ export function upgradeFaqV1InDocument(document: unknown): unknown {
     blocks: input.blocks.map((block: unknown) => {
       if (!block || typeof block !== 'object') return block;
       const value = block as { type?: unknown; version?: unknown };
-      if (value.type !== 'faq' || value.version !== 1) return block;
-      const old = FaqV1.parse(block);
-      return { ...old, version: 2, props: { ...old.props, width: 'content' } };
+      if (value.version !== 1) return block;
+      if (value.type === 'cta') return { ...CtaV1.parse(block), version: 2 };
+      if (value.type === 'faq') {
+        const old = FaqV1.parse(block);
+        return { ...old, version: 2, props: { ...old.props, width: 'content' } };
+      }
+      return block;
     }),
   };
 }

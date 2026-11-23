@@ -14,6 +14,7 @@ Migration 0027 keeps the two active byte sequences and their metadata in `site_s
 | `scaleRatio`    | 1.125 to 1.5                                    | 1.25       |
 | `measure`       | 45 to 85 (ch)                                   | 65         |
 | `radius`        | 0 to 24 (px-equivalent)                         | 4          |
+| `buttonShape`   | `theme` or `pill`                               | `theme`    |
 | `density`       | 0.8 to 1.3 (factor)                             | 1          |
 | `headingWeight` | 400, 500, 600, 700 or 800                       | 700        |
 | `headingFont`   | a key of the font catalogue (`FONT_KEYS`)       | `inter`    |
@@ -32,6 +33,8 @@ Migration 0027 keeps the two active byte sequences and their metadata in `site_s
 `headingFont` and `bodyFont` are keys of a closed product catalogue (`packages/core/src/theme/fonts.ts`, [fonts.md](fonts.md)): Inter, Mycel Serif (Source Serif 4) and the eleven families the Dreamkit sites use, each with a CSS family, a category (`sans`, `serif`, `slab`) and its weights. They are chosen independently (MY-261, ADR 013 rule 1 as amended 2026-11-19); a heading weight the heading font has no face for is refused. Adding a family is a product change; the managed extension route accepted in ADR 022 has a separate compatibility and effective-style contract.
 
 `palettes` holds a complete `light` and a complete `dark` palette. Whoever changes colours sends both, so no unrelated dark default lands on a brand's own light design. Each palette has six role pairs, `body`, `surface`, `primary`, `accent`, `muted` and `warning`, each `{ foreground, background }`, plus `link` and `focus`, and optionally `cardAccents`: one to four `{ foreground, background }` pairs the action row walks through card by card (#204, Dreamkit `action_card_accents`). The background is the bar and the filled card, the foreground the text on it; without them a bar is `accent` and a filled card `primary`. The site chooses them through `site.theme.update`; the admin site form carries stored accents along but does not edit them yet. Every colour is an opaque `#RRGGBB`: no alpha, names, functions or CSS expressions. Every object is strict, so an unknown key is refused (`theme.key.unknown`).
+
+A palette can set `ctaHighlight` as an optional foreground/background pair for the highlighted call-to-action band. The pair needs 4.5:1 text contrast and the band needs a 3:1 focus ring or halo. The band uses the primary pair until this field is set. Site → Theme edits the highlight and the button shape. A pill shape applies to public buttons and preserves the surface radius.
 
 Each palette can also set `campaignForm` and `campaignProgress` as optional foreground/background pairs, and `campaignProgressFill` as an optional colour. Site → Theme edits them. The landing page and full campaign card share these colours. Without overrides the form uses `surface` (or `primary` when surface and body have the same background), the counter and track use `body`, and the fill uses the counter foreground. The form and counter text require 4.5:1, the form focus indicator 3:1, and the fill 3:1 against its track. The form's submit button keeps the primary pair.
 

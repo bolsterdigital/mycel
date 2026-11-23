@@ -73,6 +73,7 @@ export async function exerciseSplitHeader(page: Page, request: APIRequestContext
   });
   for (const size of [
     { width: 1440, height: 900 },
+    { width: 800, height: 900 },
     { width: 375, height: 700 },
   ]) {
     await page.setViewportSize(size);
@@ -85,12 +86,20 @@ export async function exerciseSplitHeader(page: Page, request: APIRequestContext
       'https://example.org/doe-mee'
     );
     await expect(header.locator('.page-split-media img')).toHaveAttribute('fetchpriority', 'high');
+    await expect(header.locator('.page-split-media img')).toHaveAttribute(
+      'sizes',
+      '(min-width: 56rem) 50vw, 100vw'
+    );
     const boxes = await page.evaluate(() => {
       const box = (s: string) => document.querySelector(s)!.getBoundingClientRect();
+      const style = (s: string) => getComputedStyle(document.querySelector(s)!);
       return {
         panel: box('.page-split-panel'),
         media: box('.page-split-media'),
         header: box('main > header.page-split'),
+        headingSize: Number.parseFloat(style('.page-split-panel h1').fontSize),
+        leadSize: Number.parseFloat(style('.page-split-panel .lead').fontSize),
+        align: style('.page-split-panel').textAlign,
         overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       };
     });
@@ -98,8 +107,14 @@ export async function exerciseSplitHeader(page: Page, request: APIRequestContext
     // Edge to edge like the cover, not in the text column.
     expect(boxes.header.width).toBeGreaterThanOrEqual(size.width - 20);
     // Side by side on a wide screen, the image under the panel on a phone.
-    if (size.width > 800) expect(boxes.media.left).toBeGreaterThanOrEqual(boxes.panel.right - 1);
-    else expect(boxes.media.top).toBeGreaterThanOrEqual(boxes.panel.bottom - 1);
+    if (size.width === 1440) {
+      expect(boxes.media.left).toBeGreaterThanOrEqual(boxes.panel.right - 1);
+      expect(boxes.headingSize).toBeGreaterThan(2 * boxes.leadSize);
+      expect(boxes.align).toBe('start');
+    } else {
+      expect(boxes.media.top).toBeGreaterThanOrEqual(boxes.panel.bottom - 1);
+      expect(boxes.align).toBe('center');
+    }
   }
   if (!isA11y()) return;
   await expectNoAxeViolations(page);

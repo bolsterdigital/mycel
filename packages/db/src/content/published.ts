@@ -13,7 +13,7 @@
 import { sql, type Kysely } from 'kysely';
 import {
   ContentDocument,
-  upgradeFaqV1InDocument,
+  upgradeBlockVersions,
   type ContentRepository,
   type ContentType,
   type PublishedEntry,
@@ -158,7 +158,7 @@ export function publishedCards(trx: Kysely<Database>): ContentRepository['publis
     return rows.flatMap((r) => {
       let document: ContentDocument;
       try {
-        document = ContentDocument.parse(upgradeFaqV1InDocument(r.document));
+        document = ContentDocument.parse(upgradeBlockVersions(r.document));
       } catch {
         return [];
       }

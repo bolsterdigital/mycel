@@ -152,6 +152,16 @@ export async function exerciseOverviewCards(page: Page) {
     expect(fits, `${title} at 1280 px`).toBe(true);
   await page.setViewportSize(NARROW);
   await setTextSize(page, '200%');
+  const gaps = await page.locator('.overview-items').evaluate((grid) => {
+    const [first, second] = Array.from(grid.children);
+    return {
+      betweenRows: second!.getBoundingClientRect().top - first!.getBoundingClientRect().bottom,
+      betweenColumns: parseFloat(getComputedStyle(grid).columnGap),
+    };
+  });
+  expect(gaps.betweenRows, 'room between rows of overview cards').toBeGreaterThan(
+    gaps.betweenColumns
+  );
   for (const { title, fits } of await titlesFit(page))
     expect(fits, `${title} at 320 px and 200% text`).toBe(true);
   await layoutGate(page, 'overview cards at 320 px and 200% text', 'main');

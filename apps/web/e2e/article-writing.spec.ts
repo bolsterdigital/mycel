@@ -644,7 +644,7 @@ test.describe('article-writing', () => {
         blocks: [
           {
             type: 'cta',
-            version: 1,
+            version: 2,
             props: {
               title: { nl: 'Doe mee' },
               actions: [{ label: { nl: 'Lees' }, target: { kind: 'item', itemId } }],

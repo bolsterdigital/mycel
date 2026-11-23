@@ -238,6 +238,7 @@ const CASES: Record<string, () => void> = {
         '<!-- wp:wings/cta {"title":"Steun ons","buttonText":"Lees","link":{"id":9},"secondaryButtonText":"Geef","secondaryUrl":"https://geef.example"} /-->'
       ).mapped
     );
+    expect(block.props.width).toBe('intermediate');
     expect(block.props.actions).toEqual([
       { label: { nl: 'Lees' }, target: { kind: 'item', itemId: ITEM } },
       { label: { nl: 'Geef' }, target: { kind: 'url', url: 'https://geef.example' } },

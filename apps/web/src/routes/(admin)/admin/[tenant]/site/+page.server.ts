@@ -374,6 +374,10 @@ export const actions: Actions = {
         const background = text(data, `${mode}.${role}.background`);
         if (foreground || background) palette[role] = { foreground, background };
       }
+      const ctaForeground = text(data, `${mode}.ctaHighlight.foreground`);
+      const ctaBackground = text(data, `${mode}.ctaHighlight.background`);
+      if (ctaForeground || ctaBackground)
+        palette['ctaHighlight'] = { foreground: ctaForeground, background: ctaBackground };
       const fill = text(data, `${mode}.campaignProgressFill`);
       if (fill) palette['campaignProgressFill'] = fill;
       palettes[mode] = palette;
@@ -397,6 +401,7 @@ export const actions: Actions = {
       captionFont: text(data, 'captionFont') || undefined,
       // The same: a posted case outside the choice is refused, an absent one is `normal`.
       headingCase: text(data, 'headingCase') || undefined,
+      buttonShape: text(data, 'buttonShape') || undefined,
       // Like the caption face: a posted role goes to core as it is, so one outside the choice is
       // refused; an absent one stays absent and core makes it primary.
       chrome: {

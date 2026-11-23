@@ -41,7 +41,7 @@ async function seed() {
       blocks: [
         {
           type: 'cta',
-          version: 1,
+          version: 2,
           props: {
             variant: 'band',
             title: text('Doe mee', 'Join us'),

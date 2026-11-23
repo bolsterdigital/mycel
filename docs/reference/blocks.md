@@ -95,18 +95,18 @@ Examples: `hero-minimal`, `hero-cover`, `hero-split-long-label`, `hero-minimal-c
 
 ## `cta` (Call to action)
 
-Version 1.
+Version 2.
 
 | Prop      | Label     | Kind                                                | Presence |
 | --------- | --------- | --------------------------------------------------- | -------- |
-| `variant` | Variant   | one of `band`, `card`                               | required |
+| `variant` | Variant   | one of `band`, `card`, `highlight`                  | required |
 | `title`   | Title     | localised text                                      | required |
 | `body`    | Body text | localised multi-line text                           | optional |
 | `actions` | Buttons   | 1–2 buttons: a localised label and an item or a URL | required |
-| `width`   | Width     | one of `content`, `wide`, `full`                    | required |
+| `width`   | Width     | one of `content`, `intermediate`, `wide`, `full`    | required |
 | `align`   | Alignment | one of `start`, `center`, `end`                     | required |
 
-Examples: `cta-band`, `cta-card-two-actions`, `cta-full-end`.
+Examples: `cta-band`, `cta-card-two-actions`, `cta-highlight-intermediate`, `cta-full-end`.
 
 ## `people-grid` (People grid)
 

@@ -101,7 +101,7 @@
       <Actions actions={intro.action ? [intro.action] : []} base={model.base} />
     </div>
     <div class="page-split-media">
-      <Picture image={intro.hero} base={model.base} sizes="(min-width: 48rem) 50vw, 100vw" eager />
+      <Picture image={intro.hero} base={model.base} sizes="(min-width: 56rem) 50vw, 100vw" eager />
     </div>
   </header>
   {#if intro.hero.caption || intro.hero.credit}

@@ -13,6 +13,25 @@
      hidden counter shows nothing. The list layout names a phase other than open after the title.
      With an archive the block ends in plain page links (`?p=2`), no JavaScript. An empty overview
      renders nothing. -->
+<script module lang="ts">
+  const excerptLimit = 150;
+  const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+  // Give the card a brief excerpt in its HTML so text can wrap naturally at larger sizes.
+  // The full summary still belongs to the item and the shared overview read model.
+  function cardExcerpt(summary: string): string {
+    const flat = summary.replace(/\s+/g, ' ').trim();
+    if (flat.length <= excerptLimit) return flat;
+    const letters = Array.from(graphemes.segment(flat), ({ segment }) => segment);
+    if (letters.length <= excerptLimit) return flat;
+    const head = letters.slice(0, excerptLimit - 1).join('');
+    const lastSpace = head.lastIndexOf(' ');
+    const excerpt =
+      letters[excerptLimit - 1] === ' ' || lastSpace < 0 ? head : head.slice(0, lastSpace);
+    return `${excerpt.replace(/[.…]+$/, '')}…`;
+  }
+</script>
+
 <script lang="ts">
   import { headingTag } from './headings.js';
   import type { RenderBlock, RenderModel } from './model.js';
@@ -77,7 +96,7 @@
                 {/if}
                 {#if entry.place}<p class="overview-place">{entry.place}</p>{/if}
                 {#if entry.restricted}<p class="overview-access">{copy.restricted}</p>{/if}
-                {#if entry.summary}<p>{entry.summary}</p>{/if}
+                {#if entry.summary}<p>{cardExcerpt(entry.summary)}</p>{/if}
                 {#if entry.campaign}
                   <CampaignCount
                     campaign={entry.campaign}

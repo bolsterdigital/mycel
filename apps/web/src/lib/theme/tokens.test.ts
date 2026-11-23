@@ -283,6 +283,19 @@ describe('theme tokens', () => {
     expect(checked).toBeGreaterThan(100);
   });
 
+  it('maps an optional CTA highlight and preserves the separate radius for buttons', () => {
+    const theme = structuredClone(DEFAULT_THEME);
+    theme.palettes.light.ctaHighlight = { foreground: '#ffffff', background: '#c700bf' };
+    theme.buttonShape = 'pill';
+    const css = themeCss(theme);
+    expect(css).toContain('--button-radius: 999px;');
+    expect(css).toContain('--radius: 0.25rem;');
+    expect(css).toContain('--cta-highlight-bg: #c700bf;');
+    expect(css).toContain(`--cta-highlight-bg: ${theme.palettes.dark.primary.background};`);
+    const { buttonShape: _, ...old } = DEFAULT_THEME;
+    expect(themeCss(old as ResolvedTheme)).toBe(themeCss(DEFAULT_THEME));
+  });
+
   it('loads Source Serif only for the serif pair, and both palettes explicitly', () => {
     expect(themeCss(DEFAULT_THEME)).not.toContain('Mycel Serif');
     const editorial = themeCss(THEME_PRESETS.editorial as ResolvedTheme);

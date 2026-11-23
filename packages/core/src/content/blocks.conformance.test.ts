@@ -18,7 +18,7 @@ import {
   blockReferenceRows,
   blockTreeIssues,
   projectBlock,
-  upgradeFaqV1InDocument,
+  upgradeBlockVersions,
   type BlockField,
   type BlockType,
 } from './blocks.js';
@@ -89,7 +89,7 @@ describe('block registry', () => {
   it('lists every type once and gives each its current version and examples', () => {
     expect(new Set(BLOCK_TYPES).size).toBe(BLOCK_TYPES.length);
     for (const type of BLOCK_TYPES) {
-      expect(BLOCK_DEFINITIONS[type].version).toBe(type === 'faq' ? 2 : 1);
+      expect(BLOCK_DEFINITIONS[type].version).toBe(type === 'faq' || type === 'cta' ? 2 : 1);
       expect(BLOCK_DEFINITIONS[type].examples.length).toBeGreaterThan(0);
     }
   });
@@ -135,7 +135,7 @@ describe('FAQ v1 read conversion', () => {
     const raw = docOf([]);
     const before = { ...raw, blocks: [old()] };
     const bytes = JSON.stringify(before);
-    const upgraded = upgradeFaqV1InDocument(before);
+    const upgraded = upgradeBlockVersions(before);
     const parsed = ContentDocument.parse(upgraded);
     expect(JSON.stringify(before)).toBe(bytes);
     expect(parsed.blocks[0]).toMatchObject({
@@ -150,7 +150,7 @@ describe('FAQ v1 read conversion', () => {
     expect(blockReferenceRows(parsed.blocks)).toEqual([
       { blockId: 'faq-legacy', type: 'item', refId: EXAMPLE_IDS.item },
     ]);
-    expect(upgradeFaqV1InDocument(upgraded)).toEqual(upgraded);
+    expect(upgradeBlockVersions(upgraded)).toEqual(upgraded);
   });
 
   it('refuses malformed old props, extra keys and future versions', () => {
@@ -160,10 +160,40 @@ describe('FAQ v1 read conversion', () => {
       { ...old().props, unknown: 'x' },
       { ...old().props, entries: [] },
     ])
-      expect(() => upgradeFaqV1InDocument({ ...raw, blocks: [{ ...old(), props }] })).toThrow();
+      expect(() => upgradeBlockVersions({ ...raw, blocks: [{ ...old(), props }] })).toThrow();
     expect(() =>
-      ContentDocument.parse(upgradeFaqV1InDocument({ ...raw, blocks: [{ ...old(), version: 3 }] }))
+      ContentDocument.parse(upgradeBlockVersions({ ...raw, blocks: [{ ...old(), version: 3 }] }))
     ).toThrow();
+  });
+});
+
+describe('CTA v1 read conversion', () => {
+  const old = {
+    name: { nl: 'Actie' },
+    type: 'cta',
+    version: 1,
+    props: { ...BLOCK_DEFINITIONS.cta.examples[1]!.props, width: 'wide' },
+  };
+
+  it('keeps the old width, variant, actions and name in a pattern and an immutable revision', () => {
+    const before = { blocks: [old, { ...old, id: 'cta-v1' }] };
+    const upgraded = upgradeBlockVersions(before);
+    expect(upgraded).toEqual({
+      blocks: [
+        { ...old, version: 2 },
+        { ...old, id: 'cta-v1', version: 2 },
+      ],
+    });
+    expect(upgradeBlockVersions(upgraded)).toEqual(upgraded);
+    expect(before.blocks[0]!.version).toBe(1);
+  });
+
+  it('refuses a version 1 payload with a version 2 width or variant', () => {
+    for (const patch of [{ width: 'intermediate' }, { variant: 'highlight' }]) {
+      expect(() =>
+        upgradeBlockVersions({ blocks: [{ ...old, props: { ...old.props, ...patch } }] })
+      ).toThrow();
+    }
   });
 });
 

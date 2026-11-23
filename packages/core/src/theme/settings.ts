@@ -13,6 +13,7 @@ import {
   CHROME_ROLES,
   DROP_CAPS,
   HEADING_CASES,
+  BUTTON_SHAPES,
   HEADING_WEIGHTS,
   PAGE_TRANSITION_CHOICES,
   THEME_VERSION,
@@ -172,6 +173,7 @@ const ResolvedTheme = z
     captionFont: z.enum(CAPTION_FONTS).optional(),
     // Optional for the same reason: a theme stored before MY-283 sets its headings as written.
     headingCase: z.enum(HEADING_CASES).optional(),
+    buttonShape: z.enum(BUTTON_SHAPES).optional(),
     // Required: the reader parses a stored theme with `Theme`, which resolves an absent choice.
     chrome: z.object({ header: z.enum(CHROME_ROLES), footer: z.enum(CHROME_ROLES) }).strict(),
   })

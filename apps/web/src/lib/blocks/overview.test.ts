@@ -86,6 +86,29 @@ describe('an overview in the render model', () => {
       entries: [{ date: { iso: '2026-11-02', label: '2 november 2026' } }],
     });
   });
+
+  it('serves a brief excerpt for page cards while keeping the authored summary in the model', async () => {
+    const excerpt = 'Dit is een langere samenvatting. '.repeat(4).trim();
+    const summary = `${excerpt} Wijkraadsverkiezingen horen ook bij dit verhaal.`;
+    const selection = block('selection', { source: 'selection' });
+    const { resolved } = await model(
+      () => ({
+        entries: [
+          { ...entry(1), type: 'page', summary },
+          { ...entry(2), type: 'page', summary: 'Een korte samenvatting.' },
+        ],
+        older: false,
+      }),
+      [selection]
+    );
+    const html = render(Blocks, { props: { model: resolved } }).body;
+    expect(resolved.blocks[0]).toMatchObject({
+      entries: [{ summary }, { summary: 'Een korte samenvatting.' }],
+    });
+    expect(html).toContain(`<p>${excerpt.slice(0, -1)}…</p>`);
+    expect(html).toContain('<p>Een korte samenvatting.</p>');
+    expect(html).not.toContain('Wijkraadsverkiezingen');
+  });
 });
 
 describe('an agenda in the render model', () => {

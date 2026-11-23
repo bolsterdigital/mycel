@@ -1564,7 +1564,7 @@ test.describe('content-blocks', () => {
           },
           {
             type: 'cta',
-            version: 1,
+            version: 2,
             props: {
               variant: 'card',
               title: { nl: 'Doe mee' },
