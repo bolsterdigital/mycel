@@ -18,6 +18,7 @@ import { callApi } from '../api';
 import { isA11y } from '../project';
 import { expectNoAxeViolations } from '../axe';
 import { NARROW, layoutGate, setTextSize } from '../layout';
+import { transitionSettled } from '../navigation/transition';
 
 const LONG = 'Zes nieuwe faunapassages in één jaar';
 
@@ -184,6 +185,7 @@ export async function exerciseOverviewCards(page: Page) {
   await page.mouse.click(...(await middle(fauna.locator('.campaign-card-image'))));
   await expect(page.locator('h1')).toHaveText(LONG);
   await page.goBack();
+  await transitionSettled(page);
   await page.mouse.click(...(await middle(fauna.locator('.campaign-card-text > p').last())));
   await expect(page.locator('h1')).toHaveText(LONG);
 }
