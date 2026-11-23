@@ -13,8 +13,9 @@
 (() => {
   for (const player of document.querySelectorAll('.video-player[data-embed-src]')) {
     const button = player.querySelector('button');
+    const fallback = player.querySelector('.video-link');
     const { embedSrc, embedTitle } = player.dataset;
-    if (!button || !embedSrc) continue;
+    if (!button || !fallback || !embedSrc) continue;
     button.addEventListener(
       'click',
       () => {
@@ -28,11 +29,13 @@
           'allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox'
         );
         frame.src = embedSrc;
+        player.querySelector('.video-poster')?.remove();
         button.replaceWith(frame);
         frame.focus();
       },
       { once: true }
     );
-    player.hidden = false;
+    fallback.hidden = true;
+    button.hidden = false;
   }
 })();

@@ -36,6 +36,8 @@ export interface BlockCopy {
   videoOn: string;
   /** The play button of a placed player; `{title}` and `{provider}` filled by the renderer. */
   videoPlay: string;
+  videoCredit: string;
+  videoYouTube: string;
   footnotes: string;
   footnoteBack: string;
   /** The cover header's arrow down to the content. */
@@ -347,6 +349,12 @@ export type RenderBlock = { id: string } & (
       title: string;
       caption: string | null;
       width: Width;
+      poster: RenderImage | null;
+      duration: number | null;
+      maker: { label: string; href: string | null } | null;
+      licence: { label: string; href: string | null } | null;
+      youtube: string | null;
+      page: string | null;
     }
   | {
       type: 'form';

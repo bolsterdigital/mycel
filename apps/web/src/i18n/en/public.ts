@@ -218,6 +218,8 @@ export const publicSite = {
   'block.lightbox.zoom': 'Actual size',
   'block.lightbox.count': 'Image {n} of {total}',
   'block.video.on': 'Video on {provider}',
+  'block.video.credit': 'Video credit',
+  'block.video.youtube': 'On YouTube',
   'block.video.play': 'Play video: {title} (loads {provider})',
   'block.footnotes': 'Notes',
   'block.footnote.back': 'Back to the text',

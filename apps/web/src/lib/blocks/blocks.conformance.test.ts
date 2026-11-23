@@ -594,6 +594,11 @@ describe('nothing leaks into any representation', () => {
     // A hero without a renderable image falls back to minimal: its text never sits on nothing.
     const { html } = await representations([swap(hero)], 'nl');
     expect(html).toContain('hero-minimal');
+    const video = examples.find((e) => e.name === 'video-bunny-stream')!.block;
+    const fallback = await representations([swap(video)], 'nl');
+    expect(fallback.html).toContain('class="video-link"');
+    expect(fallback.html).not.toContain('<img');
+    expect(JSON.stringify(fallback.model)).not.toContain(RESTRICTED);
   });
 
   it('leaves out a restricted or missing file, and shows nothing with no file left', async () => {

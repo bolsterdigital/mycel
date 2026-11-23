@@ -1,8 +1,77 @@
-<figure id="block-video-bunny-stream" class="block video width-content">
-  <p class="video-link">
-    <a href="https://player.mediadelivery.net/embed/12345/12345678-abcd-4321-9876-0123456789ab"
-      >A river otter hunting</a
+<div id="block-video-bunny-stream" class="block video width-content">
+  <figure class="video-frame">
+    <div class="video-player has-poster">
+      <div class="video-poster">
+        <picture
+          ><source
+            type="image/avif"
+            srcset="
+              /media/01900000-0000-7000-8000-00000000d001/w320.avif 320w,
+              /media/01900000-0000-7000-8000-00000000d001/w640.avif 640w,
+              /media/01900000-0000-7000-8000-00000000d001/w960.avif 960w
+            "
+            sizes="(min-width: 48rem) 44rem, calc(100vw - 2rem)" />
+          <img
+            src="/media/01900000-0000-7000-8000-00000000d001/w960.webp"
+            srcset="
+              /media/01900000-0000-7000-8000-00000000d001/w320.webp 320w,
+              /media/01900000-0000-7000-8000-00000000d001/w640.webp 640w,
+              /media/01900000-0000-7000-8000-00000000d001/w960.webp 960w
+            "
+            sizes="(min-width: 48rem) 44rem, calc(100vw - 2rem)"
+            alt=""
+            width="1600"
+            height="900"
+            fetchpriority="high"
+            class="fx-3 fy-7"
+        /></picture>
+        <span class="video-duration">0:54</span>
+      </div>
+      <a
+        class="video-link"
+        href="https://player.mediadelivery.net/embed/12345/12345678-abcd-4321-9876-0123456789ab"
+        ><span class="video-label">A river otter hunting</span></a
+      >
+    </div>
+    <figcaption>A river otter hunts crayfish.</figcaption>
+  </figure>
+  <div class="video-details">
+    <span class="video-credit"
+      ><svg
+        class="credit-icon"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <rect x="2" y="6" width="13" height="12" rx="2"></rect>
+        <path d="m15 10 7-4v12l-7-4z"></path>
+      </svg>
+      <span class="credit-word">Video credit</span>
+      <a href="https://example.org/maker">Tom Koerner / U.S. Fish and Wildlife Service</a> ·
+      <span class="credit-licence"
+        ><a href="https://creativecommons.org/licenses/by/2.0/" rel="license">CC BY 2.0</a></span
+      ></span
     >
-    <span class="video-provider">Video on Bunny Stream</span>
-  </p>
-</figure>
+    <a class="video-youtube" href="https://www.youtube.com/watch?v=aqz-KE-bpKQ"
+      ><svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <rect x="1" y="4" width="22" height="16" rx="5"></rect>
+        <path fill="currentColor" d="m10 9 5 3-5 3z"></path>
+      </svg>
+      On YouTube</a
+    >
+  </div>
+</div>

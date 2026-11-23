@@ -440,7 +440,7 @@ describe('refusals', () => {
     });
   });
 
-  it('bounds video ids per provider and accepts no URL or HTML', () => {
+  it('bounds player and watch ids and validates credit links separately', () => {
     const video = base('video-embed');
     const withId = (provider: string, videoId: string) => ({
       ...video,
@@ -463,6 +463,13 @@ describe('refusals', () => {
       refused(withId(p!, id!));
     refused({ ...video, props: { ...video.props, html: '<iframe>' } });
     refused({ ...video, props: { ...video.props, autoplay: true } });
+    for (const invalid of [
+      { youtubeWatchId: 'https://youtu.be/dQw4w9WgXcQ' },
+      { durationSeconds: '0' },
+      { makerUrl: 'javascript:void(0)' },
+      { licenceUrl: '//example.org/licence' },
+    ])
+      refused({ ...video, props: { ...video.props, ...invalid } });
   });
 
   it('keeps text bounds: labels 100, short text 200, body 5000', () => {

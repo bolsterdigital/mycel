@@ -14,8 +14,9 @@ import { z } from 'zod';
 import { peopleGridDefinition } from './people/grid-block.js';
 import { REFERENCE_BLOCKS } from './blocks/reference-blocks.js';
 import { localized } from '../i18n/locale.js';
+import { IMAGE_USE, altRule } from './blocks/image-use.js';
 import { imageRefs } from './blocks/image-references.js';
-import { CREDIT_KINDS, MediaCredit } from '../media/model.js';
+import { CREDIT_KINDS } from '../media/model.js';
 import { RichTextDoc, isSafeHref, linkedItemIds } from './rich-text.js';
 import { EXAMPLE_IDS } from './blocks/example-ids.js';
 export { EXAMPLE_IDS } from './blocks/example-ids.js';
@@ -100,7 +101,6 @@ const ShortText = z.string().min(1).max(200);
 const BodyText = z.string().min(1).max(5000);
 /** A transcript: about half an hour of speech, which is what the upload limit lets through. */
 const TranscriptText = z.string().min(1).max(50000);
-const CaptionText = z.string().max(2000);
 const LabelText = z.string().min(1).max(100);
 
 export const WIDTHS = ['content', 'wide', 'full'] as const;
@@ -143,23 +143,6 @@ type Action = z.infer<typeof Action>;
 /** The action schema for what reports on a block's actions (hero conversion). */
 export const BlockAction = Action;
 
-/**
- * The use of one image: the media id plus what belongs to this use and not to the file (alt,
- * decorative, caption and credit overrides; docs/reference/media.md). An absent caption or credit
- * inherits the asset's; an empty caption string hides it in that locale.
- */
-const IMAGE_USE = {
-  mediaId: z.string().guid(),
-  decorative: z.boolean(),
-  alt: localized(z.string().min(1).max(1000).regex(/\S/, 'content.image.alt-empty')).nullable(),
-  caption: localized(CaptionText).optional(),
-  credit: MediaCredit.optional(),
-};
-// Not decorative with `alt: null` is "alt missing" (ADR 020 rule 3, 2026-11-22): valid, a warning.
-function altRule(p: { decorative: boolean; alt: unknown }, ctx: z.RefinementCtx) {
-  if (p.decorative && p.alt !== null)
-    ctx.addIssue({ code: 'custom', path: ['alt'], message: 'content.image.decorative-alt' });
-}
 function imageProps<L extends readonly [string, ...string[]]>(layouts: L) {
   return z
     .object({
@@ -1118,7 +1101,14 @@ export const BLOCK_DEFINITIONS = {
 
   // Never iframe HTML or an arbitrary URL: a provider and a bounded id. #8c starts from a plain
   // link to the provider and adds the embed only as an explicit enhancement; no oEmbed fetch.
-  'video-embed': videoEmbedDefinition(WIDTHS),
+  'video-embed': videoEmbedDefinition(
+    WIDTHS,
+    z
+      .object({ mediaId: IMAGE_USE.mediaId, decorative: IMAGE_USE.decorative, alt: IMAGE_USE.alt })
+      .strict()
+      .superRefine(altRule),
+    imageUseFields.filter((f) => f.key === 'mediaId' || f.key === 'decorative' || f.key === 'alt')
+  ),
 
   // A reference to an existing form definition: no copied fields or consent texts, no second
   // form engine (ADR 004 rule 6).

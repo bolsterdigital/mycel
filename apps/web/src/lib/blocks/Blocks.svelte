@@ -61,6 +61,7 @@
       ? model.blocks.find(
           (b) =>
             ((b.type === 'image' || b.type === 'hero') && b.image) ||
+            (b.type === 'video-embed' && b.poster) ||
             (b.type === 'people-grid' && b.people.some((p) => p.image)) ||
             (b.type === 'overview' && b.entries.some((e) => e.image))
         )?.id
@@ -129,7 +130,7 @@
   {:else if block.type === 'quote'}
     <Quote anchor={anchors.get(block.id)} {block} />
   {:else if block.type === 'video-embed'}
-    <VideoEmbed anchor={anchors.get(block.id)} {block} {model} />
+    <VideoEmbed anchor={anchors.get(block.id)} {block} {model} eager={block.id === firstImage} />
   {:else if block.type === 'form'}
     {#if campaignNotes && block.diagnosis}
       <p class="block preview-note preview-note-warning">{campaignNotes.form[block.diagnosis]}</p>

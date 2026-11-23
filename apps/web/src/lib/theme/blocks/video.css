@@ -1,0 +1,132 @@
+/* One contour stays in place when playback replaces the poster. */
+.video-frame {
+  margin: 0;
+  overflow: hidden;
+  border-radius: var(--radius);
+}
+.video-player {
+  display: grid;
+  grid-template: minmax(min-content, 1fr) / minmax(0, 1fr);
+  aspect-ratio: 16 / 9;
+  background: var(--color-primary-bg);
+  color: var(--color-primary-fg);
+}
+.video-player > * {
+  grid-area: 1 / 1;
+}
+.video-player iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.video-poster {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+.video-poster img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.video-duration {
+  position: absolute;
+  inset: 0.5em 0.5em auto auto;
+  padding: 0.15em 0.45em;
+  border-radius: 0.25em;
+  background: var(--color-primary-bg);
+  color: var(--color-primary-fg);
+  font-variant-numeric: tabular-nums;
+}
+.video-play,
+.video-link {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  gap: 0.25em;
+  padding: 0.5em;
+  border: 0;
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.video-player [hidden] {
+  display: none;
+}
+.video-play:focus-visible,
+.video-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -4px;
+}
+.has-poster :is(.video-play, .video-link):focus-visible::before {
+  outline: 2px solid var(--color-primary-fg);
+  outline-offset: -4px;
+}
+.video-play::before,
+.video-link::before {
+  content: '▶\FE0E' / '';
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--color-primary-bg);
+  color: var(--color-primary-fg);
+  font-size: var(--step-2);
+}
+.video-label {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.has-poster .video-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.video figcaption {
+  padding: var(--space-1) var(--inset);
+  font-family: var(--font-caption, inherit);
+  font-size: var(--step--1);
+  line-height: 1.35;
+  background: var(--color-surface-bg);
+  color: var(--color-surface-fg);
+}
+.video-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 1rem;
+  color: var(--color-caption-fg, var(--color-muted-fg));
+  font-size: var(--step--1);
+}
+.video-credit {
+  position: relative;
+  flex: 0 1 auto;
+  overflow-wrap: anywhere;
+}
+.video-credit svg {
+  vertical-align: -0.18em;
+}
+.video-details a {
+  display: inline-block;
+  min-width: 44px;
+  min-height: 44px;
+  align-content: center;
+  color: inherit;
+}
+.video-details .video-youtube {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  margin-inline-start: auto;
+  white-space: nowrap;
+}
