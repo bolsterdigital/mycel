@@ -12,6 +12,7 @@ import {
   CAPTION_FONTS,
   CHROME_ROLES,
   DROP_CAPS,
+  HEADING_CASES,
   HEADING_WEIGHTS,
   THEME_VERSION,
 } from './model.js';
@@ -166,6 +167,8 @@ const ResolvedTheme = z
     dropCap: z.enum(DROP_CAPS).optional(),
     // Optional for the same reason: a theme stored before the choice renders its captions in body.
     captionFont: z.enum(CAPTION_FONTS).optional(),
+    // Optional for the same reason: a theme stored before MY-283 sets its headings as written.
+    headingCase: z.enum(HEADING_CASES).optional(),
     // Required: the reader parses a stored theme with `Theme`, which resolves an absent choice.
     chrome: z.object({ header: z.enum(CHROME_ROLES), footer: z.enum(CHROME_ROLES) }).strict(),
   })

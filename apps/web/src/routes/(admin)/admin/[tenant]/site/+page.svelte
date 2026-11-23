@@ -18,6 +18,7 @@
   import {
     AI_USES,
     CAPTION_FONTS,
+    HEADING_CASES,
     CHROME_ROLES,
     DROP_CAPS,
     FONT_KEYS,
@@ -617,6 +618,19 @@
             label: t(`admin.site.captionFont.${f}`),
           }))}
           value={value('captionFont', data.theme.value.captionFont ?? 'body')}
+        />
+        <Select
+          id="site-headingCase"
+          name="headingCase"
+          label={t('admin.site.headingCase')}
+          locale={data.locale}
+          size="m"
+          hint={t('admin.site.headingCase.hint')}
+          options={HEADING_CASES.map((c) => ({
+            value: c,
+            label: t(`admin.site.headingCase.${c}`),
+          }))}
+          value={value('headingCase', data.theme.value.headingCase ?? 'normal')}
         />
         {#each numericFields as key (key)}
           <Field

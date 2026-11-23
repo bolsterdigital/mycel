@@ -20,9 +20,12 @@ Migration 0027 keeps the two active byte sequences and their metadata in `site_s
 | `bodyFont`      | a key of the font catalogue (`FONT_KEYS`)       | `inter`    |
 | `dropCap`       | `articles` or `off`                             | `articles` |
 | `captionFont`   | `body` or `mono`                                | `body`     |
+| `headingCase`   | `normal` or `upper`                             | `normal`   |
 | `chrome`        | `header` and `footer`, each a chrome role       | `primary`  |
 
 `captionFont` is the face of captions and credits under images, videos and galleries: `body` keeps them in the body font, `mono` sets them in the system's monospace (`ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`). It is a closed choice like `dropCap`, not a font name: no file is self-hosted or preloaded for it, and any other value is refused (`theme.value.not-allowed`). A theme stored before the choice has none and reads as `body`. The admin theme form offers it beside the drop cap.
+
+`headingCase` sets headings (card and footer titles are headings too) and buttons as written or in capitals (MY-283, BIJ1's `headings_uppercase`). Capitals are a CSS `text-transform` with 0.04em letter spacing, so the stored text and the accessible name stay as the editor wrote them. A closed choice like `captionFont`; a theme stored before it reads as `normal`. The admin theme form offers it beside the caption face.
 
 `chrome` names the role pair the site header and the site footer stand in, each chosen on its own from `body`, `surface`, `primary` and `accent` (MY-266); either one absent is `primary`, as on a Dreamkit site. A role reference, never a colour: the contrast check already holds that pair's text at 4.5:1 and the focus indicator at 3:1 on its background, so no choice can fall below AA. `muted`, `warning`, `link` or a colour is refused (`theme.value.not-allowed`), another key `theme.key.unknown`. A theme stored before the choice reads as `primary` for both. The admin theme form offers both as a group beside the cards. It is a colour only: what the footer holds (its text and the placed menus) is the separate SiteChrome document and the navigation.
 
@@ -69,6 +72,7 @@ Ratios are WCAG 2.2 relative luminance, compared unrounded; the report rounds to
 | `density`                 | `--density`, a factor on the spacing steps                                                                                                                                                                                                                                              |
 | `dropCap`                 | none: an article page carries `data-drop-cap` and `base.css` gives the first letter of its first text block the link colour, the one brand colour checked against the body background (#86)                                                                                             |
 | `captionFont`             | `--font-caption`, only for `mono`; `media-blocks.css` reads it on captions and credits, a cover header's caption included, and otherwise inherits the body face, so a `body` theme's stylesheet, hash and URL stay exactly what they were                                               |
+| `headingCase`             | `--heading-case` and `--heading-tracking`, only for `upper`; `base.css` reads them on `h1`-`h6` and `.button`, so a `normal` theme's stylesheet, hash and URL stay what they were                                                                                                       |
 | `chrome`                  | `--chrome-header-fg/-bg` and `--chrome-footer-fg/-bg`, copies of the chosen pair per palette; `--chrome-action-fg/-bg` for the header's first call to action, the primary pair or, on a primary header, that pair inverted (same contrast); hovered it inverts like every public button |
 
 The light palette sits in `:root`, the dark one under `@media (prefers-color-scheme: dark)`; both are explicit. Colour is only used as a validated pair: a link is coloured only on body and surface (the two backgrounds the check measures it against) and inherits the pair's foreground elsewhere, always underlined.

@@ -259,6 +259,17 @@ describe('Theme and ThemeInput', () => {
     }
   });
 
+  it('sets headings as written by default, takes capitals and refuses any other case', () => {
+    expect(resolveTheme(ThemeInput.parse({})).headingCase).toBe('normal');
+    expect(resolveTheme(ThemeInput.parse({ headingCase: 'upper' })).headingCase).toBe('upper');
+    const { headingCase: _, ...stored } = DEFAULT_THEME;
+    expect(Theme.parse(stored).headingCase).toBe('normal');
+    for (const headingCase of ['uppercase', 'small-caps', '', null, true]) {
+      const r = ThemeInput.safeParse({ headingCase });
+      expect(r.success, String(headingCase)).toBe(false);
+    }
+  });
+
   // MY-266: header and footer stand in a role pair each; a theme stored before the choice is
   // read through `Theme` like any other and gets the default, as an absent `captionFont` does.
   it('puts header and footer in primary by default and each in one chrome role only', () => {
