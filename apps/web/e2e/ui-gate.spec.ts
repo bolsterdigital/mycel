@@ -760,6 +760,16 @@ test.describe('blocks-registry', () => {
           .locator('.people-grid')
           .evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').length);
         expect(tracks).toBe(width === 320 ? 1 : columns);
+        for (const card of await page.locator('.person-card').all()) {
+          const box = await card.boundingBox();
+          expect(box!.width).toBeLessThanOrEqual(width === 320 ? 320 : 288);
+          await expect(card).toHaveCSS('border-top-style', 'solid');
+        }
+        for (const portrait of await page
+          .locator('.person-card:not(.person-card-organisation) img')
+          .all()) {
+          if (width === 1440) await expect(portrait).toHaveCSS('height', '200px');
+        }
         for (const img of await page.locator('.person-card img').all()) {
           await img.scrollIntoViewIfNeeded();
           await expect
