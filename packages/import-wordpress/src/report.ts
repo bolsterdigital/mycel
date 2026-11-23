@@ -43,6 +43,7 @@ const HEADINGS: Record<ReportCode, string> = {
   'campaign.goal-milestones': 'Campaigns with milestone goals in the source (set them again)',
   'campaign.goal-invalid': 'Campaign goals out of range (not used)',
   'campaign.archive': 'Old campaign archives (redirect to the index of their kind)',
+  'theme.campaign-skipped': 'Dreamkit campaign colours left out',
   'campaign.failed': 'Campaigns not made',
   'translation.not-merged': 'Translations not merged: structure differs (not imported)',
   'translation.value-differs': 'Translation values that differ (default language kept)',
@@ -78,6 +79,11 @@ export function formatReport(plan: ImportPlan): string {
     `WordPress import plan for ${plan.site.title || plan.site.url}`,
     `Default locale ${plan.defaultLocale}; locales ${plan.locales.join(', ')}`,
     `Featured image as article header: ${plan.featuredAsHeader ? 'yes' : 'no'}`,
+    ...(plan.campaignColours
+      ? [
+          `Dreamkit campaign colour candidates (light): ${Object.keys(plan.campaignColours).join(', ')}`,
+        ]
+      : []),
     '',
     `Pages      ${count('page')} (${count('page', 'draft')} draft)`,
     `Articles   ${count('article')} (${count('article', 'draft')} draft)`,

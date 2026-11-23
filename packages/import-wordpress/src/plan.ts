@@ -29,6 +29,7 @@
 // a section and adds no membership. Rejected: matching a term to a landing by slug (a regular
 // page or a second landing may share it, and a wrong dossier box is worse than a report line).
 
+import { campaignBrand, type CampaignColours } from './brand.js';
 import {
   BLOCK_DEFINITIONS,
   ContentDocumentInput,
@@ -146,6 +147,7 @@ export type ReportCode =
   | 'item.blocks-failed'
   | 'item.publish-failed'
   | 'campaign.failed'
+  | 'theme.campaign-skipped'
   | 'item.image-missing'
   | 'block.reference-missing';
 
@@ -172,12 +174,15 @@ export interface ImportPlan {
   sections: PlannedSection[];
   items: PlannedItem[];
   campaigns: PlannedCampaign[];
+  campaignColours?: CampaignColours;
   report: ReportLine[];
 }
 
 export interface PlanOptions {
   /** The site's main language; else the first Polylang language, else the channel's language. */
   defaultLocale?: string;
+  /** Generated Dreamkit Wings tokens, already resolved to CSS values. */
+  brandTokens?: unknown;
   /**
    * An article with a featured image gets `presentation.header: 'cover'`, with that image as its
    * hero (alt text from the file) unless its own Wings hero already set one. Absent: on for a
@@ -267,6 +272,8 @@ function mergeInto(base: unknown, other: unknown, path: string, conflicts: strin
 export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
   const wxr = readWxr(xml);
   const report: ReportLine[] = [];
+  const colours =
+    options.brandTokens === undefined ? {} : campaignBrand(options.brandTokens, report);
   const defaultLocale = options.defaultLocale ?? wxr.site.languages[0] ?? wxr.site.language ?? 'en';
   const featuredAsHeader =
     options.featuredAsHeader ?? wxr.posts.some((p) => p.content.includes('<!-- wp:wings/'));
@@ -732,6 +739,7 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
     sections,
     items,
     campaigns,
+    ...(Object.keys(colours).length && { campaignColours: colours }),
     report,
   };
 }

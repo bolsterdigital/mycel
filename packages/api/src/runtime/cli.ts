@@ -60,8 +60,8 @@ export const USAGE = `usage:
   mycel erasures apply [--tenant <slug>]
   mycel erasures status [--tenant <slug>]
   mycel search rebuild [--tenant <slug>]
-  mycel wordpress plan --file <export.xml> [--default-locale <nl>] [--featured-header on|off] [--json]
-  mycel wordpress import --tenant <slug> --file <export.xml> [--media-dir <uploads>] [--default-locale <nl>] [--featured-header on|off] [--into-existing]
+  mycel wordpress plan --file <export.xml> [--brand-tokens <wings-tokens.json>] [--default-locale <nl>] [--featured-header on|off] [--json]
+  mycel wordpress import --tenant <slug> --file <export.xml> [--brand-tokens <wings-tokens.json>] [--media-dir <uploads>] [--default-locale <nl>] [--featured-header on|off] [--into-existing]
   mycel version`;
 
 export type Command =
@@ -84,6 +84,7 @@ export type Command =
   | {
       kind: 'wordpress.plan';
       file: string;
+      brandTokensFile?: string;
       defaultLocale?: string;
       featuredAsHeader?: boolean;
       json: boolean;
@@ -92,6 +93,7 @@ export type Command =
       kind: 'wordpress.import';
       slug: string;
       file: string;
+      brandTokensFile?: string;
       mediaDir?: string;
       defaultLocale?: string;
       featuredAsHeader?: boolean;
@@ -186,11 +188,12 @@ export function parseCommand(argv: readonly string[]): Command {
     return { kind: 'search.rebuild', ...(f['tenant'] ? { slug: f['tenant'] } : {}) };
   }
   if (noun === 'wordpress' && verb === 'plan') {
-    const f = flags(rest, ['file', 'default-locale', 'featured-header'], ['json']);
+    const f = flags(rest, ['file', 'default-locale', 'featured-header', 'brand-tokens'], ['json']);
     if (!f['file']) throw new UsageError('wordpress plan needs --file');
     return {
       kind: 'wordpress.plan',
       file: f['file'],
+      ...(f['brand-tokens'] && { brandTokensFile: f['brand-tokens'] }),
       json: f['json'] === 'true',
       ...(f['default-locale'] ? { defaultLocale: f['default-locale'] } : {}),
       ...featuredHeader(f['featured-header']),
@@ -199,7 +202,7 @@ export function parseCommand(argv: readonly string[]): Command {
   if (noun === 'wordpress' && verb === 'import') {
     const f = flags(
       rest,
-      ['tenant', 'file', 'media-dir', 'default-locale', 'featured-header'],
+      ['tenant', 'file', 'media-dir', 'default-locale', 'featured-header', 'brand-tokens'],
       ['into-existing']
     );
     for (const key of ['tenant', 'file'])
@@ -208,6 +211,7 @@ export function parseCommand(argv: readonly string[]): Command {
       kind: 'wordpress.import',
       slug: f['tenant']!,
       file: f['file']!,
+      ...(f['brand-tokens'] && { brandTokensFile: f['brand-tokens'] }),
       intoExisting: f['into-existing'] === 'true',
       ...(f['media-dir'] ? { mediaDir: f['media-dir'] } : {}),
       ...(f['default-locale'] ? { defaultLocale: f['default-locale'] } : {}),

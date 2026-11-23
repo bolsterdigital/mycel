@@ -50,10 +50,21 @@ describe('parseCommand', () => {
   });
 
   it('reads the WordPress plan and import, with switches that take no value', () => {
-    expect(parseCommand(['wordpress', 'plan', '--file', 'x.xml', '--json'])).toEqual({
+    expect(
+      parseCommand([
+        'wordpress',
+        'plan',
+        '--file',
+        'x.xml',
+        '--brand-tokens',
+        'tokens.json',
+        '--json',
+      ])
+    ).toEqual({
       kind: 'wordpress.plan',
       file: 'x.xml',
       json: true,
+      brandTokensFile: 'tokens.json',
     });
     expect(
       parseCommand([
@@ -65,6 +76,7 @@ describe('parseCommand', () => {
         '--media-dir',
         'uploads',
         '--into-existing',
+        '--brand-tokens=tokens.json',
       ])
     ).toEqual({
       kind: 'wordpress.import',
@@ -72,6 +84,7 @@ describe('parseCommand', () => {
       file: 'x.xml',
       mediaDir: 'uploads',
       intoExisting: true,
+      brandTokensFile: 'tokens.json',
     });
     expect(
       parseCommand(['wordpress', 'plan', '--file', 'x.xml', '--featured-header', 'off'])

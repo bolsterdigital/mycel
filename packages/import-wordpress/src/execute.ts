@@ -15,12 +15,14 @@
 
 import {
   errorMessage,
+  resolveTheme,
   slugFromTitle,
   useCases,
   type Invoker,
   type Principal,
   type UseCaseError,
 } from '@mycel/core';
+import { applyCampaignBrand } from './brand.js';
 import { slugOf } from './blocks.js';
 import type { ImportPlan, PlannedItem, PlannedMedia, ReportLine } from './plan.js';
 
@@ -93,6 +95,20 @@ export async function execute(
 
   const ids: Record<string, string> = {};
   const report: ReportLine[] = [...plan.report];
+
+  if (plan.campaignColours) {
+    try {
+      const current = await invoker.run(useCases.getSiteTheme, principal, {});
+      const theme = applyCampaignBrand(resolveTheme(current.value), plan.campaignColours, report);
+      if (theme)
+        await invoker.run(useCases.updateSiteTheme, principal, {
+          theme,
+          baseVersion: current.version,
+        });
+    } catch (error) {
+      report.push({ code: 'theme.campaign-skipped', detail: reason(error) });
+    }
+  }
 
   for (const media of plan.media) {
     const file = await deps.media(media);
