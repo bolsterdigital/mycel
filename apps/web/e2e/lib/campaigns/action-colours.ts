@@ -3,7 +3,7 @@
 import { DEFAULT_THEME, systemPrincipal, useCases } from '@mycel/core';
 import { testTenant } from '@mycel/db/testing';
 import sharp from 'sharp';
-import { expect, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { expectNoAxeViolations } from '../axe';
 import { campaignCardFixture } from '../blocks/campaigns';
 import { asOwner, withInvoker } from '../invoker';
@@ -102,6 +102,12 @@ export async function exerciseCampaignActionColours(page: Page, stamp: string) {
           await page.setViewportSize({ width, height: 900 });
           await setTextSize(page, text);
           await layoutGate(page, `${path} ${mode} ${width}px ${text}`, 'main');
+          if (configured && mode === 'light' && width === 320 && isA11y()) {
+            await test.info().attach(`${path} at 320px, ${text}`, {
+              body: await action.screenshot({ scale: 'css' }),
+              contentType: 'image/png',
+            });
+          }
         }
         await setTextSize(page, '16px');
         if (configured && isA11y()) await expectNoAxeViolations(page, { label: `${path} ${mode}` });
