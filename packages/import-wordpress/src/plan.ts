@@ -20,6 +20,14 @@
 // `presentation.header: 'cover'`. An export is a Dreamkit one when a post uses a `wings/` block.
 // Rejected: making every WordPress export's featured image a header (most themes show it only on
 // cards, and a header the old site did not have changes how the article reads).
+//
+// A Wings dossier (MY-290) is a post of type `dossier` (the landing, with intro and image) plus a
+// term of taxonomy `dossier` that its members carry; the two name each other through
+// `_dossier_term_id` and `_dossier_post_id`, and either side is enough. The landing becomes a page
+// with the `dossier` profile, a member names it in `dossiers` (at most three, ADR 012), and
+// `_hide_dossier_section` becomes `showDossier: false`. A regular category with the same name is
+// a section and adds no membership. Rejected: matching a term to a landing by slug (a regular
+// page or a second landing may share it, and a wrong dossier box is worse than a report line).
 
 import {
   BLOCK_DEFINITIONS,
@@ -115,6 +123,9 @@ export type ReportCode =
   | 'item.section-extra'
   | 'item.tag-invalid'
   | 'item.excerpt-too-long'
+  | 'dossier.unlinked'
+  | 'dossier.ambiguous'
+  | 'dossier.extra'
   | 'translation.not-merged'
   | 'translation.value-differs'
   // What happened while executing the plan against a tenant (execute.ts).
@@ -171,7 +182,7 @@ export function placeholder(kind: keyof typeof KIND, n: number): string {
   return `00000000-0000-4000-800${KIND[kind]}-${String(n).padStart(12, '0')}`;
 }
 
-const TYPES: Record<string, ContentType> = { page: 'page', post: 'article' };
+const TYPES: Record<string, ContentType> = { page: 'page', post: 'article', dossier: 'page' };
 /** The Wings post types that become entries of the people register (ADR 031). */
 const PERSON_TYPES: Record<string, 'person' | 'organisation'> = {
   people: 'person',
@@ -273,6 +284,45 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
       }
     }
   const link = linkRewriter(wxr.site.url, (path) => itemAtPath.get(path) ?? null);
+
+  // Wings dossiers (MY-290): which landing each dossier term leads to, by term id. A term that two
+  // landings claim leads nowhere; its members get a report line, not a guess.
+  const landings = new Map<number, Set<string>>();
+  const claim = (termId: number, postId: number) => {
+    const ref = itemOf.get(postId);
+    const post = content.find((p) => p.id === postId);
+    if (!termId || !ref || post?.type !== 'dossier') return;
+    landings.set(termId, (landings.get(termId) ?? new Set()).add(ref));
+  };
+  for (const post of content.filter((p) => p.type === 'dossier'))
+    claim(Number(post.meta._dossier_term_id), post.id);
+  const dossierTerms = wxr.terms.filter((t) => t.taxonomy === 'dossier');
+  for (const term of dossierTerms) claim(term.id, Number(term.meta._dossier_post_id));
+  const landingOf = (termId: number) => {
+    const refs = [...(landings.get(termId) ?? [])];
+    return refs.length === 1 ? refs[0]! : null;
+  };
+  /** The dossiers a post belongs to, at most three; what does not come over is reported. */
+  const dossiersOf = (post: WxrPost, at: Omit<ReportLine, 'code'>) => {
+    const refs: string[] = [];
+    for (const named of post.dossiers) {
+      const term = dossierTerms.find((t) => t.slug === named.slug);
+      const claims = term ? (landings.get(term.id)?.size ?? 0) : 0;
+      const ref = term ? landingOf(term.id) : null;
+      if (claims > 1)
+        report.push({
+          code: 'dossier.ambiguous',
+          ...at,
+          detail: `${named.name}: ${claims} landing pages`,
+        });
+      else if (!ref) report.push({ code: 'dossier.unlinked', ...at, detail: named.name });
+      else if (post.type === 'dossier')
+        report.push({ code: 'dossier.extra', ...at, detail: `${named.name} (on a dossier page)` });
+      else if (refs.length >= 3) report.push({ code: 'dossier.extra', ...at, detail: named.name });
+      else if (!refs.includes(ref)) refs.push(ref);
+    }
+    return refs;
+  };
 
   const people: PlannedPerson[] = [];
   const personRef = (login: string) => {
@@ -404,6 +454,7 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
           const post = byWingsId.get(String(id));
           return post === undefined ? null : (itemOf.get(post) ?? null);
         },
+        dossier: (termId) => landingOf(Number(termId)),
         section: (termId) => {
           const term = wxr.terms.find((t) => t.taxonomy === 'category' && t.id === Number(termId));
           return term ? sectionRef(term.slug) : null;
@@ -526,7 +577,8 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
     for (let n = 2; slugs.has(`${type}:${slug}`); n++) slug = `${original}-${n}`;
     slugs.add(`${type}:${slug}`);
     // The old address next to the new one, so a redirect list can be made from the report.
-    if (post.slug && slug !== decodedSlug(post.slug))
+    // A Wings dossier lived under `/dossiers/`, so its address changes even with the same slug.
+    if (post.slug && (slug !== decodedSlug(post.slug) || post.type === 'dossier'))
       report.push({
         code: 'item.slug-changed',
         ...at,
@@ -559,7 +611,11 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
       ...(Object.keys(heroAlt).length && { heroAlt }),
       ...(featuredImage && { featuredImageId: featuredImage.ref }),
       ...(Object.keys(excerpts).length && { featured: { description: excerpts } }),
+      ...(post.type === 'dossier' && { profile: 'dossier' }),
     };
+    const dossiers = dossiersOf(post, at);
+    if (dossiers.length) document.dossiers = dossiers.map((itemId) => ({ itemId }));
+    if (dossiers.length && post.meta._hide_dossier_section === '1') document.showDossier = false;
     if (type === 'article') {
       const author = personRef(post.creator);
       const [first, ...extra] = post.categories.filter((c) => !NO_SECTION.has(c.slug));

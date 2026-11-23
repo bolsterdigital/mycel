@@ -36,6 +36,7 @@ function run(content: string) {
     everyone: (kind) => (kind === 'person' ? [PERSON(2), PERSON(1)] : [PERSON(3)]),
     wingsNode: (id) => (id === 'w12' ? POST(12) : null),
     section: (id) => (Number(id) === 4 ? SECTION : null),
+    dossier: (id) => (Number(id) === 40 ? POST(10) : null),
     note: (code, detail) => notes.push({ code, ...(detail && { detail }) }),
   };
   const [block] = parseBlocks(content);
@@ -352,10 +353,19 @@ const CASES: Record<string, () => void> = {
         run('<!-- wp:wings/nodes-grid {"variationType":"events","latestPostsCount":2} /-->').mapped
       ).props
     ).toMatchObject({ source: 'event', when: 'upcoming', limit: '2' });
-    // Dossiers come with MY-290; a selection of nothing in the export is left out.
-    expect(
-      run('<!-- wp:wings/nodes-grid {"variationType":"dossier","selectedDossier":7} /-->').mapped
-    ).toEqual({ kind: 'skip', reason: 'unsupported' });
+    // A dossier grid lists the dossier page's members (MY-290); "all" is two overviews.
+    const grid = (attrs: string) =>
+      run(`<!-- wp:wings/nodes-grid {"variationType":"dossier",${attrs}} /-->`);
+    const pages = grid('"selectedDossier":40,"dossierPostType":"page"');
+    expect(only(pages.mapped).props).toMatchObject({ source: 'page', dossierId: POST(10) });
+    expect(pages.notes).toEqual([]);
+    const all = grid('"selectedDossier":40');
+    expect(all.mapped.kind === 'blocks' && all.mapped.blocks.map((b) => b.props.source)).toEqual([
+      'article',
+      'page',
+    ]);
+    expect(all.notes).toEqual([{ code: 'overview.dossier-split' }]);
+    expect(grid('"selectedDossier":7').mapped).toEqual({ kind: 'skip', reason: 'items-missing' });
     // Without `selectedNodes` the old Wings ids, through the posts that carry them.
     expect(
       only(run('<!-- wp:wings/nodes-grid {"selectedNodes":[],"wingsNodeIds":["w12"]} /-->').mapped)
