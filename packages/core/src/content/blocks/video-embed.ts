@@ -24,7 +24,7 @@ export function videoEmbedDefinition(widths: typeof WIDTHS) {
             : BUNNY_STREAM_VIDEO_ID.test(p.videoId),
       { path: ['videoId'], message: 'content.video.id-invalid' }
     );
-  return {
+  const definition: BlockDefinition<typeof props, 1> = {
     version: 1,
     props,
     fields: [
@@ -77,5 +77,6 @@ export function videoEmbedDefinition(widths: typeof WIDTHS) {
         },
       },
     ],
-  } satisfies BlockDefinition<typeof props, 1>;
+  };
+  return definition;
 }
