@@ -44,10 +44,11 @@ async function checkLayout(page: Page, slug: string, view: string) {
       tiles.every(({ fits }) => fits),
       `${view} at ${width}px / ${size}`
     ).toBe(true);
-    if (width !== 320 || size === '200%')
-      expect(new Set(tiles.map(({ y }) => y)).size, `${view} at ${width}px / ${size}`).toBe(
-        width === 1366 ? 1 : width === 390 ? 2 : 4
-      );
+    if (width !== 320 || size === '200%') {
+      // The card's narrower desktop column uses the same two-tile fallback as mobile.
+      const rows = size === '200%' ? 4 : width === 1366 && view === 'landing' ? 1 : 2;
+      expect(new Set(tiles.map(({ y }) => y)).size, `${view} at ${width}px / ${size}`).toBe(rows);
+    }
     const labelsShareRow = await form
       .getByLabel('Voornaam')
       .evaluate(
