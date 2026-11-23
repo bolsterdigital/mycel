@@ -199,6 +199,8 @@
     align-items: center;
     min-block-size: 44px;
     min-inline-size: 44px;
+    hyphens: none;
+    overflow-wrap: normal;
   }
   .placement-controls:not(:has(:global(input[type='radio'][value='manual']:checked)))
     .placement-position {
