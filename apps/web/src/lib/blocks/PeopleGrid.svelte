@@ -35,6 +35,7 @@
         {#if person.image}
           <Picture
             image={person.image}
+            framed={person.kind !== 'organisation'}
             base={model.base}
             {sizes}
             eager={eager && person.id === firstImageId}

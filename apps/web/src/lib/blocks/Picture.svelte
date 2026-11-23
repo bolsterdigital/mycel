@@ -13,6 +13,7 @@
     base,
     sizes,
     eager = false,
+    framed = false,
     large = null,
     enlarge = '',
   }: {
@@ -20,10 +21,12 @@
     base: string;
     sizes: string;
     eager?: boolean;
+    framed?: boolean;
     large?: { src: string; width: number; height: number } | null;
     enlarge?: string;
   } = $props();
 
+  const framing = $derived(framed ? image.framing : undefined);
   const set = (s: string) =>
     s
       .split(', ')
@@ -46,6 +49,15 @@
       fetchpriority={eager ? 'high' : undefined}
       decoding={eager ? undefined : 'async'}
       class="fx-{image.focal.x} fy-{image.focal.y}"
+      data-frame-fit={framing?.['data-frame-fit']}
+      data-frame-x={framing?.['data-frame-x']}
+      data-frame-y={framing?.['data-frame-y']}
+      data-frame-fit-narrow={framing?.['data-frame-fit-narrow']}
+      data-frame-x-narrow={framing?.['data-frame-x-narrow']}
+      data-frame-y-narrow={framing?.['data-frame-y-narrow']}
+      data-frame-fit-wide={framing?.['data-frame-fit-wide']}
+      data-frame-x-wide={framing?.['data-frame-x-wide']}
+      data-frame-y-wide={framing?.['data-frame-y-wide']}
     />
   </picture>
 {/snippet}

@@ -261,6 +261,17 @@
         })}`}
         collapsed
       >
+        <Select
+          id="focal-mode"
+          name="focal.mode"
+          label={t('admin.placement.general')}
+          locale={data.locale}
+          value={m.focal.mode ?? 'explicit'}
+          options={[
+            { value: 'explicit', label: t('admin.placement.manual') },
+            { value: 'auto', label: t('admin.placement.auto') },
+          ]}
+        />
         <Field
           id="focal-x"
           name="focal.x"

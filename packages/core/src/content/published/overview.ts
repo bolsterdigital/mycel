@@ -39,6 +39,7 @@
 // show: archiving is how a site takes one out of its public history.
 
 import { z } from 'zod';
+import { ImagePlacement, placementFor } from '../../media/placement.js';
 import { Locale } from '../../i18n/locale.js';
 import { defineUseCase } from '../../registry.js';
 import type { TransactionContext } from '../../ports.js';
@@ -74,6 +75,7 @@ export const OverviewEntry = z.object({
   summary: z.string().nullable(),
   /** The featured image along the chain (own, hero, the site's default). */
   imageId: z.string().guid().nullable(),
+  imagePlacement: ImagePlacement.optional(),
   /** When and where in this locale, for an event page; null for anything else. */
   event: PublishedEvent.nullable(),
   pinned: z.boolean(),
@@ -105,7 +107,9 @@ export function cardEntry(
 ): OverviewEntry {
   const doc = cardDocument(row.document);
   const effective = effectiveOf(doc, locale, site);
+  const placement = placementFor(doc.featuredPlacement, effective.images.featured.mediaId);
   return {
+    ...(placement ? { imagePlacement: placement } : {}),
     id: row.itemId,
     type: row.type,
     slug: row.slug,

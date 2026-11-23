@@ -11,6 +11,19 @@ import { mergeDocuments, takeValue, valueAt } from './merge.js';
 import { ContentDocument, type ContentDocumentInput } from '../model.js';
 import { adoptAddedBlocks, mergeSave } from './save.js';
 
+it('merges screen sizes independently but treats a single crop as one choice', () => {
+  const manual = (x: number, y: number) => ({ mode: 'manual', point: { x, y } });
+  const base = { heroPlacement: { framing: manual(0.5, 0.5) } };
+  const mine = { heroPlacement: { framing: manual(0.2, 0.5) } };
+  const theirs = { heroPlacement: { framing: manual(0.5, 0.1), narrow: { mode: 'full' } } };
+  const result = mergeDocuments(base, mine, theirs);
+  expect(result.conflicts.map((item) => item.path)).toEqual(['heroPlacement.framing']);
+  expect(result.document.heroPlacement).toEqual({
+    framing: manual(0.2, 0.5),
+    narrow: { mode: 'full' },
+  });
+});
+
 const text = (t: string) => ({
   type: 'doc' as const,
   content: [{ type: 'paragraph' as const, content: [{ type: 'text' as const, text: t }] }],

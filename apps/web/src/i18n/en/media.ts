@@ -1,6 +1,25 @@
 // The media library.
 
 export const media = {
+  'admin.placement.reset': 'Reset all crops to the Media setting',
+  'admin.placement.label': 'Crop',
+  'admin.placement.inherit': 'Use Media setting',
+  'admin.placement.same': 'Use general crop',
+  'admin.placement.auto': 'Automatic',
+  'admin.placement.manual': 'Manual',
+  'admin.placement.full': 'Full image',
+  'admin.placement.general': 'General crop',
+  'admin.placement.narrow': 'Narrow frame',
+  'admin.placement.wide': 'Wide frame',
+  'admin.placement.exceptions': 'Use a different crop for one screen size',
+  'admin.placement.x': 'Horizontal position (%)',
+  'admin.placement.y': 'Vertical position (%)',
+  'admin.placement.sourceAuto': 'Media uses automatic framing.',
+  'admin.placement.sourceMedia': 'Media uses a focal point.',
+  'admin.placement.hint':
+    'In Manual, use the position fields. Save to preview a replacement image.',
+  'admin.placement.replaced': 'Save the replacement image to set its crop.',
+  'admin.placement.invalid': 'Enter positions from 0 to 100 for a manual crop.',
   'admin.media.title': 'Media',
   'admin.media.back': 'Back to {name}',
   'admin.media.storage': 'Storage in use: {used} of {max}.',

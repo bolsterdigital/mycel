@@ -21,6 +21,7 @@
 // keeping `content.page.get` as an alias (two names for one contract drift apart).
 
 import { z } from 'zod';
+import { ImagePlacement, placementFor } from '../media/placement.js';
 import { notFound } from '../errors.js';
 import { PAGE_HEADERS } from './model.js';
 import { Locale } from '../i18n/locale.js';
@@ -53,6 +54,8 @@ export const PublishedItem = z.object({
   updatedAt: z.string().datetime({ offset: true }),
   /** The image on the item's own page; null without one. */
   heroImageId: z.string().guid().nullable(),
+  heroPlacement: ImagePlacement.optional(),
+  featuredPlacement: ImagePlacement.optional(),
   /** The hero's alt in this locale (#99); null: the hero is decorative. */
   heroAlt: z.string().nullable(),
   /** The item's own image, for cards that link to it; null without one. */
@@ -206,6 +209,12 @@ export const getPublished = defineUseCase({
       publishedAt: state.publishedAt!.toISOString(),
       updatedAt: revision.createdAt,
       heroImageId: doc.heroImageId ?? null,
+      ...(placementFor(doc.heroPlacement, effective.images.hero.mediaId)
+        ? { heroPlacement: doc.heroPlacement }
+        : {}),
+      ...(placementFor(doc.featuredPlacement, effective.images.featured.mediaId)
+        ? { featuredPlacement: doc.featuredPlacement }
+        : {}),
       heroAlt: doc.heroAlt?.[chosen] ?? null,
       featuredImageId: doc.featuredImageId ?? null,
       seo: {

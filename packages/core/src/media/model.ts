@@ -144,6 +144,12 @@ export const MediaFocal = z
   .strict();
 export type MediaFocal = z.infer<typeof MediaFocal>;
 
+/** Older rows have no mode. The marker is stored in the existing focal JSON. */
+export const StoredMediaFocal = MediaFocal.extend({
+  mode: z.enum(['auto', 'explicit']).optional(),
+});
+export type StoredMediaFocal = z.infer<typeof StoredMediaFocal>;
+
 /**
  * The licence an image is used under, from a closed list: a site can name it and link
  * it, and a reuser can read it. The Creative Commons ones link to their 4.0 deed (CC0 to its 1.0
@@ -221,7 +227,7 @@ export interface MediaRecord {
   credit: MediaCredit;
   source: string | null;
   licence: MediaLicence | null;
-  focal: MediaFocal;
+  focal: StoredMediaFocal;
   state: MediaState;
   /** The actor who uploaded it (ADR 009 rule 9), stored as `storedActor` (ADR 035 rule 4). */
   createdBy: Actor;
@@ -309,7 +315,7 @@ export const MediaView = z.object({
   credit: MediaCredit,
   source: z.string().nullable(),
   licence: MediaLicence.nullable(),
-  focal: MediaFocal,
+  focal: StoredMediaFocal,
   state: MediaState,
   usageCount: z.number().int().nonnegative(),
   createdAt: z.string().datetime({ offset: true }),

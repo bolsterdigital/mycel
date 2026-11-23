@@ -73,7 +73,13 @@
             <article class="campaign-card-inner overview-card">
               {#if entry.image}
                 <div class="campaign-card-image">
-                  <Picture image={entry.image} base={model.base} {sizes} eager={eager && i === 0} />
+                  <Picture
+                    image={entry.image}
+                    base={model.base}
+                    {sizes}
+                    framed
+                    eager={eager && i === 0}
+                  />
                 </div>
               {:else if model.placeholder}
                 <CardPlaceholder placeholder={model.placeholder} />

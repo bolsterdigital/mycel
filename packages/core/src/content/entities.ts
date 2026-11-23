@@ -8,6 +8,7 @@
 // `content.entity.*` with a kind field, which would blur the capability and the MCP tool list.
 
 import { z } from 'zod';
+import { placementFor } from '../media/placement.js';
 import { notFound, UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
@@ -117,7 +118,17 @@ export const createPerson = defineUseCase({
     assertOrganisationFields(fields);
     await assertFreeSlug(ctx.authors, slug, 'a person');
     const now = stamp(ctx);
-    const author: Person = { ...fields, id: ctx.ids.next(), slug, createdAt: now, updatedAt: now };
+    const { imagePlacement, ...profile } = fields;
+    const placement =
+      fields.kind === 'person' ? placementFor(imagePlacement, fields.imageId) : undefined;
+    const author: Person = {
+      ...profile,
+      ...(placement ? { imagePlacement: placement } : {}),
+      id: ctx.ids.next(),
+      slug,
+      createdAt: now,
+      updatedAt: now,
+    };
     if (!(await ctx.authors.insert(author))) throw slugTaken('a person', slug);
     return author;
   },
@@ -153,8 +164,12 @@ export const updatePerson = defineUseCase({
           { path: 'kind', message: 'content.person.kind-fixed' },
         ]);
       assertOrganisationFields({ ...fields, kind: current.kind });
+      const { imagePlacement, ...profile } = fields;
+      const placement =
+        current.kind === 'person' ? placementFor(imagePlacement, fields.imageId) : undefined;
       return {
-        ...fields,
+        ...profile,
+        ...(placement ? { imagePlacement: placement } : {}),
         kind: current.kind,
         id: current.id,
         slug: current.slug,

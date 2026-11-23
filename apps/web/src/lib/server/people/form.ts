@@ -1,6 +1,7 @@
 // A form edits one content locale, retaining the others from the version it is based on.
 // Rejected: replacing localised maps with only the visible language, or losing input on failure.
 import { slugFromTitle, type Person, type PersonGroup } from '@mycel/core';
+import { placementFrom } from '../../admin/header-fields/placement-fields.js';
 import { text } from '../admin/admin-actions.js';
 
 export const fields = (data: FormData): Record<string, string> =>
@@ -37,6 +38,11 @@ export function personFields(data: FormData, locale: string, current?: Person) {
   // organisation's form has no role, phone or page fields, so nothing of them is posted.
   const kind: Person['kind'] =
     current?.kind ?? (text(data, 'kind') === 'organisation' ? 'organisation' : 'person');
+  const imageId = optional('imageId');
+  const placement =
+    kind === 'person'
+      ? placementFrom((key) => text(data, key), 'imagePlacement', imageId, current?.imagePlacement)
+      : undefined;
   const role = kind === 'person' ? localizedEdit(current?.role, locale, text(data, 'role')) : {};
   return {
     kind,
@@ -47,7 +53,8 @@ export function personFields(data: FormData, locale: string, current?: Person) {
     publicEmail: optional('publicEmail'),
     email: optional('email'),
     phone: optional('phone'),
-    imageId: optional('imageId'),
+    imageId,
+    ...(placement ? { imagePlacement: placement } : {}),
     pagePolicy: (text(data, 'pagePolicy') || 'auto') as Person['pagePolicy'],
     links,
   };

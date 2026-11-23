@@ -56,7 +56,7 @@
   width: 100%;
   height: auto;
   aspect-ratio: 3 / 2;
-  object-fit: cover;
+  object-fit: var(--frame-fit, cover);
 }
 /* A card without an image (MY-277, CardPlaceholder.svelte): the primary pair with the site's logo
    or initial, centred in the same 3:2 area. */

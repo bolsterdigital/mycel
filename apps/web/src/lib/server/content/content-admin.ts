@@ -33,6 +33,7 @@ import {
   type ContentDocumentInput,
 } from '@mycel/core';
 import { ui } from '../../../i18n/index.js';
+import { placementFrom, placementValues } from '../../admin/header-fields/placement-fields.js';
 import { localInput } from './content-admin-publication.js';
 
 /** Form values: one string per field, a list for checkboxes and multi-selects. */
@@ -179,6 +180,11 @@ export function valuesOf(doc: ContentDocument): FormValues {
   v.heroImageId = doc.heroImageId ?? '';
   put('heroAlt', doc.heroAlt);
   v.featuredImageId = doc.featuredImageId ?? '';
+  Object.assign(
+    v,
+    placementValues('heroPlacement', doc.heroPlacement),
+    placementValues('featuredPlacement', doc.featuredPlacement)
+  );
   put('featuredTitle', doc.featured?.title);
   put('featuredDescription', doc.featured?.description);
   v.shareImageId = doc.seo.imageId ?? '';
@@ -300,6 +306,20 @@ export function documentFrom(
         ? undefined
         : doc.heroAlt;
   const featuredImageId = image(v, 'featuredImageId', doc.featuredImageId);
+  const read = (key: string) => one(v, key);
+  const heroPlacement = placementFrom(read, 'heroPlacement', heroImageId, doc.heroPlacement);
+  // A site-default image may be used when neither explicit document image is set. The resolver
+  // also checks this binding against the effective image on every read.
+  const featuredPlacement = placementFrom(
+    read,
+    'featuredPlacement',
+    featuredImageId ??
+      heroImageId ??
+      (!doc.featuredImageId && !doc.heroImageId
+        ? read('featuredPlacement.mediaId') || doc.featuredPlacement?.mediaId
+        : undefined),
+    doc.featuredPlacement
+  );
   const featured = {
     title: optional(pick('featuredTitle', doc.featured?.title)),
     description: optional(pick('featuredDescription', doc.featured?.description)),
@@ -312,6 +332,8 @@ export function documentFrom(
     heroImageId: _hero,
     heroAlt: _heroAlt,
     featuredImageId: _featured,
+    heroPlacement: _heroPlacement,
+    featuredPlacement: _featuredPlacement,
     featured: _featuredTexts,
     lead: _lead,
     prefooter: _prefooter,
@@ -330,6 +352,8 @@ export function documentFrom(
     ...(heroImageId ? { heroImageId } : {}),
     ...(heroAlt ? { heroAlt } : {}),
     ...(featuredImageId ? { featuredImageId } : {}),
+    ...(heroPlacement ? { heroPlacement } : {}),
+    ...(featuredPlacement ? { featuredPlacement } : {}),
     // Absent rather than `{}` when both are empty: a stored document parses byte for byte.
     ...(featured.title || featured.description
       ? {

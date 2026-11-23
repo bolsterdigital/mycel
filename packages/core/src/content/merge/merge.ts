@@ -77,7 +77,17 @@ function merge(base: unknown, mine: unknown, theirs: unknown, path: string, out:
     }
     return Object.keys(result).length ? result : undefined;
   }
-  if (isObject(base) && isObject(mine) && isObject(theirs) && !atomic(base) && !atomic(mine)) {
+  // Each crop option is one choice: merging its mode and coordinates independently can
+  // produce an impossible union or combine the two editors' positions.
+  const frame = /^(heroPlacement|featuredPlacement)\.(framing|narrow|wide)$/.test(path);
+  if (
+    isObject(base) &&
+    isObject(mine) &&
+    isObject(theirs) &&
+    !frame &&
+    !atomic(base) &&
+    !atomic(mine)
+  ) {
     const result: Obj = {};
     for (const k of new Set([...Object.keys(base), ...Object.keys(mine), ...Object.keys(theirs)])) {
       const v = merge(base[k], mine[k], theirs[k], key(path, k), out);

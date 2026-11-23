@@ -7,6 +7,7 @@
 // scheduling run, so a fallback never makes an unfinished translation look published. Rejected:
 // one document per locale, and draft and live as two tables of documents (ADR 012 rule 4).
 
+import { ImagePlacement } from '../media/placement.js';
 import { z } from 'zod';
 import { Actor } from '../principal.js';
 import { Locale, localized } from '../i18n/locale.js';
@@ -295,6 +296,8 @@ function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
      * description. Each falls back along the chain in `effective.ts` when absent.
      */
     featuredImageId: z.string().guid().optional(),
+    heroPlacement: ImagePlacement.optional(),
+    featuredPlacement: ImagePlacement.optional(),
     featured: Featured.optional(),
     /** The introduction under the title, on pages and articles alike (#86). */
     lead: localized(z.string().min(1).max(1000)).optional(),
@@ -689,6 +692,7 @@ export const PersonInput = z
     phone: z.string().min(1).max(100).optional(),
     pagePolicy: z.enum(['auto', 'always', 'never']).default('auto'),
     imageId: z.string().guid().optional(),
+    imagePlacement: ImagePlacement.optional(),
     links: z
       .array(
         z

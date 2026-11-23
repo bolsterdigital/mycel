@@ -369,6 +369,7 @@ export interface Database {
     page_policy: 'auto' | 'always' | 'never';
     bio: Json<Record<string, string>> | null;
     image_id: string | null;
+    image_placement: Json<unknown> | null;
     links: Json<unknown[]>;
     email: string | null;
     created_at: Timestamp;

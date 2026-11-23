@@ -118,7 +118,8 @@ function editorial(data: FormData, locales: readonly string[]) {
     photographerPersonId: orNull(text(data, 'photographerPersonId')),
     kind: CreditKind.catch('photo').parse(text(data, 'kind')),
   };
-  const focal = { x: Number(text(data, 'focal.x')), y: Number(text(data, 'focal.y')) };
+  const mode = text(data, 'focal.mode') === 'auto' ? ('auto' as const) : ('explicit' as const);
+  const focal = { x: Number(text(data, 'focal.x')), y: Number(text(data, 'focal.y')), mode };
   return {
     caption,
     credit,
