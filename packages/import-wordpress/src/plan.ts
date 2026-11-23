@@ -35,6 +35,7 @@ import {
   ContentDocumentInput,
   contentPath,
   Locale,
+  OVERVIEW_LIMITS,
   PersonInput,
   Tags,
   isReservedPageSlug,
@@ -132,6 +133,7 @@ export type ReportCode =
   | 'item.section-extra'
   | 'item.tag-invalid'
   | 'item.excerpt-too-long'
+  | 'item.posts-page'
   | 'dossier.unlinked'
   | 'dossier.ambiguous'
   | 'dossier.extra'
@@ -189,6 +191,8 @@ export interface PlanOptions {
    * Dreamkit export (a post uses a `wings/` block), off otherwise.
    */
   featuredAsHeader?: boolean;
+  /** WordPress's Reading setting and effective page size, which WXR does not export. */
+  postsPage?: { sourceId: number; pageSize: number };
 }
 
 const KIND = {
@@ -294,6 +298,15 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
 
   // Which posts become items, grouped by translation; the leader is the default language.
   const content = wxr.posts.filter((p) => TYPES[p.type] && !SKIPPED_STATUS.has(p.status));
+  const postsPage = options.postsPage;
+  const pageSize = String(postsPage?.pageSize);
+  if (postsPage && !OVERVIEW_LIMITS.includes(pageSize))
+    throw new Error(`Posts page size must be an integer from 1 to ${OVERVIEW_LIMITS.length}`);
+  if (
+    postsPage &&
+    !content.some((p) => p.id === postsPage.sourceId && p.type === 'page' && p.status === 'publish')
+  )
+    throw new Error(`Posts page ${postsPage.sourceId} is not a published page in the export`);
   const order = (locale: string) => {
     const at = wxr.site.languages.indexOf(locale);
     return locale === defaultLocale ? -1 : at < 0 ? 1000 : at;
@@ -305,6 +318,9 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
   }
   for (const members of groups.values())
     members.sort((a, b) => order(localeOf(a)) - order(localeOf(b)));
+  const postsPageGroup = postsPage
+    ? [...groups.values()].find((members) => members.some((p) => p.id === postsPage.sourceId))
+    : undefined;
   const itemOf = new Map<number, string>();
   const itemAtPath = new Map<string, string>();
   /** The campaign a Dreamkit action becomes, by the id of any of its translations (MY-291). */
@@ -463,6 +479,22 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
     const locale = localeOf(post);
     const lines: ReportLine[] = [];
     const at = { postId: post.id, title: post.title, locale };
+    // WordPress's posts-page template uses the main query and ignores the stored page body.
+    // Import that visible archive, not the stale blocks that happen to be in its WXR item.
+    if (postsPageGroup?.includes(post)) {
+      return {
+        post,
+        locale,
+        blocks: [
+          {
+            type: 'overview',
+            props: { source: 'article', order: 'newest', limit: pageSize, archive: true },
+          },
+        ],
+        header: {},
+        lines: [{ code: 'item.posts-page', ...at, detail: `${pageSize} articles per page` }],
+      };
+    }
     const drafts: BlockDraft[] = [];
     let header: HeaderDraft | null = null;
     // A layout container is unwrapped: its inner blocks take its place, and their report lines

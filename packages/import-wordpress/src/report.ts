@@ -7,6 +7,7 @@
 import type { ImportPlan, ReportCode, ReportLine } from './plan.js';
 
 const HEADINGS: Record<ReportCode, string> = {
+  'item.posts-page': 'WordPress posts pages imported as paginated article overviews',
   'block.skipped': 'Blocks left out (no Mycel equivalent)',
   'block.shortcode': 'Shortcodes left out',
   'block.unwrapped': 'Groups and columns unwrapped (their look is not kept)',

@@ -9,10 +9,17 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { systemPrincipal, type Invoker } from '@mycel/core';
-import { execute, formatReport, mediaSource, plan, type ImportPlan } from '@mycel/import-wordpress';
+import {
+  execute,
+  formatReport,
+  mediaSource,
+  plan,
+  type ImportPlan,
+  type PlanOptions,
+} from '@mycel/import-wordpress';
 import type { PlatformTenant } from '@mycel/db';
 
-export interface WordpressOptions {
+export interface WordpressOptions extends Pick<PlanOptions, 'postsPage'> {
   file: string;
   brandTokensFile?: string;
   defaultLocale?: string;
@@ -26,6 +33,7 @@ export const planOf = (options: WordpressOptions): ImportPlan =>
     }),
     ...(options.defaultLocale && { defaultLocale: options.defaultLocale }),
     ...(options.featuredAsHeader !== undefined && { featuredAsHeader: options.featuredAsHeader }),
+    ...(options.postsPage && { postsPage: options.postsPage }),
   });
 
 /** The placeholder of each source entity back to its kind and WordPress id, for the id file. */
