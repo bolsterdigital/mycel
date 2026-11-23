@@ -82,6 +82,8 @@ const FIELDS: Record<string, UiKey> = {
   corrections: 'admin.content.field.corrections',
   access: 'admin.content.field.level',
   'presentation.header': 'admin.content.field.headerLayout',
+  'presentation.action.label': 'admin.content.headerAction.label',
+  presentation: 'admin.content.headerAction.legend',
 };
 
 const BLOCK = /^blocks\[id=([^\]]+)\]/;

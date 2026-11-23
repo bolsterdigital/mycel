@@ -36,7 +36,8 @@ import {
   resolvePeopleGrid,
   resolveCreditPerson,
   type BlockProps,
-  type ArticleHeader,
+  type DocumentHeader,
+  type HeaderAction,
   type CampaignCard,
   type LandingCampaign,
   landingCampaignOf,
@@ -255,7 +256,8 @@ export async function resolveIntro(
     lead: string | null;
     heroImageId: string | null;
     heroAlt: string | null;
-    header?: ArticleHeader;
+    header?: DocumentHeader;
+    action?: HeaderAction | null;
     meta?: RenderMeta | null;
     event?: RenderEvent | null;
   },
@@ -275,10 +277,15 @@ export async function resolveIntro(
     source.defaultLocale ?? locale
   );
   const hero = renderAssetImage(asset, { ...use, ...(credit ? { credit } : {}) }, locale);
+  const header = hero && intro.header && intro.header !== 'standard' ? intro.header : 'standard';
+  // An item target that is no longer published renders no button, as in the navigation (ADR 036).
+  const target = header === 'split' ? intro.action?.target : undefined;
+  const href = target?.kind === 'item' ? await source.itemPath(target.itemId, locale) : target?.url;
   return {
     lead: intro.lead,
     hero,
-    header: hero && intro.header === 'cover' ? 'cover' : 'standard',
+    header,
+    ...(href && intro.action ? { action: { label: intro.action.label, href } } : {}),
     meta: intro.meta ?? null,
     ...(intro.event ? { event: intro.event } : {}),
   };

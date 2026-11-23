@@ -3,6 +3,7 @@
 - **Status**: accepted
 - **Date**: 2026-11-01
 - **Rules 1 and 3 partly superseded**: 2026-11-22 by [ADR 038](038-campaign-presentation.md), for landing pages bound to a campaign (header image first; a second, fixed page header layout chosen by the binding).
+- **Rule 3 amended**: 2026-11-23, pages get `cover` and `split` (MY-287), see [Amendment](#amendment-2026-11-23-page-headers).
 - **Refines**: ADR 004 rules 1 and 5 (document metadata, versioned block schemas), ADR 012 rule 1 (page and article fields), ADR 020 rules 1 and 6 (stable ids, revisioned operations)
 - **Builds on**: ADR 007 (localisation), ADR 009 (one registry, HTML first), ADR 018 (revisions, baseRevisionId, separate publish capability)
 
@@ -31,3 +32,11 @@ Since #86 every page and article has a title, a lead and a hero image as documen
 - #99 (hero alt), #105 (article header layouts) and MY-110 B (header group, picker, conversion) build against this ADR; each keeps its own acceptance evidence.
 - The conversion changes stored content and is reviewed as a data-loss risk (`flagship-review`); the alt, the layouts and the picker change are ordinary changes.
 - A future change of the header fields is a document schema change and follows ADR 004 rule 5: forward conversion, never defaults written into old revisions.
+
+## Amendment 2026-11-23: page headers
+
+Rebuilding two Dreamkit sites in Mycel (MY-268) showed that a page needs more than one header: Frisse Wind opens its home page with a full-screen photo, BIJ1 Rotterdam with a header of two halves, a dark panel with title, lead and a "join" button beside a portrait. The owner chose `cover` for pages too and named the split header as a missing difference (2026-11-22). Rule 3 now reads:
+
+3. **How the header looks is a closed choice.** Articles may carry `presentation.header` (`standard` or `cover`); pages may carry `presentation.header` (`standard`, `cover` or `split`). Absent reads as `standard` for both, so no stored revision changes. `split` puts the title, the lead (and an event's when and where) and at most one button in a panel on the theme's validated `accent` pair, the hero image beside it; in a narrow container the image stands under the panel. The button is `presentation.action`, the same shape as a hero block's action (a label per locale, required in every published locale, and a target that is an item of the tenant or a safe URL); it exists only beside `split`. An item target is checked on every save and publish like a block's; it gets no `content_block_refs` row, because that row belongs to a block, so a target that is unpublished or deleted later renders no button, as a navigation target does (ADR 036). Without a hero image `cover` and `split` render as `standard`. A campaign landing page keeps the layout its binding chooses (ADR 038). Further layouts are registry data under ADR 013, never free composition.
+
+Rejected: `split` for articles (an article's meta line and byline have no place in the panel), a panel colour per page (free styling outside the theme, ADR 013), and keeping the BIJ1 header as a `hero` block (rule 4: new content gets the document header).

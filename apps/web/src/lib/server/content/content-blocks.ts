@@ -22,6 +22,7 @@ import {
   useCases,
   type Block,
   type BlockField,
+  type ContentDocument,
   type BlockType,
   type MediaCredit,
   type Principal,
@@ -59,6 +60,12 @@ export function itemLabel(item: Labelled, locale: string): string {
   return `${pickAny(item.title, locale) ?? item.slug} (/${item.slug})`;
 }
 
+/** The item a split page header's button links to, which its picker must offer (MY-287). */
+export const headerItems = (doc: ContentDocument): string[] =>
+  doc.type === 'page' && doc.presentation?.action?.target.kind === 'item'
+    ? [doc.presentation.action.target.itemId]
+    : [];
+
 /**
  * The images, items and sections the pickers offer: a page of each plus everything the blocks
  * use. Sections are `sectionChoices`, since the article's own section field already takes
@@ -69,8 +76,13 @@ export async function pickerOptions(
   principal: Principal,
   blocks: readonly Block[],
   locale: string,
-  /** Images chosen outside the blocks (the document's featured and share image). */
-  alsoChosen: readonly string[] = []
+  /**
+   * Images chosen outside the blocks: the document's own, and what its chain shows under an empty
+   * picker (the site's default too), so each has its thumbnail even when not among the newest.
+   */
+  alsoChosen: readonly string[] = [],
+  /** Items chosen outside the blocks (a split page header's button). */
+  alsoItems: readonly string[] = []
 ): Promise<{
   media: MediaChoice[];
   items: Option[];
@@ -90,7 +102,7 @@ export async function pickerOptions(
     invoker.run(useCases.listItems, principal, { limit: MAX_PAGE_SIZE }).then(({ items }) => {
       const label = (i: Labelled) => itemLabel(i, locale);
       return withAssigned(
-        used.items,
+        [...new Set([...used.items, ...alsoItems])],
         items.map((i) => ({ id: i.id, label: label(i) })),
         async (itemId) => {
           const got = await orNull(invoker.run(useCases.getItem, principal, { itemId }));
