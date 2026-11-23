@@ -253,15 +253,15 @@ Examples: `quote-blockquote`, `quote-pullquote-wide`, `quote-full`.
 
 Version 1.
 
-| Prop       | Label    | Kind                             | Presence |
-| ---------- | -------- | -------------------------------- | -------- |
-| `provider` | Service  | one of `youtube`, `vimeo`        | required |
-| `videoId`  | Video id | text                             | required |
-| `title`    | Title    | localised text                   | required |
-| `caption`  | Caption  | localised multi-line text        | optional |
-| `width`    | Width    | one of `content`, `wide`, `full` | required |
+| Prop       | Label    | Kind                                      | Presence |
+| ---------- | -------- | ----------------------------------------- | -------- |
+| `provider` | Service  | one of `youtube`, `vimeo`, `bunny-stream` | required |
+| `videoId`  | Video id | text                                      | required |
+| `title`    | Title    | localised text                            | required |
+| `caption`  | Caption  | localised multi-line text                 | optional |
+| `width`    | Width    | one of `content`, `wide`, `full`          | required |
 
-Examples: `video-youtube`, `video-vimeo-wide`, `video-full`.
+Examples: `video-youtube`, `video-vimeo-wide`, `video-bunny-stream`, `video-full`.
 
 ## `form` (Form)
 

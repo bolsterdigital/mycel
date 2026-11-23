@@ -33,7 +33,11 @@ The published content route asks once per response (`apps/web/src/lib/server/pub
 
 ## Video
 
-Where the site switched a provider on, its video block renders a play button above the link to the video, hidden in the HTML. `static/_site/embed.js`, on the page only when it places a video, shows the button; a click puts the player in its place (YouTube on `youtube-nocookie.com`, Vimeo with `dnt=1`, both starting to play), titled after the video, in a sandbox without top navigation or forms, and moves focus to it. Before that click the browser asks the provider nothing, not even a thumbnail. The response's CSP gets `frame-src 'self'` plus exactly the placed providers' origins (`pageSources` in `security-headers.ts`). Without JavaScript, with the provider off, in a preview or in an e-mail, the video is the link.
+Where the site switched a provider on, its video block renders a play button above the link to the video, hidden in the HTML. `static/_site/embed.js`, on the page only when it places a video, shows the button; a click puts the player in its place (YouTube on `youtube-nocookie.com`, Vimeo with `dnt=1`, and Bunny Stream on `player.mediadelivery.net`, all starting to play), titled after the video, in a sandbox without top navigation or forms, and moves focus to it. Before that click the browser asks the provider nothing, not even a thumbnail. The response's CSP gets `frame-src 'self'` plus exactly the placed providers' origins (`pageSources` in `security-headers.ts`). Without JavaScript, with the provider off, in a preview or in an e-mail, the video is the link.
+
+### Bunny Stream
+
+In Site → General → Integrations, enable **Bunny Stream**. In a **Video** block, choose **Bunny Stream** and enter the **Video id** as `library-id/video-id`. Find both values in the Bunny embed URL. Use the current Bunny Player with a video whose library permits embedding on the site's domain. The browser uses Bunny's player and its playback controls. The publisher sets the title and optional caption in Mycel. No Bunny access key is required to embed a public video.
 
 ## Consent
 
