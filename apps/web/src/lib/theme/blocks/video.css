@@ -42,9 +42,11 @@
 .video-play,
 .video-link {
   position: relative;
-  display: grid;
-  align-content: center;
-  justify-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
   gap: 0.25em;
   padding: 0.5em;
   border: 0;
@@ -72,9 +74,8 @@
   content: '▶\FE0E' / '';
   display: grid;
   place-items: center;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0.25em;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   background: var(--color-primary-bg);
   color: var(--color-primary-fg);
@@ -93,6 +94,9 @@
 }
 .video figcaption {
   padding: var(--space-1) var(--inset);
+  font-family: var(--font-caption, inherit);
+  font-size: var(--step--1);
+  line-height: 1.35;
   background: var(--color-surface-bg);
   color: var(--color-surface-fg);
 }

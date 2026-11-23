@@ -263,8 +263,7 @@
      Only an image on the container's edge insets its caption, so the text never runs against the
      screen edge; that is one property, set where a layout is edgeless.
      Rejected: centring wide captions as Wings and Dreamkit did, which loses the shared edge. */
-  .image,
-  .video {
+  .image {
     --caption-inset: 0px;
   }
   .image.layout-full {
@@ -274,10 +273,9 @@
   .image img {
     width: 100%;
   }
-  /* A wide or full background keeps its text on the content rail, gutters included: a full quote
-     or video has no padding of its own, so `100cqi` (the page) bounds it. Rejected: a padding
-     per block type. */
-  .page :is(.cta, .quote, .form, .video) > * {
+  /* A wide or full background keeps its text on the content rail, gutters included. Use the
+     page width (`100cqi`) for this bound so each block type uses the same gutters. */
+  .page :is(.cta, .quote, .form) > * {
     max-width: min(var(--content-width), 100cqi - 2 * var(--gutter, 0px));
     margin-inline: auto;
   }

@@ -37,18 +37,6 @@
   color: var(--color-body-fg);
 }
 
-/* The video's caption: one paragraph without a credit, on the surface colour, which the caption
-   colour was not checked against. */
-.video figcaption {
-  margin-block-start: 4px;
-  padding-inline: var(--caption-inset);
-  max-width: calc(var(--content-width, 100%) + 2 * var(--caption-inset));
-  font-family: var(--font-caption, inherit);
-  font-size: calc(var(--step--1) * 0.92);
-  line-height: 1.35;
-  color: var(--color-surface-fg);
-}
-
 /* The maker (P185-79): the camera in place of the word "Photo", which stays for a screen reader;
    smaller than the caption, in `--color-caption-fg` (tokens.ts: the muted colour moved towards
    the page as far as it stays AA), never italic. Scoped like the caption text. */
