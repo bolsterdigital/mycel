@@ -9,6 +9,7 @@
 // Larger entries have a file of their own. Rejected: localised fields derived from the Zod schema
 // (unions and effects make that guesswork) and one hand-kept list of types per consumer.
 
+import { ctaExamples } from './blocks/cta-examples.js';
 import { videoEmbedDefinition } from './blocks/video-embed.js';
 import { z } from 'zod';
 import { peopleGridDefinition } from './people/grid-block.js';
@@ -507,45 +508,7 @@ export const BLOCK_DEFINITIONS = {
       ...actionFields(p.actions),
     ],
     references: (p) => actionRefs(p.actions),
-    examples: [
-      {
-        name: 'cta-band',
-        props: {
-          title: { nl: 'Doe mee', en: 'Join in' },
-          body: { nl: 'Elke handtekening telt.', en: 'Every signature counts.' },
-          actions: [signUp],
-        },
-      },
-      {
-        name: 'cta-card-two-actions',
-        props: {
-          variant: 'card',
-          title: { nl: 'Steun ons werk', en: 'Support our work' },
-          actions: [signUp, longLabel],
-          width: 'wide',
-          align: 'center',
-        },
-      },
-      {
-        name: 'cta-highlight-intermediate',
-        props: {
-          variant: 'highlight',
-          title: { nl: 'Sluit je aan', en: 'Become a member' },
-          actions: [signUp, longLabel],
-          width: 'intermediate',
-          align: 'center',
-        },
-      },
-      {
-        name: 'cta-full-end',
-        props: {
-          title: { nl: 'Lees verder', en: 'Read on' },
-          actions: [readMore],
-          width: 'full',
-          align: 'end',
-        },
-      },
-    ],
+    examples: ctaExamples(signUp, longLabel, readMore),
   }),
 
   // Dreamkit's action cards in one block, two to four as there: the entries are props, as in `faq`;
