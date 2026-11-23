@@ -9,7 +9,6 @@
 // Larger entries have a file of their own. Rejected: localised fields derived from the Zod schema
 // (unions and effects make that guesswork) and one hand-kept list of types per consumer.
 
-import { EMBED_IDS } from '../integrations/model.js';
 import { videoEmbedDefinition } from './blocks/video-embed.js';
 import { z } from 'zod';
 import { peopleGridDefinition } from './people/grid-block.js';
@@ -121,7 +120,6 @@ export const GALLERY_ROWS = 24;
 export const FILE_DOWNLOAD_ROWS = 12;
 export const FAQ_VARIANTS = ['list', 'accordion'] as const;
 export const QUOTE_VARIANTS = ['blockquote', 'pullquote'] as const;
-export const VIDEO_PROVIDERS = EMBED_IDS;
 export const FORM_VARIANTS = ['default', 'card'] as const;
 
 const Width = z.enum(WIDTHS);
