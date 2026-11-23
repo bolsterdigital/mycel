@@ -181,9 +181,22 @@ dialog.lightbox::backdrop {
     animation-duration: 250ms;
     animation-timing-function: ease-out;
   }
+  ::view-transition-image-pair(lightbox-image) {
+    overflow: clip;
+  }
   ::view-transition-old(lightbox-image),
   ::view-transition-new(lightbox-image) {
+    animation: none;
+    mix-blend-mode: normal;
+    width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: cover;
+  }
+
+  /* The thumbnail can be cropped. Use the full photo in both directions so that two
+     different crops never overlap while the browser interpolates the frame. */
+  :root:has(.gallery .lightbox-shared-image)::view-transition-new(lightbox-image),
+  :root:has(.lightbox .lightbox-shared-image)::view-transition-old(lightbox-image) {
+    display: none;
   }
 }

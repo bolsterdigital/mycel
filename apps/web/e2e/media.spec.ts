@@ -2007,10 +2007,22 @@ test.describe('an image that opens larger on the site', () => {
           document.startViewTransition = (update) => {
             const transition = start(update);
             void transition.ready.then(() => {
-              const names = document.getAnimations().map((animation) => {
-                return (animation.effect as KeyframeEffect).pseudoElement ?? '';
+              const group = document.getAnimations().find((animation) => {
+                return (
+                  (animation.effect as KeyframeEffect).pseudoElement ===
+                  '::view-transition-group(lightbox-image)'
+                );
               });
-              return Reflect.get(window, 'recordLightboxCapture')(names);
+              const root = document.documentElement;
+              const widths = group?.effect?.getKeyframes().map((frame) => String(frame['width']));
+              return Reflect.get(
+                window,
+                'recordLightboxCapture'
+              )([
+                ...(widths ?? []),
+                getComputedStyle(root, '::view-transition-old(lightbox-image)').display,
+                getComputedStyle(root, '::view-transition-new(lightbox-image)').display,
+              ]);
             });
             return transition;
           };
@@ -2020,22 +2032,27 @@ test.describe('an image that opens larger on the site', () => {
       const link = page.locator('section.gallery a.enlarge').first();
       const dialog = page.getByRole('dialog', { name: 'Beeld groter bekijken' });
       const named = page.locator('.lightbox-shared-image');
-      const snapshots = [
-        '::view-transition-old(lightbox-image)',
-        '::view-transition-new(lightbox-image)',
-      ];
+      const capturedWidth = expect.stringMatching(/^\d+(\.\d+)?px$/);
       await link.focus();
       await page.keyboard.press('Enter');
       await expect(dialog).toBeVisible();
       await expect(dialog.getByRole('button', { name: 'Sluiten' })).toBeFocused();
-      if (mode === 'animated')
-        await expect.poll(() => captures[0]).toEqual(expect.arrayContaining(snapshots));
+      if (mode === 'animated') {
+        await expect
+          .poll(() => captures[0])
+          .toEqual([capturedWidth, capturedWidth, 'none', 'block']);
+        expect(parseFloat(captures[0]![0]!)).toBeLessThan(parseFloat(captures[0]![1]!));
+      }
       await expect(named).toHaveCount(0);
       await page.keyboard.press('Escape');
       await expect(dialog).toBeHidden();
       await expect(link).toBeFocused();
-      if (mode === 'animated')
-        await expect.poll(() => captures[1]).toEqual(expect.arrayContaining(snapshots));
+      if (mode === 'animated') {
+        await expect
+          .poll(() => captures[1])
+          .toEqual([capturedWidth, capturedWidth, 'block', 'none']);
+        expect(parseFloat(captures[1]![0]!)).toBeGreaterThan(parseFloat(captures[1]![1]!));
+      }
       await expect(named).toHaveCount(0);
       expect(errors).toEqual([]);
     });
