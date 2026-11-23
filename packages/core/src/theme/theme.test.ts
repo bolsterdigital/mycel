@@ -145,6 +145,42 @@ describe('checkTheme', () => {
   });
 });
 
+describe('campaign action colours', () => {
+  it('keeps optional colours and checks text, focus and the fill against its actual track', () => {
+    const colours = {
+      campaignForm: { foreground: '#121a2a', background: '#9ad7ee' },
+      campaignProgress: { foreground: '#172436', background: '#f5f7fa' },
+      campaignProgressFill: '#304865',
+    };
+    const input = withLight(colours);
+    expect(Theme.parse(input).palettes.light).toMatchObject(colours);
+    expect(checkTheme(input).pairs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ role: 'campaignForm', required: 4.5, passes: true }),
+        expect.objectContaining({ role: 'focus-on-campaignForm', required: 3, passes: true }),
+        expect.objectContaining({ role: 'campaignProgress', required: 4.5, passes: true }),
+        expect.objectContaining({ role: 'campaignProgressFill', required: 3, passes: true }),
+      ])
+    );
+    expect(
+      checkTheme(
+        withLight({
+          campaignForm: { foreground: '#ffffff', background: '#eeeeee' },
+          campaignProgress: { foreground: '#555555', background: '#111111' },
+          campaignProgressFill: '#111111',
+        })
+      ).issues.map(({ path }) => path)
+    ).toEqual([
+      'palettes.light.campaignForm',
+      'palettes.light.campaignProgress',
+      'palettes.light.campaignProgressFill',
+    ]);
+    expect(
+      Theme.safeParse(withLight({ campaignProgressFill: light.surface.background })).success
+    ).toBe(false);
+  });
+});
+
 describe('card accents of the action row', () => {
   const red = { foreground: '#ffffff', background: '#d32f2f' };
   const green = { foreground: '#ffffff', background: '#2e7d32' };

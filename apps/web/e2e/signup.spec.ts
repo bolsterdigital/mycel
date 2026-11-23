@@ -39,6 +39,7 @@ import { testTenant } from '@mycel/db/testing';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { campaignCardFixture } from './lib/blocks/campaigns';
 import { exerciseCardText, exerciseCompactCardColumns } from './lib/campaigns/card';
+import { exerciseCampaignActionColours } from './lib/campaigns/action-colours';
 import { exerciseCampaignLanding, headingOutlineProblems } from './lib/campaigns/landing';
 import { exerciseRestrictedArticle } from './lib/published/restricted';
 import { exerciseDonation } from './lib/forms/donation';
@@ -429,6 +430,10 @@ test('a campaign landing page: header image, intro, action and body in one outli
   page,
 }) => {
   await exerciseCampaignLanding(page, ['/probe/campagne', '/probe/en/campagne']);
+});
+
+test('campaign action colours paint both public representations', async ({ page }) => {
+  await exerciseCampaignActionColours(page, `${test.info().project.name}-${Date.now()}`);
 });
 
 // ADR 038 rule 8: a campaign's thank-you view is its landing page's, in the campaign layout: the

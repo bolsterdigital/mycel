@@ -147,6 +147,9 @@ describe('theme tokens', () => {
     '--color-primary-active-fg',
     '--color-primary-active-bg',
     '--color-caption-fg',
+    ...['form-fg', 'form-bg', 'progress-fg', 'progress-bg', 'progress-fill'].map(
+      (part) => `--campaign-${part}`
+    ),
     '--color-link',
     '--color-focus',
     '--color-focus-halo',

@@ -15,6 +15,7 @@
 
 import { z } from 'zod';
 import {
+  CAMPAIGN_THEME_ROLES,
   THEME_MODES,
   THEME_RANGES,
   THEME_ROLES,
@@ -99,6 +100,18 @@ export function resolveTheme(input: ThemeInput): ResolvedTheme {
   };
 }
 
+/** Campaign surfaces reuse checked theme pairs when a palette has no campaign colours. */
+export function campaignColours(p: Palette) {
+  const formFallback =
+    p.surface.background.toLowerCase() === p.body.background.toLowerCase() ? p.primary : p.surface;
+  const progress = p.campaignProgress ?? p.surface;
+  return {
+    form: p.campaignForm ?? formFallback,
+    progress,
+    fill: p.campaignProgressFill ?? progress.foreground,
+  };
+}
+
 function paletteReport(mode: ThemeMode, p: Palette): ThemePairReport[] {
   const pair = (role: string, a: string, b: string, required: number, aaa = false) => {
     const ratio = contrastRatio(a, b);
@@ -118,6 +131,7 @@ function paletteReport(mode: ThemeMode, p: Palette): ThemePairReport[] {
     const inner = pair(role, halo, background, FOCUS_CONTRAST);
     return ringOnly || ring.passes || !inner.passes ? ring : inner;
   };
+  const { progress, fill } = campaignColours(p);
   return [
     ...THEME_ROLES.map((r) =>
       pair(r, p[r].foreground, p[r].background, TEXT_CONTRAST, r === 'body')
@@ -126,6 +140,20 @@ function paletteReport(mode: ThemeMode, p: Palette): ThemePairReport[] {
       pair(`link-on-${r}`, p.link, p[r].background, TEXT_CONTRAST)
     ),
     ...THEME_ROLES.map((r) => focusPair(`focus-on-${r}`, p[r].background, r === 'body')),
+    ...CAMPAIGN_THEME_ROLES.flatMap((role) => {
+      const colours = p[role];
+      return colours
+        ? [
+            pair(role, colours.foreground, colours.background, TEXT_CONTRAST),
+            ...(role === 'campaignForm'
+              ? [focusPair(`focus-on-${role}`, colours.background, false)]
+              : []),
+          ]
+        : [];
+    }),
+    ...(p.campaignProgressFill
+      ? [pair('campaignProgressFill', fill, progress.background, FOCUS_CONTRAST)]
+      : []),
     // A filled card is text on its accent, and its button the same pair inverted (action row).
     ...(p.cardAccents ?? []).flatMap((a, i) => [
       pair(`cardAccents.${i}`, a.foreground, a.background, TEXT_CONTRAST),

@@ -79,6 +79,9 @@ export const site = {
   'admin.site.role.warning': 'Warning',
   'admin.site.role.link': 'Link',
   'admin.site.role.focus': 'Focus',
+  'admin.site.role.campaignForm': 'Campaign form',
+  'admin.site.role.campaignProgress': 'Campaign progress',
+  'admin.site.role.campaignProgressFill': 'Campaign progress bar fill',
   'admin.site.role.card': 'Card {n}',
   'admin.site.cards.hint':
     'Cards 1 to 4 are the colours of an action row, card after card; a row with more cards than colours starts again at the first. Leave both fields empty to leave a card out; without card colours a card is primary and a bar accent.',
