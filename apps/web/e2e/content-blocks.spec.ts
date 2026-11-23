@@ -98,8 +98,8 @@ test.describe('content-blocks', () => {
     await width.selectOption({ label: next });
     await (await block(page, 9)).getByLabel('Breedte').selectOption('wide');
     // A reference-only grid or overview edits a choice (columns, number), as does a campaign card
-    // (no text of its own, ADR 033 rule 4); other added types edit their first text field.
-    const first = (at: Locator) => at.locator('input[type="text"]').first();
+    // (no text of its own, ADR 033 rule 4); other added types edit their first text field or textarea.
+    const first = (at: Locator) => at.locator('input[type="text"], textarea').first();
     const gridColumns = (at: Locator) =>
       at.locator('select[name$=".columns"], select[name$=".limit"]');
     const variant = (at: Locator) => at.locator('select[name$=".variant"]');
