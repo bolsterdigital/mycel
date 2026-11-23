@@ -95,6 +95,37 @@
   inset-block-start: 0;
   z-index: 8;
 }
+/* The article's decoration follows document scroll without listeners or extra layout height.
+   It sits on the header's bottom edge so its colour is measured against the header background. */
+.site-reading-progress {
+  display: none;
+}
+@supports (animation-timeline: scroll()) {
+  @media screen and (prefers-reduced-motion: no-preference) {
+    .site-header[data-sticky] > .site-reading-progress {
+      display: block;
+      position: absolute;
+      inset: auto 0 0;
+      block-size: 3px;
+      background: currentColor;
+      pointer-events: none;
+      transform-origin: left;
+      animation: site-reading-progress 1ms linear both;
+      animation-timeline: scroll();
+    }
+    .site-reading-progress:dir(rtl) {
+      transform-origin: right;
+    }
+  }
+  @keyframes site-reading-progress {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+}
 :root:has(.site-header[data-sticky]) {
   scroll-padding-block-start: calc(var(--site-sticky-block-size, 0px) + var(--space-1));
 }

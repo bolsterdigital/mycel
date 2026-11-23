@@ -1,0 +1,18 @@
+{
+  "prefetch": [
+    {
+      "where": {
+        "and": [
+          { "href_matches": { "pathname": "/:document([^%]*)", "search": "" } },
+          {
+            "not": {
+              "href_matches": "/:prefix(.*)?/:route(_pay|reader|my-giving|donation|unsubscribe|confirm|_consent|admin|media)/:rest(.*)?"
+            }
+          },
+          { "not": { "selector_matches": "[rel~=\"nofollow\"], [download], [href*=\"?\"]" } }
+        ]
+      },
+      "eagerness": "moderate"
+    }
+  ]
+}

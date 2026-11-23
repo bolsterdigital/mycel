@@ -38,6 +38,13 @@
 .signup .field textarea {
   max-inline-size: 70ch;
 }
+@supports (field-sizing: content) {
+  .signup .field textarea {
+    field-sizing: content;
+    min-block-size: max(var(--tap), 3lh);
+    max-block-size: max(16rem, 6lh);
+  }
+}
 .signup .field input[type='tel'] {
   max-inline-size: 18ch;
 }
@@ -47,9 +54,16 @@
 .signup .field input[type='number'] {
   max-inline-size: 12ch;
 }
-.field input[aria-invalid='true'] {
+.field :is(input, textarea, select)[aria-invalid='true'] {
   border-width: 3px;
   border-color: var(--color-body-fg);
+}
+/* Browsers without :user-invalid keep their native validation and the server's errors. */
+@supports selector(:user-invalid) {
+  .signup .field :is(input:not([type='checkbox'], [type='radio']), textarea, select):user-invalid {
+    border-width: 3px;
+    border-color: var(--color-body-fg);
+  }
 }
 /* A gift's presets: a row of large tap targets that wraps on a narrow screen. */
 fieldset.amount {

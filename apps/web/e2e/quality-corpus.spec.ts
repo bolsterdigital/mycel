@@ -261,6 +261,72 @@ test.describe('quality corpus speculation rules', () => {
       await page.context().close();
     });
 
+  test('speculation rules match ordinary links and exclude reserved routes in both address forms', async ({
+    page,
+  }) => {
+    const path = corpus.public.article.locales.nl.path;
+    const response = await page.goto(path);
+    expect(response?.headers()['speculation-rules']).toBe('"/_site/speculation.json"');
+    const hostSite = new URL(response!.url());
+    hostSite.hostname = 'probe.localhost';
+    const article = await page.request.get(new URL(path.slice('/probe'.length), hostSite).href);
+    expect(article.headers()['speculation-rules']).toBe('"/_site/speculation.json"');
+    const rulesPath = '/_site/speculation.json';
+    const file = await page.request.get(rulesPath);
+    const hostFile = await page.request.get(new URL(rulesPath, hostSite).href);
+    for (const resource of [file, hostFile]) {
+      expect(resource.ok()).toBe(true);
+      expect(resource.headers()['content-type']).toBe('application/speculationrules+json');
+    }
+    const rules = await file.json();
+    expect(await hostFile.json()).toEqual(rules);
+    expect(Object.keys(rules)).toEqual(['prefetch']);
+    expect(rules.prefetch).toHaveLength(1);
+    expect(rules.prefetch[0].eagerness).toBe('moderate');
+    const candidates = [
+      '/_pay/ref',
+      '/reader',
+      '/my-giving/link',
+      '/donation/token',
+      '/unsubscribe',
+      '/confirm',
+      '/_consent',
+      '/admin/probe',
+      '/media/id/large',
+    ];
+    const urls = ['', '/probe', '/en', '/probe/en'].flatMap((prefix) =>
+      candidates.map((path) => prefix + path)
+    );
+    urls.push(
+      '/probe/reader/',
+      '/probe/%72eader',
+      'https://example.org/articles/news',
+      '/probe/articles/news?page=2',
+      '/probe/articles/news?',
+      '/probe/en/articles/news'
+    );
+    const [documentRule, reserved, ignoredLink] = rules.prefetch[0].where.and;
+    const allowed = await page.evaluate(
+      ({ urls, documentRule, reserved, ignoredLink }) => {
+        // DOM lib types do not yet declare URLPattern, which the browser rules use.
+        const Pattern = Reflect.get(globalThis, 'URLPattern');
+        const documents = new Pattern({ ...documentRule.href_matches, baseURL: location.href });
+        const exclusions = new Pattern(reserved.not.href_matches, location.href);
+        const link = document.createElement('a');
+        return urls.filter((href) => {
+          link.setAttribute('href', href);
+          return (
+            documents.test(href, location.href) &&
+            !exclusions.test(href, location.href) &&
+            !link.matches(ignoredLink.not.selector_matches)
+          );
+        });
+      },
+      { urls, documentRule, reserved, ignoredLink }
+    );
+    expect(allowed).toEqual(['/probe/en/articles/news']);
+  });
+
   test('a confirmation, a query or a nofollow link is not fetched ahead', async ({ baseURL }) => {
     const page = await open(baseURL);
     const [entry, other] = entries;
@@ -271,6 +337,29 @@ test.describe('quality corpus speculation rules', () => {
     expect(await arrivesFetchedAhead(page, from, to, { rel: 'nofollow' }), 'nofollow').toBe(false);
     await page.context().close();
   });
+});
+
+test('article prose wraps prettily and the reading bar follows scroll and motion preferences', async ({
+  page,
+}) => {
+  onlyA11y('requires sticky navigation and scroll measurements');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto(corpus.public.article.locales.nl.path);
+  await expect(page.locator('main .rich-text p').first()).toHaveCSS('text-wrap-style', 'pretty');
+  await expect(page.locator('main h1')).toHaveCSS('text-wrap-style', 'balance');
+  const header = page.locator('.site-header[data-sticky]');
+  const bar = header.locator('.site-reading-progress');
+  await expect(bar).toHaveAttribute('aria-hidden', 'true');
+  await expect(bar).toHaveCSS('animation-timeline', 'scroll()');
+  const width = () => bar.evaluate((node) => node.getBoundingClientRect().width);
+  await expect.poll(width).toBeLessThan(1);
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const headerWidth = await header.evaluate((node) => node.getBoundingClientRect().width);
+  await expect.poll(width).toBeGreaterThan(headerWidth - 1);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(bar).toBeHidden();
+  await page.goto(corpus.public.information.locales.nl.path);
+  await expect(page.locator('.site-reading-progress')).toHaveCount(0);
 });
 
 test.describe('quality corpus reflow and text spacing', () => {

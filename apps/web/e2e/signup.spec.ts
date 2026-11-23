@@ -1350,22 +1350,41 @@ test('conditional fields validate natively and forged inactive consent creates n
     contentType: 'image/png',
   });
   const email = `conditional-${testInfo.project.name}-${Date.now()}@example.org`;
-  await page.getByLabel('E-mailadres', { exact: true }).fill(email);
+  const emailField = page.getByLabel('E-mailadres', { exact: true });
+  await expect(emailField).toHaveCSS('border-top-width', '2px');
+  await emailField.fill('invalid-address');
+  await page.getByRole('button', { name: 'Aanmelden', exact: true }).click();
+  await expect(emailField).toHaveCSS('border-top-width', '3px');
+  await emailField.fill(email);
+  await expect(emailField).toHaveCSS('border-top-width', '2px');
   await page.getByLabel('Alleen een bericht sturen, geen nieuwsbrief').check();
   await page.getByLabel('Onderwerp', { exact: true }).selectOption('question');
+  const question = page.getByLabel('Je vraag', { exact: true });
+  const height = () => question.evaluate((node) => node.clientHeight);
+  const emptyHeight = await height();
+  await expect(question).toHaveCSS('field-sizing', 'content');
+  await question.fill('Vraag\n'.repeat(5));
+  await expect.poll(height).toBeGreaterThan(emptyHeight);
+  await question.fill('Vraag\n'.repeat(50));
+  const maxHeight = await height();
+  await question.fill('Vraag\n'.repeat(70));
+  await expect.poll(height).toBe(maxHeight);
+  await question.clear();
   if (isA11y()) {
-    await expect(page.getByLabel('Je vraag', { exact: true })).toHaveAttribute('required', '');
+    await expect(question).toHaveAttribute('required', '');
     await expect(page.locator('[name=consent]')).toBeDisabled();
     await expect(page.locator('[name=consent]')).toBeHidden();
   } else {
     // Without enhancement the server enforces the conditional requirement after the native post.
-    await expect(page.getByLabel('Je vraag', { exact: true })).not.toHaveAttribute('required');
+    await expect(question).not.toHaveAttribute('required');
     await pastMinimumFillTime(page);
     await page.getByRole('button', { name: 'Aanmelden', exact: true }).click();
     await expect(page.locator('.error-summary')).toContainText('Dit veld is verplicht.');
+    await expect(question).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.locator('.field .error')).toHaveText('Dit veld is verplicht.');
     await expectNoAxeViolations(page);
   }
-  await page.getByLabel('Je vraag', { exact: true }).fill('Kan ik langskomen?');
+  await question.fill('Kan ik langskomen?');
   await page.getByLabel('Interesses', { exact: true }).selectOption(['local', 'events']);
   // A forged checkbox is present in the POST but inactive according to validated contact_only.
   if (isA11y())

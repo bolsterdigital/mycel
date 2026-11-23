@@ -74,7 +74,7 @@ import {
   type ResponseKind,
 } from '#lib/server/http/security-headers.js';
 import { PRIVATE_NO_STORE, conditional } from '#lib/server/http/http-cache.js';
-import { applySpeculationRules } from '#lib/server/http/speculation.js';
+import { SPECULATION_RULES_PATH, applySpeculationRules } from '#lib/server/http/speculation.js';
 import { markdownResponse, wantsMarkdown } from '#lib/server/public/text/markdown-page.js';
 import { withItalicPreload } from '#lib/theme/tokens.js';
 
@@ -115,7 +115,7 @@ export const handle: Handle = async (input) => {
       response.headers.set('cache-control', PRIVATE_NO_STORE);
       response.headers.delete('etag');
     }
-    if (kind === 'public' && event.locals.site) applySpeculationRules(response, event.locals.site);
+    if (kind === 'public' && event.locals.site) applySpeculationRules(response);
     // A site's page only: the catalog is about what a visitor of that page could read by machine.
     if (
       kind === 'public' &&
@@ -174,8 +174,8 @@ const route: Handle = async ({ event, resolve }) => {
       }
     );
 
-  // Reports arrive on whichever hostname the page had, so before any site is resolved.
-  if (isInternal(path) || path === REPORTS_PATH) return render();
+  // Reports and static speculation rules work on both public address forms.
+  if (isInternal(path) || path === REPORTS_PATH || path === SPECULATION_RULES_PATH) return render();
 
   if (isAdmin(path)) {
     if (!onPlatformOrigin(event.url, rt.config.PUBLIC_BASE_URL))
