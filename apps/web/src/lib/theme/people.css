@@ -72,6 +72,8 @@
   border-radius: var(--radius);
   color: var(--color-surface-fg);
   background: var(--color-surface-bg);
+  font-size: 1rem;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 .person-card > picture {
@@ -80,7 +82,7 @@
 .person-card img {
   display: block;
   width: 100%;
-  height: 12.5rem;
+  height: 200px;
   border-radius: var(--radius) var(--radius) 0 0;
   object-fit: cover;
 }
@@ -111,6 +113,9 @@
   min-block-size: 44px;
   min-inline-size: 44px;
   align-items: center;
+}
+.person-card .person-contact {
+  gap: 0.25rem 0.75rem;
 }
 .person-card .person-contact:empty {
   display: none;
