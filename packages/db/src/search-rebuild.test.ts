@@ -8,7 +8,7 @@
 // DATABASE_URL; in CI that is a failure.
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
+import { BLOCK_DEFINITIONS, Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
 import {
   FakeDns,
   FakeInputHasher,
@@ -86,7 +86,30 @@ describe.skipIf(skip)('site search rebuild', () => {
     const run = runSuffix();
     a = (await testTenant(owner, `search-a-${run}`, { name: 'A', locales: ['nl', 'en'] })).id;
     b = (await testTenant(owner, `search-b-${run}`, { name: 'B', locales: ['nl', 'en'] })).id;
-    await published(a, 'open');
+    const open = await published(a, 'open', {
+      blocks: [
+        {
+          type: 'cta',
+          version: BLOCK_DEFINITIONS.cta.version,
+          props: {
+            title: { nl: 'Doe mee', en: 'Join in' },
+            actions: [
+              {
+                label: { nl: 'Lees verder', en: 'Read on' },
+                target: { kind: 'url', url: '/contact' },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    // Simulate an older published revision, as an archive can contain it.
+    await owner.transaction().execute(async (trx) => {
+      await sql`select set_config('app.tenant_id', ${a}, true)`.execute(trx);
+      await sql`update content_revisions
+        set document = jsonb_set(document, '{blocks,0,version}', '1'::jsonb)
+        where item_id = ${open}`.execute(trx);
+    });
     await published(a, 'leden', { access: { level: 'members', teaser: 'lead' } });
     await published(a, 'verborgen', { seo: { noindex: true } });
     await invoker.run(useCases.createItem, systemPrincipal(a, 'test'), {

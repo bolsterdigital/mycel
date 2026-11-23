@@ -27,7 +27,6 @@
 
 import { sql, type Kysely } from 'kysely';
 import {
-  ContentDocument,
   searchEntry,
   type ContentRepository,
   type ContentType,
@@ -35,6 +34,7 @@ import {
 } from '@mycel/core';
 import type { Database } from '../infra/schema.js';
 import { enterTenant } from '../infra/roles.js';
+import { readableDocument } from './read-document.js';
 
 /** Brings the index rows of one item in line with its publication rows, already written. */
 export async function indexPublished(
@@ -56,9 +56,8 @@ export async function indexPublished(
       and not exists (select 1 from content_search s
                       where s.item_id = l.item_id and s.locale = l.locale)`.execute(trx);
   for (const row of rows) {
-    // A document that no longer validates is not searchable; its page fails on its own.
-    const doc = ContentDocument.safeParse(row.document);
-    const entry = doc.success ? searchEntry(doc.data, row.locale) : null;
+    const doc = readableDocument(row.document);
+    const entry = doc ? searchEntry(doc, row.locale) : null;
     if (!entry) continue;
     await sql`
       insert into content_search
