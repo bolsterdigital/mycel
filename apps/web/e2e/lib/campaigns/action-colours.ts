@@ -103,8 +103,12 @@ export async function exerciseCampaignActionColours(page: Page, stamp: string) {
           await setTextSize(page, text);
           await layoutGate(page, `${path} ${mode} ${width}px ${text}`, 'main');
           if (configured && mode === 'light' && width === 320 && isA11y()) {
-            await test.info().attach(`${path} at 320px, ${text}`, {
-              body: await action.screenshot({ scale: 'css' }),
+            const view = path.includes('/kaart-') ? 'landing' : 'full-card';
+            const size = text === '200%' ? '200-percent' : 'default';
+            const screenshot = test.info().outputPath(`${view}-320px-${size}.png`);
+            await action.screenshot({ path: screenshot, scale: 'css' });
+            await test.info().attach(`${view} at 320px, ${text}`, {
+              path: screenshot,
               contentType: 'image/png',
             });
           }
