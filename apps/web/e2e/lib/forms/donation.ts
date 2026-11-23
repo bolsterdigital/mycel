@@ -26,17 +26,18 @@ async function donationPage(project: string): Promise<string> {
       slug,
       document: {
         type: 'page',
-        title: { nl: 'Steun ons' },
+        title: { nl: 'Steun ons', en: 'Support us' },
         defaultLocale: 'nl',
-        locales: ['nl'],
+        locales: ['nl', 'en'],
         blocks: [{ type: 'form', version: 1, props: { formId: form.id } }],
       },
     });
-    await invoker.run(useCases.publishItem, editor, {
-      itemId: created.item.id,
-      revisionId: created.revision.id,
-      locale: 'nl',
-    });
+    for (const locale of ['nl', 'en'])
+      await invoker.run(useCases.publishItem, editor, {
+        itemId: created.item.id,
+        revisionId: created.revision.id,
+        locale,
+      });
   });
   return slug;
 }
@@ -55,8 +56,15 @@ export async function give(
   await page.goto(`/probe/${slug}`);
   if (amount.interval) await page.getByRole('radio', { name: amount.interval }).check();
   if ('preset' in amount) await page.getByRole('radio', { name: amount.preset }).check();
-  else await page.getByLabel('Ander bedrag (€)').fill(amount.own);
+  else {
+    await page.getByRole('radio', { name: 'Anders' }).check();
+    await page.getByLabel('Ander bedrag (€)').fill(amount.own);
+  }
   await page.getByLabel('E-mailadres').fill(email);
+  await payGift(page, outcome);
+}
+
+export async function payGift(page: Page, outcome: 'Betaald' | 'Mislukt') {
   await pastMinimumFillTime(page);
   await page.getByRole('button', { name: 'Doneer' }).click();
   await expect(page).toHaveURL(/\/_pay\/fake_[0-9a-f-]+$/);
@@ -83,12 +91,20 @@ export async function exerciseDonation(page: Page, project: string): Promise<voi
 
   await page.goto(`/probe/${slug}`);
   const presets = page.getByRole('group', { name: 'Bedrag' });
-  await expect(presets.getByRole('radio')).toHaveCount(3);
+  await expect(presets.getByRole('radio')).toHaveCount(4);
   if (isA11y()) {
     await expectNoAxeViolations(page, { label: 'donation form' });
     await page.setViewportSize(NARROW);
     await setTextSize(page, '200%');
     await layoutGate(page, 'donation form at 320px / 200%', 'main');
+    await setTextSize(page, '16px');
+  }
+  await page.goto(`/probe/en/${slug}`);
+  await page.getByRole('radio', { name: 'Other' }).check();
+  await expect(page.getByLabel('Another amount (€)')).toBeVisible();
+  if (isA11y()) {
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'English donation form at 320px / 200%', 'main');
     await setTextSize(page, '16px');
   }
 
@@ -101,7 +117,7 @@ export async function exerciseDonation(page: Page, project: string): Promise<voi
     `/${slug}`
   );
 
-  await give(page, slug, failed, { own: '12.50' }, 'Mislukt');
+  await give(page, slug, failed, { own: '12,50' }, 'Mislukt');
   await expect(page.getByRole('heading', { name: 'Je gift is niet gelukt' })).toBeVisible();
   await expect(page.getByText(/Bedrag: €\s?12,50$/)).toBeVisible();
   await expect(page.getByRole('link', { name: 'Probeer opnieuw' })).toHaveAttribute(

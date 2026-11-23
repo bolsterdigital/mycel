@@ -1,19 +1,71 @@
 // A fundraiser end to end (ADR 033 rule 8, amendment 2026-11-17), against the fake payment
 // provider: the editor starts one from the campaigns screen with a goal in euros, opens
-// participation from the panel, a visitor gives on the landing page and pays, and a card on
-// another page and the campaigns list then show the money against the goal. Works the same in
-// the no-js project. The core record is `packages/core/src/campaigns/fundraiser.test.ts`.
+// participation from the panel, the landing and full card share the form, and a visitor gives
+// through the card. The card and campaigns list show the money against the goal. Works alike
+// in the no-js project. The core record is `packages/core/src/campaigns/fundraiser.test.ts`.
 
-import { expect, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { BLOCK_DEFINITIONS as DEFS, systemPrincipal, useCases } from '@mycel/core';
 import { expectNoAxeViolations } from '../axe';
 import { tenantId, withInvoker } from '../invoker';
-import { login } from '../login';
+import { pastMinimumFillTime } from '../form';
+import { layoutGate, setTextSize } from '../layout';
+import { forwarded, login } from '../login';
 import { isA11y } from '../project';
-import { give } from './donation';
+import { payGift } from './donation';
 
 /** "€ 25 van € 100" with whatever space the locale puts after the sign. */
 const ofGoal = (count: number, goal: number) => new RegExp(`€\\s?${count} van €\\s?${goal}`);
+
+async function checkLayout(page: Page, slug: string, view: string) {
+  await page.goto(`/probe/${slug}`);
+  const form = page.locator('.campaign-action form');
+  await expect(form.getByLabel('Voornaam')).toBeVisible();
+  await expect(form.getByLabel('Achternaam')).toBeVisible();
+  await expect(form.getByRole('radio', { name: /2[.]500/ })).toBeVisible();
+  if (!isA11y()) return;
+  for (const [width, size] of [
+    [1366, '100%'],
+    [390, '100%'],
+    [320, '100%'],
+    [320, '200%'],
+  ] as const) {
+    await page.setViewportSize({ width, height: 960 });
+    await setTextSize(page, size);
+    if (width === 320) await form.getByRole('radio', { name: 'Anders' }).check();
+    await layoutGate(page, `${view} at ${width}px / ${size}`, '.campaign-action form');
+    const tiles = await form.locator('.amount-choice').evaluateAll((labels) =>
+      labels.map((label) => {
+        const { width, height, y } = label.getBoundingClientRect();
+        return { y, fits: width >= 44 && height >= 44 && label.scrollWidth <= width + 1 };
+      })
+    );
+    expect(
+      tiles.every(({ fits }) => fits),
+      `${view} at ${width}px / ${size}`
+    ).toBe(true);
+    if (width !== 320 || size === '200%') {
+      // The card's narrower desktop column uses the same two-tile fallback as mobile.
+      const rows = size === '200%' ? 4 : width === 1366 && view === 'landing' ? 1 : 2;
+      expect(new Set(tiles.map(({ y }) => y)).size, `${view} at ${width}px / ${size}`).toBe(rows);
+    }
+    const labelsShareRow = await form
+      .getByLabel('Voornaam')
+      .evaluate(
+        (input) =>
+          input.getBoundingClientRect().y ===
+          input.closest('form')!.querySelector('[name="last"]')!.getBoundingClientRect().y
+      );
+    expect(labelsShareRow, `${view} at ${width}px / ${size}`).toBe(width === 1366);
+    if (width === 320) {
+      await form.screenshot({
+        path: test.info().outputPath(`${view}-320-${size === '200%' ? 200 : 100}.png`),
+      });
+    }
+  }
+  await expectNoAxeViolations(page, { label: `${view} fundraiser form` });
+  await setTextSize(page, '16px');
+}
 
 export async function exerciseFundraiser(page: Page, project: string): Promise<void> {
   const slug = `inzameling-${project}-${Date.now()}`;
@@ -43,6 +95,34 @@ export async function exerciseFundraiser(page: Page, project: string): Promise<v
       locale: 'nl',
     });
     const { campaign } = await invoker.run(useCases.getLandingCampaign, editor, { itemId });
+    const { form, version } = await invoker.run(useCases.getFormForAuthoring, editor, {
+      id: campaign!.formId!,
+    });
+    await invoker.run(useCases.updateForm, editor, {
+      baseVersion: version,
+      value: {
+        ...form,
+        fields: [
+          {
+            name: 'first',
+            type: 'text',
+            layout: 'half',
+            label: { nl: 'Voornaam' },
+            required: true,
+          },
+          {
+            name: 'last',
+            type: 'text',
+            layout: 'half',
+            label: { nl: 'Achternaam' },
+            required: true,
+          },
+          ...form.fields.map((field) =>
+            field.type === 'amount' ? { ...field, presets: [25, 250, 2500] } : field
+          ),
+        ],
+      },
+    });
     const card = await invoker.run(useCases.createItem, editor, {
       slug: host,
       document: {
@@ -54,7 +134,7 @@ export async function exerciseFundraiser(page: Page, project: string): Promise<v
           {
             type: 'campaign-card',
             version: DEFS['campaign-card'].version,
-            props: { campaignId: campaign!.id, variant: 'compact', width: 'content' },
+            props: { campaignId: campaign!.id, variant: 'full', width: 'wide' },
           },
         ],
       },
@@ -70,8 +150,32 @@ export async function exerciseFundraiser(page: Page, project: string): Promise<v
   await expect(panel.getByText('Deelname is open.')).toBeVisible();
 
   const visitor = await page.context().newPage();
-  await give(visitor, slug, `gever-${slug}@example.org`, { preset: /25/ }, 'Betaald');
+  await visitor.context().setExtraHTTPHeaders(forwarded());
+  await checkLayout(visitor, slug, 'landing');
+  await checkLayout(visitor, host, 'card');
+  const preset = visitor.getByRole('radio', { name: /^€\s?25$/ });
+  await preset.check();
+  await preset.press('ArrowLeft');
+  const other = visitor.getByRole('radio', { name: 'Anders' });
+  await expect(other).toBeChecked();
+  const custom = visitor.getByLabel('Ander bedrag (€)');
+  await custom.fill('geen bedrag');
+  await visitor.getByLabel('Voornaam').fill('Sam');
+  await visitor.getByLabel('Achternaam').fill('Van Dam');
+  await visitor.getByLabel('E-mailadres').fill(`gever-${slug}@example.org`);
+  await pastMinimumFillTime(visitor);
+  await visitor.getByRole('button', { name: 'Doneer' }).click();
+  await expect(visitor.getByRole('alert').getByRole('link')).toHaveAttribute('href', /-custom$/);
+  await visitor.getByRole('alert').getByRole('link').click();
+  await expect(custom).toBeFocused();
+  await expect(other).toBeChecked();
+  await expect(custom).toHaveValue('geen bedrag');
+  await expect(visitor.getByLabel('Achternaam')).toHaveValue('Van Dam');
+  await preset.check();
+  await expect(custom).toBeHidden();
+  await payGift(visitor, 'Betaald');
   await expect(visitor.getByRole('heading', { name: 'Dank je wel voor je gift' })).toBeVisible();
+  await expect(visitor.getByText(/Bedrag: €\s?25$/)).toBeVisible();
 
   // The card counts the paid gift against the goal, in euros; the bar measures the same.
   await visitor.goto(`/probe/${host}`);

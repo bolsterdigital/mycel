@@ -110,6 +110,31 @@ describe('a donation form', () => {
     });
   });
 
+  it('uses the explicit choice even when an earlier custom value is still posted', () => {
+    const field = {
+      name: 'amount',
+      type: 'amount' as const,
+      required: true,
+      label: { en: 'Amount' },
+      presets: [10, 25, 50],
+      min: 1,
+    };
+    const evaluate = (amount: string, custom: string) =>
+      evaluateFields([field], { amount, 'amount-custom': custom });
+    expect(evaluate('25', 'bad value').values).toEqual({ amount: 25 });
+    expect(evaluate('other', '17,50').values).toEqual({ amount: 17.5 });
+    expect(evaluate('other', '').errors).toEqual([
+      { field: 'amount', message: 'forms.error.required' },
+    ]);
+    expect(evaluate('other', '0.50').errors).toEqual([
+      { field: 'amount', message: 'forms.error.value' },
+    ]);
+    expect(
+      evaluateFields([{ ...field, custom: false }], { amount: 'other', 'amount-custom': '25' })
+        .errors
+    ).toHaveLength(1);
+  });
+
   it('starts the payment and answers with the checkout; the payment names the submission', async () => {
     const { give, payments, provider } = await setup();
     const result = await give({ amount: '25' });
