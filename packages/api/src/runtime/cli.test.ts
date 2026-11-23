@@ -77,6 +77,8 @@ describe('parseCommand', () => {
         'uploads',
         '--into-existing',
         '--brand-tokens=tokens.json',
+        '--posts-page=203',
+        '--posts-per-page=12',
       ])
     ).toEqual({
       kind: 'wordpress.import',
@@ -85,6 +87,7 @@ describe('parseCommand', () => {
       mediaDir: 'uploads',
       intoExisting: true,
       brandTokensFile: 'tokens.json',
+      postsPage: { sourceId: 203, pageSize: 12 },
     });
     expect(
       parseCommand(['wordpress', 'plan', '--file', 'x.xml', '--featured-header', 'off'])
@@ -94,6 +97,14 @@ describe('parseCommand', () => {
     ).toThrow(UsageError);
     expect(() => parseCommand(['wordpress', 'import', '--file', 'x.xml'])).toThrow(UsageError);
     expect(() => parseCommand(['wordpress', 'plan', '--file', 'x.xml', '--dry'])).toThrow(
+      UsageError
+    );
+    const plan = ['wordpress', 'plan', '--file', 'x.xml'];
+    expect(parseCommand([...plan, '--posts-page', '203', '--posts-per-page', '12'])).toMatchObject({
+      postsPage: { sourceId: 203, pageSize: 12 },
+    });
+    expect(() => parseCommand([...plan, '--posts-page', '203'])).toThrow(UsageError);
+    expect(() => parseCommand([...plan, '--posts-page', '203', '--posts-per-page', '1.5'])).toThrow(
       UsageError
     );
   });

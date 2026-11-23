@@ -2,7 +2,7 @@
 // an export, print its report, and execute the plan against a tenant through the registry.
 
 export { plan } from './plan.js';
-export type { ImportPlan } from './plan.js';
+export type { ImportPlan, PlanOptions } from './plan.js';
 export { formatReport } from './report.js';
 export { execute, TenantNotEmpty } from './execute.js';
 export type { ImportResult } from './execute.js';

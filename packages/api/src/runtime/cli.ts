@@ -41,6 +41,7 @@ import {
 } from './compose.js';
 import { OPS_REFUSALS } from '../platform.js';
 import { runSetup, type SetupInput } from './setup.js';
+import type { WordpressOptions } from './wordpress.js';
 
 export const USAGE = `usage:
   mycel setup --tenant <slug> --name <name> --operator <e-mail> [--locales nl,en] [--hostname <domain>]
@@ -60,8 +61,8 @@ export const USAGE = `usage:
   mycel erasures apply [--tenant <slug>]
   mycel erasures status [--tenant <slug>]
   mycel search rebuild [--tenant <slug>]
-  mycel wordpress plan --file <export.xml> [--brand-tokens <wings-tokens.json>] [--default-locale <nl>] [--featured-header on|off] [--json]
-  mycel wordpress import --tenant <slug> --file <export.xml> [--brand-tokens <wings-tokens.json>] [--media-dir <uploads>] [--default-locale <nl>] [--featured-header on|off] [--into-existing]
+  mycel wordpress plan --file <export.xml> [--brand-tokens <wings-tokens.json>] [--default-locale <nl>] [--featured-header on|off] [--posts-page <wp-id> --posts-per-page <count>] [--json]
+  mycel wordpress import --tenant <slug> --file <export.xml> [--brand-tokens <wings-tokens.json>] [--media-dir <uploads>] [--default-locale <nl>] [--featured-header on|off] [--posts-page <wp-id> --posts-per-page <count>] [--into-existing]
   mycel version`;
 
 export type Command =
@@ -81,24 +82,16 @@ export type Command =
   | { kind: 'erasures.apply'; slug?: string }
   | { kind: 'erasures.status'; slug?: string }
   | { kind: 'search.rebuild'; slug?: string }
-  | {
+  | (WordpressOptions & {
       kind: 'wordpress.plan';
-      file: string;
-      brandTokensFile?: string;
-      defaultLocale?: string;
-      featuredAsHeader?: boolean;
       json: boolean;
-    }
-  | {
+    })
+  | (WordpressOptions & {
       kind: 'wordpress.import';
       slug: string;
-      file: string;
-      brandTokensFile?: string;
       mediaDir?: string;
-      defaultLocale?: string;
-      featuredAsHeader?: boolean;
       intoExisting: boolean;
-    }
+    })
   | { kind: 'version' };
 
 /** A command line the parser refuses; the message says what is wrong, then the usage follows. */
@@ -146,6 +139,35 @@ function flags(
 
 const RECOVERIES = { retry: ['jobs', 'outbox'], close: ['jobs'] } as const;
 
+const WORDPRESS_FLAGS = [
+  'file',
+  'default-locale',
+  'featured-header',
+  'brand-tokens',
+  'posts-page',
+  'posts-per-page',
+] as const;
+
+function wordpressOptions(f: Record<string, string>): Omit<WordpressOptions, 'file'> {
+  const id = f['posts-page'];
+  const size = f['posts-per-page'];
+  if ((id !== undefined) !== (size !== undefined))
+    throw new UsageError('--posts-page and --posts-per-page must be used together');
+  if (id !== undefined && size !== undefined)
+    for (const [flag, value] of [
+      ['posts-page', id],
+      ['posts-per-page', size],
+    ] as const)
+      if (!/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(Number(value)))
+        throw new UsageError(`--${flag} needs a positive integer`);
+  return {
+    ...(f['brand-tokens'] && { brandTokensFile: f['brand-tokens'] }),
+    ...(f['default-locale'] && { defaultLocale: f['default-locale'] }),
+    ...featuredHeader(f['featured-header']),
+    ...(id && size && { postsPage: { sourceId: Number(id), pageSize: Number(size) } }),
+  };
+}
+
 /** The command an argument vector asks for; throws UsageError for anything else. */
 export function parseCommand(argv: readonly string[]): Command {
   const [noun, verb, ...rest] = argv;
@@ -188,34 +210,26 @@ export function parseCommand(argv: readonly string[]): Command {
     return { kind: 'search.rebuild', ...(f['tenant'] ? { slug: f['tenant'] } : {}) };
   }
   if (noun === 'wordpress' && verb === 'plan') {
-    const f = flags(rest, ['file', 'default-locale', 'featured-header', 'brand-tokens'], ['json']);
+    const f = flags(rest, WORDPRESS_FLAGS, ['json']);
     if (!f['file']) throw new UsageError('wordpress plan needs --file');
     return {
       kind: 'wordpress.plan',
       file: f['file'],
-      ...(f['brand-tokens'] && { brandTokensFile: f['brand-tokens'] }),
       json: f['json'] === 'true',
-      ...(f['default-locale'] ? { defaultLocale: f['default-locale'] } : {}),
-      ...featuredHeader(f['featured-header']),
+      ...wordpressOptions(f),
     };
   }
   if (noun === 'wordpress' && verb === 'import') {
-    const f = flags(
-      rest,
-      ['tenant', 'file', 'media-dir', 'default-locale', 'featured-header', 'brand-tokens'],
-      ['into-existing']
-    );
+    const f = flags(rest, ['tenant', 'media-dir', ...WORDPRESS_FLAGS], ['into-existing']);
     for (const key of ['tenant', 'file'])
       if (!f[key]) throw new UsageError(`wordpress import needs --${key}`);
     return {
       kind: 'wordpress.import',
       slug: f['tenant']!,
       file: f['file']!,
-      ...(f['brand-tokens'] && { brandTokensFile: f['brand-tokens'] }),
       intoExisting: f['into-existing'] === 'true',
       ...(f['media-dir'] ? { mediaDir: f['media-dir'] } : {}),
-      ...(f['default-locale'] ? { defaultLocale: f['default-locale'] } : {}),
-      ...featuredHeader(f['featured-header']),
+      ...wordpressOptions(f),
     };
   }
   if (noun === 'blob' && verb === 'init' && rest.length === 0) return { kind: 'blob.init' };

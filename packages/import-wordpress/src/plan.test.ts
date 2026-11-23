@@ -12,6 +12,46 @@ const item = (slug: string) => {
   return found;
 };
 
+describe('the configured WordPress posts page', () => {
+  const xml = FIXTURE.replace(
+    '<!-- /wp:file -->]]>',
+    '<!-- /wp:file -->\n<!-- wp:wings/nodes-grid {"variationType":"latest","latestPostsCount":4} /-->]]>'
+  );
+
+  it('uses a paginated article overview for the posts page in both languages and keeps a teaser grid', () => {
+    const regular = plan(xml);
+    const imported = plan(xml, { postsPage: { sourceId: 202, pageSize: 12 } });
+    const news = imported.items.find((i) => i.slug === 'over-ons')!;
+    expect(news.document.locales).toEqual(['nl', 'en']);
+    expect(ContentDocumentInput.parse(news.document).blocks).toMatchObject([
+      {
+        type: 'overview',
+        props: { source: 'article', order: 'newest', limit: '12', archive: true, sectionId: null },
+      },
+    ]);
+    const teaser = imported.items.find((i) => i.slug === 'contact')!;
+    expect(teaser).toEqual(regular.items.find((i) => i.slug === 'contact'));
+    expect(ContentDocumentInput.parse(teaser.document).blocks).toContainEqual(
+      expect.objectContaining({
+        type: 'overview',
+        props: expect.objectContaining({ archive: false, limit: '4' }),
+      })
+    );
+    expect(imported.report.filter((r) => r.code === 'overview.more-dropped')).toMatchObject([
+      { postId: 203, detail: 'posts page' },
+    ]);
+  });
+
+  it('rejects a posts-page id or size that cannot reproduce the archive', () => {
+    expect(() => plan(xml, { postsPage: { sourceId: 301, pageSize: 12 } })).toThrow(
+      'not a published page in the export'
+    );
+    expect(() => plan(xml, { postsPage: { sourceId: 203, pageSize: 25 } })).toThrow(
+      'Posts page size'
+    );
+  });
+});
+
 describe('the plan of the fixture export', () => {
   it('has two pages, three articles, five files, two authors and two sections', () => {
     expect(result.items.map((i) => [i.document.type, i.slug, i.status])).toEqual([
