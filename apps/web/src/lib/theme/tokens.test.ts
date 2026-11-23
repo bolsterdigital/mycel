@@ -24,6 +24,7 @@ import { describe, expect, it } from 'vitest';
 import { fontFaces, specimenCss } from './font-files.js';
 import {
   CAPTION_MONO,
+  PAGE_TRANSITION_RULE,
   preloadFonts,
   STEPS,
   themeCss,
@@ -190,6 +191,8 @@ describe('theme tokens', () => {
       if (!line || line === '}' || line === ':root {' || line === 'color-scheme: light dark;')
         continue;
       if (line === '@media (prefers-color-scheme: dark) {') continue;
+      // The page transition rule is a fixed literal, never built from a theme value (MY-269).
+      if (PAGE_TRANSITION_RULE.split('\n').some((l) => l.trim() === line)) continue;
       if (line.startsWith("@font-face { font-family: '") && line.includes("src: url('/fonts/"))
         continue;
       if (!declaration.test(line)) out.push(`outside the grammar: ${line}`);
@@ -356,6 +359,29 @@ describe('theme tokens', () => {
       // The same values a write would accept (contrast is unchanged from the default).
       expect(Theme.safeParse(theme).success).toBe(true);
       expect(problems(theme)).toEqual([]);
+    }
+  });
+});
+
+describe('page transitions (MY-269)', () => {
+  it('turns cross-document transitions on by default, inside the reduced-motion query', () => {
+    for (const theme of themes) {
+      const css = themeCss(theme);
+      expect(css.split(PAGE_TRANSITION_RULE)).toHaveLength(2);
+      expect(PAGE_TRANSITION_RULE).toMatch(
+        /^@media \(prefers-reduced-motion: no-preference\) \{\s*@view-transition \{\s*navigation: auto;/
+      );
+      // A theme stored before the choice reads as on.
+      const { pageTransitions: _, ...stored } = theme;
+      expect(themeCss(stored as ResolvedTheme)).toBe(css);
+    }
+  });
+
+  it('leaves the rule out entirely when a site switched them off', () => {
+    for (const theme of themes) {
+      const off = themeCss({ ...theme, pageTransitions: 'off' });
+      expect(off).not.toContain('view-transition');
+      expect(off).toBe(themeCss(theme).replace(`${PAGE_TRANSITION_RULE}\n`, ''));
     }
   });
 });

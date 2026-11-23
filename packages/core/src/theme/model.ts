@@ -23,6 +23,14 @@ export const DROP_CAPS = ['articles', 'off'] as const;
 export type DropCap = (typeof DROP_CAPS)[number];
 
 /**
+ * Whether a click from page to page cross-fades with the header and footer standing still (MY-269,
+ * cross-document view transitions). On by default, off per site (Jaap 2026-11-22); the reader's
+ * reduced-motion setting always wins. A closed choice like `dropCap`, so the admin offers On/Off.
+ */
+export const PAGE_TRANSITION_CHOICES = ['on', 'off'] as const;
+export type PageTransitions = (typeof PAGE_TRANSITION_CHOICES)[number];
+
+/**
  * The face of captions and credits: the body font, or the system's monospace (a house style that
  * sets its photo captions like a typewriter). A closed choice, so `body` renders exactly as before.
  * Rejected: a self-hosted monospace file (a licence and a catalogue entry for one small line of
@@ -153,6 +161,7 @@ export const ThemeInput = z
       density: range('density').optional(),
       headingWeight: HeadingWeight.optional(),
       dropCap: z.enum(DROP_CAPS, notAllowed).optional(),
+      pageTransitions: z.enum(PAGE_TRANSITION_CHOICES, notAllowed).optional(),
       captionFont: z.enum(CAPTION_FONTS, notAllowed).optional(),
       headingCase: z.enum(HEADING_CASES, notAllowed).optional(),
       /** Header and footer each in one of `CHROME_ROLES`; an absent one is `primary`. */
@@ -185,6 +194,7 @@ export interface ResolvedTheme {
   density: number;
   headingWeight: (typeof HEADING_WEIGHTS)[number];
   dropCap: DropCap;
+  pageTransitions: PageTransitions;
   captionFont: CaptionFont;
   headingCase: HeadingCase;
   chrome: { header: ChromeRole; footer: ChromeRole };

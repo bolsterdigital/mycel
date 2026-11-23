@@ -89,6 +89,7 @@ export function resolveTheme(input: ThemeInput): ResolvedTheme {
     density: value('density'),
     headingWeight: input.headingWeight ?? DEFAULT_THEME.headingWeight,
     dropCap: input.dropCap ?? DEFAULT_THEME.dropCap,
+    pageTransitions: input.pageTransitions ?? DEFAULT_THEME.pageTransitions,
     captionFont: input.captionFont ?? DEFAULT_THEME.captionFont,
     headingCase: input.headingCase ?? DEFAULT_THEME.headingCase,
     chrome: {

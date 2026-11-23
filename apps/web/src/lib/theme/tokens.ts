@@ -215,6 +215,18 @@ function palette(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
 export const STEPS = [-1, 0, 1, 2, 3, 4] as const;
 const stepName = (n: number) => (n < 0 ? `--step--${-n}` : `--step-${n}`);
 
+/**
+ * Cross-document view transitions (MY-269): both pages of a same-origin click carry this rule, so
+ * the browser cross-fades between them, with the header and footer standing still under their
+ * fixed names (`site-chrome.css`). Only for a reader who has not asked for reduced motion, and
+ * only in the theme stylesheet, so a site that switched it off has no rule at all instead of a
+ * rule to override. A browser without support navigates as before. Rejected: SvelteKit's
+ * `onNavigate` (the public site has no client router, `csr = false`) and a script that starts
+ * the transition (the at-rule needs none).
+ */
+export const PAGE_TRANSITION_RULE =
+  '@media (prefers-reduced-motion: no-preference) {\n  @view-transition {\n    navigation: auto;\n  }\n}';
+
 export function themeCss(theme: ResolvedTheme): string {
   const sizes = STEPS.map(
     (n) => `${stepName(n)}: ${num((theme.baseSize * theme.scaleRatio ** n) / 16)}rem;`
@@ -240,6 +252,7 @@ export function themeCss(theme: ResolvedTheme): string {
     fontFaceRules(theme),
     `:root {\n${indent(root, '  ')}\n}`,
     `@media (prefers-color-scheme: dark) {\n  :root {\n${indent(palette(theme.palettes.dark, theme.chrome), '    ')}\n  }\n}`,
+    ...(theme.pageTransitions === 'off' ? [] : [PAGE_TRANSITION_RULE]),
     '',
   ].join('\n');
 }

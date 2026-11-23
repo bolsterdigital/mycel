@@ -31,6 +31,11 @@ export const site: Partial<Record<UiKey, string>> = {
   'admin.site.dropCap.hint': 'Een grote eerste letter aan het begin van de tekst van elk artikel.',
   'admin.site.dropCap.articles': 'Aan',
   'admin.site.dropCap.off': 'Uit',
+  'admin.site.pageTransitions': "Overgangen tussen pagina's",
+  'admin.site.pageTransitions.hint':
+    'Klikt een bezoeker naar een andere pagina, dan vloeit die in terwijl kop en voet blijven staan. Wie op zijn apparaat om minder beweging vroeg, ziet het nooit.',
+  'admin.site.pageTransitions.on': 'Aan',
+  'admin.site.pageTransitions.off': 'Uit',
   'admin.site.group.chrome': 'Kop en voet',
   'admin.site.chrome.header': 'Kleur van de kop',
   'admin.site.chrome.header.hint':

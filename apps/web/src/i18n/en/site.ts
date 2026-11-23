@@ -29,6 +29,11 @@ export const site = {
   'admin.site.dropCap.hint': 'A large first letter at the start of the text of every article.',
   'admin.site.dropCap.articles': 'On',
   'admin.site.dropCap.off': 'Off',
+  'admin.site.pageTransitions': 'Transitions between pages',
+  'admin.site.pageTransitions.hint':
+    'When a visitor clicks to another page, it fades in while the header and footer stay put. Visitors who asked their device for less motion never see it.',
+  'admin.site.pageTransitions.on': 'On',
+  'admin.site.pageTransitions.off': 'Off',
   'admin.site.group.chrome': 'Header and footer',
   'admin.site.chrome.header': 'Header colour',
   'admin.site.chrome.header.hint':
