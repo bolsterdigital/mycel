@@ -9,6 +9,8 @@
 // Larger entries have a file of their own. Rejected: localised fields derived from the Zod schema
 // (unions and effects make that guesswork) and one hand-kept list of types per consumer.
 
+import { EMBED_IDS } from '../integrations/model.js';
+import { videoEmbedDefinition } from './blocks/video-embed.js';
 import { z } from 'zod';
 import { peopleGridDefinition } from './people/grid-block.js';
 import { REFERENCE_BLOCKS } from './blocks/reference-blocks.js';
@@ -119,7 +121,7 @@ export const GALLERY_ROWS = 24;
 export const FILE_DOWNLOAD_ROWS = 12;
 export const FAQ_VARIANTS = ['list', 'accordion'] as const;
 export const QUOTE_VARIANTS = ['blockquote', 'pullquote'] as const;
-export const VIDEO_PROVIDERS = ['youtube', 'vimeo'] as const;
+export const VIDEO_PROVIDERS = EMBED_IDS;
 export const FORM_VARIANTS = ['default', 'card'] as const;
 
 const Width = z.enum(WIDTHS);
@@ -1118,64 +1120,7 @@ export const BLOCK_DEFINITIONS = {
 
   // Never iframe HTML or an arbitrary URL: a provider and a bounded id. #8c starts from a plain
   // link to the provider and adds the embed only as an explicit enhancement; no oEmbed fetch.
-  'video-embed': define({
-    version: 1,
-    props: z
-      .object({
-        provider: z.enum(VIDEO_PROVIDERS),
-        videoId: z.string().min(1).max(20),
-        title: localized(ShortText),
-        caption: localized(CaptionText).optional(),
-        width: Width.default('content'),
-      })
-      .strict()
-      .refine(
-        (p) =>
-          p.provider === 'youtube'
-            ? /^[A-Za-z0-9_-]{11}$/.test(p.videoId)
-            : /^[0-9]{1,20}$/.test(p.videoId),
-        { path: ['videoId'], message: 'content.video.id-invalid' }
-      ),
-    fields: [
-      choice('provider', VIDEO_PROVIDERS),
-      textField('videoId', { localized: false }),
-      textField('title', { localized: true }),
-      textField('caption', { localized: true, multiline: true, optional: 'omit' }),
-      choice('width', WIDTHS),
-    ],
-    variants: { provider: VIDEO_PROVIDERS, width: WIDTHS },
-    localized: (p) => [...present(['title'], p.title), ...present(['caption'], p.caption)],
-    references: () => [],
-    examples: [
-      {
-        name: 'video-youtube',
-        props: {
-          provider: 'youtube',
-          videoId: 'dQw4w9WgXcQ',
-          title: { nl: 'Verslag van de mars', en: 'Report of the march' },
-        },
-      },
-      {
-        name: 'video-vimeo-wide',
-        props: {
-          provider: 'vimeo',
-          videoId: '76979871',
-          title: { nl: 'Interview met de wethouder', en: 'Interview with the alderman' },
-          caption: { nl: 'Opgenomen in maart.', en: 'Recorded in March.' },
-          width: 'wide',
-        },
-      },
-      {
-        name: 'video-full',
-        props: {
-          provider: 'youtube',
-          videoId: 'aqz-KE-bpKQ',
-          title: { nl: 'Korte film', en: 'Short film' },
-          width: 'full',
-        },
-      },
-    ],
-  }),
+  'video-embed': videoEmbedDefinition(WIDTHS),
 
   // A reference to an existing form definition: no copied fields or consent texts, no second
   // form engine (ADR 004 rule 6).

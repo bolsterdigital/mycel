@@ -9,6 +9,7 @@
 <script lang="ts">
   import {
     CONSENT_CATEGORIES,
+    EMBED_IDS,
     INTEGRATION_IDS,
     INTEGRATIONS,
     TAG_VENDOR_IDS,
@@ -61,7 +62,7 @@
     name="baseVersion"
     value={values ? String(values.baseVersion ?? state.version) : String(state.version)}
   />
-  {#each ['youtube', 'vimeo'] as const as id (id)}
+  {#each EMBED_IDS as id (id)}
     <Checkbox
       id="site-integrations-{id}"
       name={id}

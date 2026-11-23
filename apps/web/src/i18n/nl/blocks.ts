@@ -351,6 +351,7 @@ export const blocks: Partial<Record<UiKey, string>> = {
   'admin.block.option.pullquote': 'Uitgelicht citaat',
   'admin.block.option.youtube': 'YouTube',
   'admin.block.option.vimeo': 'Vimeo',
+  'admin.block.option.bunny-stream': 'Bunny Stream',
   'admin.block.option.default': 'Standaard',
   'admin.block.option.content': 'Tekstbreedte',
   'admin.block.option.wide': 'Breed',

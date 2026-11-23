@@ -145,6 +145,14 @@ export const TAG_VENDORS = {
 export type TagVendor = keyof typeof TAG_VENDORS;
 export const TAG_VENDOR_IDS = Object.keys(TAG_VENDORS) as [TagVendor, ...TagVendor[]];
 
+const BUNNY_STREAM_ORIGIN = 'https://iframe.mediadelivery.net';
+/** Bunny issues a numeric library id and a video UUID. Only this pair enters the player path. */
+export const BUNNY_STREAM_VIDEO_ID =
+  /^[1-9][0-9]{0,18}\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+export function bunnyStreamVideoUrl(id: string): string {
+  return `${BUNNY_STREAM_ORIGIN}/embed/${id.split('/').map(encodeURIComponent).join('/')}`;
+}
+
 /**
  * The catalogue. YouTube and Vimeo are the embeds the Dreamkit sites carry (10 of 12 sites);
  * Google Tag Manager is the one tag manager in that fleet with configured containers. A new entry
@@ -177,6 +185,18 @@ export const INTEGRATIONS = {
     csp: sources({ frame: ['https://player.vimeo.com'] }),
     fallback: 'A link to the video on Vimeo, also without JavaScript or when switched off.',
   },
+  'bunny-stream': {
+    version: 1,
+    kind: 'embed',
+    name: 'Bunny Stream',
+    vendor: 'bunny.net',
+    owner: PLATFORM_OWNER,
+    purpose: 'Play a Bunny Stream video in the page after the visitor clicks it.',
+    consent: 'click',
+    routes: 'public-content',
+    csp: sources({ frame: [BUNNY_STREAM_ORIGIN] }),
+    fallback: 'A link to the Bunny player, also without JavaScript or when switched off.',
+  },
   'google-tag-manager': {
     version: 1,
     kind: 'tag-manager',
@@ -200,7 +220,11 @@ export const INTEGRATIONS = {
 export type IntegrationId = keyof typeof INTEGRATIONS;
 export const INTEGRATION_IDS = Object.keys(INTEGRATIONS) as [IntegrationId, ...IntegrationId[]];
 /** The catalogue entries that are embeds, in catalogue order. */
-export const EMBED_IDS = ['youtube', 'vimeo'] as const satisfies readonly IntegrationId[];
+export const EMBED_IDS = [
+  'youtube',
+  'vimeo',
+  'bunny-stream',
+] as const satisfies readonly IntegrationId[];
 export type EmbedId = (typeof EMBED_IDS)[number];
 
 /**
@@ -241,6 +265,7 @@ export const IntegrationSettings = z
   .object({
     youtube: EmbedActivation,
     vimeo: EmbedActivation,
+    'bunny-stream': EmbedActivation.default({ enabled: false }),
     'google-tag-manager': GtmActivation,
   })
   .strict();
@@ -249,6 +274,7 @@ export type IntegrationSettings = z.infer<typeof IntegrationSettings>;
 export const DEFAULT_INTEGRATIONS: IntegrationSettings = {
   youtube: { enabled: false },
   vimeo: { enabled: false },
+  'bunny-stream': { enabled: false },
   'google-tag-manager': {
     enabled: false,
     containerId: null,

@@ -9,6 +9,7 @@
 // path form); HTML prepends it, Markdown makes the path absolute through `siteUrl`. Rejected:
 // storing finished hrefs, which would make the Markdown of a dev request carry the dev prefix.
 
+import { bunnyStreamVideoUrl, type EmbedId } from '@mycel/core';
 import type {
   DocumentHeader,
   CampaignCardReason,
@@ -339,7 +340,7 @@ export type RenderBlock = { id: string } & (
     }
   | {
       type: 'video-embed';
-      provider: 'youtube' | 'vimeo';
+      provider: EmbedId;
       url: string;
       /** The player's address, used only where the site placed that provider (`embeds.ts`). */
       player: string;
@@ -462,7 +463,8 @@ export interface CardPlaceholder {
 }
 
 /** The provider's own page for a video: a plain link, no embed (brief #8c § 2). */
-export function videoUrl(provider: 'youtube' | 'vimeo', videoId: string): string {
+export function videoUrl(provider: EmbedId, videoId: string): string {
+  if (provider === 'bunny-stream') return bunnyStreamVideoUrl(videoId);
   return provider === 'youtube'
     ? `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`
     : `https://vimeo.com/${encodeURIComponent(videoId)}`;
@@ -472,11 +474,16 @@ export function videoUrl(provider: 'youtube' | 'vimeo', videoId: string): string
  * The provider's player, without its tracking cookies: YouTube's nocookie host, Vimeo with `dnt`.
  * It starts playing, because the visitor's click on the play button is what loads it.
  */
-export function videoPlayerUrl(provider: 'youtube' | 'vimeo', videoId: string): string {
+export function videoPlayerUrl(provider: EmbedId, videoId: string): string {
+  if (provider === 'bunny-stream') return `${bunnyStreamVideoUrl(videoId)}?autoplay=true`;
   const id = encodeURIComponent(videoId);
   return provider === 'youtube'
     ? `https://www.youtube-nocookie.com/embed/${id}?autoplay=1`
     : `https://player.vimeo.com/video/${id}?dnt=1&autoplay=1`;
 }
 
-export const VIDEO_PROVIDER_NAMES = { youtube: 'YouTube', vimeo: 'Vimeo' } as const;
+export const VIDEO_PROVIDER_NAMES = {
+  youtube: 'YouTube',
+  vimeo: 'Vimeo',
+  'bunny-stream': 'Bunny Stream',
+} as const;

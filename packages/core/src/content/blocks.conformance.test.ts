@@ -448,7 +448,12 @@ describe('refusals', () => {
     });
     expect(BlockInput.safeParse(withId('youtube', 'dQw4w9WgXcQ')).success).toBe(true);
     expect(BlockInput.safeParse(withId('vimeo', '76979871')).success).toBe(true);
+    const bunnyId = '12345/12345678-abcd-4321-9876-0123456789ab';
+    expect(BlockInput.safeParse(withId('bunny-stream', bunnyId)).success).toBe(true);
     for (const [p, id] of [
+      ['bunny-stream', `https://iframe.mediadelivery.net/embed/${bunnyId}`],
+      ['bunny-stream', `${bunnyId}?autoplay=true`],
+      ['bunny-stream', '12345/../anything'],
       ['youtube', 'dQw4w9WgXc'],
       ['youtube', 'dQw4w9WgXc"'],
       ['vimeo', 'abc'],

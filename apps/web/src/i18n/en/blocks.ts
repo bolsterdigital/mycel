@@ -344,6 +344,7 @@ export const blocks = {
   'admin.block.option.pullquote': 'Pull quote',
   'admin.block.option.youtube': 'YouTube',
   'admin.block.option.vimeo': 'Vimeo',
+  'admin.block.option.bunny-stream': 'Bunny Stream',
   'admin.block.option.default': 'Default',
   'admin.block.option.content': 'Text width',
   'admin.block.option.wide': 'Wide',
