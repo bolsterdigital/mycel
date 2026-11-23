@@ -269,7 +269,7 @@
           value={m.focal.mode ?? 'explicit'}
           options={[
             { value: 'explicit', label: t('admin.placement.manual') },
-            { value: 'auto', label: t('admin.placement.auto') },
+            { value: m.focal.mode === 'auto' ? 'auto' : 'reset', label: t('admin.placement.auto') },
           ]}
         />
         <Field

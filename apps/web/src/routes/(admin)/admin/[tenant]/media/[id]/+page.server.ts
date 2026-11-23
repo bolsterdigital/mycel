@@ -6,6 +6,7 @@
 // count. Rejected: a usage list inside `media.get`, which would hand content titles to a
 // `media:read`-only key.
 import {
+  CENTRE,
   CreditKind,
   LicenceCode,
   UseCaseError,
@@ -118,8 +119,14 @@ function editorial(data: FormData, locales: readonly string[]) {
     photographerPersonId: orNull(text(data, 'photographerPersonId')),
     kind: CreditKind.catch('photo').parse(text(data, 'kind')),
   };
-  const mode = text(data, 'focal.mode') === 'auto' ? ('auto' as const) : ('explicit' as const);
-  const focal = { x: Number(text(data, 'focal.x')), y: Number(text(data, 'focal.y')), mode };
+  const x = Number(text(data, 'focal.x'));
+  const y = Number(text(data, 'focal.y'));
+  const selection = text(data, 'focal.mode');
+  // A coordinate edit keeps working from a newly uploaded image. The Reset option is
+  // presented only for a manually placed image, where its previous values can still be posted.
+  const staysAutomatic = selection === 'auto' && x === CENTRE.x && y === CENTRE.y;
+  const mode = selection === 'reset' || staysAutomatic ? ('auto' as const) : ('explicit' as const);
+  const focal = { x, y, mode };
   return {
     caption,
     credit,
