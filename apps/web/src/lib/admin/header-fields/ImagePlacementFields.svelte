@@ -6,6 +6,7 @@
   import { framingAttributes } from '../../blocks/framing.js';
   import type { MediaChoice } from '../media-choice.js';
   import { framingFrom } from './placement-fields.js';
+  import { Checkbox, Choices, Field } from '#lib/admin/ui/index.js';
 
   let {
     name,
@@ -52,46 +53,39 @@
 {#snippet controls(slot: 'framing' | 'narrow' | 'wide', label: string)}
   {@const key = `${name}.${slot}`}
   {@const mode = stored(`${key}.mode`) || 'inherit'}
-  <fieldset class="placement-controls" data-placement-slot={slot}>
-    <legend>{label}</legend>
-    <div class="placement-modes">
-      {#each ['inherit', 'auto', 'manual', 'full'] as const as choice (choice)}
-        <label>
-          <input
-            type="radio"
-            name="{key}.mode"
-            value={choice}
-            checked={mode === choice}
-            data-placement-mode
-          />
-          <span
-            >{t(
-              choice === 'inherit' && slot !== 'framing'
-                ? 'admin.placement.same'
-                : `admin.placement.${choice}`
-            )}</span
-          >
-        </label>
-      {/each}
-    </div>
+  <div class="placement-controls" data-placement-slot={slot}>
+    <Choices
+      id="{key}-mode"
+      name="{key}.mode"
+      legend={label}
+      {locale}
+      selected={[mode]}
+      options={(['inherit', 'auto', 'manual', 'full'] as const).map((value) => ({
+        value,
+        label: t(
+          value === 'inherit' && slot !== 'framing'
+            ? 'admin.placement.same'
+            : `admin.placement.${value}`
+        ),
+      }))}
+    />
     <div class="placement-position">
       {#each ['x', 'y'] as const as axis (axis)}
-        <label>
-          {t(`admin.placement.${axis}`)}
-          <input
-            type="number"
-            name="{key}.{axis}"
-            data-placement-axis={axis}
-            min="0"
-            max="100"
-            step="any"
-            inputmode="decimal"
-            value={stored(`${key}.${axis}`) || '50'}
-          />
-        </label>
+        <Field
+          id="{key}.{axis}"
+          name="{key}.{axis}"
+          type="number"
+          label={t(`admin.placement.${axis}`)}
+          {locale}
+          min="0"
+          max="100"
+          step="any"
+          inputmode="decimal"
+          value={stored(`${key}.${axis}`) || '50'}
+        />
       {/each}
     </div>
-  </fieldset>
+  </div>
 {/snippet}
 
 <details
@@ -142,10 +136,14 @@
       {@render controls('narrow', t('admin.placement.narrow'))}
       {@render controls('wide', t('admin.placement.wide'))}
     </details>
-    <label class="placement-reset">
-      <input name="{name}.reset" type="checkbox" data-placement-reset checked={reset} />
-      {t('admin.placement.reset')}
-    </label>
+    <div data-placement-reset>
+      <Checkbox
+        id="{name}-reset"
+        name="{name}.reset"
+        label={t('admin.placement.reset')}
+        checked={reset}
+      />
+    </div>
   </div>
 </details>
 
@@ -196,30 +194,9 @@
   .image-placement[data-layout='split'] img {
     aspect-ratio: 4 / 3;
   }
-  .placement-controls {
-    margin-block: 0.75rem;
-    min-width: 0;
-    border: 0;
-    padding: 0;
-  }
-  .placement-position input {
-    display: block;
-    font: inherit;
-    width: 100%;
-    min-height: 44px;
-    min-width: 0;
-  }
-  .placement-controls:not(:has(input[data-placement-mode][value='manual']:checked))
+  .placement-controls:not(:has(:global(input[type='radio'][value='manual']:checked)))
     .placement-position {
     display: none;
-  }
-  .placement-modes label,
-  .placement-reset {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
-    gap: 0.5rem;
-    overflow-wrap: break-word;
   }
   .placement-position {
     margin-block-start: 0.5rem;

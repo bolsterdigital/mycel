@@ -9,12 +9,12 @@ function frame(panel, slot) {
 }
 
 function read(panel, slot) {
-  if (panel.querySelector('[data-placement-reset]').checked) return { mode: 'inherit' };
+  if (panel.querySelector('[data-placement-reset] input').checked) return { mode: 'inherit' };
   const group = frame(panel, slot);
   return {
-    mode: group.querySelector('[data-placement-mode]:checked').value,
-    x: group.querySelector('[data-placement-axis="x"]'),
-    y: group.querySelector('[data-placement-axis="y"]'),
+    mode: group.querySelector('input[type="radio"]:checked').value,
+    x: group.querySelector('input[type="number"][name$=".x"]'),
+    y: group.querySelector('input[type="number"][name$=".y"]'),
   };
 }
 
@@ -68,7 +68,8 @@ function syncForm(event) {
   const form = target.closest('form');
   const panel = target.closest(panelSelector);
   if (panel) {
-    if (target.closest(slotSelector)) panel.querySelector('[data-placement-reset]').checked = false;
+    if (target.closest(slotSelector))
+      panel.querySelector('[data-placement-reset] input').checked = false;
     sync(panel);
     return;
   }

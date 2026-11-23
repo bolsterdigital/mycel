@@ -247,7 +247,7 @@ export async function exerciseImagePlacement(page: Page) {
   await page.goto(edit);
   await editorReady(page);
   await panel.locator(':scope > summary').click();
-  await panel.locator('[data-placement-reset]').check();
+  await panel.locator('[data-placement-reset] input').check();
   await reloadsEditor(page, () =>
     page
       .getByRole('button', { name: /^(Save|Opslaan)$/ })
