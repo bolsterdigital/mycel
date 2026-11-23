@@ -95,6 +95,7 @@ export async function exerciseSplitHeader(page: Page, request: APIRequestContext
       const style = (s: string) => getComputedStyle(document.querySelector(s)!);
       return {
         panel: box('.page-split-panel'),
+        heading: box('.page-split-panel h1'),
         media: box('.page-split-media'),
         header: box('main > header.page-split'),
         headingSize: Number.parseFloat(style('.page-split-panel h1').fontSize),
@@ -111,6 +112,9 @@ export async function exerciseSplitHeader(page: Page, request: APIRequestContext
       expect(boxes.media.left).toBeGreaterThanOrEqual(boxes.panel.right - 1);
       expect(boxes.headingSize).toBeGreaterThan(2 * boxes.leadSize);
       expect(boxes.align).toBe('start');
+      const topInset = boxes.heading.top - boxes.panel.top;
+      const startInset = boxes.heading.left - boxes.panel.left;
+      expect(Math.abs(topInset - startInset)).toBeLessThan(1);
     } else {
       expect(boxes.media.top).toBeGreaterThanOrEqual(boxes.panel.bottom - 1);
       expect(boxes.align).toBe('center');

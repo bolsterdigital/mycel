@@ -78,8 +78,7 @@
   }
   .page-split-panel {
     justify-items: start;
-    padding-block: max(var(--space-4), 4cqi);
-    padding-inline: clamp(var(--space-4), 8cqi, 7rem) var(--space-4);
+    padding: max(var(--space-4), 4cqi);
     text-align: start;
   }
   .page-split-panel h1 {
