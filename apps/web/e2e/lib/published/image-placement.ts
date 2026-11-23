@@ -234,7 +234,11 @@ export async function exerciseImagePlacement(page: Page) {
         .evaluateAll((labels) => labels.map((label) => label.getBoundingClientRect().height));
       expect(hitAreas.length).toBeGreaterThan(4);
       expect(hitAreas.every((height) => height >= 44)).toBe(true);
-      await crop.screenshot({ path: test.info().outputPath(`crop-${locale}-320-200.png`) });
+      const fields = crop.locator('[data-placement-slot="framing"]');
+      const manual = fields.getByRole('radio', { name: /^(Manual|Handmatig)$/ });
+      await manual.focus();
+      await expect(manual).toBeFocused();
+      await fields.screenshot({ path: test.info().outputPath(`crop-${locale}-320-200.png`) });
       if (isA11y()) await expectNoAxeViolations(narrow);
     } finally {
       await context.close();

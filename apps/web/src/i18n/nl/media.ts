@@ -3,7 +3,7 @@
 import type { UiKey } from '../en.js';
 
 export const media: Partial<Record<UiKey, string>> = {
-  'admin.placement.reset': 'Herstel alle uitsnedes naar de instelling uit Media',
+  'admin.placement.reset': 'Herstel instelling uit Media',
   'admin.placement.label': 'Uitsnede',
   'admin.placement.inherit': 'Gebruik instelling uit Media',
   'admin.placement.same': 'Gebruik algemene uitsnede',

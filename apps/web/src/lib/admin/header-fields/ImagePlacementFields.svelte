@@ -204,6 +204,7 @@
   }
   .placement-position input {
     display: block;
+    font: inherit;
     width: 100%;
     min-height: 44px;
     min-width: 0;

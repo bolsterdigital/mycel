@@ -1,7 +1,7 @@
 // The media library.
 
 export const media = {
-  'admin.placement.reset': 'Reset all crops to the Media setting',
+  'admin.placement.reset': 'Reset to Media setting',
   'admin.placement.label': 'Crop',
   'admin.placement.inherit': 'Use Media setting',
   'admin.placement.same': 'Use general crop',
