@@ -89,4 +89,64 @@ describe('execute', () => {
     expect(revision.document.blocks.map((b) => b.id)).toEqual(['a']);
     expect(JSON.stringify(revision.document)).toContain(result.ids[LATER]!);
   });
+
+  it("links a split header's button in round two, and leaves out one whose item is gone", async () => {
+    const invoker = new Invoker(buildRegistry(), new MemoryUnitOfWork());
+    const principal = systemPrincipal(TENANT, 'importer');
+    const split = (ref: string, slug: string, itemId: string): PlannedItem => {
+      const planned = page(ref, slug, []);
+      Object.assign(planned.document, {
+        presentation: {
+          header: 'split',
+          action: { label: { nl: 'Word actief' }, target: { kind: 'item', itemId } },
+        },
+      });
+      return planned;
+    };
+    const plan: ImportPlan = {
+      site: { title: 'Proef', url: 'https://example.org' },
+      defaultLocale: 'nl',
+      featuredAsHeader: false,
+      locales: ['nl'],
+      media: [],
+      people: [],
+      groups: [],
+      sections: [],
+      items: [
+        split('00000000-0000-4000-8004-000000000001', 'home', LATER),
+        split('00000000-0000-4000-8004-000000000003', 'kwijt', NEVER),
+        page(LATER, 'later', []),
+      ],
+      campaigns: [],
+      report: [],
+    };
+    const result = await execute(plan, {
+      invoker,
+      principal,
+      media: () => Promise.resolve({ error: 'none' }),
+    });
+    expect(result.report).toEqual([
+      {
+        code: 'block.reference-missing',
+        block: 'presentation.action',
+        position: 0,
+        postId: 3,
+        title: 'kwijt',
+      },
+    ]);
+    const doc = async (slug: string) =>
+      (
+        await invoker.run(useCases.getItem, principal, {
+          itemId: result.items.find((i) => i.slug === slug)!.itemId,
+        })
+      ).revision.document;
+    expect(await doc('home')).toMatchObject({
+      presentation: {
+        header: 'split',
+        action: { target: { kind: 'item', itemId: result.ids[LATER] } },
+      },
+    });
+    expect(await doc('kwijt')).toMatchObject({ presentation: { header: 'split' } });
+    expect(await doc('kwijt')).not.toHaveProperty('presentation.action');
+  });
 });
