@@ -147,3 +147,9 @@
   z-index: 1;
   background: var(--color-primary-bg);
 }
+
+@media (forced-colors: active) {
+  .managed-video-play {
+    border: 1px solid ButtonText;
+  }
+}
