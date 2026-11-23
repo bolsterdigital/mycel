@@ -32,7 +32,11 @@ import {
 import { exerciseLanguagePanel } from './lib/site-navigation/chrome/language-panel';
 import { exerciseSticky, seedSticky } from './lib/site-navigation/chrome/sticky';
 import { exerciseOverviewCards } from './lib/blocks/overview-cards';
-import { exerciseFloatingPairs } from './lib/navigation/pairs';
+import {
+  exerciseBylinePair,
+  exerciseCardsPair,
+  exerciseFloatingPairs,
+} from './lib/navigation/pairs';
 import { ADMIN_LOCALES, ADMIN_ROUTES, type GateRoute, PUBLIC_ROUTES } from './routes';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { testTenant } from '@mycel/db/testing';
@@ -684,6 +688,10 @@ test.describe('overview-cards', () => {
     onlyA11y('the floating pairs are a script');
     await exerciseFloatingPairs(page);
   });
+  test('a Cards link opens its article and returns to its title', async ({ page }) =>
+    exerciseCardsPair(page));
+  test('a byline opens the profile and returns to the linked author', async ({ page }) =>
+    exerciseBylinePair(page));
 });
 
 // Browser axe over every block example in the registry (TODO #30B, brief renderer-regressions

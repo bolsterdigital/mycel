@@ -7,4 +7,4 @@ export function side(input: {
   other: string;
   card: boolean;
   pair: { list: string; item: string } | null;
-}): 'card' | 'item' | null;
+}): 'card' | 'item' | 'landing' | null;

@@ -66,10 +66,10 @@ describe('the side of a pair', () => {
   it('a landing page and its thank-you view are both headers', () => {
     const thanks = `${ITEM}/thanks`;
     expect(side({ moment: 'swap', here: ITEM, other: thanks, card: false, pair: null })).toBe(
-      'item'
+      'landing'
     );
     expect(side({ moment: 'reveal', here: thanks, other: ITEM, card: false, pair: null })).toBe(
-      'item'
+      'landing'
     );
   });
 });

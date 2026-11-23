@@ -4,7 +4,9 @@
 //
 // - an overview or campaign card and the item's header: `doc-media` (image), `doc-title` (title)
 //   and, on a campaign, `campaign-count`;
+// - a Cards block CTA and the page it opens: `doc-title` (the card title and the page heading);
 // - a person card and the person's page: `person-portrait`, `doc-title`;
+// - an article's linked author and their profile portrait: `person-portrait`;
 // - a campaign's landing page and its thank-you view (`<path>/thanks`): the same header and count.
 //
 // A cross-document view transition pairs elements by `view-transition-name`, so this module names
@@ -12,9 +14,8 @@
 // in the new one (which is why the page loads it with `blocking="render"`: a later module would
 // miss the first render). A name is a `data-transition` attribute that site-chrome.css turns into
 // the name, so no element gets a style attribute (the public CSP and the page's `[style]` check).
-// A page names its header only when the other side named a card for it: the list side records the
-// pair in `sessionStorage`, and the item page names its header for that pair alone, so two
-// unrelated pages never morph one title into another. Back to the list is the same pair reversed.
+// The source page records the pair and source kind in `sessionStorage`. The destination names
+// the corresponding header parts for that pair alone. Going back reverses the same pair.
 //
 // Without this script, without support (`event.viewTransition` absent) or with reduced motion
 // (the theme's rule then never starts a transition) nothing is named: PR 1's cross-fade, or
@@ -56,14 +57,15 @@ export function isThanks(page, thanks) {
 
 /**
  * Which side of a pair this page is in the navigation between `here` and `other`: `card` names
- * the card that links to `other`, `item` names this page's header, `null` names nothing.
+ * the source that links to `other`, `item` names this page's paired header parts, `landing`
+ * names the campaign header for a thank-you navigation, and `null` names nothing.
  * `moment` is `swap` (the old page) or `reveal` (the new one); `card` whether this page has a
  * card that links to `other`; `pair` the `{ list, item }` addresses the last card navigation
- * recorded. On a swap from a card the caller records `{ list: here, item: other }`.
+ * recorded. On a swap from a source link the caller records the pair and its source kind.
  */
 export function side({ moment, here, other, card, pair }) {
   const same = (a, b) => a != null && b != null && documentOf(a) === documentOf(b);
-  if (moment === 'swap' ? isThanks(here, other) : isThanks(other, here)) return 'item';
+  if (moment === 'swap' ? isThanks(here, other) : isThanks(other, here)) return 'landing';
   if (moment === 'swap' && card) return 'card';
   if (!pair) return null;
   if (same(pair.list, other) && same(pair.item, here)) return 'item';
@@ -74,8 +76,10 @@ export function side({ moment, here, other, card, pair }) {
 const KEY = 'mycel.transition-pair';
 const CARD = '.overview-card, .campaign-card, .person-card';
 const HEADINGS = 'h2, h3, h4, h5, h6';
-/** The card links: the title link of each card, the one link a card's whole surface opens. */
-const CARD_LINKS = `:is(${CARD}) :is(${HEADINGS}) a[href]`;
+const CARDS_CTA = '.cards-item > .actions > a[href]';
+const BYLINE_LINK = '.page-meta > a[href]';
+/** Title links, Cards actions and the linked names in an article's byline. */
+const SOURCE_LINKS = `:is(${CARD}) :is(${HEADINGS}) a[href], ${CARDS_CTA}, ${BYLINE_LINK}`;
 
 const named = [];
 
@@ -105,9 +109,9 @@ function writePair(pair) {
   }
 }
 
-/** The card link on this page that leads to `other`, if any. */
-function cardLink(other) {
-  const links = [...document.querySelectorAll(CARD_LINKS)];
+/** The first source link on this page that leads to `other`, if any. */
+function sourceLink(other) {
+  const links = [...document.querySelectorAll(SOURCE_LINKS)];
   return (
     links[
       cardFor(
@@ -118,7 +122,15 @@ function cardLink(other) {
   );
 }
 
-function nameCard(link) {
+function nameSource(link) {
+  if (link.matches(BYLINE_LINK)) {
+    name(link, 'person-portrait');
+    return 'byline';
+  }
+  if (link.matches(CARDS_CTA)) {
+    name(link.closest('.cards-item').querySelector(`:scope > :is(${HEADINGS})`), 'doc-title');
+    return 'cta';
+  }
   const card = link.closest(CARD);
   const person = card.matches('.person-card');
   name(
@@ -127,11 +139,18 @@ function nameCard(link) {
   );
   name(link.closest(HEADINGS), 'doc-title');
   if (!person) name(card.querySelector('.campaign-count'), 'campaign-count');
+  return 'card';
 }
 
-function nameItem() {
+function nameItem(source) {
   const main = document.querySelector('main');
   if (!main) return;
+  if (source === 'byline') {
+    name(main.querySelector('.person-portrait img'), 'person-portrait');
+    return;
+  }
+  name(main.querySelector('h1'), 'doc-title');
+  if (source === 'cta') return;
   name(
     main.querySelector(
       ':is(.page-hero, .page-cover, .page-split-media, .campaign-landing > .campaign-hero) img'
@@ -139,19 +158,19 @@ function nameItem() {
     'doc-media'
   );
   name(main.querySelector('.person-portrait img'), 'person-portrait');
-  name(main.querySelector('h1'), 'doc-title');
   name(main.querySelector('.campaign-count'), 'campaign-count');
 }
 
 function prepare(moment, other, transition) {
   const here = location.href;
-  const link = cardLink(other);
+  const link = sourceLink(other);
   const pair = readPair();
   const chosen = side({ moment, here, other, card: link !== null, pair });
   if (chosen === 'card' && link) {
-    if (moment === 'swap') writePair({ list: here, item: other });
-    nameCard(link);
-  } else if (chosen === 'item') nameItem();
+    const source = nameSource(link);
+    if (moment === 'swap') writePair({ list: here, item: other, source });
+  } else if (chosen === 'item') nameItem(pair.source);
+  else if (chosen === 'landing') nameItem('card');
   transition.finished.then(clear, clear);
 }
 
