@@ -225,6 +225,10 @@ export function themeCss(theme: ResolvedTheme): string {
     `--font-heading: ${fontStack(theme.headingFont)};`,
     ...(theme.captionFont === 'mono' ? [`--font-caption: ${CAPTION_MONO};`] : []),
     `--heading-weight: ${theme.headingWeight};`,
+    // Capitals set a little wider, or they read as a block (MY-283); absent is as written.
+    ...(theme.headingCase === 'upper'
+      ? ['--heading-case: uppercase;', '--heading-tracking: 0.04em;']
+      : []),
     ...sizes,
     `--measure: ${num(theme.measure)}ch;`,
     `--radius: ${num(theme.radius / 16)}rem;`,

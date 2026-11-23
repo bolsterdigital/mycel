@@ -40,6 +40,11 @@ export const site = {
     'The typeface of captions and credits under photos, videos and galleries.',
   'admin.site.captionFont.body': 'As the body text',
   'admin.site.captionFont.mono': 'Monospace (typewriter)',
+  'admin.site.headingCase': 'Headings and buttons',
+  'admin.site.headingCase.hint':
+    'How headings, card titles and buttons are set. Capitals only change how they look; the text itself stays as written.',
+  'admin.site.headingCase.normal': 'As written',
+  'admin.site.headingCase.upper': 'In capitals',
   'admin.site.images': 'Images',
   'admin.site.defaultImage': 'Default image',
   'admin.site.defaultImage.hint':

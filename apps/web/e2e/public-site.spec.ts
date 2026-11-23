@@ -1851,10 +1851,16 @@ test.describe('site-settings', () => {
     await expect(dropCap).toHaveValue('off');
     await page.getByLabel('Caption typeface').selectOption('mono');
     await page.getByLabel('Header colour').selectOption('surface');
+    await page.getByLabel('Headings and buttons').selectOption('upper');
     await saveTheme(page);
     await savedOk(page);
     const chrome = { header: 'surface', footer: 'primary' };
-    expect((await theme()).value).toMatchObject({ dropCap: 'off', captionFont: 'mono', chrome });
+    expect((await theme()).value).toMatchObject({
+      dropCap: 'off',
+      captionFont: 'mono',
+      headingCase: 'upper',
+      chrome,
+    });
     expect(await searchTag()).not.toBe(searchBefore);
     const image = { mediaId: mediaId!, decorative: true, alt: null, caption: { nl: 'Bij' } };
     const props = { ...image, credit: { work: null, photographer: 'Maker' } };
@@ -1876,6 +1882,8 @@ test.describe('site-settings', () => {
     await page.goto(`/${slug}/mono`);
     for (const part of ['figcaption', '.credit'])
       await expect(page.locator(`.image ${part}`)).toHaveCSS('font-family', CAPTION_MONO);
+    // Capitals (MY-283) are a look in CSS, so the text and its accessible name stay as written.
+    await expect(page.locator('main h1')).toHaveCSS('text-transform', 'uppercase');
   });
 
   test('single-locale site saves without another translation', async ({ page }) => {
