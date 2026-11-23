@@ -19,7 +19,7 @@ import { asOwner, withInvoker } from '../invoker';
 import { NARROW } from '../layout';
 
 const PLAYERS =
-  /^https:\/\/(www\.youtube-nocookie\.com|player\.vimeo\.com|iframe\.mediadelivery\.net|[^/]*youtube\.com)\//;
+  /^https:\/\/(www\.youtube-nocookie\.com|player\.vimeo\.com|player\.mediadelivery\.net|[^/]*youtube\.com)\//;
 
 async function seed(slug: string) {
   const tenant = await asOwner((owner) =>
@@ -114,12 +114,12 @@ export async function exerciseVideoEmbeds(page: Page) {
     const bunny = await page.request.get(path);
     const bunnyBody = await bunny.text();
     expect(bunny.headers()['content-security-policy']).toContain(
-      "frame-src 'self' https://iframe.mediadelivery.net"
+      "frame-src 'self' https://player.mediadelivery.net"
     );
     expect(bunny.headers()['content-security-policy']).not.toContain('youtube-nocookie');
     expect(bunnyBody.match(/data-embed-src=/g)).toHaveLength(1);
     expect(bunnyBody).toContain(
-      'https://iframe.mediadelivery.net/embed/12345/12345678-abcd-4321-9876-0123456789ab?autoplay=true'
+      'https://player.mediadelivery.net/embed/12345/12345678-abcd-4321-9876-0123456789ab?autoplay=true'
     );
     await page.goto(path);
     const bunnyPlay = page.getByRole('button', { name: /De rivierotter/ });
@@ -130,7 +130,7 @@ export async function exerciseVideoEmbeds(page: Page) {
       await expect(page.locator('iframe[title="De rivierotter"]')).toBeFocused();
       await expect
         .poll(() => asked.map((r) => new URL(r.url()).host))
-        .toEqual(['iframe.mediadelivery.net']);
+        .toEqual(['player.mediadelivery.net']);
       asked.length = 0;
     } else {
       await expect(bunnyPlay).toBeHidden();

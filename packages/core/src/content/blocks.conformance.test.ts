@@ -451,7 +451,7 @@ describe('refusals', () => {
     const bunnyId = '12345/12345678-abcd-4321-9876-0123456789ab';
     expect(BlockInput.safeParse(withId('bunny-stream', bunnyId)).success).toBe(true);
     for (const [p, id] of [
-      ['bunny-stream', `https://iframe.mediadelivery.net/embed/${bunnyId}`],
+      ['bunny-stream', `https://player.mediadelivery.net/embed/${bunnyId}`],
       ['bunny-stream', `${bunnyId}?autoplay=true`],
       ['bunny-stream', '12345/../anything'],
       ['youtube', 'dQw4w9WgXc'],

@@ -145,7 +145,7 @@ export const TAG_VENDORS = {
 export type TagVendor = keyof typeof TAG_VENDORS;
 export const TAG_VENDOR_IDS = Object.keys(TAG_VENDORS) as [TagVendor, ...TagVendor[]];
 
-const BUNNY_STREAM_ORIGIN = 'https://iframe.mediadelivery.net';
+const BUNNY_STREAM_ORIGIN = 'https://player.mediadelivery.net';
 /** Bunny issues a numeric library id and a video UUID. Only this pair enters the player path. */
 export const BUNNY_STREAM_VIDEO_ID =
   /^[1-9][0-9]{0,18}\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
