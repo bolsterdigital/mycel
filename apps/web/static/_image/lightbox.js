@@ -4,7 +4,7 @@
 // room around it, its caption under it, actual size on a click with dragging or scrolling to pan,
 // the arrows through the images of one gallery. Dreamkit's PhotoSwipe behaviour, kept
 // (wings-media-blocks `lightbox-config.js`), on what the browser already does: showModal() makes
-// the page inert and closes on Escape; the focus goes back to the link explicitly.
+// the page inert and dispatches cancel on Escape; the focus goes back to the link explicitly.
 //
 // The words come from the page (`data-lightbox-*` on the figure or gallery, from the catalogs), so
 // this file knows no language. Every node is made with createElement and textContent and the
@@ -39,6 +39,48 @@ let slides = [];
 let index = 0;
 let opener = null;
 let drag = null;
+let updating = false;
+let transition = null;
+
+// A single image has the name in each capture, even on a page with several galleries.
+// The dialog changes in the update callback, so its native focus behaviour runs in either path.
+function changeView(from, to, update) {
+  if (updating) return;
+  if (
+    !from ||
+    !to ||
+    transition ||
+    typeof document.startViewTransition !== 'function' ||
+    !matchMedia('(prefers-reduced-motion: no-preference)').matches
+  ) {
+    transition?.skipTransition();
+    update();
+    return;
+  }
+  const name = 'lightbox-shared-image';
+  updating = true;
+  from.classList.add(name);
+  transition = document.startViewTransition(() => {
+    to.classList.add(name);
+    from.classList.remove(name);
+    try {
+      update();
+    } finally {
+      updating = false;
+    }
+  });
+  const cleanup = () => {
+    to.classList.remove(name);
+    transition = null;
+  };
+  // A skipped animation still runs its update. Either outcome releases the temporary name.
+  transition.ready.catch(() => {});
+  transition.finished.then(cleanup, cleanup);
+}
+
+function galleryThumbnail(link) {
+  return link.closest('[data-page-transitions] .gallery') ? link.querySelector('img') : null;
+}
 
 function node(tag, className, attrs = {}) {
   const el = document.createElement(tag);
@@ -94,7 +136,11 @@ function build(words) {
   dialog.append(count, close, stage, previous, next, zoom, caption);
   document.body.append(dialog);
 
-  close.addEventListener('click', () => dialog.close());
+  close.addEventListener('click', closeBox);
+  dialog.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    closeBox();
+  });
   previous.addEventListener('click', () => go(index - 1));
   next.addEventListener('click', () => go(index + 1));
   zoom.addEventListener('click', () => setZoom(!dialog.classList.contains('zoomed')));
@@ -108,7 +154,7 @@ function build(words) {
     if (moved) return;
     if (zoomed && (event.target === stage || event.target === img)) setZoom(false);
     else if (event.target === img && !zoom.hidden) setZoom(true, event);
-    else if (event.target === dialog || event.target === stage) dialog.close();
+    else if (event.target === dialog || event.target === stage) closeBox();
   });
   dialog.addEventListener('keydown', (event) => {
     if (slides.length < 2 || dialog.classList.contains('zoomed')) return;
@@ -134,14 +180,24 @@ function build(words) {
     stage.scrollTop = drag.top - dy;
   });
   window.addEventListener('resize', () => dialog.open && fitZoom());
-  dialog.addEventListener('close', () => {
+  return { dialog, count, close, stage, img, previous, next, zoom, caption };
+}
+
+function closeBox() {
+  const { dialog, img } = box;
+  // A different slide or a panned image cannot match the thumbnail that regains focus.
+  const thumbnail =
+    opener === slides[index].link && !dialog.classList.contains('zoomed')
+      ? galleryThumbnail(opener)
+      : null;
+  changeView(img, thumbnail, () => {
+    dialog.close();
     setZoom(false);
     img.removeAttribute('src');
     const back = opener;
     opener = null;
     back?.focus();
   });
-  return { dialog, count, close, stage, img, previous, next, zoom, caption };
 }
 
 /** The zoom button only where actual size is larger than the fitted image. */
@@ -230,15 +286,18 @@ async function open(link) {
     count: d.lightboxCount,
   };
   await styled;
+  if (updating || box?.dialog.open) return;
   if (!box) box = build(words);
-  box.words = words;
-  const links = [...group.querySelectorAll('a.enlarge')];
-  slides = links.map(slideOf);
-  index = Math.max(0, links.indexOf(link));
-  opener = link;
-  box.dialog.showModal();
-  box.close.focus();
-  show();
+  changeView(galleryThumbnail(link), box.img, () => {
+    box.words = words;
+    const links = [...group.querySelectorAll('a.enlarge')];
+    slides = links.map(slideOf);
+    index = Math.max(0, links.indexOf(link));
+    opener = link;
+    box.dialog.showModal();
+    box.close.focus();
+    show();
+  });
 }
 
 document.addEventListener('click', (event) => {

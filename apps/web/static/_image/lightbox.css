@@ -161,7 +161,29 @@ dialog.lightbox::backdrop {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .lightbox-image {
-    transition: opacity 120ms ease-out;
+  .lightbox-shared-image {
+    view-transition-name: lightbox-image;
+  }
+
+  /* Only the photo moves. The new page or opaque dialog is already behind it, so the
+     dialog's text and controls keep their contrast during the transition. */
+  :root:has(.lightbox-shared-image) :is(.site-header, .site-footer) {
+    view-transition-name: none;
+  }
+  :root:has(.lightbox-shared-image)::view-transition-old(root) {
+    display: none;
+  }
+  :root:has(.lightbox-shared-image)::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+  ::view-transition-group(lightbox-image) {
+    animation-duration: 250ms;
+    animation-timing-function: ease-out;
+  }
+  ::view-transition-old(lightbox-image),
+  ::view-transition-new(lightbox-image) {
+    height: 100%;
+    object-fit: contain;
   }
 }

@@ -66,7 +66,9 @@
   <a class="public-skip" href="#public-main">{t('public.skip')}</a>
   <SiteHeader chrome={data.chrome} locale={data.locale} {current} {languages} />
 {/if}
-<div id="public-main">{@render children()}</div>
+<div id="public-main" data-page-transitions={data.theme?.transitions ? '' : undefined}>
+  {@render children()}
+</div>
 {#if data.chrome}<SiteFooter
     chrome={data.chrome}
     credit={data.credit}
