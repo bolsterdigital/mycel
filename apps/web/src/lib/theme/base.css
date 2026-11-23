@@ -273,9 +273,9 @@
   .image img {
     width: 100%;
   }
-  /* A wide or full background keeps its text on the content rail, gutters included. Use the
-     page width (`100cqi`) for this bound so each block type uses the same gutters. */
-  .page :is(.cta, .quote, .form) > * {
+  /* A wide or full background keeps its text on the content rail, gutters included. This also
+     keeps a video's frame and caption together on the same reading rail. */
+  .page :is(.cta, .quote, .form, .video) > * {
     max-width: min(var(--content-width), 100cqi - 2 * var(--gutter, 0px));
     margin-inline: auto;
   }
