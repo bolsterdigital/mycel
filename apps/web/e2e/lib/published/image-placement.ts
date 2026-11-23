@@ -229,11 +229,14 @@ export async function exerciseImagePlacement(page: Page) {
       );
       await setTextSize(narrow, '200%');
       await layoutGate(narrow, `image placement ${locale}`, scope);
-      const hitAreas = await crop
-        .locator('label:visible')
-        .evaluateAll((labels) => labels.map((label) => label.getBoundingClientRect().height));
+      const hitAreas = await crop.locator('label:visible').evaluateAll((labels) =>
+        labels.map((label) => {
+          const { width, height } = label.getBoundingClientRect();
+          return { width, height, label: label.textContent?.trim() };
+        })
+      );
       expect(hitAreas.length).toBeGreaterThan(4);
-      expect(hitAreas.every((height) => height >= 44)).toBe(true);
+      expect(hitAreas.filter(({ height, width }) => width < 44 || height < 44)).toEqual([]);
       const fields = crop.locator('[data-placement-slot="framing"]');
       const manual = fields.getByRole('radio', { name: /^(Manual|Handmatig)$/ });
       await manual.focus();

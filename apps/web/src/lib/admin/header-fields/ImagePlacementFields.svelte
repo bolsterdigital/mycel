@@ -194,6 +194,12 @@
   .image-placement[data-layout='split'] img {
     aspect-ratio: 4 / 3;
   }
+  .image-placement :global(.ui-choice > label) {
+    display: flex;
+    align-items: center;
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
   .placement-controls:not(:has(:global(input[type='radio'][value='manual']:checked)))
     .placement-position {
     display: none;
