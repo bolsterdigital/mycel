@@ -1,6 +1,6 @@
 // MY-293: the public landing and full card take the same colours from a real site theme.
 // Computed paint checks the active media query and consuming selectors, which tokens alone miss.
-import { DEFAULT_THEME, systemPrincipal, useCases } from '@mycel/core';
+import { DEFAULT_THEME, systemPrincipal, useCases, type Palette } from '@mycel/core';
 import { testTenant } from '@mycel/db/testing';
 import sharp from 'sharp';
 import { expect, test, type Page } from '@playwright/test';
@@ -22,6 +22,25 @@ const colours = {
     campaignProgressFill: '#77d5ec',
   },
 };
+
+const colourField = (page: Page, field: string) =>
+  page.locator(`input[type="text"][name="light.${field}"]`);
+
+export async function enterCampaignThemeColours(page: Page) {
+  const { campaignForm, campaignProgress, campaignProgressFill } = colours.light;
+  for (const side of ['foreground', 'background'] as const) {
+    await colourField(page, `campaignForm.${side}`).fill(campaignForm[side]);
+    await colourField(page, `campaignProgress.${side}`).fill(campaignProgress[side]);
+  }
+  await colourField(page, 'campaignProgressFill').fill(campaignProgressFill);
+}
+
+export async function expectCampaignThemeColours(page: Page, palette: Palette) {
+  expect(palette).toMatchObject(colours.light);
+  await expect(colourField(page, 'campaignProgressFill')).toHaveValue(
+    colours.light.campaignProgressFill
+  );
+}
 
 const rgb = (hex: string) =>
   `rgb(${[1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16)).join(', ')})`;

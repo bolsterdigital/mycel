@@ -4,6 +4,10 @@
 // below was a spec of its own until TODO #50 folded the suite to its budget (testing.md
 // § End-to-end flows); each keeps its own fixtures.
 
+import {
+  enterCampaignThemeColours,
+  expectCampaignThemeColours,
+} from './lib/campaigns/action-colours';
 import { exerciseOverview } from './lib/blocks/overview';
 import { exerciseEventPage } from './lib/events/event-page';
 import { exerciseAgenda } from './lib/events/agenda';
@@ -1736,12 +1740,7 @@ test.describe('site-settings', () => {
     await card('light', 2, 'background').fill('#ffd54f');
     await card('dark', 1, 'foreground').fill('');
     await card('dark', 1, 'background').fill('');
-    const campaign = (field: string) => page.locator(`input[type="text"][name="light.${field}"]`);
-    await campaign('campaignForm.foreground').fill('#142338');
-    await campaign('campaignForm.background').fill('#9ad7ee');
-    await campaign('campaignProgress.foreground').fill('#16263b');
-    await campaign('campaignProgress.background').fill('#f5f7fa');
-    await campaign('campaignProgressFill').fill('#304865');
+    await enterCampaignThemeColours(page);
     await saveTheme(page);
     await savedOk(page);
     const theme = (await themeState(tenantId)).value;
@@ -1751,12 +1750,7 @@ test.describe('site-settings', () => {
       { foreground: '#000000', background: '#ffd54f' },
     ]);
     expect(theme.palettes.dark.cardAccents).toEqual([WALK.dark[0]]);
-    expect(theme.palettes.light).toMatchObject({
-      campaignForm: { foreground: '#142338', background: '#9ad7ee' },
-      campaignProgress: { foreground: '#16263b', background: '#f5f7fa' },
-      campaignProgressFill: '#304865',
-    });
-    await expect(campaign('campaignProgressFill')).toHaveValue('#304865');
+    await expectCampaignThemeColours(page, theme.palettes.light);
     // A half-filled card is refused by core, not completed by the form; the light walk stays.
     await card('light', 3, 'background').fill('#123456');
     await saveTheme(page);
