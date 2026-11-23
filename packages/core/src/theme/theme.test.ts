@@ -21,6 +21,30 @@ const withLight = (patch: Partial<Palette>): ThemeInput => ({
 });
 
 describe('contrast arithmetic', () => {
+  it('validates a highlighted CTA pair and a button shape independently of surface radius', () => {
+    const previous = { ...DEFAULT_THEME, buttonShape: undefined };
+    expect(Theme.parse(previous).buttonShape).toBe('theme');
+    expect(Theme.parse({ ...previous, radius: 4, buttonShape: 'pill' })).toMatchObject({
+      radius: 4,
+      buttonShape: 'pill',
+    });
+    expect(ThemeInput.safeParse({ buttonShape: '50%' }).success).toBe(false);
+    const light = DEFAULT_THEME.palettes.light;
+    const withHighlight = (foreground: string) => ({
+      palettes: {
+        ...DEFAULT_THEME.palettes,
+        light: { ...light, ctaHighlight: { foreground, background: '#c700bf' } },
+      },
+    });
+    expect(Theme.safeParse(withHighlight('#ffffff')).success).toBe(true);
+    const invalid = Theme.safeParse(withHighlight('#c600bf'));
+    expect(invalid.success).toBe(false);
+    if (!invalid.success)
+      expect(invalid.error.issues.map((issue) => issue.path.join('.'))).toContain(
+        'palettes.light.ctaHighlight'
+      );
+  });
+
   it('knows black on white and identical colours', () => {
     expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21, 10);
     expect(contrastRatio('#ffffff', '#000000')).toBeCloseTo(21, 10);

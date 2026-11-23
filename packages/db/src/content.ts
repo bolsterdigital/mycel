@@ -13,13 +13,13 @@ import { sql, type Kysely, type RawBuilder, type Selectable } from 'kysely';
 import {
   Actor,
   Author,
-  ContentDocument,
+  type ContentDocument,
   documentReferences,
   Pattern,
   Revision,
   Section,
   AccessTier,
-  upgradeFaqV1InDocument,
+  upgradeBlockVersions,
   type ContentRepository,
   type EntityRepository,
   type PatternRepository,
@@ -33,6 +33,7 @@ import {
 } from '@mycel/core';
 import type { Database } from './infra/schema.js';
 import { listPublished, publishedCards } from './content/published.js';
+import { readableDocument } from './content/read-document.js';
 import { indexPublished, searchPublished } from './content/search.js';
 import { toIso } from './infra/dates.js';
 
@@ -41,15 +42,6 @@ type ItemRow = Selectable<Database['content_items']>;
 type LocaleRow = Selectable<Database['content_item_locales']>;
 
 const date = (v: Date | string | null): Date | null => (v === null ? null : new Date(v));
-
-/** A stored document as a list reads it; null when it no longer validates, the upgrade included. */
-function readableDocument(stored: unknown): ContentDocument | null {
-  try {
-    return ContentDocument.parse(upgradeFaqV1InDocument(stored));
-  } catch {
-    return null;
-  }
-}
 
 /** Keyset page: `limit + 1` rows were fetched, newest first. */
 function paged<T extends { id: string }>(rows: T[], limit: number): Paged<T> {
@@ -560,7 +552,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
             createdAt: toIso(r.created_at),
             actor: r.actor,
             ...(r.provenance ? { provenance: r.provenance } : {}),
-            document: upgradeFaqV1InDocument(r.document),
+            document: upgradeBlockVersions(r.document),
           })
         : null;
     },
@@ -819,15 +811,17 @@ export function accessTierRepository(trx: Trx, tenantId: string): SluggedReposit
 
 export function patternRepository(trx: Trx, tenantId: string): PatternRepository {
   const toPattern = (r: Selectable<Database['patterns']>): Pattern =>
-    Pattern.parse({
-      id: r.id,
-      name: r.name,
-      ...(r.description ? { description: r.description } : {}),
-      intendedType: r.intended_type,
-      blocks: r.blocks,
-      createdAt: toIso(r.created_at),
-      updatedAt: toIso(r.updated_at),
-    });
+    Pattern.parse(
+      upgradeBlockVersions({
+        id: r.id,
+        name: r.name,
+        ...(r.description ? { description: r.description } : {}),
+        intendedType: r.intended_type,
+        blocks: r.blocks,
+        createdAt: toIso(r.created_at),
+        updatedAt: toIso(r.updated_at),
+      })
+    );
   const fields = (p: Pattern) => ({
     name: JSON.stringify(p.name),
     description: p.description ? JSON.stringify(p.description) : null,

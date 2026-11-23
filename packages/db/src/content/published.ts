@@ -11,14 +11,9 @@
 // document with core's schema (a whole document per row for three fields).
 
 import { sql, type Kysely } from 'kysely';
-import {
-  ContentDocument,
-  upgradeFaqV1InDocument,
-  type ContentRepository,
-  type ContentType,
-  type PublishedEntry,
-} from '@mycel/core';
+import type { ContentRepository, ContentType, PublishedEntry } from '@mycel/core';
 import type { Database } from '../infra/schema.js';
+import { readableDocument } from './read-document.js';
 
 type Access = PublishedEntry['access'];
 
@@ -156,12 +151,8 @@ export function publishedCards(trx: Kysely<Database>): ContentRepository['publis
       limit ${limit}
     `.execute(trx);
     return rows.flatMap((r) => {
-      let document: ContentDocument;
-      try {
-        document = ContentDocument.parse(upgradeFaqV1InDocument(r.document));
-      } catch {
-        return [];
-      }
+      const document = readableDocument(r.document);
+      if (!document) return [];
       return [
         {
           itemId: r.item_id,

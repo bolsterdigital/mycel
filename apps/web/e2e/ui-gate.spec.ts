@@ -742,6 +742,37 @@ test.describe('blocks-registry', () => {
         await expectNoAxeViolations(page);
       });
 
+  for (const locale of ['nl', 'en'] as const)
+    test(`intermediate CTA keeps both actions reachable at 320 px and 200% (${locale})`, async ({
+      page,
+    }) => {
+      onlyA11y();
+      await page.setViewportSize({ width: 1440, height: 900 });
+      const path = `/probe/${locale === 'en' ? 'en/' : ''}blok-cta-highlight-intermediate`;
+      expect((await page.goto(path))?.status()).toBe(200);
+      const band = page.locator('main > .cta-highlight.width-intermediate');
+      await expect(band).toHaveCSS('width', '960px');
+
+      await page.setViewportSize(NARROW);
+      await setTextSize(page, '200%');
+      await layoutGate(page, 'CTA at 320 px and 200% text', 'main');
+      const actions = band.getByRole('link');
+      await expect(actions).toHaveCount(2);
+      for (const action of await actions.all()) {
+        const { width, height } = (await action.boundingBox())!;
+        expect(width).toBeGreaterThanOrEqual(44);
+        expect(height).toBeGreaterThanOrEqual(44);
+      }
+      const first = (await actions.first().boundingBox())!;
+      const second = (await actions.last().boundingBox())!;
+      expect(second.y).toBeGreaterThanOrEqual(first.y + first.height);
+      await actions.first().focus();
+      await page.keyboard.press('Tab');
+      await expect(actions.last()).toBeFocused();
+      await expectNoAxeViolations(page);
+      await band.screenshot({ path: test.info().outputPath(`cta-${locale}-320-text200.png`) });
+    });
+
   test('people grids respect column choices, small text layouts and image budgets', async ({
     page,
   }) => {

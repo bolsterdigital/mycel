@@ -23,6 +23,7 @@
 }
 .overview-cards .overview-items {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  row-gap: var(--space-3);
 }
 .overview-cards .overview-item {
   /* Each card measures itself, so the campaign card's side-by-side rule needs a wide card. */

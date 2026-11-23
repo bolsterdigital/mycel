@@ -9,6 +9,7 @@
 // Larger entries have a file of their own. Rejected: localised fields derived from the Zod schema
 // (unions and effects make that guesswork) and one hand-kept list of types per consumer.
 
+import { ctaExamples } from './blocks/cta-examples.js';
 import { videoEmbedDefinition } from './blocks/video-embed.js';
 import { z } from 'zod';
 import { peopleGridDefinition } from './people/grid-block.js';
@@ -107,7 +108,8 @@ export const WIDTHS = ['content', 'wide', 'full'] as const;
 export const ALIGNS = ['start', 'center', 'end'] as const;
 export const IMAGE_LAYOUTS = ['content', 'wide', 'full', 'float-left', 'float-right'] as const;
 export const HERO_VARIANTS = ['minimal', 'cover', 'split'] as const;
-export const CTA_VARIANTS = ['band', 'card'] as const;
+export const CTA_VARIANTS = ['band', 'card', 'highlight'] as const;
+export const CTA_WIDTHS = ['content', 'intermediate', 'wide', 'full'] as const;
 export const CALLOUT_VARIANTS = ['info', 'note', 'warning'] as const;
 export const CARDS_ACCENTS = ['none', 'bar', 'filled'] as const;
 export const GALLERY_VARIANTS = ['grid', 'row'] as const;
@@ -480,14 +482,14 @@ export const BLOCK_DEFINITIONS = {
   }),
 
   cta: define({
-    version: 1,
+    version: 2,
     props: z
       .object({
         variant: z.enum(CTA_VARIANTS).default('band'),
         title: localized(ShortText),
         body: localized(BodyText).optional(),
         actions: z.array(Action).min(1).max(2),
-        width: Width.default('content'),
+        width: z.enum(CTA_WIDTHS).default('content'),
         align: Align.default('start'),
       })
       .strict(),
@@ -496,45 +498,17 @@ export const BLOCK_DEFINITIONS = {
       textField('title', { localized: true }),
       textField('body', { localized: true, multiline: true, optional: 'omit' }),
       { key: 'actions', kind: 'actions', min: 1, max: 2 },
-      choice('width', WIDTHS),
+      choice('width', CTA_WIDTHS),
       choice('align', ALIGNS),
     ],
-    variants: { variant: CTA_VARIANTS, width: WIDTHS, align: ALIGNS },
+    variants: { variant: CTA_VARIANTS, width: CTA_WIDTHS, align: ALIGNS },
     localized: (p) => [
       ...present(['title'], p.title),
       ...present(['body'], p.body),
       ...actionFields(p.actions),
     ],
     references: (p) => actionRefs(p.actions),
-    examples: [
-      {
-        name: 'cta-band',
-        props: {
-          title: { nl: 'Doe mee', en: 'Join in' },
-          body: { nl: 'Elke handtekening telt.', en: 'Every signature counts.' },
-          actions: [signUp],
-        },
-      },
-      {
-        name: 'cta-card-two-actions',
-        props: {
-          variant: 'card',
-          title: { nl: 'Steun ons werk', en: 'Support our work' },
-          actions: [signUp, longLabel],
-          width: 'wide',
-          align: 'center',
-        },
-      },
-      {
-        name: 'cta-full-end',
-        props: {
-          title: { nl: 'Lees verder', en: 'Read on' },
-          actions: [readMore],
-          width: 'full',
-          align: 'end',
-        },
-      },
-    ],
+    examples: ctaExamples(signUp, longLabel, readMore),
   }),
 
   // Dreamkit's action cards in one block, two to four as there: the entries are props, as in `faq`;

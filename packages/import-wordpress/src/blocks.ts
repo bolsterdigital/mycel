@@ -298,6 +298,8 @@ function cta(block: WpBlock, ctx: MapContext): Mapped {
       title: { [ctx.locale]: plainText(str(a.title)) },
       ...(body && { body: { [ctx.locale]: body } }),
       actions,
+      // Wings centres the 960 px rail in CSS, without a width attribute in the export.
+      width: 'intermediate',
     },
   });
 }

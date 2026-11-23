@@ -1,5 +1,5 @@
 /* The split page header (ADR 025, amended 2026-11-23): title, lead and one button in a panel on
-   the accent pair, the image beside it, edge to edge like the cover. Two columns from a 48rem
+   the accent pair, the image beside it, edge to edge like the cover. Two columns from a 56rem
    container, so a narrow preview frame stacks them as a phone does: the panel first, because the
    title is the page's h1 and the first thing read, the image under it. The panel is the accent
    pair the theme check validates; the button keeps its own primary pair on it.
@@ -25,22 +25,28 @@
 }
 .page-split-panel {
   display: grid;
-  align-content: center;
-  justify-items: start;
+  align-content: start;
+  justify-items: center;
   gap: var(--space-2);
-  padding: var(--space-4) var(--gutter);
+  padding: var(--space-4) max(var(--gutter), min(var(--space-4), 8cqi));
+  text-align: center;
 }
 .page-split-panel h1 {
   margin: 0;
-  max-width: var(--title-width, none);
+  max-inline-size: min(100%, 20ch);
   color: inherit;
+  font-size: clamp(var(--step-2), 1.125rem + 3cqi, 2.75rem);
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 .page-split-panel .lead {
   margin: 0;
-  max-width: var(--lead-width, none);
-  font-family: var(--font-heading);
+  max-inline-size: min(100%, 42ch);
+  font-family: var(--font-body);
   font-size: var(--step-1);
-  line-height: 1.4;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
   text-wrap: pretty;
 }
 .page-split-panel .page-event {
@@ -65,14 +71,30 @@
   aspect-ratio: 4 / 3;
   object-fit: cover;
 }
-@container (min-width: 48rem) {
+@container (min-width: 56rem) {
   .page-split {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    min-height: min(36rem, 80svh);
+    min-block-size: clamp(30rem, 48cqi, 40rem);
   }
-  /* The panel's text starts on the wide rail of the page (`100cqi`), not of its own column. */
   .page-split-panel {
-    padding-inline: max(var(--gutter), (100cqi - var(--wide-width)) / 2) var(--space-4);
+    justify-items: start;
+    padding-block: max(var(--space-4), 4cqi);
+    padding-inline: clamp(var(--space-4), 8cqi, 7rem) var(--space-4);
+    text-align: start;
+  }
+  .page-split-panel h1 {
+    font-size: clamp(var(--step-4), 1rem + 3.5cqi, 4rem);
+  }
+  .page-split-panel .actions {
+    margin-block-start: var(--space-2);
+  }
+  /* Let the text set the track when it needs room, independent of the image's native ratio. */
+  .page-split-media {
+    position: relative;
+  }
+  .page-split-media picture {
+    position: absolute;
+    inset: 0;
   }
   .page-split-media img {
     aspect-ratio: auto;

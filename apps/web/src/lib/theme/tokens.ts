@@ -192,6 +192,7 @@ function chromeTokens(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
 
 function palette(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
   const { form, progress, fill } = campaignColours(p);
+  const ctaHighlight = p.ctaHighlight ?? p.primary;
   const lines = THEME_ROLES.flatMap((role) => [
     `--color-${role}-fg: ${p[role].foreground};`,
     `--color-${role}-bg: ${p[role].background};`,
@@ -207,6 +208,8 @@ function palette(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
     `--color-link: ${p.link};`,
     `--color-focus: ${p.focus};`,
     `--color-focus-halo: ${focusHalo(p)};`,
+    `--cta-highlight-fg: ${ctaHighlight.foreground};`,
+    `--cta-highlight-bg: ${ctaHighlight.background};`,
     `--campaign-form-fg: ${form.foreground};`,
     `--campaign-form-bg: ${form.background};`,
     `--campaign-progress-fg: ${progress.foreground};`,
@@ -251,6 +254,7 @@ export function themeCss(theme: ResolvedTheme): string {
     ...sizes,
     `--measure: ${num(theme.measure)}ch;`,
     `--radius: ${num(theme.radius / 16)}rem;`,
+    ...(theme.buttonShape === 'pill' ? ['--button-radius: 999px;'] : []),
     `--density: ${num(theme.density)};`,
     'color-scheme: light dark;',
   ];

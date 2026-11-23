@@ -11,6 +11,7 @@
 
 import { bunnyStreamVideoUrl, type EmbedId } from '@mycel/core';
 import type {
+  BlockProps,
   DocumentHeader,
   CampaignCardReason,
   CampaignKind,
@@ -270,11 +271,11 @@ export type RenderBlock = { id: string } & (
     }
   | {
       type: 'cta';
-      variant: 'band' | 'card';
+      variant: BlockProps<'cta'>['variant'];
       title: string;
       body: string | null;
       actions: RenderAction[];
-      width: Width;
+      width: BlockProps<'cta'>['width'];
       align: Align;
     }
   | {

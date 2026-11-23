@@ -93,6 +93,7 @@ export function resolveTheme(input: ThemeInput): ResolvedTheme {
     pageTransitions: input.pageTransitions ?? DEFAULT_THEME.pageTransitions,
     captionFont: input.captionFont ?? DEFAULT_THEME.captionFont,
     headingCase: input.headingCase ?? DEFAULT_THEME.headingCase,
+    buttonShape: input.buttonShape ?? DEFAULT_THEME.buttonShape,
     chrome: {
       header: input.chrome?.header ?? DEFAULT_THEME.chrome.header,
       footer: input.chrome?.footer ?? DEFAULT_THEME.chrome.footer,
@@ -153,6 +154,12 @@ function paletteReport(mode: ThemeMode, p: Palette): ThemePairReport[] {
     }),
     ...(p.campaignProgressFill
       ? [pair('campaignProgressFill', fill, progress.background, FOCUS_CONTRAST)]
+      : []),
+    ...(p.ctaHighlight
+      ? [
+          pair('ctaHighlight', p.ctaHighlight.foreground, p.ctaHighlight.background, TEXT_CONTRAST),
+          focusPair('focus-on-ctaHighlight', p.ctaHighlight.background, false),
+        ]
       : []),
     // A filled card is text on its accent, and its button the same pair inverted (action row).
     ...(p.cardAccents ?? []).flatMap((a, i) => [

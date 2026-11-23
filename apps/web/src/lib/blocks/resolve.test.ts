@@ -232,7 +232,7 @@ describe('runtimeSource', () => {
           {
             id: 'cta',
             type: 'cta',
-            version: 1,
+            version: 2,
             props: {
               variant: 'band',
               title: { nl: 'Doe mee' },

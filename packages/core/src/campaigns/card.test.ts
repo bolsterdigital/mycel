@@ -152,7 +152,7 @@ describe('campaign.card.get (ADR 033 rule 4)', () => {
           {
             id: 'meer',
             type: 'cta',
-            version: 1,
+            version: 2,
             props: {
               title: { nl: 'Meer' },
               actions: [{ label: { nl: 'Lees' }, target: { kind: 'url', url: '/meer' } }],

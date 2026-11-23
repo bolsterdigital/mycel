@@ -16,7 +16,15 @@
   } = $props();
 </script>
 
-<section id={anchor} class="block cta cta-{block.variant} width-{block.width} align-{block.align}">
+<section
+  id={anchor}
+  class={[
+    'block cta',
+    block.variant === 'card' ? 'cta-card' : 'cta-band',
+    block.variant === 'highlight' && 'cta-highlight',
+    `width-${block.width} align-${block.align}`,
+  ]}
+>
   <svelte:element this={headingTag(depth + 1)}>{block.title}</svelte:element>
   {#if block.body}<p>{block.body}</p>{/if}
   <Actions actions={block.actions} base={model.base} />

@@ -307,7 +307,7 @@ describe('the campaign text in a full card (ADR 038 rule 4)', () => {
   const cta: Block = {
     id: 'meer',
     type: 'cta',
-    version: 1,
+    version: 2,
     props: {
       variant: 'band',
       title: { nl: 'Meer' },

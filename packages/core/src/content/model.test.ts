@@ -497,7 +497,7 @@ describe('locale-wide translation review', () => {
           {
             id: 'cta',
             type: 'cta',
-            version: 1,
+            version: 2,
             props: {
               title: { en: 'Text' },
               actions: [

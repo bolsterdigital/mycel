@@ -47,6 +47,9 @@ export const site: Partial<Record<UiKey, string>> = {
     'Het lettertype van onderschriften en naamsvermeldingen bij foto’s, video’s en galerijen.',
   'admin.site.captionFont.body': 'Zoals de lopende tekst',
   'admin.site.captionFont.mono': 'Monospace (schrijfmachine)',
+  'admin.site.buttonShape': 'Knopvorm',
+  'admin.site.buttonShape.theme': 'Hoekafronding van het thema',
+  'admin.site.buttonShape.pill': 'Volledig afgerond',
   'admin.site.headingCase': 'Koppen en knoppen',
   'admin.site.headingCase.hint':
     'Hoe koppen, kaarttitels en knoppen worden gezet. Kapitalen veranderen alleen hoe ze eruitzien; de tekst zelf blijft zoals hij is geschreven.',
@@ -81,6 +84,7 @@ export const site: Partial<Record<UiKey, string>> = {
   'admin.site.role.warning': 'Waarschuwing',
   'admin.site.role.link': 'Link',
   'admin.site.role.focus': 'Focus',
+  'admin.site.role.ctaHighlight': 'Uitgelichte oproep',
   'admin.site.role.campaignForm': 'Campagneformulier',
   'admin.site.role.campaignProgress': 'Campagnevoortgang',
   'admin.site.role.campaignProgressFill': 'Vulling voortgangsbalk',

@@ -49,6 +49,10 @@ export type CaptionFont = (typeof CAPTION_FONTS)[number];
 export const HEADING_CASES = ['normal', 'upper'] as const;
 export type HeadingCase = (typeof HEADING_CASES)[number];
 
+/** Public buttons may use the surface radius or a pill without rounding the surfaces. */
+export const BUTTON_SHAPES = ['theme', 'pill'] as const;
+export type ButtonShape = (typeof BUTTON_SHAPES)[number];
+
 /** The role pairs of a palette: each a foreground on its background. */
 export const THEME_ROLES = ['body', 'surface', 'primary', 'accent', 'muted', 'warning'] as const;
 
@@ -102,6 +106,7 @@ export const Palette = z
       accent: RolePair,
       muted: RolePair,
       warning: RolePair,
+      ctaHighlight: RolePair.optional(),
       campaignForm: RolePair.optional(),
       campaignProgress: RolePair.optional(),
       campaignProgressFill: ThemeColor.optional(),
@@ -169,6 +174,7 @@ export const ThemeInput = z
       pageTransitions: z.enum(PAGE_TRANSITION_CHOICES, notAllowed).optional(),
       captionFont: z.enum(CAPTION_FONTS, notAllowed).optional(),
       headingCase: z.enum(HEADING_CASES, notAllowed).optional(),
+      buttonShape: z.enum(BUTTON_SHAPES, notAllowed).optional(),
       /** Header and footer each in one of `CHROME_ROLES`; an absent one is `primary`. */
       chrome: z
         .object(
@@ -202,5 +208,6 @@ export interface ResolvedTheme {
   pageTransitions: PageTransitions;
   captionFont: CaptionFont;
   headingCase: HeadingCase;
+  buttonShape: ButtonShape;
   chrome: { header: ChromeRole; footer: ChromeRole };
 }

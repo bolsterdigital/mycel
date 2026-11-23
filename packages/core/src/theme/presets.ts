@@ -42,6 +42,7 @@ export const DEFAULT_THEME: ResolvedTheme = {
   pageTransitions: 'on',
   captionFont: 'body',
   headingCase: 'normal',
+  buttonShape: 'theme',
   chrome: { header: 'primary', footer: 'primary' },
 };
 
@@ -83,6 +84,7 @@ export const THEME_PRESETS = {
     pageTransitions: 'on',
     captionFont: 'body',
     headingCase: 'normal',
+    buttonShape: 'theme',
     chrome: { header: 'primary', footer: 'primary' },
   },
   /** Bold green and yellow, larger steps and rounder corners: for campaign pages. */
@@ -122,6 +124,7 @@ export const THEME_PRESETS = {
     pageTransitions: 'on',
     captionFont: 'body',
     headingCase: 'normal',
+    buttonShape: 'theme',
     chrome: { header: 'primary', footer: 'primary' },
   },
 } as const satisfies Record<string, ResolvedTheme>;
