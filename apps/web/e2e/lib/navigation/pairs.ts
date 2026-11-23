@@ -116,11 +116,18 @@ async function expectSides(page: Page, swap: Side, reveal: Side) {
   await expect(page.locator('[data-transition]')).toHaveCount(0);
 }
 
+async function openPairSource(page: Page, path: string) {
+  if (isA11y()) await page.addInitScript(probe);
+  expect((await page.goto(path))?.status()).toBe(200);
+  // Consume the initial reveal before clicking. Otherwise sides() can read it before the
+  // destination's view transition is ready and mistake it for that navigation's reveal.
+  if (isA11y()) await sides(page);
+}
+
 export async function exerciseFloatingPairs(page: Page) {
   const path = await seedOverviewCards(page);
-  await page.addInitScript(probe);
   await page.setViewportSize({ width: 1280, height: 900 });
-  expect((await page.goto(path))?.status()).toBe(200);
+  await openPairSource(page, path);
   await expect(page.locator('script[src="/_site/transitions.js"]')).toHaveAttribute(
     'blocking',
     'render'
@@ -211,8 +218,7 @@ async function seedCardLinks(page: Page): Promise<string> {
 
 export async function exerciseCardsPair(page: Page) {
   const path = await seedCardLinks(page);
-  if (isA11y()) await page.addInitScript(probe);
-  expect((await page.goto(path))?.status()).toBe(200);
+  await openPairSource(page, path);
 
   const cta = page.getByRole('link', { name: 'Lees over bomen', exact: true });
   const heading = page.locator('main h1');
@@ -242,8 +248,7 @@ export async function exerciseCardsPair(page: Page) {
 }
 
 export async function exerciseBylinePair(page: Page) {
-  if (isA11y()) await page.addInitScript(probe);
-  expect((await page.goto('/probe/articles/bomen-in-de-straat'))?.status()).toBe(200);
+  await openPairSource(page, '/probe/articles/bomen-in-de-straat');
 
   const byline = page.locator('.page-meta').getByRole('link', { name: 'Sam de Vries' });
   const heading = page.locator('main h1');
