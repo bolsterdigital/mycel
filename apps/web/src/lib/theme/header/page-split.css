@@ -3,7 +3,9 @@
    container, so a narrow preview frame stacks them as a phone does: the panel first, because the
    title is the page's h1 and the first thing read, the image under it. The panel is the accent
    pair the theme check validates; the button keeps its own primary pair on it.
-   Apart from base.css because that file stands at its size ceiling (gate file-size).
+   Apart from base.css because that file stands at its size ceiling (gate file-size). Imported in
+   layer `components`, where the cover and the page's column rule (`.page > *`) live: in `base`
+   that later layer won and squeezed the header into the text column.
    Rejected: the text on the photo (never bare text on a photo, brief #8c) and a panel colour per
    page, which would be free styling outside the theme (ADR 013). */
 .page:has(> .page-split) {
@@ -11,7 +13,9 @@
 }
 .page > .page-split {
   width: 100%;
-  margin-block-end: 4px;
+  /* The block after it starts on its own: without the cover's full screen above it, a heading at
+     4 px read as a caption of the photo. */
+  margin-block-end: var(--space-4);
 }
 .page-split {
   display: grid;

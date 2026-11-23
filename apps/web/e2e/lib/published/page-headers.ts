@@ -90,10 +90,13 @@ export async function exerciseSplitHeader(page: Page, request: APIRequestContext
       return {
         panel: box('.page-split-panel'),
         media: box('.page-split-media'),
+        header: box('main > header.page-split'),
         overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       };
     });
     expect(boxes.overflow).toBeLessThanOrEqual(0);
+    // Edge to edge like the cover, not in the text column.
+    expect(boxes.header.width).toBeGreaterThanOrEqual(size.width - 20);
     // Side by side on a wide screen, the image under the panel on a phone.
     if (size.width > 800) expect(boxes.media.left).toBeGreaterThanOrEqual(boxes.panel.right - 1);
     else expect(boxes.media.top).toBeGreaterThanOrEqual(boxes.panel.bottom - 1);

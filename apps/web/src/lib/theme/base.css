@@ -14,9 +14,9 @@
 @import './forms.css' layer(base);
 @import './people.css' layer(base);
 @import './search.css' layer(base);
-@import './header/page-split.css' layer(base);
 @import './action-row.css' layer(components);
 @import './hero.css' layer(components);
+@import './header/page-split.css' layer(components);
 @import './campaign.css' layer(components);
 @import './campaign-card.css' layer(components);
 @import './overview.css' layer(components);
