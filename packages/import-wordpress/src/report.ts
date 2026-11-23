@@ -67,7 +67,8 @@ function describe(line: ReportLine): string {
     line.locale && `[${line.locale}]`,
     line.block && `${line.block} #${line.position}`,
   ].filter(Boolean);
-  return `  - ${where.join(' ')}${line.detail ? `: ${line.detail}` : ''}`;
+  const detail = line.detail ? `${where.length ? ': ' : ''}${line.detail}` : '';
+  return `  - ${where.join(' ')}${detail}`;
 }
 
 export function formatReport(plan: ImportPlan): string {

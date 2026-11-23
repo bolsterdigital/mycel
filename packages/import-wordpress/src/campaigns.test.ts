@@ -10,6 +10,7 @@ import { Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
 import { MemoryUnitOfWork, TENANT } from '@mycel/core/testing';
 import { execute } from './execute.js';
 import { plan, placeholder, type ImportPlan } from './plan.js';
+import { formatReport } from './report.js';
 
 const XML = readFileSync(new URL('../fixtures/campaign-export.xml', import.meta.url), 'utf8');
 const item = (p: ImportPlan, postId: number) =>
@@ -82,6 +83,13 @@ describe('Dreamkit campaigns (MY-291)', () => {
       '- https://voorbeeld.example/signups/ → the page with the index of signups',
       '- https://voorbeeld.example/fundraisers/ → the page with the index of fundraisers',
     ]);
+  });
+
+  it('lists a line without a post by its detail alone', () => {
+    expect(formatReport(planned)).toContain(
+      '\n  - https://voorbeeld.example/petitions/ → the page with the index of petitions\n'
+    );
+    expect(formatReport(planned)).toContain('Campaigns  3 (1 petition, 1 signup, 1 fundraiser)');
   });
 
   it('plans the same export the same way twice', () => {
