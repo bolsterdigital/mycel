@@ -2,6 +2,7 @@
 // Computed paint checks the active media query and consuming selectors, which tokens alone miss.
 import { DEFAULT_THEME, systemPrincipal, useCases } from '@mycel/core';
 import { testTenant } from '@mycel/db/testing';
+import sharp from 'sharp';
 import { expect, type Page } from '@playwright/test';
 import { expectNoAxeViolations } from '../axe';
 import { campaignCardFixture } from '../blocks/campaigns';
@@ -74,18 +75,23 @@ export async function exerciseCampaignActionColours(page: Page, stamp: string) {
         await page.emulateMedia({ colorScheme: mode });
         const palette = DEFAULT_THEME.palettes[mode];
         const form = configured ? colours[mode].campaignForm : palette.surface;
-        const band = configured ? colours[mode].campaignProgress : palette.surface;
+        const band = configured ? colours[mode].campaignProgress : palette.body;
         const fill = configured ? colours[mode].campaignProgressFill : band.foreground;
         await expect(action).toHaveCSS('background-color', rgb(form.background));
         await expect(action).toHaveCSS('color', rgb(form.foreground));
         await expect(count).toHaveCSS('background-color', rgb(band.background));
         await expect(count).toHaveCSS('color', rgb(band.foreground));
         await expect(progress).toHaveCSS('background-color', rgb(band.background));
-        expect(
-          await progress.evaluate(
-            (bar) => getComputedStyle(bar, '::-webkit-progress-value').backgroundColor
-          )
-        ).toBe(rgb(fill));
+        // The native progress fill is a browser-internal pseudo-element. Sample inside it
+        // at 12.5% of the track, safely clear of the rounded ends and the 25% fill edge.
+        const { data, info } = await sharp(await progress.screenshot({ scale: 'css' }))
+          .removeAlpha()
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        const pixel = (Math.floor(info.height / 2) * info.width + Math.floor(info.width / 8)) * 3;
+        expect(`rgb(${[...data.subarray(pixel, pixel + 3)].join(', ')})`).toBe(
+          rgb(configured ? fill : band.background)
+        );
 
         for (const [width, text] of [
           [1366, '16px'],

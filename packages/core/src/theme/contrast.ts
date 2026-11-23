@@ -104,7 +104,7 @@ export function resolveTheme(input: ThemeInput): ResolvedTheme {
 export function campaignColours(p: Palette) {
   const formFallback =
     p.surface.background.toLowerCase() === p.body.background.toLowerCase() ? p.primary : p.surface;
-  const progress = p.campaignProgress ?? p.surface;
+  const progress = p.campaignProgress ?? p.body;
   return {
     form: p.campaignForm ?? formFallback,
     progress,

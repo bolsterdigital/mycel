@@ -176,7 +176,7 @@ describe('campaign action colours', () => {
       'palettes.light.campaignProgressFill',
     ]);
     expect(
-      Theme.safeParse(withLight({ campaignProgressFill: light.surface.background })).success
+      Theme.safeParse(withLight({ campaignProgressFill: light.body.background })).success
     ).toBe(false);
   });
 });
