@@ -29,6 +29,25 @@
    moet zo'n 74px zijn"): 12 px above and below a logo of at most 48 px (40 on a phone), which the
    44 px tap targets beside it do not exceed. The cover's `--site-header-height` (base.css) counts
    the same. Rejected: a fixed height, which clips a call to action whose label wraps. */
+/* Page transitions (MY-269): the header and footer have fixed names, so when the theme turns on
+   cross-document view transitions (tokens.ts) they stand still while the page between them
+   cross-fades. Harmless without that rule. A name makes the element a stacking context, so the
+   header always sits at the sticky header's level, or its dropdowns (z-index 5 and 6) would fall
+   under positioned content later on the page. Rejected: names set by a script per navigation (PR
+   2 does that for cards and their pages; the chrome is on every page). */
+.site-header {
+  view-transition-name: site-header;
+  z-index: 8;
+}
+.site-footer {
+  view-transition-name: site-footer;
+}
+/* Short, so a click still feels immediate; the browser's default is a quarter second longer. */
+::view-transition-group(*),
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: 250ms;
+}
 .site-header {
   padding-block: calc(0.75 * var(--space-2));
   color: var(--chrome-header-fg);

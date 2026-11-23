@@ -12,6 +12,7 @@ import {
   CAPTION_FONTS,
   CHROME_ROLES,
   DROP_CAPS,
+  PAGE_TRANSITION_CHOICES,
   HEADING_WEIGHTS,
   THEME_VERSION,
 } from './model.js';
@@ -164,6 +165,8 @@ const ResolvedTheme = z
     ),
     // Optional: a theme stored before #86 has none and renders as `resolveTheme` defaults it.
     dropCap: z.enum(DROP_CAPS).optional(),
+    // Optional: a theme stored before MY-269 has none and renders with transitions on.
+    pageTransitions: z.enum(PAGE_TRANSITION_CHOICES).optional(),
     // Optional for the same reason: a theme stored before the choice renders its captions in body.
     captionFont: z.enum(CAPTION_FONTS).optional(),
     // Required: the reader parses a stored theme with `Theme`, which resolves an absent choice.

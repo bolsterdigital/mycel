@@ -203,6 +203,15 @@ async function measuredBar(page: Page) {
   const sub = bar.getByRole('button', { name: copy.sublinks });
   await sub.click();
   await expect(bar.getByRole('link', { name: copy.menu[1] })).toBeVisible();
+  // MY-269: the header's transition name makes it a stacking context; its dropdown must still lie
+  // over the page below it, not under a positioned card further down.
+  expect(
+    await bar.getByRole('link', { name: copy.menu[1] }).evaluate((a) => {
+      const r = a.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.bottom - 2);
+      return !!hit && (hit === a || a.contains(hit));
+    })
+  ).toBe(true);
   // Opening the other closes this one: one dropdown at a time.
   await group.click();
   await expect(sub).toHaveAttribute('aria-expanded', 'false');

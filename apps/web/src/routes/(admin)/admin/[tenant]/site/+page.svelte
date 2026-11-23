@@ -20,6 +20,7 @@
     CAPTION_FONTS,
     CHROME_ROLES,
     DROP_CAPS,
+    PAGE_TRANSITION_CHOICES,
     FONT_KEYS,
     FONTS,
     MAX_READER_ACTIVITY_DAYS,
@@ -604,6 +605,19 @@
           hint={t('admin.site.dropCap.hint')}
           options={DROP_CAPS.map((d) => ({ value: d, label: t(`admin.site.dropCap.${d}`) }))}
           value={value('dropCap', data.theme.value.dropCap ?? 'articles')}
+        />
+        <Select
+          id="site-pageTransitions"
+          name="pageTransitions"
+          label={t('admin.site.pageTransitions')}
+          locale={data.locale}
+          size="m"
+          hint={t('admin.site.pageTransitions.hint')}
+          options={PAGE_TRANSITION_CHOICES.map((v) => ({
+            value: v,
+            label: t(`admin.site.pageTransitions.${v}`),
+          }))}
+          value={value('pageTransitions', data.theme.value.pageTransitions ?? 'on')}
         />
         <Select
           id="site-captionFont"

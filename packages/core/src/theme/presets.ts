@@ -39,6 +39,7 @@ export const DEFAULT_THEME: ResolvedTheme = {
   density: 1,
   headingWeight: 700,
   dropCap: 'articles',
+  pageTransitions: 'on',
   captionFont: 'body',
   chrome: { header: 'primary', footer: 'primary' },
 };
@@ -78,6 +79,7 @@ export const THEME_PRESETS = {
     density: 1.1,
     headingWeight: 600,
     dropCap: 'articles',
+    pageTransitions: 'on',
     captionFont: 'body',
     chrome: { header: 'primary', footer: 'primary' },
   },
@@ -115,6 +117,7 @@ export const THEME_PRESETS = {
     density: 1,
     headingWeight: 800,
     dropCap: 'articles',
+    pageTransitions: 'on',
     captionFont: 'body',
     chrome: { header: 'primary', footer: 'primary' },
   },

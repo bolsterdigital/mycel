@@ -28,6 +28,7 @@ import {
   KeyCapability,
   offeredCapabilities,
   DROP_CAPS,
+  PAGE_TRANSITION_CHOICES,
   Theme,
   SiteChrome,
   SOCIAL_NETWORKS,
@@ -380,6 +381,7 @@ export const actions: Actions = {
       headingWeight: Number(text(data, 'headingWeight')),
       // Unknown or absent stays absent, so core refuses or defaults it rather than this form.
       dropCap: DROP_CAPS.find((d) => d === text(data, 'dropCap')),
+      pageTransitions: PAGE_TRANSITION_CHOICES.find((v) => v === text(data, 'pageTransitions')),
       // A posted face goes to core as it is, so one outside the choice is refused, not dropped;
       // absent stays absent and core defaults it to the body face.
       captionFont: text(data, 'captionFont') || undefined,

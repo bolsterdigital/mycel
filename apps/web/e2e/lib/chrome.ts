@@ -52,6 +52,25 @@ export async function chromeRails(page: Page | Frame) {
       first: box(edge((el) => el.firstElementChild)),
       last: box(edge((el) => el.lastElementChild)),
       padding: [parseFloat(style.paddingBlockStart), parseFloat(style.paddingBlockEnd)],
+      // MY-269: the names the chrome stands still under, and whether a stylesheet of the page
+      // turns cross-document view transitions on (the theme's rule, on by default).
+      names: ['.site-header', '.site-footer'].map((s) => {
+        const el = document.querySelector(s);
+        return el ? getComputedStyle(el).viewTransitionName : null;
+      }),
+      viewTransitions: [...document.styleSheets].some((sheet) => {
+        const walk = (rules: CSSRuleList): boolean =>
+          [...rules].some(
+            (r) =>
+              r.cssText.startsWith('@view-transition') ||
+              ('cssRules' in r && walk((r as CSSGroupingRule).cssRules))
+          );
+        try {
+          return walk(sheet.cssRules);
+        } catch {
+          return false;
+        }
+      }),
     };
   });
 }
@@ -79,6 +98,9 @@ export function expectChromeOnWideRail(m: Rails, oneRow?: boolean) {
 /** Header to first content and last content to footer are the page's padding, whatever the
  *  first and last element are, and the two are the same distance. */
 export function expectChromeTransitions(m: Rails) {
+  // Page transitions (MY-269) are on in every e2e theme; header and footer keep their names.
+  expect(m.names).toEqual([m.header ? 'site-header' : null, m.footer ? 'site-footer' : null]);
+  expect(m.viewTransitions).toBe(true);
   const [top, bottom] = m.padding as [number, number];
   if (m.header) expect(m.first!.top - m.header.bottom).toBeCloseTo(top, 0);
   if (m.footer) expect(m.footer.top - m.last!.bottom).toBeCloseTo(bottom, 0);
