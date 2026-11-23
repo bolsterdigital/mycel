@@ -316,6 +316,14 @@ export async function referenceIssues(
         message: 'content.dossier.not-a-dossier',
         params: { id: itemId },
       });
+  // The split header's button names an item of this tenant, like a hero's (ADR 025, 2026-11-23).
+  const target = doc.type === 'page' ? doc.presentation?.action?.target : undefined;
+  if (target?.kind === 'item' && !(await ctx.content.get(target.itemId)))
+    issues.push({
+      path: 'presentation.action',
+      message: 'content.reference.item-unknown',
+      params: { id: target.itemId },
+    });
   // A tier is the tenant's own or it does not exist (ADR 016 rule 2): the read runs in the
   // tenant's context, so an unknown id and another tenant's id are the same refusal, on every
   // save and again at publish. Until a tier is found, tier access stays unpublishable.

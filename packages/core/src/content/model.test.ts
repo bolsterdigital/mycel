@@ -9,6 +9,7 @@ import {
   Tags,
   canonicalTag,
   isReservedPageSlug,
+  localizedFields,
   readinessIssues,
   slugFromTitle,
 } from './model.js';
@@ -226,11 +227,45 @@ describe('the header layout (ADR 025 rule 3)', () => {
     ).toBe(false);
   });
 
-  it('refuses the field on a page', () => {
+  it('refuses split on an article', () => {
+    expect(
+      ContentDocument.safeParse({ ...article, presentation: { header: 'split' } }).success
+    ).toBe(false);
+  });
+
+  it('gives a page cover and split, the button only beside split (amended 2026-11-23)', () => {
+    const action = { label: { nl: 'Word actief' }, target: { kind: 'url', url: '/doe-mee' } };
     expect(ContentDocument.safeParse(page).success).toBe(true);
     expect(ContentDocument.safeParse({ ...page, presentation: { header: 'cover' } }).success).toBe(
-      false
+      true
     );
+    expect(
+      ContentDocument.parse({ ...page, presentation: { header: 'split', action } })
+    ).toMatchObject({ presentation: { header: 'split', action } });
+    const cover = ContentDocument.safeParse({ ...page, presentation: { header: 'cover', action } });
+    expect(cover.success).toBe(false);
+    expect(cover.error?.issues.map((i) => i.message)).toContain('content.header.action-split-only');
+    expect(
+      ContentDocument.safeParse({
+        ...page,
+        presentation: { header: 'split', action: { ...action, label: { en: 'Join' } } },
+      }).success
+    ).toBe(false);
+  });
+
+  it('needs the button text in every published locale', () => {
+    const doc = ContentDocument.parse({
+      ...page,
+      locales: ['nl', 'en'],
+      title: { nl: 'Kop', en: 'Head' },
+      presentation: {
+        header: 'split',
+        action: { label: { nl: 'Word actief' }, target: { kind: 'url', url: '/doe-mee' } },
+      },
+    });
+    expect(
+      localizedFields(doc).find((f) => f.path.join('.') === 'presentation.action.label')
+    ).toMatchObject({ required: true });
   });
 });
 

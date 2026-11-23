@@ -22,7 +22,7 @@
 
 import { z } from 'zod';
 import { notFound } from '../errors.js';
-import { ARTICLE_HEADERS } from './model.js';
+import { PAGE_HEADERS } from './model.js';
 import { Locale } from '../i18n/locale.js';
 import { defineUseCase } from '../registry.js';
 import { MediaView } from '../media/model.js';
@@ -96,8 +96,25 @@ export const PublishedItem = z.object({
     )
     .optional(),
   section: z.object({ slug: Slug, name: z.string() }).nullable().optional(),
-  /** An article's chosen header (ADR 025 rule 3); a renderer without a hero image shows `standard`. */
-  presentation: z.object({ header: z.enum(ARTICLE_HEADERS) }).optional(),
+  /**
+   * The chosen header (ADR 025 rule 3, amended 2026-11-23 for pages); a renderer without a hero
+   * image shows `standard`. `action` is a split page header's button in this locale, its target as
+   * stored: the renderer resolves an item to its path and drops one that is no longer published.
+   */
+  presentation: z
+    .object({
+      header: z.enum(PAGE_HEADERS),
+      action: z
+        .object({
+          label: z.string(),
+          target: z.discriminatedUnion('kind', [
+            z.object({ kind: z.literal('item'), itemId: z.string().guid() }),
+            z.object({ kind: z.literal('url'), url: z.string() }),
+          ]),
+        })
+        .optional(),
+    })
+    .optional(),
   /**
    * An event page's when and where in this locale; absent on every other item. Times are
    * the wall clock of `timeZone`, the site's zone, which a representation needs for an offset.
@@ -112,6 +129,8 @@ export const PublishedItem = z.object({
   dossiers: z.array(PublishedDossier).optional(),
 });
 export type PublishedItem = z.infer<typeof PublishedItem>;
+/** A split page header's button in one locale, its target as stored. */
+export type HeaderAction = NonNullable<NonNullable<PublishedItem['presentation']>['action']>;
 
 /**
  * The site-root path of an item in a locale (brief #8c § 8): `/<slug>` for a page, `/` for the
@@ -207,7 +226,8 @@ export const getPublished = defineUseCase({
     };
     if (doc.type !== 'article') {
       const event = projectEvent(doc, chosen, (await ctx.siteSettings.general()).value.timeZone);
-      return event ? { ...base, event } : base;
+      const presentation = pagePresentation(doc, chosen);
+      return { ...base, ...(presentation ? { presentation } : {}), ...(event ? { event } : {}) };
     }
 
     // Authors and section as the public sees them: name and slug, never an author's e-mail.
@@ -246,3 +266,19 @@ export const getPublished = defineUseCase({
     };
   },
 });
+
+/**
+ * A page's header in one locale: absent for the standard header, as on an older revision, so a
+ * page without a choice projects as before. The button only beside `split` and with a label in
+ * this locale; readiness requires one, so a missing label is a draft that never got here.
+ */
+function pagePresentation(doc: Extract<ContentDocument, { type: 'page' }>, locale: string) {
+  const header = doc.presentation?.header;
+  if (!header || header === 'standard') return null;
+  const action = doc.presentation?.action;
+  const label = action?.label[locale];
+  return {
+    header,
+    ...(header === 'split' && action && label ? { action: { label, target: action.target } } : {}),
+  };
+}

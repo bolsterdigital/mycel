@@ -108,7 +108,8 @@ async function page(
   theme: keyof typeof THEMES,
   heroAlt: Partial<Record<string, string>> | undefined = undefined,
   head: {
-    header?: 'standard' | 'cover';
+    header?: 'standard' | 'cover' | 'split';
+    action?: Parameters<typeof resolveIntro>[1]['action'];
     hero?: boolean;
     meta?: boolean;
     event?: boolean;
@@ -127,6 +128,7 @@ async function page(
       heroImageId: head.hero === false ? null : effectiveImages(article).hero.mediaId,
       heroAlt: heroAlt?.[locale] ?? null,
       ...(head.header ? { header: head.header } : {}),
+      ...(head.action ? { action: head.action } : {}),
       ...(head.meta
         ? {
             meta: renderMeta(
@@ -199,6 +201,48 @@ describe('the public item page (#86)', () => {
         const other = locale === 'nl' ? /Three years|After three|square/ : /Drie jaar|plein/;
         expect(html).not.toMatch(other);
       });
+});
+
+describe('the split page header (ADR 025, amended 2026-11-23)', () => {
+  const join = { label: 'Word actief', target: { kind: 'url' as const, url: '/doe-mee' } };
+
+  it('puts title, lead and one button in a panel before the image', async () => {
+    const html = await page('nl', 'default', undefined, { header: 'split', action: join });
+    expect(html).toMatch(/<header class="page-split">\s*<div class="page-split-panel">\s*<h1/);
+    expect(html.match(/<h1/g)).toHaveLength(1);
+    const at = (needle: string) => html.indexOf(needle);
+    expect(at('page-split-panel')).toBeLessThan(at('class="lead"'));
+    expect(at('class="lead"')).toBeLessThan(at('class="button" href="/doe-mee"'));
+    expect(at('class="button"')).toBeLessThan(at('page-split-media'));
+    expect(html).toMatch(/<div class="page-split-media">\s*<picture/);
+    expect(html).not.toContain('page-hero');
+    expect(html).not.toMatch(/\sstyle=|<style|<script/);
+  });
+
+  it('shows no button without one, or when its item is no longer published', async () => {
+    const none = await page('nl', 'default', undefined, { header: 'split' });
+    expect(none).toContain('page-split-panel');
+    expect(none).not.toContain('class="actions"');
+    const gone = await page('nl', 'default', undefined, {
+      header: 'split',
+      action: {
+        label: 'Lees',
+        target: { kind: 'item', itemId: '0190f1a0-0000-7000-8000-000000000001' },
+      },
+    });
+    expect(gone).not.toContain('class="button"');
+  });
+
+  it('falls back to the standard header without a hero image', async () => {
+    const html = await page('nl', 'default', undefined, {
+      header: 'split',
+      action: join,
+      hero: false,
+    });
+    expect(html).not.toContain('page-split');
+    expect(html).not.toContain('Word actief');
+    expect(html).toContain('page-rule');
+  });
 });
 
 describe('the two article headers (#105)', () => {

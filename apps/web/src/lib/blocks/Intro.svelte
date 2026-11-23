@@ -3,8 +3,12 @@
      a preview shows what the page will. The hero is the page's first image: it loads eagerly and
      with priority. The cover is an article's option: the title in marked lines on the validated
      primary pair, never bare text on a photo, and an arrow that is a link, so it works without a
-     script. Rejected: a CSS background image, which loses alt, srcset and the LCP hint. -->
+     script. The split header is a page's option (ADR 025, amended 2026-11-23): title, lead, an
+     event's when and where and at most one button in a panel on the accent pair, the image beside
+     it, stacked under the panel in a narrow container. Rejected: a CSS background image, which
+     loses alt, srcset and the LCP hint. -->
 <script lang="ts">
+  import Actions from './Actions.svelte';
   import Credit from './Credit.svelte';
   import Picture from './Picture.svelte';
   import { IMAGE_SIZES } from './sizes.js';
@@ -87,6 +91,22 @@
   <div id="page-content"></div>
   {@render lead()}
   {@render event()}
+  {@render meta()}
+{:else if intro.header === 'split' && intro.hero}
+  <header class="page-split">
+    <div class="page-split-panel">
+      <h1>{model.title}</h1>
+      {@render lead()}
+      {@render event()}
+      <Actions actions={intro.action ? [intro.action] : []} base={model.base} />
+    </div>
+    <div class="page-split-media">
+      <Picture image={intro.hero} base={model.base} sizes="(min-width: 48rem) 50vw, 100vw" eager />
+    </div>
+  </header>
+  {#if intro.hero.caption || intro.hero.credit}
+    <p class="page-cover-caption">{@render caption()}</p>
+  {/if}
   {@render meta()}
 {:else}
   <h1>{model.title}</h1>
