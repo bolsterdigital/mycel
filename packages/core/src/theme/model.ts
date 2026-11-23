@@ -39,6 +39,16 @@ export type PageTransitions = (typeof PAGE_TRANSITION_CHOICES)[number];
 export const CAPTION_FONTS = ['body', 'mono'] as const;
 export type CaptionFont = (typeof CAPTION_FONTS)[number];
 
+/**
+ * How headings, card titles and buttons are set (MY-283): as written, or in capitals with a little
+ * extra letter spacing, as BIJ1's house style does. The renderer transforms the case in CSS, so the
+ * text itself and its accessible name stay as the editor wrote them. A closed choice, so `normal`
+ * renders exactly as before. Rejected: a free letter-spacing value (one more slider for a pairing
+ * that only works one way) and uppercasing the stored text (a screen reader spells it out).
+ */
+export const HEADING_CASES = ['normal', 'upper'] as const;
+export type HeadingCase = (typeof HEADING_CASES)[number];
+
 /** The role pairs of a palette: each a foreground on its background. */
 export const THEME_ROLES = ['body', 'surface', 'primary', 'accent', 'muted', 'warning'] as const;
 
@@ -153,6 +163,7 @@ export const ThemeInput = z
       dropCap: z.enum(DROP_CAPS, notAllowed).optional(),
       pageTransitions: z.enum(PAGE_TRANSITION_CHOICES, notAllowed).optional(),
       captionFont: z.enum(CAPTION_FONTS, notAllowed).optional(),
+      headingCase: z.enum(HEADING_CASES, notAllowed).optional(),
       /** Header and footer each in one of `CHROME_ROLES`; an absent one is `primary`. */
       chrome: z
         .object(
@@ -185,5 +196,6 @@ export interface ResolvedTheme {
   dropCap: DropCap;
   pageTransitions: PageTransitions;
   captionFont: CaptionFont;
+  headingCase: HeadingCase;
   chrome: { header: ChromeRole; footer: ChromeRole };
 }

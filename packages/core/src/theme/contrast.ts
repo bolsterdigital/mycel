@@ -91,6 +91,7 @@ export function resolveTheme(input: ThemeInput): ResolvedTheme {
     dropCap: input.dropCap ?? DEFAULT_THEME.dropCap,
     pageTransitions: input.pageTransitions ?? DEFAULT_THEME.pageTransitions,
     captionFont: input.captionFont ?? DEFAULT_THEME.captionFont,
+    headingCase: input.headingCase ?? DEFAULT_THEME.headingCase,
     chrome: {
       header: input.chrome?.header ?? DEFAULT_THEME.chrome.header,
       footer: input.chrome?.footer ?? DEFAULT_THEME.chrome.footer,

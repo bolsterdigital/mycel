@@ -14,9 +14,9 @@
 @import './forms.css' layer(base);
 @import './people.css' layer(base);
 @import './search.css' layer(base);
-@import './header/page-split.css' layer(base);
 @import './action-row.css' layer(components);
 @import './hero.css' layer(components);
+@import './header/page-split.css' layer(components);
 @import './campaign.css' layer(components);
 @import './campaign-card.css' layer(components);
 @import './overview.css' layer(components);
@@ -91,6 +91,9 @@
   h6 {
     font-family: var(--font-heading);
     font-weight: var(--heading-weight);
+    /* A theme in capitals (MY-283) transforms the case, never the text or its accessible name. */
+    text-transform: var(--heading-case, none);
+    letter-spacing: var(--heading-tracking, normal);
     line-height: 1.2;
     margin-block: var(--space-4) var(--space-2);
     overflow-wrap: break-word;
@@ -592,6 +595,8 @@
     border: 2px solid transparent;
     border-radius: var(--radius);
     font-weight: 600;
+    text-transform: var(--heading-case, none);
+    letter-spacing: var(--heading-tracking, normal);
     text-align: center;
     text-decoration: none;
     color: var(--color-primary-fg);

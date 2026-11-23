@@ -59,6 +59,23 @@ describe('caption font tokens', () => {
   });
 });
 
+// MY-283: capitals are two tokens the base styles read for headings and buttons; `normal`, and
+// a theme stored before the choice, render byte for byte as before.
+describe('heading case tokens', () => {
+  it('adds the case and its tracking for upper only', async () => {
+    for (const theme of themes) {
+      const { headingCase: _, ...stored } = theme;
+      const normal = themeCss({ ...theme, headingCase: 'normal' });
+      expect(normal).not.toContain('--heading-case');
+      expect(normal).toBe(themeCss(stored as ResolvedTheme));
+      const upper = themeCss({ ...theme, headingCase: 'upper' });
+      expect(upper).toContain('--heading-case: uppercase;');
+      expect(upper).toContain('--heading-tracking: 0.04em;');
+      expect(await themeHash(upper)).not.toBe(await themeHash(normal));
+    }
+  });
+});
+
 // MY-266: the site's chrome only uses pairs the theme check already measured. Over random valid
 // themes, in both palettes, the header and footer are copies of their chosen role pair and the
 // header's call to action is the primary pair, inverted on a primary header; its active pair

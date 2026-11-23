@@ -24,10 +24,11 @@ const CAMPAIGN = '00000000-0000-4000-8007-000000000070';
 const PERSON = (n: number) => `00000000-0000-4000-8005-00000000000${n}`;
 const GROUP = '00000000-0000-4000-8006-000000000075';
 
-function run(content: string) {
+function run(content: string, opensPage = false) {
   const notes: { code: NoteCode; detail?: string }[] = [];
   const ctx: MapContext = {
     locale: 'nl',
+    opensPage,
     postTitle: 'Bericht',
     link: linkRewriter('https://site.example', (path) => (path === '/over' ? ITEM : null)),
     media: (id) => MEDIA[Number(id)] ?? null,
@@ -271,6 +272,47 @@ const CASES: Record<string, () => void> = {
       header: { lead: 'Wij zijn er.', heroImageId: MEDIA[1]!.ref, heroAlt: 'Een plein vol mensen' },
     });
     expect(notes).toEqual([{ code: 'hero.action-dropped', detail: 'Kom' }]);
+    // Opening a page and replacing its title, as a Dreamkit home page does: the split header
+    // with the hero's title and its one button (MY-287).
+    const hero = (attrs: Record<string, unknown>, opensPage = true) =>
+      run(
+        `<!-- wp:wings/hero ${JSON.stringify({ title: 'Van ons', introText: 'Wij zijn er.', ctaText: 'Word actief', heroImage: { id: 1, alt: 'Kandidaten' }, replacesPageTitle: true, ...attrs })} /-->`,
+        opensPage
+      );
+    const split = hero({ ctaTarget: { id: 9, url: 'https://site.example/vacatures/' } });
+    expect(split.mapped).toEqual({
+      kind: 'header',
+      header: {
+        lead: 'Wij zijn er.',
+        heroImageId: MEDIA[1]!.ref,
+        heroAlt: 'Kandidaten',
+        split: {
+          title: 'Van ons',
+          action: { label: 'Word actief', target: { kind: 'item', itemId: POST(9) } },
+        },
+      },
+    });
+    expect(split.notes).toEqual([]);
+    const external = hero({ ctaTarget: { id: null, url: 'https://elders.example/doe-mee' } });
+    expect(external.mapped).toMatchObject({
+      header: {
+        split: { action: { target: { kind: 'url', url: 'https://elders.example/doe-mee' } } },
+      },
+    });
+    // Not opening the page, not replacing its title, or without an image: lead and image only.
+    for (const other of [
+      hero({ ctaTarget: { id: 9 } }, false),
+      hero({ ctaTarget: { id: 9 }, replacesPageTitle: false }),
+      hero({ ctaTarget: { id: 9 }, heroImage: undefined }),
+    ]) {
+      expect(other.mapped).not.toMatchObject({ header: { split: expect.anything() } });
+      expect(other.notes).toEqual([{ code: 'hero.action-dropped', detail: 'Word actief' }]);
+    }
+    // A button whose target is nowhere: the split header without it, and a report line.
+    const lost = hero({ ctaTarget: { id: 999 } });
+    expect(lost.mapped).toMatchObject({ header: { split: { title: 'Van ons' } } });
+    expect(lost.mapped).not.toMatchObject({ header: { split: { action: expect.anything() } } });
+    expect(lost.notes).toEqual([{ code: 'hero.action-dropped', detail: 'Word actief' }]);
   },
   'wings/people-organizations-grid': () => {
     // A category becomes its person group; the social links are the card's contact line.

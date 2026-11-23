@@ -28,6 +28,17 @@ export interface HeaderDraft {
   lead?: string;
   heroImageId?: string;
   heroAlt?: string;
+  /**
+   * A page that opened with a Wings hero replacing its title (ADR 025, amended 2026-11-23): the
+   * hero's title becomes the page's and the header is `split`, with the hero's one button.
+   */
+  split?: {
+    title?: string;
+    action?: {
+      label: string;
+      target: { kind: 'item'; itemId: string } | { kind: 'url'; url: string };
+    };
+  };
 }
 
 /** Why a block is left out; `empty` is silent, every other reason is a report line. */
@@ -41,6 +52,8 @@ export type Mapped =
 
 export interface MapContext {
   locale: string;
+  /** Whether this block opens a page, where a title-replacing hero becomes the split header. */
+  opensPage: boolean;
   /** The post's own title, for a video the export gives no title. */
   postTitle: string;
   link: LinkRewrite;
@@ -257,7 +270,11 @@ function callout(block: WpBlock, ctx: MapContext): Mapped {
 }
 
 /** A Wings link object (`{ id, url, title }`) or a bare URL as a card action target. */
-function target(link: unknown, url: string, ctx: MapContext) {
+function target(
+  link: unknown,
+  url: string,
+  ctx: MapContext
+): { kind: 'item'; itemId: string } | { kind: 'url'; url: string } | null {
   const id = (link as { id?: unknown } | null | undefined)?.id;
   const itemId = ctx.item(id);
   if (itemId) return { kind: 'item', itemId };
@@ -331,21 +348,34 @@ function timeline(block: WpBlock, ctx: MapContext): Mapped {
   });
 }
 
+/**
+ * A Wings hero as the document header (ADR 025). One that opens a page and replaces its title, as
+ * Dreamkit's home pages do, is the split header: its title, lead, image and one button (MY-287).
+ * Anywhere else the lead and image are the header and a button is a report line; a split header
+ * without an image would render as the standard one and lose its button, so it is not made.
+ */
 function hero(block: WpBlock, ctx: MapContext): Mapped {
   const a = block.attrs;
   const image = a.heroImage as { id?: unknown; alt?: unknown } | undefined;
   const media = image?.id ? ctx.media(image.id) : null;
   const alt = decodeEntities(str(image?.alt)).trim() || media?.alt || '';
-  if (str(a.ctaText)) ctx.note('hero.action-dropped', str(a.ctaText));
   const lead = plainText(str(a.introText));
-  return {
-    kind: 'header',
-    header: {
-      ...(lead && { lead }),
-      ...(media && { heroImageId: media.ref }),
-      ...(media && alt && { heroAlt: alt }),
-    },
+  const header: HeaderDraft = {
+    ...(lead && { lead }),
+    ...(media && { heroImageId: media.ref }),
+    ...(media && alt && { heroAlt: alt }),
   };
+  const label = plainText(str(a.ctaText));
+  if (ctx.opensPage && a.replacesPageTitle === true && media) {
+    const title = plainText(str(a.title));
+    const to = label ? target(a.ctaTarget, '', ctx) : null;
+    if (label && !to) ctx.note('hero.action-dropped', label);
+    header.split = {
+      ...(title && { title }),
+      ...(label && to && { action: { label, target: to } }),
+    };
+  } else if (label) ctx.note('hero.action-dropped', label);
+  return { kind: 'header', header };
 }
 
 /**
