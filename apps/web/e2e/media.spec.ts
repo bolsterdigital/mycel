@@ -1937,6 +1937,9 @@ test.describe('an image that opens larger on the site', () => {
     await page.goto(IMAGE);
     await page.locator('figure.image a.enlarge').click();
     await expect(page).toHaveURL(/\/w\d+\.webp$/);
+    await page.goto(GALLERY);
+    await page.locator('section.gallery a.enlarge').first().click();
+    await expect(page).toHaveURL(/\/w\d+\.webp$/);
   });
 
   test('the keyboard opens it, Escape closes it and the focus is back on the link', async ({
@@ -1984,6 +1987,80 @@ test.describe('an image that opens larger on the site', () => {
     await expect(link).toBeFocused();
     expect(errors).toEqual([]);
   });
+
+  for (const mode of ['animated', 'unsupported'] as const) {
+    test(`a gallery opens and closes from the keyboard (${mode})`, async ({ page }) => {
+      onlyA11y('the dialog is the script');
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      const errors = watchErrors(page);
+      const captures: string[][] = [];
+      if (mode === 'unsupported') {
+        await page.addInitScript(() => {
+          Object.defineProperty(document, 'startViewTransition', { value: undefined });
+        });
+      } else {
+        await page.exposeFunction('recordLightboxCapture', (names: string[]) =>
+          captures.push(names)
+        );
+        await page.addInitScript(() => {
+          const start = document.startViewTransition.bind(document);
+          document.startViewTransition = (update) => {
+            const transition = start(update);
+            void transition.ready.then(() => {
+              const group = document.getAnimations().find((animation) => {
+                return (
+                  (animation.effect as KeyframeEffect).pseudoElement ===
+                  '::view-transition-group(lightbox-image)'
+                );
+              });
+              const root = document.documentElement;
+              const effect = group?.effect;
+              const widths =
+                effect instanceof KeyframeEffect
+                  ? effect.getKeyframes().map((frame) => String(frame['width']))
+                  : [];
+              return Reflect.get(
+                window,
+                'recordLightboxCapture'
+              )([
+                ...widths,
+                getComputedStyle(root, '::view-transition-old(lightbox-image)').display,
+                getComputedStyle(root, '::view-transition-new(lightbox-image)').display,
+              ]);
+            });
+            return transition;
+          };
+        });
+      }
+      await page.goto(GALLERY);
+      const link = page.locator('section.gallery a.enlarge').first();
+      const dialog = page.getByRole('dialog', { name: 'Beeld groter bekijken' });
+      const named = page.locator('.lightbox-shared-image');
+      const capturedWidth = expect.stringMatching(/^\d+(\.\d+)?px$/);
+      await link.focus();
+      await page.keyboard.press('Enter');
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole('button', { name: 'Sluiten' })).toBeFocused();
+      if (mode === 'animated') {
+        await expect
+          .poll(() => captures[0])
+          .toEqual([capturedWidth, capturedWidth, 'none', 'block']);
+        expect(parseFloat(captures[0]![0]!)).toBeLessThan(parseFloat(captures[0]![1]!));
+      }
+      await expect(named).toHaveCount(0);
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+      await expect(link).toBeFocused();
+      if (mode === 'animated') {
+        await expect
+          .poll(() => captures[1])
+          .toEqual([capturedWidth, capturedWidth, 'block', 'none']);
+        expect(parseFloat(captures[1]![0]!)).toBeGreaterThan(parseFloat(captures[1]![1]!));
+      }
+      await expect(named).toHaveCount(0);
+      expect(errors).toEqual([]);
+    });
+  }
 
   test('a gallery walks its images with the arrows and the buttons', async ({ page }) => {
     onlyA11y('the dialog is the script');
@@ -2052,10 +2129,17 @@ test.describe('an image that opens larger on the site', () => {
   }) => {
     onlyA11y('the dialog is the script');
     await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(() => {
+      document.startViewTransition = () => {
+        throw new Error('Reduced motion must bypass the View Transition API');
+      };
+    });
+    const errors = watchErrors(page);
     await page.setViewportSize(NARROW);
     await page.goto(GALLERY);
     await setTextSize(page, '200%');
-    await page.locator('section.gallery a.enlarge').first().click();
+    const link = page.locator('section.gallery a.enlarge').first();
+    await link.click();
     const dialog = page.getByRole('dialog', { name: 'Beeld groter bekijken' });
     await expect(dialog).toBeVisible();
     expect(await dialog.evaluate((d) => getComputedStyle(d).animationName)).toBe('none');
@@ -2071,5 +2155,9 @@ test.describe('an image that opens larger on the site', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       NARROW.width
     );
+    await dialog.getByRole('button', { name: 'Sluiten' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(link).toBeFocused();
+    expect(errors).toEqual([]);
   });
 });
