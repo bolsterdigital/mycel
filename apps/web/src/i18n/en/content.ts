@@ -239,6 +239,16 @@ export const content = {
   'admin.content.field.headerLayout': 'Article layout',
   'admin.content.field.headerLayoutHint':
     'Sets how the article opens. Standard: title, lead and then the image. Cover: the image full-screen with the title over it, the lead below. A cover needs a landscape image.',
+  'admin.content.field.pageHeaderLayout': 'Page header',
+  'admin.content.field.pageHeaderLayoutHint':
+    'Sets how the page opens. Standard: title, lead and then the image. Cover: the image full-screen with the title over it. Split: title, lead and one button on a panel in the accent colour, the image beside it; on a phone the image below.',
+  'admin.content.headerLayout.split': 'Split (text panel beside the image)',
+  'admin.content.headerLayout.noImagePage':
+    'Without a hero image this page shows the standard header.',
+  'admin.content.headerAction.legend': 'Button in the header',
+  'admin.content.headerAction.label': 'Button text',
+  'admin.content.headerAction.hint':
+    'Optional. Without a text or a target there is no button; a target that is no longer published shows no button either.',
   'admin.content.headerLayout.standard': 'Standard',
   'admin.content.headerLayout.cover': 'Cover (full-screen image)',
   'admin.content.headerLayout.noImage':

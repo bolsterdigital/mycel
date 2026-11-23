@@ -85,6 +85,7 @@ import {
 } from '#lib/server/content/content-admin-publication.js';
 import {
   issueCopy as blockIssueCopy,
+  headerItems,
   pickerOptions,
   imageRestOf,
   previewOf,
@@ -189,15 +190,14 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     principal,
     doc.blocks,
     item.defaultLocale,
-    // The images the chain shows under an empty picker (the site's default too), so each has
-    // its thumbnail even when it is not among the newest.
     [
       ...documentMedia(doc).map((m) => m.mediaId),
       ...dropped,
       ...Object.values(effective).flatMap((e) =>
         [e.images.featured.mediaId, e.images.share.mediaId].filter((id) => id !== null)
       ),
-    ]
+    ],
+    headerItems(doc)
   );
   const canWrite = can(principal, 'content:write');
   const siteUrl = item.publication.some((p) => p.publishedRevisionId)

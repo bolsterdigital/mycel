@@ -18,6 +18,7 @@
   import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
   import HeroConversion from '#lib/admin/hero-conversion/HeroConversion.svelte';
   import EventFields from '#lib/admin/event-fields/EventFields.svelte';
+  import HeaderFields from '#lib/admin/header-fields/HeaderFields.svelte';
   import PrefooterSwitch from '#lib/admin/prefooter-switch/PrefooterSwitch.svelte';
   import DossierFields from '#lib/admin/dossier-fields/DossierFields.svelte';
   import SlugField from '#lib/admin/slug-field/SlugField.svelte';
@@ -1253,27 +1254,15 @@
 
     <section aria-labelledby="this-item">
       <h2 id="this-item">{t('admin.content.item.title')}</h2>
-      {#if article}
-        <!-- #158: the choice sets how title, lead and image open the article together, so it does
-             not sit with the image. A hidden `headerLayout` on a page would give pages a layout. -->
-        <Select
-          id="headerLayout"
-          name="headerLayout"
-          label={t('admin.content.field.headerLayout')}
-          hint={t('admin.content.field.headerLayoutHint')}
-          locale={data.locale}
-          value={v('headerLayout') || 'standard'}
-          options={[
-            { value: 'standard', label: t('admin.content.headerLayout.standard') },
-            { value: 'cover', label: t('admin.content.headerLayout.cover') },
-          ]}
-        />
-        {#if v('headerLayout') === 'cover' && !v('heroImageId')}
-          <Notice tone="warning" live={false}
-            ><p>{t('admin.content.headerLayout.noImage')}</p></Notice
-          >
-        {/if}
-      {/if}
+      <HeaderFields
+        locale={data.locale}
+        {work}
+        {article}
+        {v}
+        items={data.items}
+        choices="{base}/content/choices?locale={encodeURIComponent(work)}"
+        bad={(name) => issues.some((i) => i.name === name || i.name.startsWith(`${name}.`))}
+      />
       <MetaList items={[{ term: t('admin.content.item.url'), value: data.item.path }]} />
       {#if data.canWrite}
         <SlugField

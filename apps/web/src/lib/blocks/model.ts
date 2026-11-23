@@ -10,7 +10,7 @@
 // storing finished hrefs, which would make the Markdown of a dev request carry the dev prefix.
 
 import type {
-  ArticleHeader,
+  DocumentHeader,
   CampaignCardReason,
   CampaignKind,
   CampaignPhase,
@@ -144,8 +144,13 @@ export interface RenderEvent {
 export interface RenderIntro {
   lead: string | null;
   hero: RenderImage | null;
-  /** `cover` only with a hero image to cover the screen with (brief #105 rule 8). */
-  header: ArticleHeader;
+  /**
+   * `cover` and `split` only with a hero image to fill them with (brief #105 rule 8); `split` is a
+   * page's (ADR 025, amended 2026-11-23).
+   */
+  header: DocumentHeader;
+  /** The split header's one button; absent without one or when its target is unavailable. */
+  action?: RenderAction | null;
   meta: RenderMeta | null;
   /** Absent on everything but an event page with a start. */
   event?: RenderEvent | null;

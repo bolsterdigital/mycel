@@ -243,6 +243,16 @@ export const content: Partial<Record<UiKey, string>> = {
   'admin.content.field.headerLayout': 'Artikellayout',
   'admin.content.field.headerLayoutHint':
     'Bepaalt hoe het artikel opent. Standaard: titel, intro en daaronder het beeld. Cover: het beeld schermvullend met de titel eroverheen, de intro eronder. Een cover vraagt een liggend beeld.',
+  'admin.content.field.pageHeaderLayout': 'Paginakop',
+  'admin.content.field.pageHeaderLayoutHint':
+    'Bepaalt hoe de pagina opent. Standaard: titel, intro en daaronder het beeld. Cover: het beeld schermvullend met de titel eroverheen. Gesplitst: titel, intro en één knop in een vlak in de accentkleur, het beeld ernaast; op een telefoon het beeld eronder.',
+  'admin.content.headerLayout.split': 'Gesplitst (tekstvlak naast het beeld)',
+  'admin.content.headerLayout.noImagePage':
+    'Zonder hero-afbeelding toont deze pagina de standaardkop.',
+  'admin.content.headerAction.legend': 'Knop in de kop',
+  'admin.content.headerAction.label': 'Knoptekst',
+  'admin.content.headerAction.hint':
+    'Optioneel. Zonder tekst of doel staat er geen knop; een doel dat niet meer gepubliceerd is toont ook geen knop.',
   'admin.content.headerLayout.standard': 'Standaard',
   'admin.content.headerLayout.cover': 'Cover (beeld schermvullend)',
   'admin.content.headerLayout.noImage':

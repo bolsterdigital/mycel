@@ -15,6 +15,7 @@ import { exercisePublishedRepresentations } from './lib/published/representation
 import { exerciseFeeds } from './lib/published/feeds';
 import { exerciseShareCards, shareCardOf } from './lib/published/share-cards';
 import { exerciseOldAddresses } from './lib/published/old-addresses';
+import { exerciseSplitHeader } from './lib/published/page-headers';
 import { exercisePublicSearch } from './lib/published/search';
 import { openPublication, closePublication } from './lib/publication';
 import { randomBytes } from 'node:crypto';
@@ -919,7 +920,8 @@ test.describe('content-routes', () => {
     await expect(summary).toContainText('Zonder beschrijving wordt dit beeld decoratief.', {
       useInnerText: true,
     });
-    await expect(page.locator('#headerLayout')).toHaveCount(0);
+    // A page has the header choice too (MY-287), split included.
+    await expect(page.locator('#headerLayout option[value="split"]')).toHaveCount(1);
 
     // The UI gate: status and action, image and Replace, the side column, at the longest language.
     for (const locale of ['nl-NL', 'en-GB']) {
@@ -1085,10 +1087,11 @@ test.describe('content-routes', () => {
       baseRevisionId: saved.revision.id,
       document: { ...saved.revision.document, presentation: { header: 'cover' } },
     });
-    // A page has no such choice.
+    // An article has no split header; a page does (MY-287).
+    await expect(page.locator('#headerLayout option[value="split"]')).toHaveCount(0);
     const [ordinary] = (await callApi(request, 'content.item.list', { type: 'page' })).items;
     await page.goto(`/admin/probe/content/${ordinary.id}`);
-    await expect(page.locator('#headerLayout')).toHaveCount(0);
+    await expect(page.locator('#headerLayout option[value="split"]')).toHaveCount(1);
   });
 
   test('the JSON read route serves the same article without a key', async ({ request }) => {
@@ -2083,6 +2086,9 @@ test('an event page shows when and where, in its header and its data', async ({ 
 });
 
 test('an agenda lists upcoming and past events', async ({ page }) => exerciseAgenda(page));
+
+test('a page opens with a split header: panel, button, image (MY-287)', async ({ page, request }) =>
+  exerciseSplitHeader(page, request));
 
 test('a zone stands above the footer, except where a page switches it off', async ({ page }) => {
   await exercisePrefooter(page);

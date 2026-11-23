@@ -67,7 +67,14 @@ export async function introOf(
   if (doc.type !== 'article') {
     // The site's zone only names the offset in structured data; the header shows the wall clock.
     const event = projectEvent(doc, locale, 'UTC');
-    return event ? { ...header, event: renderEvent(event, locale) } : header;
+    const action = doc.presentation?.action;
+    const label = action?.label[locale];
+    return {
+      ...header,
+      header: doc.presentation?.header ?? ('standard' as const),
+      action: action && label ? { label, target: action.target } : null,
+      ...(event ? { event: renderEvent(event, locale) } : {}),
+    };
   }
   const { invoker } = runtime();
   const found = async <T>(read: () => Promise<T>): Promise<T | null> => {

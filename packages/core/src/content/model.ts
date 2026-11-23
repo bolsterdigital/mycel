@@ -13,6 +13,7 @@ import { Locale, localized } from '../i18n/locale.js';
 import { isBlankDoc } from './rich-text.js';
 import {
   Block,
+  BlockAction,
   BlockInput,
   allBlocks,
   blockLocalized,
@@ -266,7 +267,13 @@ const Dossiers = z
 
 /** The closed choice of article headers (ADR 025 rule 3). */
 export const ARTICLE_HEADERS = ['standard', 'cover'] as const;
-export type ArticleHeader = (typeof ARTICLE_HEADERS)[number];
+/**
+ * The closed choice of page headers (ADR 025, amended 2026-11-23): the article's two plus `split`,
+ * title, lead and at most one button in a panel beside the image. Rejected: `split` for articles,
+ * whose meta line and byline have no place in a panel, and a free composition of the header.
+ */
+export const PAGE_HEADERS = ['standard', 'cover', 'split'] as const;
+export type DocumentHeader = (typeof PAGE_HEADERS)[number];
 
 function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
   const base = {
@@ -313,6 +320,16 @@ function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
       profile: ContentProfile.optional(),
       /** Only on a page with the `event` profile. */
       event: EventDetails.optional(),
+      /**
+       * How this page's document header looks (ADR 025, amended 2026-11-23); absent reads as
+       * `standard`. The `action` is the split header's one button, the same shape as a hero
+       * block's; a target that is no longer available renders nothing, as in the navigation
+       * (ADR 036). Rejected: a `content_block_refs` row for it, which belongs to a block id.
+       */
+      presentation: z
+        .object({ header: z.enum(PAGE_HEADERS).optional(), action: BlockAction.optional() })
+        .strict()
+        .optional(),
     })
     .strict();
   const article = z
@@ -377,6 +394,12 @@ export function localizedFields(
   if (doc.lead) fields.push({ path: ['lead'], value: doc.lead, required: true });
   // A described hero is described in every published locale, as an image block's alt is.
   if (doc.heroAlt) fields.push({ path: ['heroAlt'], value: doc.heroAlt, required: true });
+  if (doc.type === 'page' && doc.presentation?.action)
+    fields.push({
+      path: ['presentation', 'action', 'label'],
+      value: doc.presentation.action.label,
+      required: true,
+    });
   if (doc.type === 'page' && doc.event?.location)
     fields.push({ path: ['event', 'location'], value: doc.event.location, required: true });
   allBlocks(doc.blocks).forEach((b, i) => {
@@ -409,6 +432,8 @@ function documentIssues(doc: DocumentShape): { path: (string | number)[]; messag
   if (doc.heroAlt && !doc.heroImageId)
     issues.push({ path: ['heroAlt'], message: 'content.hero.alt-without-image' });
   if (doc.type === 'page') issues.push(...eventIssues(doc));
+  if (doc.type === 'page' && doc.presentation?.action && doc.presentation.header !== 'split')
+    issues.push({ path: ['presentation', 'action'], message: 'content.header.action-split-only' });
   // A dossier belongs to no dossier: not to itself, and no hierarchy (brief dossiers).
   if (doc.type === 'page' && doc.profile === 'dossier' && doc.dossiers?.length)
     issues.push({ path: ['dossiers'], message: 'content.dossier.on-dossier' });

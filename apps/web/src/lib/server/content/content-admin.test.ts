@@ -308,7 +308,54 @@ describe('documentFrom(valuesOf(doc))', () => {
     expect(documentFrom(covered, without, '2026-11-01')).toMatchObject({
       presentation: { header: 'cover' },
     });
-    expect(valuesOf(page)).not.toHaveProperty('headerLayout');
+    expect(valuesOf(page).headerLayout).toBe('standard');
+  });
+
+  it('reads a page header: split with its button, kept without the choice (MY-287)', () => {
+    const target = '01900000-0000-7000-8000-0000000000f1';
+    const chosen = {
+      ...valuesOf(page),
+      headerLayout: 'split',
+      'headerActionLabel.nl': 'Word actief',
+      headerActionTarget: target,
+      headerActionUrl: '',
+    };
+    const split = documentFrom(page, chosen, '2026-11-23', 'nl');
+    expect(split).toMatchObject({
+      presentation: {
+        header: 'split',
+        action: { label: { nl: 'Word actief' }, target: { kind: 'item', itemId: target } },
+      },
+    });
+    const stored = ContentDocument.parse(split);
+    expect(valuesOf(stored)).toMatchObject({
+      headerLayout: 'split',
+      'headerActionLabel.nl': 'Word actief',
+      headerActionTarget: target,
+    });
+    // An address instead of an item, and no button at all.
+    expect(
+      documentFrom(
+        page,
+        { ...chosen, headerActionTarget: 'url', headerActionUrl: 'https://example.org/doe-mee' },
+        '2026-11-23',
+        'nl'
+      ).presentation
+    ).toMatchObject({ action: { target: { kind: 'url', url: 'https://example.org/doe-mee' } } });
+    expect(
+      documentFrom(
+        page,
+        { ...chosen, 'headerActionLabel.nl': '', headerActionTarget: '' },
+        '2026-11-23',
+        'nl'
+      ).presentation
+    ).toEqual({ header: 'split' });
+    // Back to standard is absent; a form without the choice keeps what is stored.
+    expect(
+      documentFrom(stored, { ...valuesOf(stored), headerLayout: 'standard' }, '2026-11-23')
+    ).not.toHaveProperty('presentation');
+    const { headerLayout: _layout, ...without } = valuesOf(stored);
+    expect(documentFrom(stored, without, '2026-11-23').presentation).toEqual(stored.presentation);
   });
 
   it('takes both images from their pickers: an id, none, or kept when the form has no picker', () => {

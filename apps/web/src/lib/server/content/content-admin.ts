@@ -124,6 +124,42 @@ function eventFrom(
   return Object.keys(event).length ? event : undefined;
 }
 
+type PagePresentation = NonNullable<Extract<ContentDocument, { type: 'page' }>['presentation']>;
+
+/**
+ * A page's header from the form (ADR 025, amended 2026-11-23): read where the form showed the
+ * choice, kept otherwise; `standard` is stored as absent, as on an older revision. The button
+ * only beside `split`; a text without a target or a target without a text is sent on, so the
+ * save refuses it by name instead of dropping what the editor typed.
+ */
+function pagePresentationFrom(
+  doc: ContentDocument,
+  v: FormValues,
+  pick: (
+    prefix: string,
+    kept: Partial<Record<string, string>> | undefined
+  ) => Record<string, string>
+): PagePresentation | undefined {
+  if (doc.type !== 'page') return undefined;
+  if (!('headerLayout' in v)) return doc.presentation;
+  const header = one(v, 'headerLayout');
+  if (header !== 'cover' && header !== 'split') return undefined;
+  if (header === 'cover') return { header };
+  const label = optional(pick('headerActionLabel', doc.presentation?.action?.label));
+  const chosen = one(v, 'headerActionTarget');
+  const url = one(v, 'headerActionUrl').trim();
+  const target =
+    chosen === 'url' || (!chosen && url)
+      ? url
+        ? { kind: 'url' as const, url }
+        : undefined
+      : chosen
+        ? { kind: 'item' as const, itemId: chosen }
+        : undefined;
+  if (!label && !target) return { header };
+  return { header, action: { label: label ?? {}, target } as PagePresentation['action'] };
+}
+
 /** The form values of a document's fields, for a fresh edit page. */
 export function valuesOf(doc: ContentDocument): FormValues {
   const v: FormValues = { locales: [...doc.locales] };
@@ -152,6 +188,14 @@ export function valuesOf(doc: ContentDocument): FormValues {
   const teaser = doc.access.teaser;
   v.teaser = typeof teaser === 'object' ? 'blocks' : teaser;
   v.teaserBlocks = typeof teaser === 'object' ? String(teaser.blocks) : '';
+  if (doc.type === 'page') {
+    const presentation = doc.presentation;
+    v.headerLayout = presentation?.header ?? 'standard';
+    put('headerActionLabel', presentation?.action?.label);
+    const target = presentation?.action?.target;
+    v.headerActionTarget = target ? (target.kind === 'item' ? target.itemId : 'url') : '';
+    v.headerActionUrl = target?.kind === 'url' ? target.url : '';
+  }
   if (doc.type === 'page' && doc.profile === 'event') {
     v.eventStartsAt = doc.event?.startsAt ?? '';
     v.eventEndsAt = doc.event?.endsAt ?? '';
@@ -318,8 +362,20 @@ export function documentFrom(
         : doc.access,
   };
   if (doc.type !== 'article') {
-    const { event: _event, ...page } = common as typeof common & { event?: unknown };
-    return { ...page, ...(event ? { event } : {}) } as ContentDocumentInput;
+    const {
+      event: _event,
+      presentation: _p,
+      ...page
+    } = common as typeof common & {
+      event?: unknown;
+      presentation?: unknown;
+    };
+    const presentation = pagePresentationFrom(doc, v, pick);
+    return {
+      ...page,
+      ...(event ? { event } : {}),
+      ...(presentation ? { presentation } : {}),
+    } as ContentDocumentInput;
   }
 
   // A new correction is written in the locale the form shows; the stored ones stay as they are.
