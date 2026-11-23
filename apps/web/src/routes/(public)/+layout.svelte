@@ -8,6 +8,12 @@
   import type { LayoutProps } from './$types';
 
   let { children, data }: LayoutProps = $props();
+  // The floating pairs (MY-269 PR 2), render-blocking so the module listens before the first
+  // render's `pagereveal`. A fixed string: `blocking` is not in Svelte's element types yet, and a
+  // spread makes Svelte add inline `onload`/`onerror` handlers, which the CSP refuses. Rejected:
+  // augmenting `svelte/elements`, a `declare module` the one-home gate keeps for ports.
+  const TRANSITIONS_TAG =
+    '<script type="module" src="/_site/transitions.js" blocking="render"></' + 'script>';
   const t = $derived(ui(data.locale));
   // The menus mark the page they lead to (`aria-current`), and open its branch in the panel.
   const current = $derived(page.url.pathname);
@@ -25,6 +31,7 @@
       <link rel="preload" href={font} as="font" type="font/woff2" crossorigin="anonymous" />
     {/each}
     <link rel="stylesheet" href={data.theme.href} />
+    {#if data.theme.transitions}{@html TRANSITIONS_TAG}{/if}
     <meta
       name="theme-color"
       media="(prefers-color-scheme: light)"

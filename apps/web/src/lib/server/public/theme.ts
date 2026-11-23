@@ -23,6 +23,8 @@ export interface SiteTheme {
   dropCap: DropCap;
   /** The `body` background per mode, for the browser's `theme-color`; in the CSS hash already. */
   colors: { light: string; dark: string };
+  /** Page transitions on (MY-269): the page loads the floating pairs; in the CSS hash already. */
+  transitions: boolean;
 }
 
 const bySite = new WeakMap<Site, Promise<SiteTheme>>();
@@ -83,13 +85,14 @@ async function loadSiteTheme(site: Site): Promise<SiteTheme> {
       (font.active
         ? `@font-face { font-family: 'Mycel Wordmark'; src: url('../_brand/font/${font.version}.woff2') format('woff2'); font-display: swap; }\n.site-wordmark { font-family: 'Mycel Wordmark', Inter, sans-serif; }\n`
         : '');
-    const { dropCap, palettes } = resolveTheme(theme);
+    const { dropCap, palettes, pageTransitions } = resolveTheme(theme);
     found = themeHash(css).then((hash) => ({
       css,
       hash,
       preload: preloadFonts(theme),
       dropCap,
       colors: { light: palettes.light.body.background, dark: palettes.dark.body.background },
+      transitions: pageTransitions === 'on',
     }));
     // The cache is only an optimization for repeated themes; tenant data is read on each request.
     if (cssCache.size >= 128) cssCache.delete(cssCache.keys().next().value!);

@@ -36,12 +36,12 @@ export const load: LayoutServerLoad = async ({ locals, request, params, route, s
   const site = locals.site;
   if (!site)
     return { credit: null, theme: null, chrome: null, locale: 'en', feeds: [], siteHead: null };
-  const [{ hash, preload, colors }, { logo }, general] = await Promise.all([
+  const [{ hash, preload, colors, transitions }, { logo }, general] = await Promise.all([
     siteTheme(site),
     siteBrand(site),
     siteGeneral(site),
   ]);
-  const theme = { href: sitePath(site, themePath(hash)), preload, colors };
+  const theme = { href: sitePath(site, themePath(hash)), preload, colors, transitions };
   const head = {
     manifest: sitePath(site, '/manifest.webmanifest'),
     touchIcon: logo.active ? sitePath(site, iconPath(logo.version, colors.light, 180)) : null,

@@ -48,6 +48,30 @@
 ::view-transition-new(*) {
   animation-duration: 250ms;
 }
+/* Floating pairs (MY-269 PR 2): `static/_site/transitions.js` marks a card's parts and the
+   header of the page it opens with `data-transition` for one navigation; these rules turn the
+   mark into the name, so no element needs a style attribute. A card's image and the header's
+   have different proportions: both snapshots fill the group and are cropped, never squashed. */
+[data-transition='doc-media'] {
+  view-transition-name: doc-media;
+}
+[data-transition='doc-title'] {
+  view-transition-name: doc-title;
+}
+[data-transition='campaign-count'] {
+  view-transition-name: campaign-count;
+}
+[data-transition='person-portrait'] {
+  view-transition-name: person-portrait;
+}
+::view-transition-old(doc-media),
+::view-transition-new(doc-media),
+::view-transition-old(person-portrait),
+::view-transition-new(person-portrait) {
+  object-fit: cover;
+  height: 100%;
+  overflow: clip;
+}
 .site-header {
   padding-block: calc(0.75 * var(--space-2));
   color: var(--chrome-header-fg);
