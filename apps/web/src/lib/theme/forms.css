@@ -154,7 +154,7 @@ fieldset.amount legend {
   }
 }
 /* Try two whole pairs on one row. Their intrinsic widths include the longest localized price. */
-@container (min-width: 19em) {
+@container (min-width: 18em) {
   .amount-quad > .amount-pair {
     flex-basis: 0;
     min-inline-size: max-content;
