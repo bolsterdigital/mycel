@@ -7,8 +7,8 @@
 // Items are made in two rounds. A link from one item to another is checked at every save
 // (`content.reference.item-unknown`), so an item whose blocks name another item of the export is
 // first created without blocks and gets them once every item exists; so is an item that names its
-// dossier pages (MY-290). Every placeholder of the plan
-// is swapped for the id a use case returned; a block whose file or linked item did not make it is
+// dossier pages (MY-290) or a campaign card: campaigns are made between the rounds, on their
+// landing pages (MY-291). Every placeholder of the plan is swapped for the id a use case returned; a block whose file or linked item did not make it is
 // left out with a report line, so one missing image does not cost the whole article. One failed
 // item does not stop the run. Rejected: creating items in dependency order (two pages that link to
 // each other have none) and writing ids into the plan up front (ids are the registry's to give).
@@ -59,9 +59,10 @@ export interface ImportResult {
 /** The tenant already has content and `intoExisting` was not given. */
 export class TenantNotEmpty extends Error {}
 
-const PLACEHOLDER = /00000000-0000-4000-800[1-6]-\d{12}/g;
+const PLACEHOLDER = /00000000-0000-4000-800[1-7]-\d{12}/g;
 const placeholders = (value: unknown) => [...new Set(JSON.stringify(value).match(PLACEHOLDER))];
-const isItemRef = (ref: string) => ref.startsWith('00000000-0000-4000-8004-');
+/** A link to an item or a campaign, which exists only after round one (MY-291). */
+const isLinkRef = (ref: string) => /^00000000-0000-4000-800[47]-/.test(ref);
 
 /** What a refusal says, for a report line: its code and first issue. */
 function reason(error: unknown): string {
@@ -216,7 +217,7 @@ export async function execute(
   // wait for round two.
   const made: { item: PlannedItem; itemId: string; revisionId: string; later: boolean }[] = [];
   for (const item of plan.items) {
-    const later = placeholders([item.document.blocks, item.document.dossiers]).some(isItemRef);
+    const later = placeholders([item.document.blocks, item.document.dossiers]).some(isLinkRef);
     try {
       const document = resolve(item, later);
       if (later) {
@@ -240,7 +241,30 @@ export async function execute(
     }
   }
 
-  // Round two: the blocks with links, now that every item has an id; then publish.
+  // Between the rounds: each Dreamkit action's campaign on its landing page (MY-291). It starts
+  // as a draft without a form, so it takes no part until an editor binds a form and opens it;
+  // cards that name it get their blocks in round two.
+  for (const campaign of plan.campaigns) {
+    const landingItemId = ids[campaign.landingRef];
+    const where = { postId: campaign.sourceId };
+    if (!landingItemId) {
+      report.push({ code: 'campaign.failed', ...where, detail: 'landing page not created' });
+      continue;
+    }
+    try {
+      const made = await invoker.run(useCases.createCampaign, principal, {
+        kind: campaign.kind,
+        landingItemId,
+        goal: campaign.goal,
+        startingCount: campaign.startingCount,
+      });
+      ids[campaign.ref] = made.id;
+    } catch (error) {
+      report.push({ code: 'campaign.failed', ...where, detail: reason(error) });
+    }
+  }
+
+  // Round two: the blocks with links, now that every item and campaign has an id; then publish.
   const items: ImportedItem[] = [];
   for (const entry of made) {
     const { item, itemId } = entry;

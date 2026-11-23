@@ -20,6 +20,7 @@ const ITEM = '00000000-0000-4000-8004-000000000009';
 /** Posts 9 to 16 are in the export; 9 is `ITEM`. */
 const POST = (n: number) => `00000000-0000-4000-8004-0000000000${String(n).padStart(2, '0')}`;
 const SECTION = '00000000-0000-4000-8003-000000000004';
+const CAMPAIGN = '00000000-0000-4000-8007-000000000070';
 const PERSON = (n: number) => `00000000-0000-4000-8005-00000000000${n}`;
 const GROUP = '00000000-0000-4000-8006-000000000075';
 
@@ -37,6 +38,7 @@ function run(content: string) {
     wingsNode: (id) => (id === 'w12' ? POST(12) : null),
     section: (id) => (Number(id) === 4 ? SECTION : null),
     dossier: (id) => (Number(id) === 40 ? POST(10) : null),
+    campaign: (id) => (Number(id) === 70 ? CAMPAIGN : null),
     note: (code, detail) => notes.push({ code, ...(detail && { detail }) }),
   };
   const [block] = parseBlocks(content);
@@ -387,6 +389,20 @@ const CASES: Record<string, () => void> = {
       mapped: { kind: 'skip', reason: 'items-missing' },
       notes: [{ code: 'items.missing', detail: '99' }],
     });
+  },
+  'wings/campaign-card': () => {
+    // A live reference to the campaign the action became (MY-291); `full` is the default style.
+    const card = (attrs: string) => run(`<!-- wp:wings/campaign-card {${attrs}} /-->`);
+    expect(only(card('"campaignId":70,"campaignType":"petition"').mapped)).toEqual({
+      type: 'campaign-card',
+      props: { campaignId: CAMPAIGN, variant: 'full' },
+    });
+    expect(only(card('"campaignId":70,"displayStyle":"compact"').mapped).props.variant).toBe(
+      'compact'
+    );
+    const missing = card('"campaignId":71,"campaignType":"signup"');
+    expect(missing.mapped).toEqual({ kind: 'skip', reason: 'items-missing' });
+    expect(missing.notes).toEqual([{ code: 'items.missing', detail: 'campaign 71' }]);
   },
   'wings/action-cards': () => {
     const card = (title: string, url = '') =>

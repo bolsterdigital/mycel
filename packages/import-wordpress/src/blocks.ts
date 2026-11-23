@@ -62,6 +62,8 @@ export interface MapContext {
   section(termId: unknown): string | null;
   /** The placeholder id of the dossier page a Wings dossier term leads to, by term id (MY-290). */
   dossier(termId: unknown): string | null;
+  /** The placeholder id of the campaign a Dreamkit action becomes, by its post id (MY-291). */
+  campaign(postId: unknown): string | null;
   /** A remark on this block that does not leave it out. */
   note(code: NoteCode, detail?: string): void;
 }
@@ -478,6 +480,21 @@ function singleNode(block: WpBlock, ctx: MapContext): Mapped {
 }
 
 /**
+ * A Dreamkit campaign card as a live reference to the campaign its action became (MY-291, ADR 033
+ * rule 4): title, image, state and count come from the campaign, so two cards of one action stay
+ * one. `displayStyle` `full` carries the form, as Mycel's `full` does while participation is open.
+ */
+function campaignCard(block: WpBlock, ctx: MapContext): Mapped {
+  const campaignId = ctx.campaign(block.attrs.campaignId);
+  if (!campaignId) {
+    ctx.note('items.missing', `campaign ${String(block.attrs.campaignId ?? '')}`);
+    return skip('items-missing');
+  }
+  const variant = block.attrs.displayStyle === 'compact' ? 'compact' : 'full';
+  return blocks({ type: 'campaign-card', props: { campaignId, variant } });
+}
+
+/**
  * Wings action cards (hand-written title, text and one button each) as `cards`, four to a block,
  * which is what `cards` holds (MY-285).
  */
@@ -585,6 +602,7 @@ export const BLOCK_MAP: Record<string, Entry> = {
   'wings/nodes-grid': nodesGrid,
   'wings/single-node': singleNode,
   'wings/action-cards': actionCards,
+  'wings/campaign-card': campaignCard,
   'core/file': file,
   'core/audio': audio,
   'core/shortcode': () => skip('shortcode'),

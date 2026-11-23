@@ -67,6 +67,7 @@ describe('execute', () => {
         ]),
         page(LATER, 'later', []),
       ],
+      campaigns: [],
       report: [],
     };
     const result = await execute(plan, {
