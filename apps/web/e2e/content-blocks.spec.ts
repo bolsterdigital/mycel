@@ -563,10 +563,11 @@ test.describe('content-blocks', () => {
 
     // A forged type stays outside the existing pending validator and is explained in place.
     const unknown = atEnd().getByRole('button', { name: 'Kop', exact: true });
-    await unknown.evaluate(
-      (button) => ((button as HTMLButtonElement).value = 'not-registered|end')
-    );
-    await unknown.click();
+    await unknown.evaluate((element) => {
+      const button = element as HTMLButtonElement;
+      button.value = 'not-registered|end';
+      button.click();
+    });
     await expect(
       page.getByText('Dit bloktype of invoegpunt is niet meer beschikbaar. Kies een ander blok.')
     ).toBeVisible();
