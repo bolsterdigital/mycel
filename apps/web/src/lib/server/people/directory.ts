@@ -3,11 +3,13 @@
 import {
   useCases,
   personPageStatus,
+  UseCaseError,
   type Person,
   type PersonGroup,
   type Principal,
   type Invoker,
 } from '@mycel/core';
+import { personPath } from '../../public/person-path.js';
 import { runtime } from '../runtime.js';
 
 export async function peopleDirectory(
@@ -83,4 +85,28 @@ export async function pageStatuses(
   return Object.fromEntries(
     people.map((p) => [p.id, personPageStatus(site.value, p, authors.has(p.id) ? 1 : 0)])
   );
+}
+
+/**
+ * The site path of a person's public page in `locale`, or null when the site would not serve one
+ * (an organisation, a policy of never, site-wide off, or no published article yet), for "view on
+ * the site" in the admin (MY-265). It asks the same use case the public route asks, for one person,
+ * so the link exists exactly when the page does. Rejected: `pageStatuses`, which walks every
+ * article of the site for a list and is too costly for one edit screen.
+ */
+export async function personSitePath(
+  principal: Principal,
+  person: Pick<Person, 'slug' | 'kind'>,
+  locale: string,
+  defaultLocale: string,
+  invoker: Invoker = runtime().invoker
+): Promise<string | null> {
+  if (person.kind === 'organisation') return null;
+  try {
+    await invoker.run(useCases.getPublicPerson, principal, { slug: person.slug, locale, limit: 1 });
+  } catch (error) {
+    if (error instanceof UseCaseError && error.code === 'not_found') return null;
+    throw error;
+  }
+  return personPath(person.slug, locale, defaultLocale);
 }

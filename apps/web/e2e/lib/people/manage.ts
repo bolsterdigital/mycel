@@ -53,6 +53,29 @@ export async function exercisePeople(page: Page, request: APIRequestContext) {
   await page.goto(`${base}/${personId}`);
   await page.locator('#person-name').fill(name);
   await page.getByRole('button', { name: 'Save', exact: true }).click();
+  // MY-265: without a published article the site has no page, so no link; with "always" it has.
+  const view = page.getByRole('link', { name: 'View on the site' });
+  await expect(view).toHaveCount(0);
+  const slug = await withInvoker(async (invoker) => {
+    const {
+      id: _id,
+      slug,
+      createdAt: _c,
+      updatedAt,
+      ...rest
+    } = await invoker.run(useCases.getPerson, principal, { personId });
+    await invoker.run(useCases.updatePerson, principal, {
+      ...rest,
+      personId,
+      baseUpdatedAt: updatedAt,
+      pagePolicy: 'always',
+    });
+    return slug;
+  });
+  await page.goto(`${base}/${personId}`);
+  await expect(view).toHaveAttribute('href', new RegExp(`(/en)?/people/${slug}$`));
+  await expect(view).toHaveAttribute('target', '_blank');
+  await measure(page, 'person-form-view');
   await page.goto(`${base}/groups/new`);
   await page.locator('#group-name').fill(`Team ${unique}`);
   await page.locator(`#member-${personId}`).check();

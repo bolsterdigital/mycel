@@ -2,7 +2,7 @@
 import { expect, it } from 'vitest';
 import { Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
 import { MemoryUnitOfWork, TENANT } from '@mycel/core/testing';
-import { pageStatuses, peopleDirectory, groupDirectory } from './directory.js';
+import { pageStatuses, peopleDirectory, groupDirectory, personSitePath } from './directory.js';
 
 it('walks beyond the first directory page and preserves ordered groups', async () => {
   const invoker = new Invoker(buildRegistry(), new MemoryUnitOfWork());
@@ -65,4 +65,46 @@ it('uses published authors even after a draft changes them, and obeys site off',
     [a.id]: 'site-off',
     [b.id]: 'site-off',
   });
+});
+it('links a person to the site only while the site serves the page (MY-265)', async () => {
+  const invoker = new Invoker(buildRegistry(), new MemoryUnitOfWork());
+  const principal = systemPrincipal(TENANT, 'test');
+  const anouk = await invoker.run(useCases.createPerson, principal, {
+    name: 'Anouk',
+    slug: 'anouk',
+  });
+  const always = await invoker.run(useCases.createPerson, principal, {
+    name: 'Bas',
+    slug: 'bas',
+    pagePolicy: 'always',
+  });
+  const org = await invoker.run(useCases.createPerson, principal, {
+    name: 'Stichting',
+    slug: 'stichting',
+    kind: 'organisation',
+  });
+  const path = (p: typeof anouk, locale = 'en') =>
+    personSitePath(principal, p, locale, 'en', invoker);
+  // No published article yet: the page does not exist, so neither does the link.
+  expect(await path(anouk)).toBeNull();
+  expect(await path(always)).toBe('/people/bas');
+  expect(await path(always, 'nl')).toBe('/nl/people/bas');
+  expect(await path(org)).toBeNull();
+  const created = await invoker.run(useCases.createItem, principal, {
+    slug: 'story',
+    document: {
+      type: 'article',
+      defaultLocale: 'en',
+      locales: ['en'],
+      title: { en: 'Story' },
+      authorIds: [anouk.id],
+      blocks: [],
+    },
+  });
+  await invoker.run(useCases.publishItem, principal, {
+    itemId: created.item.id,
+    revisionId: created.revision.id,
+    locale: 'en',
+  });
+  expect(await path(anouk)).toBe('/people/anouk');
 });

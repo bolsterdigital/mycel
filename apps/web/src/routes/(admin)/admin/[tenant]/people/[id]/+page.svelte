@@ -1,8 +1,19 @@
 <!-- Content first, optional contact and page settings folded. Other content locales survive a save.
-     An organisation shows only its own fields: name, logo, short text, website and other links. -->
+     An organisation shows only its own fields: name, logo, short text, website and other links.
+     A person whose public page the site serves links to it beside the title, in a new tab, as a
+     content item does (MY-265); an organisation has no page and so no link. -->
 <script lang="ts">
   import { page } from '$app/state';
-  import { FormPage, Field, Fieldset, Select, MediaPicker, Notice } from '#lib/admin/ui/index.js';
+  import {
+    FormPage,
+    Field,
+    Fieldset,
+    Select,
+    MediaPicker,
+    Notice,
+    Button,
+    Icon,
+  } from '#lib/admin/ui/index.js';
   import { ui } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
   let { data, form }: PageProps = $props();
@@ -67,6 +78,14 @@
   submit={t('admin.people.save')}
   cancel={{ href: `${base}/people`, label: t('admin.people.cancel') }}
 >
+  {#snippet actions()}
+    {#if data.siteHref}
+      <Button variant="link" href={data.siteHref} aria-describedby="new-tab" target="_blank"
+        ><Icon name="external-link" />{t('admin.content.action.view')}</Button
+      >
+      <p id="new-tab" class="ui-visually-hidden">{t('admin.content.edit.newTab')}</p>
+    {/if}
+  {/snippet}
   {#snippet notices()}
     {#if form?.error}<Notice tone="error">{t(form.error)}</Notice
       >{:else if page.url.searchParams.has('saved')}<Notice tone="success"
