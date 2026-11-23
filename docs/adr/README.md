@@ -43,3 +43,4 @@ The contract the code is built against. How a decision gets here, and when one i
 | 036 | [Site navigation is a revisioned aggregate of menus and placements, published per locale](036-site-navigation.md)                      | accepted |
 | 037 | [The launch checklist is advisory: steps in code, state per site](037-launch-checklist.md)                                             | accepted |
 | 038 | [A campaign is presented one way in two structures: landing page and card](038-campaign-presentation.md)                               | accepted |
+| 039 | [Managed video is reusable media published through content](039-managed-video.md)                                                      | accepted |
