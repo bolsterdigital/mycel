@@ -474,6 +474,8 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
       const where = { ...at, block: block.name ?? 'freeform', position };
       const ctx: MapContext = {
         locale,
+        // Nothing placed yet: a block left out before the hero does not show on the old page.
+        opensPage: TYPES[post.type] === 'page' && !drafts.length && !header,
         postTitle: post.title,
         link,
         media: mediaRef,
@@ -541,8 +543,13 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
     const at = { postId: post.id, title: post.title, locale: lead!.locale };
     report.push(...lead!.lines);
 
-    const title: Record<string, string> = { [lead!.locale]: post.title };
     const header = { ...lead!.header };
+    const title: Record<string, string> = {
+      [lead!.locale]: header.split?.title || post.title,
+    };
+    const actionLabels: Record<string, string> = header.split?.action
+      ? { [lead!.locale]: header.split.action.label }
+      : {};
     const leads: Record<string, string> = header.lead ? { [lead!.locale]: header.lead } : {};
     const heroAlt: Record<string, string> = header.heroAlt
       ? { [lead!.locale]: header.heroAlt }
@@ -567,7 +574,9 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
       const sameShape =
         other.locale !== lead!.locale &&
         other.blocks.map((b) => b.type).join() === blocks.map((b) => b.type).join() &&
-        Boolean(other.header.heroImageId) === Boolean(header.heroImageId);
+        Boolean(other.header.heroImageId) === Boolean(header.heroImageId) &&
+        Boolean(other.header.split) === Boolean(header.split) &&
+        Boolean(other.header.split?.action) === Boolean(header.split?.action);
       if (!sameShape) {
         report.push({
           code: 'translation.not-merged',
@@ -588,6 +597,8 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
         >,
       }));
       if (other.header.heroImageId !== header.heroImageId) conflicts.push('heroImageId');
+      const [to, otherTo] = [header.split?.action?.target, other.header.split?.action?.target];
+      if (JSON.stringify(to) !== JSON.stringify(otherTo)) conflicts.push('presentation.action');
       for (const path of conflicts)
         report.push({
           code: 'translation.value-differs',
@@ -598,7 +609,8 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
         });
       locales.push(other.locale);
       merged.push(other);
-      title[other.locale] = other.post.title;
+      title[other.locale] = other.header.split?.title || other.post.title;
+      if (other.header.split?.action) actionLabels[other.locale] = other.header.split.action.label;
       if (other.header.lead) leads[other.locale] = other.header.lead;
       if (other.header.heroAlt) heroAlt[other.locale] = other.header.heroAlt;
       excerptOf(other);
@@ -650,6 +662,15 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
       ...(featuredImage && { featuredImageId: featuredImage.ref }),
       ...(Object.keys(excerpts).length && { featured: { description: excerpts } }),
       ...(post.type === 'dossier' && { profile: 'dossier' }),
+      ...(header.split &&
+        header.heroImageId && {
+          presentation: {
+            header: 'split',
+            ...(header.split.action && {
+              action: { label: actionLabels, target: header.split.action.target },
+            }),
+          },
+        }),
     };
     const dossiers = dossiersOf(post, at);
     if (dossiers.length) document.dossiers = dossiers.map((itemId) => ({ itemId }));

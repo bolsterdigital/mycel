@@ -7,8 +7,8 @@
 // Items are made in two rounds. A link from one item to another is checked at every save
 // (`content.reference.item-unknown`), so an item whose blocks name another item of the export is
 // first created without blocks and gets them once every item exists; so is an item that names its
-// dossier pages (MY-290) or a campaign card: campaigns are made between the rounds, on their
-// landing pages (MY-291). Every placeholder of the plan is swapped for the id a use case returned; a block whose file or linked item did not make it is
+// dossier pages (MY-290), a campaign card or a split header's button (MY-287): campaigns are made
+// between the rounds, on their landing pages (MY-291). Every placeholder of the plan is swapped for the id a use case returned; a block whose file or linked item did not make it is
 // left out with a report line, so one missing image does not cost the whole article. One failed
 // item does not stop the run. Rejected: creating items in dependency order (two pages that link to
 // each other have none) and writing ids into the plan up front (ids are the registry's to give).
@@ -63,6 +63,10 @@ const PLACEHOLDER = /00000000-0000-4000-800[1-7]-\d{12}/g;
 const placeholders = (value: unknown) => [...new Set(JSON.stringify(value).match(PLACEHOLDER))];
 /** A link to an item or a campaign, which exists only after round one (MY-291). */
 const isLinkRef = (ref: string) => /^00000000-0000-4000-800[47]-/.test(ref);
+
+/** A split page header's button, which links to an item like a block does (MY-287). */
+const linkedPresentation = (item: PlannedItem) =>
+  item.document.type === 'page' ? item.document.presentation?.action : undefined;
 
 /** What a refusal says, for a report line: its code and first issue. */
 function reason(error: unknown): string {
@@ -197,6 +201,12 @@ export async function execute(
         delete doc[field];
         if (field === 'heroImageId') delete doc.heroAlt;
       }
+    // A split header's button whose item did not come over is left out; the header stays.
+    const presentation = doc.presentation as { action?: unknown } | undefined;
+    if (presentation?.action && placeholders(presentation.action).some((r) => !known(r))) {
+      at({ code: 'block.reference-missing', block: 'presentation.action', position: 0 });
+      delete presentation.action;
+    }
     if (Array.isArray(doc.authorIds)) doc.authorIds = doc.authorIds.filter((r) => known(r));
     if (typeof doc.sectionId === 'string' && !known(doc.sectionId)) doc.sectionId = null;
     if (Array.isArray(doc.dossiers)) {
@@ -217,13 +227,18 @@ export async function execute(
   // wait for round two.
   const made: { item: PlannedItem; itemId: string; revisionId: string; later: boolean }[] = [];
   for (const item of plan.items) {
-    const later = placeholders([item.document.blocks, item.document.dossiers]).some(isLinkRef);
+    const later = placeholders([
+      item.document.blocks,
+      item.document.dossiers,
+      linkedPresentation(item),
+    ]).some(isLinkRef);
     try {
       const document = resolve(item, later);
       if (later) {
         document.blocks = [];
         delete document.dossiers;
         delete document.showDossier;
+        delete document.presentation?.action;
       }
       const { item: created, revision } = await invoker.run(useCases.createItem, principal, {
         slug: item.slug,

@@ -278,6 +278,42 @@ describe('planning choices', () => {
     ]);
   });
 
+  it('makes a title-replacing hero that opens a page its split header (MY-287)', () => {
+    const hero = (id: number) =>
+      `<!-- wp:wings/hero {"title":"Rotterdam is van ons","introText":"Een stad voor iedereen.","ctaText":"Word actief","ctaTarget":{"id":${id},"url":"https://oud.example/vacatures/"},"heroImage":{"id":9,"alt":"Kandidaten"},"replacesPageTitle":true} /-->`;
+    const post = (id: number, slug: string, type: string, content: string) =>
+      `<item><title>${slug}</title><wp:post_id>${id}</wp:post_id><wp:post_name>${slug}</wp:post_name><wp:status>publish</wp:status><wp:post_type>${type}</wp:post_type><content:encoded><![CDATA[${content}]]></content:encoded></item>`;
+    const planned = plan(
+      `<rss><channel><language>nl</language>
+      <item><title>Foto</title><wp:post_id>9</wp:post_id><wp:post_type>attachment</wp:post_type><wp:status>inherit</wp:status><wp:attachment_url>https://oud.example/f.jpg</wp:attachment_url></item>
+      ${post(1, 'home', 'page', hero(2))}
+      ${post(2, 'vacatures', 'page', '<!-- wp:paragraph --><p>Doe mee.</p><!-- /wp:paragraph -->')}
+      ${post(3, 'later', 'page', `<!-- wp:paragraph --><p>Eerst tekst.</p><!-- /wp:paragraph -->${hero(2)}`)}
+      ${post(4, 'bericht', 'post', hero(2))}
+      </channel></rss>`
+    );
+    const doc = (slug: string) => planned.items.find((i) => i.slug === slug)!.document;
+    expect(doc('home')).toMatchObject({
+      title: { nl: 'Rotterdam is van ons' },
+      lead: { nl: 'Een stad voor iedereen.' },
+      heroAlt: { nl: 'Kandidaten' },
+      presentation: {
+        header: 'split',
+        action: {
+          label: { nl: 'Word actief' },
+          target: { kind: 'item', itemId: placeholder('item', 2) },
+        },
+      },
+    });
+    expect(ContentDocumentInput.safeParse(doc('home')).success).toBe(true);
+    // Not the first block, or on an article: lead and image only, the button a report line.
+    for (const slug of ['later', 'bericht']) {
+      expect(doc(slug)).not.toHaveProperty('presentation.action');
+      expect(doc(slug)).not.toMatchObject({ presentation: { header: 'split' } });
+    }
+    expect(planned.report.filter((l) => l.code === 'hero.action-dropped')).toHaveLength(2);
+  });
+
   it('decodes entities in titles, leads and alt texts', () => {
     const decoded = plan(
       `<rss><channel><language>nl</language>

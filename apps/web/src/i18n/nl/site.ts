@@ -47,6 +47,11 @@ export const site: Partial<Record<UiKey, string>> = {
     'Het lettertype van onderschriften en naamsvermeldingen bij foto’s, video’s en galerijen.',
   'admin.site.captionFont.body': 'Zoals de lopende tekst',
   'admin.site.captionFont.mono': 'Monospace (schrijfmachine)',
+  'admin.site.headingCase': 'Koppen en knoppen',
+  'admin.site.headingCase.hint':
+    'Hoe koppen, kaarttitels en knoppen worden gezet. Kapitalen veranderen alleen hoe ze eruitzien; de tekst zelf blijft zoals hij is geschreven.',
+  'admin.site.headingCase.normal': 'Zoals geschreven',
+  'admin.site.headingCase.upper': 'In kapitalen',
   'admin.site.images': 'Beeld',
   'admin.site.defaultImage': 'Standaardbeeld',
   'admin.site.defaultImage.hint':

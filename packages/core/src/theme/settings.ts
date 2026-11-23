@@ -12,8 +12,9 @@ import {
   CAPTION_FONTS,
   CHROME_ROLES,
   DROP_CAPS,
-  PAGE_TRANSITION_CHOICES,
+  HEADING_CASES,
   HEADING_WEIGHTS,
+  PAGE_TRANSITION_CHOICES,
   THEME_VERSION,
 } from './model.js';
 import { DEFAULT_THEME } from './presets.js';
@@ -169,6 +170,8 @@ const ResolvedTheme = z
     pageTransitions: z.enum(PAGE_TRANSITION_CHOICES).optional(),
     // Optional for the same reason: a theme stored before the choice renders its captions in body.
     captionFont: z.enum(CAPTION_FONTS).optional(),
+    // Optional for the same reason: a theme stored before MY-283 sets its headings as written.
+    headingCase: z.enum(HEADING_CASES).optional(),
     // Required: the reader parses a stored theme with `Theme`, which resolves an absent choice.
     chrome: z.object({ header: z.enum(CHROME_ROLES), footer: z.enum(CHROME_ROLES) }).strict(),
   })

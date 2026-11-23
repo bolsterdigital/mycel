@@ -41,6 +41,7 @@ export const DEFAULT_THEME: ResolvedTheme = {
   dropCap: 'articles',
   pageTransitions: 'on',
   captionFont: 'body',
+  headingCase: 'normal',
   chrome: { header: 'primary', footer: 'primary' },
 };
 
@@ -81,6 +82,7 @@ export const THEME_PRESETS = {
     dropCap: 'articles',
     pageTransitions: 'on',
     captionFont: 'body',
+    headingCase: 'normal',
     chrome: { header: 'primary', footer: 'primary' },
   },
   /** Bold green and yellow, larger steps and rounder corners: for campaign pages. */
@@ -119,6 +121,7 @@ export const THEME_PRESETS = {
     dropCap: 'articles',
     pageTransitions: 'on',
     captionFont: 'body',
+    headingCase: 'normal',
     chrome: { header: 'primary', footer: 'primary' },
   },
 } as const satisfies Record<string, ResolvedTheme>;
