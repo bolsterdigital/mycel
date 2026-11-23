@@ -56,54 +56,80 @@
   min-height: 44px;
 }
 
-/* Columns are a maximum. Text-sized breakpoints collapse the grid before cards become narrow. */
+/* Cap the tracks as well as the photos so a two-person team stays compact on a wide page.
+   A shared surface groups the name and details even when a profile has no photo. */
 .people-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 2rem;
+  grid-template-columns: minmax(0, 18rem);
+  justify-content: center;
+  align-items: start;
+  gap: 1.25rem;
 }
 .person-card {
   min-width: 0;
+  padding-block-end: 1rem;
+  border: 1px solid color-mix(in srgb, var(--color-surface-fg) 22%, var(--color-surface-bg));
+  border-radius: var(--radius);
+  color: var(--color-surface-fg);
+  background: var(--color-surface-bg);
+  font-size: 1rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.person-card > picture {
+  display: block;
 }
 .person-card img {
+  display: block;
   width: 100%;
-  height: auto;
-  aspect-ratio: 4 / 5;
+  height: 200px;
+  border-radius: var(--radius) var(--radius) 0 0;
   object-fit: cover;
 }
-/* A logo keeps its own shape: a strip of fixed height, aligned with the name below it, never
-   cropped like a portrait. Rejected: a full-width landscape box, which surrounds a wide logo
-   with empty space on a narrow screen. */
+/* Give logos their own padded frame so the whole mark remains visible. */
 .person-card-organisation img {
-  width: auto;
-  max-width: 100%;
+  box-sizing: border-box;
   height: 6rem;
-  aspect-ratio: auto;
+  padding: 0.75rem 1rem 0;
   object-fit: contain;
   object-position: left center;
 }
+.person-card > :not(picture) {
+  margin: 0.5rem 1rem 0;
+}
+.person-card > :is(h2, h3, h4, h5, h6) {
+  margin-block-start: 0.75rem;
+  font-size: var(--step-1);
+  line-height: 1.2;
+}
 .person-card p {
   white-space: pre-line;
-  overflow-wrap: anywhere;
 }
-.person-card :is(h2, h3) {
-  overflow-wrap: anywhere;
+.person-card a {
+  color: inherit;
 }
-.person-card :is(h2, h3) a {
+.person-card > :is(h2, h3, h4, h5, h6) a {
   display: inline-flex;
-  min-height: 44px;
+  min-block-size: 44px;
+  min-inline-size: 44px;
   align-items: center;
+}
+.person-card .person-contact {
+  gap: 0.25rem 0.75rem;
+}
+.person-card .person-contact:empty {
+  display: none;
 }
 @media (min-width: 40rem) {
   .people-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 18rem));
   }
 }
 @media (min-width: 64rem) {
   .people-grid-3 {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 18rem));
   }
   .people-grid-4 {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 18rem));
   }
 }

@@ -22,9 +22,8 @@
     depth: number;
   } = $props();
   const firstImageId = $derived(block.people.find((p) => p.image)?.id);
-  const sizes = $derived(
-    `(min-width: 64rem) ${block.columns === '2' ? '33rem' : block.columns === '3' ? '21.3rem' : '15.5rem'}, (min-width: 40rem) calc((100vw - 4rem) / 2), calc(100vw - 2rem)`
-  );
+  // Match the capped people.css tracks and the narrower available rail on small screens.
+  const sizes = '(min-width: 20rem) 18rem, calc(100vw - 2rem)';
 </script>
 
 {#if block.people.length}
