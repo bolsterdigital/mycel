@@ -2014,12 +2014,16 @@ test.describe('an image that opens larger on the site', () => {
                 );
               });
               const root = document.documentElement;
-              const widths = group?.effect?.getKeyframes().map((frame) => String(frame['width']));
+              const effect = group?.effect;
+              const widths =
+                effect instanceof KeyframeEffect
+                  ? effect.getKeyframes().map((frame) => String(frame['width']))
+                  : [];
               return Reflect.get(
                 window,
                 'recordLightboxCapture'
               )([
-                ...(widths ?? []),
+                ...widths,
                 getComputedStyle(root, '::view-transition-old(lightbox-image)').display,
                 getComputedStyle(root, '::view-transition-new(lightbox-image)').display,
               ]);
