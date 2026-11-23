@@ -295,6 +295,7 @@ describe.skipIf(skip)('retention', () => {
       submissions: 0,
       admissions: 0,
       readerActivity: 0,
+      imports: 0,
     });
   });
 
@@ -345,6 +346,9 @@ describe.skipIf(skip)('retention', () => {
     );
     expect(policies.map((p) => `${p.name} ${p.cmd}`)).toEqual([
       'connection_intents.retention_read SELECT',
+      // 0088: a site import's report names people of the source site.
+      'content_imports.retention_apply DELETE',
+      'content_imports.retention_read SELECT',
       // 0071: a reader's sign-in events, once the projection holds them (ADR 019 rule 7).
       'events.retention_apply DELETE',
       'events.retention_read SELECT',
@@ -360,7 +364,7 @@ describe.skipIf(skip)('retention', () => {
       'supporters.retention_read SELECT',
     ]);
     for (const p of policies) expect(p.qual, p.name).toContain('tenant_id = current_tenant_id()');
-    // What it may change is exactly the five tables with a `retention.apply` term, by delete only.
+    // What it may change is exactly the tables with a `retention.apply` term, by delete only.
     const { rows: writes } = await sql<{ name: string; del: boolean; other: boolean }>`
       select c.relname as name, has_table_privilege('mycel_retention', c.oid, 'DELETE') as del,
              has_any_column_privilege('mycel_retention', c.oid, 'INSERT, UPDATE') as other

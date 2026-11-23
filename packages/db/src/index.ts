@@ -1,4 +1,9 @@
-import { unavailableMailchimp, type MailchimpDiscovery } from '@mycel/core';
+import {
+  unavailableMailchimp,
+  unavailablePlanner,
+  type ImportPlanner,
+  type MailchimpDiscovery,
+} from '@mycel/core';
 import { mailchimpReceipts } from './connections/mailchimp-receipts.js';
 // Postgres adapter (ADR 002). The only way to touch tenant data is `withTenant`, which opens a
 // transaction, sets `app.tenant_id` for its duration, and hands the use case a Kysely instance.
@@ -65,6 +70,7 @@ import { erasureRepository } from './erasures.js';
 import { readerSessionRepository, signinLinkRepository } from './supporters/readers.js';
 import { personErasureRepository } from './people/erasures.js';
 import { tenantExportRepository } from './portability/tenant-exports.js';
+import { contentImportRepository } from './content/imports.js';
 import { hostnameRepository } from './hostnames.js';
 import { launchStepRepository } from './launch/repository.js';
 import { enterTenant } from './infra/roles.js';
@@ -212,6 +218,8 @@ export async function withTenant<T>(
 
 export interface UnitOfWorkDeps {
   mailchimpDiscovery?: MailchimpDiscovery;
+  /** Reads a WordPress export for `content.import.upload`; refused without one. */
+  importPlanner?: ImportPlanner;
   clock: Clock;
   ids: Ids;
   signer: Signer;
@@ -349,6 +357,8 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           erasures: erasureRepository(trx, tenantId, principal, deps.clock),
           personErasures: personErasureRepository(trx, tenantId, principal, deps.clock),
           exports: tenantExportRepository(trx, tenantId),
+          contentImports: contentImportRepository(trx, tenantId),
+          importPlanner: deps.importPlanner ?? unavailablePlanner,
         });
       });
     },

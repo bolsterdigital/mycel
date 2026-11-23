@@ -54,6 +54,14 @@ export * from './tenants/model.js';
 export * from './tenants/url.js';
 export * from './tenants/service.js';
 export * from './tenants/exports.js';
+export * from './content/import/model.js';
+export * from './content/import/ports.js';
+export {
+  claimImport,
+  finishImport,
+  importFailure,
+  IMPORT_INTERRUPTED,
+} from './content/import/service.js';
 export * from './tenants/platform.js';
 export * from './tenants/portability.js';
 export * from './jobs/types.js';

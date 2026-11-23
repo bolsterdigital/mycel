@@ -197,6 +197,27 @@ describe.skipIf(skip)('row level security conformance', () => {
       platform: memoryPlatform,
       media: { blobs: new MemoryBlobStore(), images: memoryImageProcessor },
       connectionCredentialKey: '10'.repeat(32),
+      // A dry run that reads anything: the table needs a row, not a real export.
+      importPlanner: {
+        plan: () => ({
+          site: { title: 'Bron', url: 'https://bron.example' },
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          counts: {
+            pages: 0,
+            pagesDraft: 0,
+            articles: 0,
+            articlesDraft: 0,
+            media: 0,
+            people: 0,
+            groups: 0,
+            sections: 0,
+            campaigns: 0,
+          },
+          lines: [],
+          moreLines: 0,
+        }),
+      },
     });
     const invoker = new Invoker(buildRegistry(), uow);
     const admin = systemPrincipal(tenantId, 'rls-test');
@@ -360,6 +381,7 @@ describe.skipIf(skip)('row level security conformance', () => {
     backupRecorded = await recordBackup(erased);
     // An export request (TODO #28, 0022): the row only, no job is run here.
     await invoker.run(useCases.requestExport, admin, {});
+    await invoker.run(useCases.uploadImport, admin, { fileName: 'export.xml', bytes: 'PHJzcy8+' });
     // Memberships and keys through their use cases (TODO #7).
     await invoker.run(useCases.inviteMember, admin, {
       email: `member-${run}@example.org`,

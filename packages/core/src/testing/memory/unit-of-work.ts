@@ -63,7 +63,14 @@ import {
   memorySigninLinks,
   memorySupporters,
 } from './supporters.js';
-import { memoryExports, memoryHostnames, memoryLaunchSteps, memoryUsage } from './tenants.js';
+import {
+  memoryContentImports,
+  memoryExports,
+  memoryHostnames,
+  memoryLaunchSteps,
+  memoryUsage,
+} from './tenants.js';
+import { unavailablePlanner, type ImportPlanner } from '../../content/import/ports.js';
 
 export interface MemoryDeps {
   store?: MemoryStore;
@@ -79,6 +86,7 @@ export interface MemoryDeps {
   delivery?: MediaDelivery;
   assistProviderLabel?: string | null;
   mailchimpDiscovery?: MailchimpDiscovery;
+  importPlanner?: ImportPlanner;
   emailRenderer?: EmailRenderer;
   paymentProvider?: PaymentProvider | null;
 }
@@ -104,12 +112,14 @@ export class MemoryUnitOfWork implements UnitOfWork {
   readonly log: Logger;
   readonly inputHasher: InputHasher = new FakeInputHasher();
   readonly mailchimpDiscovery: MailchimpDiscovery;
+  readonly importPlanner: ImportPlanner;
   readonly assistProviderLabel: string | null;
   readonly emailRenderer: EmailRenderer;
   readonly paymentProvider: PaymentProvider | null;
 
   constructor(deps: MemoryDeps = {}) {
     this.mailchimpDiscovery = deps.mailchimpDiscovery ?? unavailableMailchimp;
+    this.importPlanner = deps.importPlanner ?? unavailablePlanner;
     this.log = deps.log ?? noopLogger;
     this.store = deps.store ?? new MemoryStore();
     this.clock = deps.clock ?? new FakeClock();
@@ -227,6 +237,8 @@ export class MemoryUnitOfWork implements UnitOfWork {
         erasures: memoryErasures(store, principal, clock),
         personErasures: memoryPersonErasures(s, principal, clock),
         exports: memoryExports(s.exports),
+        contentImports: memoryContentImports(s),
+        importPlanner: this.importPlanner,
       });
     } finally {
       bulkLock.release();

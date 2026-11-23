@@ -871,6 +871,48 @@ export const STORAGE = {
     ],
     retention: { kind: 'kept', why: 'as long as the registration it secures' },
   },
+  content_imports: {
+    category: 'content',
+    owner: 'tenant',
+    copies: [
+      {
+        // As the administrator named the file on their computer.
+        field: 'file_name',
+        subject: 'anyone',
+        route: {
+          kind: 'use-case',
+          useCases: ['content.import.delete'],
+          does: 'deletes the import',
+        },
+      },
+      {
+        // The uploaded WordPress export: the source site's users with their addresses.
+        field: 'source',
+        subject: 'anyone',
+        route: { kind: 'expires', why: 'dropped when the run ends; the row goes within 30 days' },
+      },
+      {
+        // Report lines name people of the source site (authors, team) and post titles.
+        field: 'summary',
+        subject: 'anyone',
+        route: {
+          kind: 'use-case',
+          useCases: ['content.import.delete'],
+          does: 'deletes the import',
+        },
+      },
+      {
+        field: 'outcome',
+        subject: 'anyone',
+        route: {
+          kind: 'use-case',
+          useCases: ['content.import.delete'],
+          does: 'deletes the import',
+        },
+      },
+    ],
+    retention: { kind: 'term', term: '30 days (IMPORT_RETENTION_DAYS)', by: 'retention.apply' },
+  },
   tenant_exports: {
     category: 'site',
     owner: 'tenant',

@@ -221,6 +221,12 @@ import {
 } from './tenants/service.js';
 import { listExports, requestExport } from './tenants/exports.js';
 import {
+  confirmImport,
+  deleteImport,
+  listImports,
+  uploadImport,
+} from './content/import/service.js';
+import {
   checkNavigationUseCase,
   getNavigation,
   publishNavigation,
@@ -406,6 +412,10 @@ export const useCases = {
   removeHostname,
   requestExport,
   listExports,
+  uploadImport,
+  confirmImport,
+  deleteImport,
+  listImports,
   getUsage,
   getEntitlements,
   uploadMedia,

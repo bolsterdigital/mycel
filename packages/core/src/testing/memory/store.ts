@@ -173,6 +173,14 @@ export interface TenantStore {
   erasureBackups: Map<string, { snapshotId: string; securedAt: Date }>;
   /** `tenant_exports` (0022), keyed by id. The job side lives in packages/db; suites edit rows. */
   exports: Map<string, TenantExportRecord>;
+  /** `content_imports` (0088), keyed by id, with the uploaded file while the row holds it. */
+  contentImports: Map<
+    string,
+    {
+      record: import('../../content/import/model.js').ContentImportRecord;
+      source: Uint8Array | null;
+    }
+  >;
 }
 
 export type StoredApiKey = NewApiKey & { lastUsedAt: Date | null; revokedAt: Date | null };
@@ -253,6 +261,7 @@ const emptyTenant = (): TenantStore => ({
   personErasures: new Map(),
   erasureBackups: new Map(),
   exports: new Map(),
+  contentImports: new Map(),
 });
 
 /** Platform data, like the `operators` table: one row per person, no tenant. */

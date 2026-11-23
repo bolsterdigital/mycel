@@ -39,6 +39,8 @@ export interface RetentionResult {
   admissions: number;
   /** `reader.signed_in` events compacted into `supporters.last_seen_at`. */
   readerActivity: number;
+  /** Site imports past their term (0088). */
+  imports: number;
 }
 
 type Trx = Kysely<Database>;
@@ -133,6 +135,7 @@ export async function applyRetention(
     submissions: 0,
     admissions: 0,
     readerActivity: 0,
+    imports: 0,
   };
   for (;;) {
     const got = await asRetention(operatorDb, tenantId, (trx) =>
@@ -160,6 +163,14 @@ export async function applyRetention(
     const gone = await trx
       .deleteFrom('supporter_admissions')
       .where('admitted_at', '<=', cutoffs.admissionsThrough)
+      .executeTakeFirst();
+    return Number(gone.numDeletedRows);
+  });
+  total.imports = await asRetention(operatorDb, tenantId, async (trx) => {
+    const gone = await trx
+      .deleteFrom('content_imports')
+      .where('created_at', '<', cutoffs.importsBefore)
+      .where('status', 'not in', ['queued', 'running'])
       .executeTakeFirst();
     return Number(gone.numDeletedRows);
   });

@@ -143,6 +143,8 @@ export const TABLES = {
   // Archives of earlier exports (0022): an archive in an archive would grow with every export,
   // and the file stays on this installation.
   tenant_exports: 'operational',
+  // A site import is this installation's record of an upload, with the file until it ran (0088).
+  content_imports: 'operational',
 } as const satisfies Record<keyof Database, 'export' | 'operational' | 'platform'>;
 
 export type ExportTable = {

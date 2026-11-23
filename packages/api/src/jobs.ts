@@ -13,6 +13,8 @@
 // rights.
 
 import {
+  Invoker,
+  buildRegistry,
   runConnectionIntent,
   type ConnectionDispatchDeps,
   parseJobPayload,
@@ -71,6 +73,7 @@ import {
   type JobPool,
   type RecurringJob,
 } from '@mycel/db';
+import { runContentImport } from './runtime/wordpress.js';
 
 /**
  * Job types that run in a pool of their own: an export reads a whole tenant and its
@@ -78,7 +81,10 @@ import {
  * tenant. Everything else (publish, assist, mail, DNS) stays in the default pool behind no such job.
  */
 export const JOB_POOLS: readonly JobPool[] = [
-  { name: 'bulk', types: ['tenant.export', 'media.orphans', 'content.share-cards'] },
+  {
+    name: 'bulk',
+    types: ['tenant.export', 'media.orphans', 'content.share-cards', 'content.import'],
+  },
   // A newsletter run talks to the mail provider for up to three minutes (ADR 010 rule 9): in
   // the default pool it would hold up a scheduled publication, behind an export it would wait.
   { name: 'newsletter', types: ['mailing.edition.deliver'] },
@@ -374,6 +380,7 @@ export function jobHandlers({
   exports,
   connections,
   editions,
+  imports,
 }: {
   uow: UnitOfWork;
   operatorDb: ReturnType<typeof createDb>;
@@ -395,6 +402,8 @@ export function jobHandlers({
   };
   /** Newsletter delivery; without it the job fails, which suites that send no edition allow. */
   editions?: EditionMailDeps | undefined;
+  /** Site imports from the admin (MY-257 PR 3): how their media are downloaded. */
+  imports?: { fetch: typeof fetch } | undefined;
 }): JobHandlers {
   const exportConfig = (): ExportJobConfig => {
     if (!exports) throw new Error('the export jobs are not configured in this worker');
@@ -514,6 +523,19 @@ export function jobHandlers({
         },
         job,
         exportId
+      );
+    },
+    // Not a `tenantJob`: the run goes through the registry, one unit of work per use case, as the
+    // tenant's `importer`; the import's row is claimed and finished in units of their own.
+    'content.import': async (job) => {
+      if (job.tenantId === null)
+        throw new Error('content.import is a tenant job but has no tenant');
+      if (!imports) throw new Error('site imports are not configured in this worker');
+      const { importId } = parseJobPayload('content.import', job.payload);
+      await runContentImport(
+        { uow, invoker: new Invoker(buildRegistry(), uow), identity, fetch: imports.fetch },
+        job.tenantId,
+        importId
       );
     },
     'tenant.export.expire': platformJob('tenant.export.expire', () =>

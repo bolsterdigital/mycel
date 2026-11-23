@@ -122,6 +122,7 @@ import { assessWorker, type WorkerReadiness } from '../health.js';
 import type { PlatformDeps } from '../platform.js';
 import { JOB_POOLS, RECURRING_JOBS, jobHandlers } from '../jobs.js';
 import { HmacSigner } from './signer.js';
+import { publicFetch, wordpressPlanner } from './wordpress.js';
 import { blobStoreFor } from './blob-store.js';
 import { inputHasherOf, loadConfig, platformOf, type RuntimeConfig } from './config.js';
 import { webhookTransport } from '../webhook.js';
@@ -362,6 +363,7 @@ export function createRuntime(
     assistProviderLabel,
     emailRenderer: createEmailRenderer(),
     mailchimpDiscovery: { inspect: (key) => inspectMailchimp(key, mailchimpRequest) },
+    importPlanner: wordpressPlanner,
   });
   const tenants = createTenantDirectory(appDb);
   const identity = createIdentityStore(authDb, uuidv7Ids);
@@ -569,6 +571,7 @@ export function createRuntime(
           mailchimpSync: mailchimp.sync,
           sources: { [SYNTHETIC_SOURCE]: syntheticSource, [FORM_FEED_SOURCE]: formFeedSource },
         },
+        imports: { fetch: publicFetch(dns) },
       });
       const stopJobs = startJobWorker(operatorDb, inJobContext(handlers), {
         intervalMs: JOBS_INTERVAL_MS,

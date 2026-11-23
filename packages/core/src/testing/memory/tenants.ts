@@ -1,7 +1,10 @@
 // A tenant's own platform rows in memory: hostnames, usage counts, export requests, the launch
 // checklist's state, and the cross-tenant hostname resolution of `SiteDirectory`.
 
+import { isActiveImport } from '../../content/import/model.js';
+import type { ContentImportRepository } from '../../content/import/ports.js';
 import type { UsageReader } from '../../entitlements/ports.js';
+import { UseCaseError } from '../../errors.js';
 import type { LaunchStepRepository } from '../../launch/ports.js';
 import type { Clock } from '../../ports.js';
 import { isActiveExport, type TenantExportRecord } from '../../tenants/exports.js';
@@ -159,5 +162,39 @@ export function memoryLaunchSteps(s: TenantStore): LaunchStepRepository {
     async put(record) {
       s.launchSteps.set(record.stepId, structuredClone(record));
     },
+  };
+}
+
+/** `ctx.contentImports` (0088): one row per import, the file beside it until it is cleared. */
+export function memoryContentImports(s: TenantStore): ContentImportRepository {
+  const rows = s.contentImports;
+  return {
+    async insert(record, source) {
+      for (const [id, row] of rows) if (row.record.status === 'planned') rows.delete(id);
+      rows.set(record.id, { record: structuredClone(record), source: source.slice() });
+    },
+    get: async (id) => structuredClone(rows.get(id)?.record ?? null),
+    list: async (limit) =>
+      [...rows.values()]
+        .map((r) => r.record)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : -1))
+        .slice(0, limit)
+        .map((r) => structuredClone(r)),
+    async update(record, options) {
+      const row = rows.get(record.id);
+      if (!row) return;
+      // As 0088's partial unique index: one queued or running import per site.
+      if (
+        isActiveImport(record.status) &&
+        [...rows.values()].some((r) => r.record.id !== record.id && isActiveImport(r.record.status))
+      )
+        throw new UseCaseError('conflict', 'another import of this site is running');
+      rows.set(record.id, {
+        record: structuredClone(record),
+        source: options?.clearSource ? null : row.source,
+      });
+    },
+    source: async (id) => rows.get(id)?.source?.slice() ?? null,
+    delete: async (id) => rows.delete(id),
   };
 }

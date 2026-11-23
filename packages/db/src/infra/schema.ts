@@ -801,6 +801,21 @@ export interface Database {
     snapshot_id: string;
     secured_at: Timestamp;
   };
+  /** Site imports from the admin (0088); `source` is the uploaded export until the run ends. */
+  content_imports: {
+    id: string;
+    tenant_id: string;
+    file_name: string;
+    source: Buffer | null;
+    status: Generated<'planned' | 'queued' | 'running' | 'done' | 'failed'>;
+    into_existing: Generated<boolean>;
+    summary: Json<unknown>;
+    outcome: ColumnType<unknown, string | null, string | null>;
+    error: string | null;
+    created_at: Timestamp;
+    started_at: Timestamp | null;
+    finished_at: Timestamp | null;
+  };
   /** Archives a tenant administrator asked for (0022); the file is `exports/<tenant>/<id>.tar`. */
   tenant_exports: {
     id: string;

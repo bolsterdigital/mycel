@@ -134,6 +134,12 @@ export const MANAGE: NavSection = {
       hint: 'admin.manage.hint.export',
     },
     {
+      path: 'import',
+      label: 'admin.nav.import',
+      needs: 'tenant:admin',
+      hint: 'admin.manage.hint.import',
+    },
+    {
       path: 'livegang',
       label: 'admin.nav.launch',
       needs: 'tenant:admin',

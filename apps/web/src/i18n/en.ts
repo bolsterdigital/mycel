@@ -13,12 +13,13 @@ import { audience } from './en/audience.js';
 import { blocks } from './en/blocks.js';
 import { content } from './en/content.js';
 import { giving } from './en/giving.js';
+import { imports } from './en/import.js';
 import { media } from './en/media.js';
 import { publicSite } from './en/public.js';
 import { site } from './en/site.js';
 
 /** The areas in merge order; a key in two of them would be silently overwritten by the spread. */
-export const enAreas = [admin, content, blocks, site, media, audience, giving, publicSite];
+export const enAreas = [admin, content, blocks, site, media, audience, giving, imports, publicSite];
 
 export const en = {
   ...admin,
@@ -28,6 +29,7 @@ export const en = {
   ...media,
   ...audience,
   ...giving,
+  ...imports,
   ...publicSite,
 } as const;
 

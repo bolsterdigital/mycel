@@ -10,6 +10,7 @@
 // that moves with a setting an editor changes for other reasons; UTC is the same everywhere).
 
 import { z } from 'zod';
+import { IMPORT_RETENTION_DAYS } from '../content/import/model.js';
 import { ADMISSION_WINDOW_MS } from '../supporters/ports.js';
 
 /** A processed outbox event is kept this long after `processed_at`, for every tenant. */
@@ -83,6 +84,8 @@ export interface RetentionCutoffs {
   admissionsThrough: Date;
   /** `reader.signed_in` events with `occurred_at` before this; 0 days is `now` itself. */
   readerActivityBefore: Date;
+  /** Site imports (0088) created before this, unless queued or running: the report names people. */
+  importsBefore: Date;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -94,5 +97,6 @@ export function retentionCutoffs(now: Date, retention: SiteRetentionInput): Rete
     submissionsBefore: monthsBefore(now, retention.submissionMonths),
     admissionsThrough: new Date(now.getTime() - ADMISSION_WINDOW_MS),
     readerActivityBefore: new Date(now.getTime() - readerDays * DAY_MS),
+    importsBefore: new Date(now.getTime() - IMPORT_RETENTION_DAYS * DAY_MS),
   };
 }

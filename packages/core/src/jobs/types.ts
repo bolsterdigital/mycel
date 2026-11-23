@@ -96,6 +96,12 @@ export const JobPayloads = {
    */
   'tenant.export': z.object({ exportId: z.string().guid() }).strict(),
   /**
+   * Tenant job: run one confirmed site import (`content.import.confirm`, MY-257 PR 3) through the
+   * registry as the tenant's `importer`. Key `content.import:<importId>`. Never repeated: a run
+   * that finds its import already running fails it (`claimImport`).
+   */
+  'content.import': z.object({ importId: z.string().guid() }).strict(),
+  /**
    * Platform job: per tenant, expire archives past EXPORT_RETENTION_DAYS and delete the files of
    * expired ones, then drop rows older than a year (TODO #28).
    */
