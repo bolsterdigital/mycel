@@ -17,11 +17,25 @@
 // different instructions and a page that quietly swaps one for the other looks right and is
 // wrong. Rejected: more pins on an automatic list (it would still fill a gap with whatever is
 // newest) and a separate block (the same cards, layout and width; one block keeps one editor).
+// The source `campaign` (MY-292) lists the landing pages of one kind of campaign (`campaignKind`),
+// for a page "All petitions" that fills itself: archived campaigns never, closed ones with their
+// result. Rejected: a campaign-card block per campaign (an editor adds one after every launch)
+// and an archive route per kind (an address the site did not choose, outside its navigation).
 import { z } from 'zod';
+import { CampaignKind } from '../../campaigns/model.js';
 import type { BlockDefinition, WIDTHS } from '../block-types.js';
 import { EXAMPLE_IDS } from './example-ids.js';
 
-export const OVERVIEW_SOURCES = ['article', 'page', 'event', 'dossier', 'selection'] as const;
+export const OVERVIEW_SOURCES = [
+  'article',
+  'page',
+  'event',
+  'dossier',
+  'selection',
+  'campaign',
+] as const;
+/** Which campaigns the source `campaign` lists. */
+export const OVERVIEW_CAMPAIGN_KINDS = CampaignKind.options;
 /** Which events an agenda lists, decided when the page is read (`content/published/overview.ts`). */
 export const OVERVIEW_WHEN = ['upcoming', 'past'] as const;
 export const OVERVIEW_LAYOUTS = ['cards', 'list'] as const;
@@ -51,6 +65,8 @@ export const OverviewProps = z
       .default([]),
     /** Events only; ignored for another source. */
     when: z.enum(OVERVIEW_WHEN).default('upcoming'),
+    /** The source `campaign` only; ignored for another source. */
+    campaignKind: CampaignKind.default('petition'),
     order: z.enum(OVERVIEW_ORDERS).default('newest'),
     limit: z.enum(OVERVIEW_LIMITS).default('6'),
     pinned: z
@@ -96,6 +112,7 @@ export const overviewDefinition: BlockDefinition<typeof OverviewProps, 1> = {
       fields: [{ key: 'tag', kind: 'text', localized: false }],
     },
     { key: 'when', kind: 'choice', options: OVERVIEW_WHEN },
+    { key: 'campaignKind', kind: 'choice', options: OVERVIEW_CAMPAIGN_KINDS },
     { key: 'order', kind: 'choice', options: OVERVIEW_ORDERS },
     { key: 'limit', kind: 'choice', options: OVERVIEW_LIMITS, initial: '6' },
     {
@@ -112,6 +129,7 @@ export const overviewDefinition: BlockDefinition<typeof OverviewProps, 1> = {
   variants: {
     source: OVERVIEW_SOURCES,
     when: OVERVIEW_WHEN,
+    campaignKind: OVERVIEW_CAMPAIGN_KINDS,
     order: OVERVIEW_ORDERS,
     layout: OVERVIEW_LAYOUTS,
     width: OVERVIEW_WIDTHS,
@@ -153,6 +171,32 @@ export const overviewDefinition: BlockDefinition<typeof OverviewProps, 1> = {
       props: { dossierId: EXAMPLE_IDS.dossier, limit: '6' },
     },
     { name: 'overview-dossiers', props: { source: 'dossier', layout: 'list' } },
+    {
+      name: 'overview-campaigns',
+      note: 'Every published petition, newest first, each with where it stands and its count.',
+      props: { source: 'campaign', campaignKind: 'petition', limit: '12' },
+    },
+    {
+      name: 'overview-signups-list',
+      note: 'Every signup campaign as a list under one pinned item: a title, and the phase when it is not open.',
+      props: {
+        source: 'campaign',
+        campaignKind: 'signup',
+        pinned: [{ itemId: EXAMPLE_IDS.item }],
+        layout: 'list',
+        width: 'content',
+      },
+    },
+    {
+      name: 'overview-fundraisers',
+      note: 'Every fundraiser, oldest first, under one pinned item.',
+      props: {
+        source: 'campaign',
+        campaignKind: 'fundraiser',
+        pinned: [{ itemId: EXAMPLE_IDS.item }],
+        order: 'oldest',
+      },
+    },
     {
       name: 'overview-selection',
       note: 'A fixed selection: these items in this order, never filled up.',

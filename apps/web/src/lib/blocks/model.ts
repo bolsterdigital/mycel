@@ -380,6 +380,8 @@ export type RenderBlock = { id: string } & (
         pinned: boolean;
         /** For members or a tier: the card names it, and its link leads to the teaser. */
         restricted: boolean;
+        /** In a campaign index (MY-292): kind, phase now and the public count; else null. */
+        campaign: Pick<RenderCampaign, 'kind' | 'phase' | 'counter'> | null;
         revisionId: string;
       }[];
       /** Site-root paths of the neighbouring pages; only with `archive` on. */

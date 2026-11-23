@@ -23,8 +23,9 @@ import {
   Raised,
   visibleTarget,
   type Campaign,
+  type Tally,
 } from './model.js';
-import { tallyOf } from './tally.js';
+import { tallies, tallyOf } from './tally.js';
 import './ports.js';
 import '../content/ports.js';
 import '../theme/ports.js';
@@ -58,6 +59,14 @@ export type CampaignPhase = z.infer<typeof CampaignPhase>;
  */
 export const CARD_BODY_TYPES = ['heading', 'rich-text', 'quote', 'callout', 'image'] as const;
 const bodyType = new Set<string>(CARD_BODY_TYPES);
+
+/** The public count and the goal shown now, the same on card, landing page and index (MY-288). */
+export const CampaignCounter = z.object({
+  participants: z.number().int().nonnegative(),
+  raised: Raised.nullable(),
+  target: z.number().int().positive().nullable(),
+});
+export type CampaignCounter = z.infer<typeof CampaignCounter>;
 
 export const CampaignCard = z.discriminatedUnion('available', [
   z.object({
@@ -95,13 +104,7 @@ export const CampaignCard = z.discriminatedUnion('available', [
      * Null when the site hides the counter (rule 8): no number anywhere, not even in the ETag. A
      * fundraiser counts `raised` against a target in minor units; `participants` is its gifts.
      */
-    counter: z
-      .object({
-        participants: z.number().int().nonnegative(),
-        raised: Raised.nullable(),
-        target: z.number().int().positive().nullable(),
-      })
-      .nullable(),
+    counter: CampaignCounter.nullable(),
     /** The bound form, only while participation is open; a closed card never offers a submit. */
     formId: z.string().guid().nullable(),
   }),
@@ -198,9 +201,47 @@ export async function formCampaignCard(
 
 /** The public count and the goal shown now, the same on the card and the landing page (MY-288). */
 async function counterOf(ctx: TransactionContext, campaign: Campaign) {
-  const tally = await tallyOf(ctx, campaign);
+  return withTarget(campaign, await tallyOf(ctx, campaign));
+}
+
+function withTarget(campaign: Campaign, tally: Tally): CampaignCounter {
   const count = tally.raised ? tally.raised.amount : tally.participants;
   return { ...tally, target: visibleTarget(campaign.goal, count) };
+}
+
+/**
+ * Where a campaign in an index stands (MY-292): its kind, the phase now and the public count, as
+ * its card would show them. The index reads the landing page itself, as any overview card does.
+ */
+export const CampaignStanding = z.object({
+  campaignId: z.string().guid(),
+  kind: CampaignKind,
+  phase: CampaignPhase,
+  counter: CampaignCounter.nullable(),
+});
+export type CampaignStanding = z.infer<typeof CampaignStanding>;
+
+/**
+ * The standing of several campaigns at once, by landing item id: one count query for all of them
+ * (`tallies`), never one per card. Archived campaigns are the caller's to leave out.
+ */
+export async function campaignStandings(
+  ctx: TransactionContext,
+  campaigns: readonly Campaign[]
+): Promise<Map<string, CampaignStanding>> {
+  const counts = await tallies(ctx, campaigns);
+  const now = ctx.clock.now();
+  return new Map(
+    campaigns.map((c): [string, CampaignStanding] => [
+      c.landingItemId,
+      {
+        campaignId: c.id,
+        kind: c.kind,
+        phase: phaseOf(c, now),
+        counter: c.counterVisible ? withTarget(c, counts.get(c.id)!) : null,
+      },
+    ])
+  );
 }
 
 /**
@@ -217,13 +258,7 @@ export const LandingCampaign = z.object({
   kind: CampaignKind,
   phase: CampaignPhase,
   opensAt: z.string().datetime({ offset: true }).nullable(),
-  counter: z
-    .object({
-      participants: z.number().int().nonnegative(),
-      raised: Raised.nullable(),
-      target: z.number().int().positive().nullable(),
-    })
-    .nullable(),
+  counter: CampaignCounter.nullable(),
   formId: z.string().guid().nullable(),
 });
 export type LandingCampaign = z.infer<typeof LandingCampaign>;

@@ -201,6 +201,11 @@ export const blocks: Partial<Record<UiKey, string>> = {
   'admin.block.option.page': 'Pagina’s',
   'admin.block.option.event': 'Evenementen',
   'admin.block.option.dossier': 'Dossiers',
+  'admin.block.option.campaign': 'Campagnes',
+  'admin.block.field.campaignKind': 'Welke campagnes',
+  'admin.block.option.petition': 'Petities',
+  'admin.block.option.signup': 'Inschrijfacties',
+  'admin.block.option.fundraiser': 'Inzamelingsacties',
   'admin.block.field.dossierId': 'Dossier',
   'admin.block.dossier.all': 'Geen dossierfilter',
   'admin.block.dossier.sources':

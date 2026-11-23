@@ -24,6 +24,7 @@ const overview = (props: Record<string, unknown>) =>
     dossierId: null,
     tags: [],
     when: 'upcoming',
+    campaignKind: 'petition',
     order: 'newest',
     limit: '6',
     pinned: [],
@@ -367,6 +368,28 @@ export const OTTERDAM_PAGES: ItemDef[] = [
           width: 'content',
         }),
         say({ nl: 'Alle evenementen zijn gratis, tenzij er iets anders bij staat.' }),
+      ],
+    }),
+  },
+  {
+    // Every campaign of each kind (MY-292): three indexes that fill themselves, so a new petition
+    // shows here without anyone editing this page.
+    key: 'doe-mee',
+    slug: 'doe-mee',
+    document: () => ({
+      ...page({ nl: 'Doe mee' }),
+      lead: { nl: 'Teken, meld je aan of geef: alle acties van Otterdam op één plek.' },
+      blocks: [
+        heading({ nl: 'Petities' }),
+        say({ nl: 'Met je handtekening vraag je het waterschap om actie.' }),
+        overview({ source: 'campaign', campaignKind: 'petition' }),
+        heading({ nl: 'Aanmelden' }),
+        say({ nl: 'Meld je aan voor een telling of een excursie.' }),
+        overview({ source: 'campaign', campaignKind: 'signup' }),
+        heading({ nl: 'Inzamelingen' }),
+        say({ nl: 'Elke gift gaat naar onderzoek en veilige oversteekplaatsen.' }),
+        overview({ source: 'campaign', campaignKind: 'fundraiser' }),
+        say({ nl: 'Een gesloten actie blijft hier staan, met de eindstand.' }),
       ],
     }),
   },
