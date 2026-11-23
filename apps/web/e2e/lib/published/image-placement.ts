@@ -160,9 +160,21 @@ export async function exerciseImagePlacement(page: Page) {
   const measurements = [];
   for (const width of [390, 895, 896, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto(href);
+    await page.goto(`${href}?revision=${saved.revision.id}`);
     await expect(cover).toHaveCSS('object-position', '50% 24%');
     await expect(cover).toHaveCSS('object-fit', 'cover');
+    if (width === 1440) {
+      const head = await cover.evaluate((img: HTMLImageElement) => {
+        const fullHeight = (img.clientWidth * img.naturalHeight) / img.naturalWidth;
+        const top = (fullHeight - img.clientHeight) * 0.24;
+        const point = (y: number) => (fullHeight * y - top) / img.clientHeight;
+        return { crown: point(0.16), eyes: point(0.278), chin: point(0.37) };
+      });
+      expect(head.crown).toBeGreaterThan(0);
+      expect(head.eyes).toBeGreaterThanOrEqual(0.3);
+      expect(head.eyes).toBeLessThanOrEqual(0.37);
+      expect(head.chin).toBeLessThan(1);
+    }
     await expect(card).toHaveCSS('object-position', '50% 18%');
     await expect(featured).toHaveCSS('object-fit', width < 896 ? 'contain' : 'cover');
     await expect(featured).toHaveCSS('object-position', width < 896 ? '50% 50%' : '50% 12%');
@@ -238,8 +250,9 @@ export async function exerciseImagePlacement(page: Page) {
       .first()
       .click()
   );
-  expect((await publish()).revision.document.heroPlacement).toBeUndefined();
-  await page.goto(href);
+  const reset = await publish();
+  expect(reset.revision.document.heroPlacement).toBeUndefined();
+  await page.goto(`${href}?revision=${reset.revision.id}`);
   await expect(cover).toHaveCSS('object-fit', 'contain');
   await expect(card).toHaveCSS('object-position', '50% 18%');
 }

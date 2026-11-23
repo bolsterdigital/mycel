@@ -23,6 +23,17 @@ export function requireBlockTypes(
     requireEntitled(ctx.principal, `blocks.${type}`, undefined, { blockType: type });
 }
 
+/** Remove a crop whose explicitly selected image it no longer describes. A featured image can
+ * also inherit from the site. Its public projection compares the stored binding at read time. */
+function prunePlacements(document: ContentDocument): ContentDocument {
+  if (document.heroPlacement && document.heroPlacement.mediaId !== document.heroImageId)
+    delete document.heroPlacement;
+  const featured = document.featuredImageId ?? document.heroImageId;
+  if (featured && document.featuredPlacement && document.featuredPlacement.mediaId !== featured)
+    delete document.featuredPlacement;
+  return document;
+}
+
 /** The document as stored: ids for new blocks, the full schema (defaults, invariants) re-checked. */
 export function finalize(
   ctx: TransactionContext,
@@ -37,7 +48,7 @@ export function finalize(
   if (!parsed.success)
     throw new UseCaseError('invalid_input', 'document is not valid', zodIssues(parsed.error));
   requireBlockTypes(ctx, parsed.data.blocks);
-  return parsed.data;
+  return prunePlacements(parsed.data);
 }
 
 /** A stale base is a typed conflict before anything is read or written (ADR 018 rule 2). */
@@ -86,7 +97,7 @@ export async function prepareItemSave(
   if (latest) {
     const merged = mergeSave(base.document, next, latest.document);
     if (merged.conflicts.length) throw mergeConflict(item.latestRevisionId, merged.conflicts);
-    next = ContentDocument.parse(merged.document);
+    next = prunePlacements(ContentDocument.parse(merged.document));
     // A merge that adds nothing to the newest revision writes nothing: a repeated save.
     if (canonicalJson(next) === canonicalJson(latest.document))
       return { next, previous: latest.document, merge, provenance, unchanged: latest };
