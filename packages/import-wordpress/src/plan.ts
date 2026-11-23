@@ -52,6 +52,14 @@ import {
   type MediaRef,
   type NoteCode,
 } from './blocks.js';
+import {
+  CAMPAIGN_TYPES,
+  SOURCE_BASE,
+  isCampaignType,
+  planCampaign,
+  type CampaignCode,
+  type PlannedCampaign,
+} from './campaigns.js';
 import { parseBlocks, type WpBlock } from './grammar.js';
 import { decodeEntities } from './markup.js';
 import { linkRewriter, normalPath, plainText } from './rich.js';
@@ -126,6 +134,7 @@ export type ReportCode =
   | 'dossier.unlinked'
   | 'dossier.ambiguous'
   | 'dossier.extra'
+  | CampaignCode
   | 'translation.not-merged'
   | 'translation.value-differs'
   // What happened while executing the plan against a tenant (execute.ts).
@@ -136,6 +145,7 @@ export type ReportCode =
   | 'item.failed'
   | 'item.blocks-failed'
   | 'item.publish-failed'
+  | 'campaign.failed'
   | 'item.image-missing'
   | 'block.reference-missing';
 
@@ -161,6 +171,7 @@ export interface ImportPlan {
   groups: PlannedGroup[];
   sections: PlannedSection[];
   items: PlannedItem[];
+  campaigns: PlannedCampaign[];
   report: ReportLine[];
 }
 
@@ -175,14 +186,30 @@ export interface PlanOptions {
   featuredAsHeader?: boolean;
 }
 
-const KIND = { media: 1, person: 2, section: 3, item: 4, profile: 5, group: 6 } as const;
+const KIND = {
+  media: 1,
+  person: 2,
+  section: 3,
+  item: 4,
+  profile: 5,
+  group: 6,
+  campaign: 7,
+} as const;
 
 /** The placeholder guid of one source entity; valid as a guid and as a v4 uuid. */
 export function placeholder(kind: keyof typeof KIND, n: number): string {
   return `00000000-0000-4000-800${KIND[kind]}-${String(n).padStart(12, '0')}`;
 }
 
-const TYPES: Record<string, ContentType> = { page: 'page', post: 'article', dossier: 'page' };
+const TYPES: Record<string, ContentType> = {
+  page: 'page',
+  post: 'article',
+  dossier: 'page',
+  // A Dreamkit action's content is its campaign's landing page (MY-291, `campaigns.ts`).
+  petition: 'page',
+  signup: 'page',
+  fundraiser: 'page',
+};
 /** The Wings post types that become entries of the people register (ADR 031). */
 const PERSON_TYPES: Record<string, 'person' | 'organisation'> = {
   people: 'person',
@@ -273,10 +300,14 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
     members.sort((a, b) => order(localeOf(a)) - order(localeOf(b)));
   const itemOf = new Map<number, string>();
   const itemAtPath = new Map<string, string>();
+  /** The campaign a Dreamkit action becomes, by the id of any of its translations (MY-291). */
+  const campaignOf = new Map<number, string>();
   for (const members of groups.values())
     for (const post of members) {
       const ref = placeholder('item', members[0]!.id);
       itemOf.set(post.id, ref);
+      if (isCampaignType(post.type))
+        campaignOf.set(post.id, placeholder('campaign', members[0]!.id));
       try {
         if (post.link) itemAtPath.set(normalPath(new URL(post.link).pathname), ref);
       } catch {
@@ -455,6 +486,7 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
           return post === undefined ? null : (itemOf.get(post) ?? null);
         },
         dossier: (termId) => landingOf(Number(termId)),
+        campaign: (postId) => campaignOf.get(Number(postId)) ?? null,
         section: (termId) => {
           const term = wxr.terms.find((t) => t.taxonomy === 'category' && t.id === Number(termId));
           return term ? sectionRef(term.slug) : null;
@@ -500,6 +532,7 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
   };
 
   const items: PlannedItem[] = [];
+  const campaigns: PlannedCampaign[] = [];
   const slugs = new Set<string>();
   for (const members of groups.values()) {
     const [lead, ...rest] = members.map(build);
@@ -577,8 +610,10 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
     for (let n = 2; slugs.has(`${type}:${slug}`); n++) slug = `${original}-${n}`;
     slugs.add(`${type}:${slug}`);
     // The old address next to the new one, so a redirect list can be made from the report.
-    // A Wings dossier lived under `/dossiers/`, so its address changes even with the same slug.
-    if (post.slug && (slug !== decodedSlug(post.slug) || post.type === 'dossier'))
+    // A Wings dossier lived under `/dossiers/` and an action under its kind's base, so their
+    // address changes even with the same slug.
+    const moved = post.type === 'dossier' || isCampaignType(post.type);
+    if (post.slug && (slug !== decodedSlug(post.slug) || moved))
       report.push({
         code: 'item.slug-changed',
         ...at,
@@ -589,7 +624,10 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
     if (post.status === 'future')
       report.push({ code: 'item.scheduled', ...at, detail: post.dateGmt ?? '' });
 
-    const featuredImage = mediaRef(post.meta._thumbnail_id);
+    // A Dreamkit action shows its header image, else its featured image (`milestone-functions.php`).
+    const featuredImage =
+      (isCampaignType(post.type) && mediaRef(post.meta._campaign_header_image)) ||
+      mediaRef(post.meta._thumbnail_id);
     const cover = featuredAsHeader && type === 'article' && Boolean(featuredImage);
     if (cover && !header.heroImageId) {
       header.heroImageId = featuredImage!.ref;
@@ -645,7 +683,22 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
       publishedAt: published ? post.dateGmt : null,
       document: document as z.input<typeof ContentDocumentInput>,
     });
+    if (isCampaignType(post.type)) {
+      const planned = planCampaign(post, post.type, {
+        ref: campaignOf.get(post.id)!,
+        landingRef: placeholder('item', post.id),
+      });
+      campaigns.push(planned.campaign);
+      for (const line of planned.lines) report.push({ ...at, ...line });
+    }
   }
+  // Dreamkit's archives of each kind go to the index of that kind (ADR 033, amendment 2026-11-23).
+  for (const kind of CAMPAIGN_TYPES)
+    if (campaigns.some((c) => c.kind === kind))
+      report.push({
+        code: 'campaign.archive',
+        detail: `${wxr.site.url.replace(/\/$/, '')}/${SOURCE_BASE[kind]}/ → the page with the index of ${kind}s`,
+      });
 
   return {
     site: { title: wxr.site.title, url: wxr.site.url },
@@ -657,6 +710,7 @@ export function plan(xml: string, options: PlanOptions = {}): ImportPlan {
     groups: personGroups,
     sections,
     items,
+    campaigns,
     report,
   };
 }

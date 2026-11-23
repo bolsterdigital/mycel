@@ -37,6 +37,13 @@ const HEADINGS: Record<ReportCode, string> = {
   'dossier.unlinked': 'Dossiers without a landing page (membership not kept)',
   'dossier.ambiguous': 'Dossiers that two landing pages claim (membership not kept)',
   'dossier.extra': 'Dossiers beyond three per item, or on a dossier page (not kept)',
+  'campaign.form-missing': 'Campaigns without a form: bind one, then open participation',
+  'campaign.history-in-source': 'Campaign history that stays in the source administration',
+  'campaign.confirmation': 'Confirmation policy of each source action (repeat it on the form)',
+  'campaign.goal-milestones': 'Campaigns with milestone goals in the source (set them again)',
+  'campaign.goal-invalid': 'Campaign goals out of range (not used)',
+  'campaign.archive': 'Old campaign archives (redirect to the index of their kind)',
+  'campaign.failed': 'Campaigns not made',
   'translation.not-merged': 'Translations not merged: structure differs (not imported)',
   'translation.value-differs': 'Translation values that differ (default language kept)',
   'media.failed': 'Files not uploaded',
@@ -60,7 +67,8 @@ function describe(line: ReportLine): string {
     line.locale && `[${line.locale}]`,
     line.block && `${line.block} #${line.position}`,
   ].filter(Boolean);
-  return `  - ${where.join(' ')}${line.detail ? `: ${line.detail}` : ''}`;
+  const detail = line.detail ? `${where.length ? ': ' : ''}${line.detail}` : '';
+  return `  - ${where.join(' ')}${detail}`;
 }
 
 export function formatReport(plan: ImportPlan): string {
@@ -77,6 +85,7 @@ export function formatReport(plan: ImportPlan): string {
     `People     ${plan.people.length} (${plan.people.filter((p) => p.sourceId !== undefined).length} from Wings people and organisations)`,
     `Groups     ${plan.groups.length}`,
     `Sections   ${plan.sections.length}`,
+    `Campaigns  ${plan.campaigns.length} (${['petition', 'signup', 'fundraiser'].map((k) => `${plan.campaigns.filter((c) => c.kind === k).length} ${k}`).join(', ')})`,
     `Remarks    ${plan.report.length}`,
   ];
   const codes = [
