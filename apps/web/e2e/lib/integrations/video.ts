@@ -9,6 +9,7 @@ import { expect, test, type Page, type Request } from '@playwright/test';
 import {
   BLOCK_DEFINITIONS as DEFS,
   DEFAULT_INTEGRATIONS,
+  type EmbedId,
   systemPrincipal,
   useCases,
 } from '@mycel/core';
@@ -17,7 +18,8 @@ import { expectNoAxeViolations } from '../axe';
 import { asOwner, withInvoker } from '../invoker';
 import { NARROW } from '../layout';
 
-const PLAYERS = /^https:\/\/(www\.youtube-nocookie\.com|player\.vimeo\.com|[^/]*youtube\.com)\//;
+const PLAYERS =
+  /^https:\/\/(www\.youtube-nocookie\.com|player\.vimeo\.com|player\.mediadelivery\.net|[^/]*youtube\.com)\//;
 
 async function seed(slug: string) {
   const tenant = await asOwner((owner) =>
@@ -44,7 +46,7 @@ async function seed(slug: string) {
         },
       },
     });
-    const video = (provider: 'youtube' | 'vimeo', videoId: string, title: string) => ({
+    const video = (provider: EmbedId, videoId: string, title: string) => ({
       type: 'video-embed' as const,
       version: DEFS['video-embed'].version,
       props: { provider, videoId, title: { nl: title } },
@@ -61,6 +63,7 @@ async function seed(slug: string) {
           video('youtube', 'dQw4w9WgXcQ', 'De opening'),
           text('Dan nog wat.'),
           video('vimeo', '76979871', 'Het gesprek'),
+          video('bunny-stream', '12345/12345678-abcd-4321-9876-0123456789ab', 'De rivierotter'),
         ],
       },
     });
@@ -70,14 +73,18 @@ async function seed(slug: string) {
       locale: 'nl',
     });
   });
-  const set = async (youtube: boolean) => {
+  const set = async (youtube: boolean, bunny = false) => {
     const { version } = await withInvoker((invoker) =>
       invoker.run(useCases.getIntegrationSettings, system, {})
     );
     await withInvoker((invoker) =>
       invoker.run(useCases.updateIntegrationSettings, system, {
         baseVersion: version,
-        settings: { ...DEFAULT_INTEGRATIONS, youtube: { enabled: youtube } },
+        settings: {
+          ...DEFAULT_INTEGRATIONS,
+          youtube: { enabled: youtube },
+          'bunny-stream': { enabled: bunny },
+        },
       })
     );
   };
@@ -102,6 +109,33 @@ export async function exerciseVideoEmbeds(page: Page) {
     expect(offBody).not.toContain('data-embed-src');
     expect(offBody).not.toContain('/_site/embed.js');
     expect(off.headers()['content-security-policy']).not.toContain('frame-src');
+
+    await set(false, true);
+    const bunny = await page.request.get(path);
+    const bunnyBody = await bunny.text();
+    expect(bunny.headers()['content-security-policy']).toContain(
+      "frame-src 'self' https://player.mediadelivery.net"
+    );
+    expect(bunny.headers()['content-security-policy']).not.toContain('youtube-nocookie');
+    expect(bunnyBody.match(/data-embed-src=/g)).toHaveLength(1);
+    expect(bunnyBody).toContain(
+      'https://player.mediadelivery.net/embed/12345/12345678-abcd-4321-9876-0123456789ab?autoplay=true'
+    );
+    await page.goto(path);
+    const bunnyPlay = page.getByRole('button', { name: /De rivierotter/ });
+    expect(asked).toHaveLength(0);
+    if (js) {
+      await bunnyPlay.focus();
+      await page.keyboard.press('Enter');
+      await expect(page.locator('iframe[title="De rivierotter"]')).toBeFocused();
+      await expect
+        .poll(() => asked.map((r) => new URL(r.url()).host))
+        .toEqual(['player.mediadelivery.net']);
+      asked.length = 0;
+    } else {
+      await expect(bunnyPlay).toBeHidden();
+      await expect(page.getByRole('link', { name: 'De rivierotter' })).toBeVisible();
+    }
 
     await set(true);
     const on = await page.request.get(path);

@@ -299,6 +299,7 @@ export const actions: Actions = {
         settings: {
           youtube: { enabled: data.get('youtube') === 'on' },
           vimeo: { enabled: data.get('vimeo') === 'on' },
+          'bunny-stream': { enabled: data.get('bunny-stream') === 'on' },
           'google-tag-manager': {
             enabled: data.get('gtm') === 'on',
             containerId: container || null,

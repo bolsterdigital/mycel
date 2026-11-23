@@ -144,7 +144,11 @@ const BASES: Record<string, (r: SiteRefs) => Record<string, unknown>> = {
 };
 
 /** Video ids per provider: the base has YouTube's. */
-const VIDEO_IDS: Record<string, string> = { youtube: 'aqz-KE-bpKQ', vimeo: '76979871' };
+const VIDEO_IDS: Record<string, string> = {
+  youtube: 'aqz-KE-bpKQ',
+  vimeo: '76979871',
+  'bunny-stream': '12345/12345678-abcd-4321-9876-0123456789ab',
+};
 /** One form per variant: a page holds a form once. */
 const FORM_FOR: Record<string, string> = { default: 'contact', card: 'nieuwsbrief' };
 

@@ -30,6 +30,7 @@ import { creditKind, variantFile, type MediaCredit, type MediaRecord } from '../
 import type { TransactionContext } from '../ports.js';
 import { resolveTheme } from '../theme/contrast.js';
 import { FONTS } from '../theme/fonts.js';
+import { bunnyStreamVideoUrl } from '../integrations/model.js';
 import '../content/ports.js';
 import '../media/ports.js';
 import '../theme/ports.js';
@@ -443,7 +444,9 @@ export async function emailDocument(
             href:
               b.props.provider === 'youtube'
                 ? `https://www.youtube.com/watch?v=${encodeURIComponent(b.props.videoId)}`
-                : `https://vimeo.com/${encodeURIComponent(b.props.videoId)}`,
+                : b.props.provider === 'vimeo'
+                  ? `https://vimeo.com/${encodeURIComponent(b.props.videoId)}`
+                  : bunnyStreamVideoUrl(b.props.videoId),
           },
         ];
       }

@@ -89,6 +89,11 @@ describe('integration settings', () => {
     const parse = (patch: Record<string, unknown>) =>
       IntegrationSettings.safeParse({ ...DEFAULT_INTEGRATIONS, ...patch }).success;
     expect(parse({})).toBe(true);
+    const { 'bunny-stream': bunny, ...storedBeforeBunny } = DEFAULT_INTEGRATIONS;
+    expect(IntegrationSettings.parse(storedBeforeBunny)['bunny-stream']).toEqual(bunny);
+    expect(parse({ 'bunny-stream': { enabled: true, src: 'https://example.org/player' } })).toBe(
+      false
+    );
     expect(parse({ hotjar: { enabled: true } })).toBe(false);
     expect(parse({ youtube: { enabled: true, src: 'https://evil.example/x.js' } })).toBe(false);
     expect(parse({ 'google-tag-manager': { ...GTM_ON, enabled: true, containerId: null } })).toBe(
