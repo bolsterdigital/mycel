@@ -9,18 +9,25 @@ import { runtime } from '#lib/server/runtime.js';
 import { contentLocale } from '#lib/server/content/content-locale.js';
 import { mediaChoices } from '#lib/server/content/content-blocks.js';
 import { fields, personFields, personSlug } from '#lib/server/people/form.js';
+import { personSitePath } from '#lib/server/people/directory.js';
+import { adminSiteUrls } from '#lib/server/site.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
-  await parent();
+  const { tenant, contentLocale } = await parent();
   const principal = locals.principal!;
   if (!can(principal, 'content:write')) refuse(403);
   const person =
     params.id === 'new'
       ? null
       : await loaded(runtime().invoker.run(useCases.getPerson, principal, { personId: params.id }));
+  // "View on the site" (MY-265): only when the site serves the page, in the admin's content locale.
+  const sitePath = person
+    ? await personSitePath(principal, person, contentLocale, tenant.defaultLocale)
+    : null;
   return {
     person,
+    siteHref: sitePath ? (await adminSiteUrls(principal, tenant.slug))(sitePath) : null,
     kind:
       person?.kind ?? (url.searchParams.get('kind') === 'organisation' ? 'organisation' : 'person'),
     media: can(principal, 'media:read')

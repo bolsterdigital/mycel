@@ -14,6 +14,7 @@
     breadcrumb,
     description,
     notices,
+    actions,
     lead,
     action,
     enctype,
@@ -27,6 +28,8 @@
     breadcrumb?: readonly Crumb[] | undefined;
     description?: string | undefined;
     notices?: Snippet;
+    /** Beside the title, as on every admin screen: a link out, never the form's own submit. */
+    actions?: Snippet;
     /** What the page shows before its form (the account and sites of the profile, #101). */
     lead?: Snippet;
     /** The form action; the page itself when absent. */
@@ -41,7 +44,7 @@
 </script>
 
 <main class="page admin ui-form-page">
-  <PageHeader {title} {locale} {breadcrumb} {description} />
+  <PageHeader {title} {locale} {breadcrumb} {description} {actions} />
   {#if notices}{@render notices()}{/if}
   {#if lead}{@render lead()}{/if}
   <form method="post" {action} {enctype}>
