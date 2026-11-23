@@ -20,11 +20,12 @@ import { expectNoAxeViolations } from '../axe';
 import { NARROW, layoutGate, setTextSize } from '../layout';
 import { transitionSettled } from '../navigation/transition';
 
-const LONG = 'Zes nieuwe faunapassages in één jaar';
+export const LONG = 'Zes nieuwe faunapassages in één jaar';
 
-/** A section with two articles, the newest with a featured image and the long title, and a page
- *  with an overview of that section; its public path. */
-async function seed(page: Page): Promise<string> {
+/** A section with two articles, the newest with the long title and one image as its featured
+ *  image and its hero (the floating pairs fly the one to the other, MY-269 PR 2), and a page with
+ *  an overview of that section; its public path. */
+export async function seedOverviewCards(page: Page): Promise<string> {
   const suffix = randomUUID().slice(0, 8);
   const principal = systemPrincipal(await tenantId(), 'e2e');
   // Through the API: the e2e invoker has no image processor.
@@ -52,7 +53,7 @@ async function seed(page: Page): Promise<string> {
           title: { nl: title },
           lead: { nl: `Kort over ${title.toLowerCase()}.` },
           sectionId: section.id,
-          ...(featuredImageId ? { featuredImageId } : {}),
+          ...(featuredImageId ? { featuredImageId, heroImageId: featuredImageId } : {}),
           blocks: [],
         },
       });
@@ -114,7 +115,7 @@ const titlesFit = (page: Page) =>
   );
 
 export async function exerciseOverviewCards(page: Page) {
-  const path = await seed(page);
+  const path = await seedOverviewCards(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   expect((await page.goto(path))?.status()).toBe(200);
   const cards = page.locator('.overview-card');

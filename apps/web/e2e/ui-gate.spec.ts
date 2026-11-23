@@ -32,6 +32,7 @@ import {
 import { exerciseLanguagePanel } from './lib/site-navigation/chrome/language-panel';
 import { exerciseSticky, seedSticky } from './lib/site-navigation/chrome/sticky';
 import { exerciseOverviewCards } from './lib/blocks/overview-cards';
+import { exerciseFloatingPairs } from './lib/navigation/pairs';
 import { ADMIN_LOCALES, ADMIN_ROUTES, type GateRoute, PUBLIC_ROUTES } from './routes';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { testTenant } from '@mycel/db/testing';
@@ -679,6 +680,10 @@ test.describe('overview-cards', () => {
   test.use({ locale: 'nl-NL', extraHTTPHeaders: forwarded() });
   test('one link, a title that fits, and the inversion on hover and focus', async ({ page }) =>
     exerciseOverviewCards(page));
+  test('a card flies to its page and back (MY-269 PR 2)', async ({ page }) => {
+    onlyA11y('the floating pairs are a script');
+    await exerciseFloatingPairs(page);
+  });
 });
 
 // Browser axe over every block example in the registry (TODO #30B, brief renderer-regressions

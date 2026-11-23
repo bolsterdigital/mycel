@@ -10,7 +10,7 @@ import { exerciseCountedSignup } from './lib/analytics/signups';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expectNoAxeViolations } from './lib/axe';
-import { isA11y, onlyA11y, NAVIGATION_SCRIPT } from './lib/project';
+import { isA11y, onlyA11y, NAVIGATION_SCRIPT, TRANSITIONS_SCRIPT } from './lib/project';
 import { callApi, postUseCase } from './lib/api';
 import { pastMinimumFillTime } from './lib/form';
 import { ADMIN, forwarded, login } from './lib/login';
@@ -60,7 +60,11 @@ async function expectFormScripts(page: Page) {
     .evaluateAll((all: HTMLScriptElement[]) =>
       all.map((s) => ({ src: s.getAttribute('src'), type: s.getAttribute('type'), inline: s.text }))
     );
-  const expected = [{ src: '/_form/proof.js', type: 'module', inline: '' }];
+  // In document order: the floating pairs in <head>, then the form's modules, then the header's.
+  const expected = [
+    { src: TRANSITIONS_SCRIPT, type: 'module', inline: '' },
+    { src: '/_form/proof.js', type: 'module', inline: '' },
+  ];
   if (await page.locator('form[data-conditions]').count())
     expected.push({ src: '/_form/conditions.js', type: 'module', inline: '' });
   expected.push({ src: NAVIGATION_SCRIPT, type: 'module', inline: '' });
