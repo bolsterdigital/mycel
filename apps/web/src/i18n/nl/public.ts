@@ -220,6 +220,8 @@ export const publicSite: Partial<Record<UiKey, string>> = {
   'block.lightbox.zoom': 'Ware grootte',
   'block.lightbox.count': 'Afbeelding {n} van {total}',
   'block.video.on': 'Video op {provider}',
+  'block.video.credit': 'Videobeeld',
+  'block.video.youtube': 'Op YouTube',
   'block.video.play': 'Video afspelen: {title} (laadt {provider})',
   'block.footnotes': 'Noten',
   'block.footnote.back': 'Terug naar de tekst',

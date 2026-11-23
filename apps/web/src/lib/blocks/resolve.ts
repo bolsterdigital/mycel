@@ -51,7 +51,6 @@ import {
   UseCaseError,
   allBlocks,
   contentPath,
-  linkedItemIds,
   pick,
   translate,
   publicItemPath,
@@ -64,6 +63,7 @@ import {
 import { ui } from '../../i18n/index.js';
 import { amountChoices, membershipChoices } from './amount-field.js';
 import { blockCopy } from './copy.js';
+import { referencesOf } from './references.js';
 import { headingsAboveFloats } from './float-order.js';
 import { opensInCard } from './card-body.js';
 import { opensOf, renderLanding } from './campaign-render.js';
@@ -825,8 +825,21 @@ export async function resolveDocument(
           url: videoUrl(b.props.provider, b.props.videoId),
           player: videoPlayerUrl(b.props.provider, b.props.videoId),
           title: text(b.props.title) ?? '',
-          caption: text(b.props.caption) || null,
+          caption: text(b.props.caption)?.trim() || null,
           width: b.props.width,
+          poster: b.props.poster
+            ? renderAssetImage(own(b.props.poster.mediaId), b.props.poster, locale)
+            : null,
+          duration: b.props.durationSeconds ? Number(b.props.durationSeconds) : null,
+          maker: b.props.maker ? { label: b.props.maker, href: b.props.makerUrl ?? null } : null,
+          licence: b.props.licenceLabel
+            ? { label: b.props.licenceLabel, href: b.props.licenceUrl ?? null }
+            : null,
+          youtube: b.props.youtubeWatchId ? videoUrl('youtube', b.props.youtubeWatchId) : null,
+          page:
+            b.props.videoPageId && b.props.videoPageId !== options.itemId
+              ? (links[b.props.videoPageId] ?? null)
+              : null,
         };
       case 'form':
         return formBlock(id, b.props.formId, b.props.variant, b.props.width);
@@ -876,56 +889,6 @@ export async function resolveDocument(
     copy: blockCopy(locale),
     ...(options.placeholder ? { placeholder: options.placeholder } : {}),
   };
-}
-
-/**
- * A landing page's campaign for its layout: the form only while open, except in the preview,
- * which keeps it with the reason the public page withholds it, as a bound form block does.
- */
-/** The references the resolver needs; rich-text links are read from the projected locale only. */
-function referencesOf(b: Block): { type: 'media' | 'form' | 'item'; refId: string }[] {
-  const docs = (m: Partial<Record<string, Parameters<typeof linkedItemIds>[0]>> | undefined) =>
-    Object.values(m ?? {}).flatMap((d) =>
-      d ? linkedItemIds(d).map((refId) => ({ type: 'item' as const, refId })) : []
-    );
-  const targets = (list: readonly { target: { kind: string; itemId?: string } }[]) =>
-    list.flatMap((a) =>
-      a.target.kind === 'item' && a.target.itemId
-        ? [{ type: 'item' as const, refId: a.target.itemId }]
-        : []
-    );
-  switch (b.type) {
-    case 'image':
-      return [{ type: 'media', refId: b.props.mediaId }];
-    case 'hero':
-      return [
-        ...(b.props.image ? [{ type: 'media' as const, refId: b.props.image.mediaId }] : []),
-        ...targets(b.props.actions),
-      ];
-    case 'cta':
-      return targets(b.props.actions);
-    case 'cards':
-      return b.props.cards.flatMap((c) => targets(c.actions));
-    case 'file-download':
-      return b.props.files.map((f) => ({ type: 'media' as const, refId: f.fileId }));
-    case 'audio':
-      return [{ type: 'media' as const, refId: b.props.fileId }];
-    case 'gallery':
-      return b.props.images.map((i) => ({ type: 'media' as const, refId: i.mediaId }));
-    case 'timeline':
-      return b.props.events.flatMap((e) => targets(e.actions));
-    case 'form':
-    case 'signup-form':
-      return [{ type: 'form', refId: b.props.formId }];
-    case 'rich-text':
-      return docs(b.props.content);
-    case 'callout':
-      return docs(b.props.body);
-    case 'faq':
-      return b.props.entries.flatMap((e) => docs(e.answer));
-    default:
-      return [];
-  }
 }
 
 function toRenderForm(

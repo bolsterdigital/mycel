@@ -20,6 +20,8 @@ export function blockCopy(locale: string): BlockCopy {
     credit: creditWords(t),
     videoOn: t('block.video.on'),
     videoPlay: t('block.video.play'),
+    videoCredit: t('block.video.credit'),
+    videoYouTube: t('block.video.youtube'),
     footnotes: t('block.footnotes'),
     footnoteBack: t('block.footnote.back'),
     toContent: t('block.cover.toContent'),

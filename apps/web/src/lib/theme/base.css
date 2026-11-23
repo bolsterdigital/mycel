@@ -11,6 +11,7 @@
    and supplies its own fixed values for the same properties (admin.css) until #11 designs it. */
 @layer tokens, base, components;
 @import './media-blocks.css' layer(base);
+@import './blocks/video.css' layer(base);
 @import './forms.css' layer(base);
 @import './people.css' layer(base);
 @import './search.css' layer(base);
@@ -878,52 +879,6 @@
   }
   .quote-pullquote figcaption {
     text-align: center;
-  }
-
-  /* Video: a link to the provider; where the site placed the provider, a play button above it in
-     the player's own shape, which the player replaces on a click (VideoEmbed.svelte). */
-  .video {
-    padding: var(--space-2) var(--inset);
-    color: var(--color-surface-fg);
-    background: var(--color-surface-bg);
-    border-radius: var(--radius);
-  }
-  .video-player {
-    margin-block-end: var(--space-1);
-  }
-  .video-play,
-  .video-player iframe {
-    display: block;
-    inline-size: 100%;
-    aspect-ratio: 16 / 9;
-    border: 0;
-    border-radius: var(--radius);
-  }
-  .video-play {
-    padding: var(--space-2);
-    font: inherit;
-    font-weight: 600;
-    color: var(--color-primary-fg);
-    background: var(--color-primary-bg);
-    cursor: pointer;
-  }
-  .video-play::before {
-    content: '▶\FE0E' / '';
-    display: block;
-    margin-block-end: var(--space-0);
-    font-size: var(--step-3);
-  }
-  .video-link {
-    margin: 0;
-    font-weight: 600;
-  }
-  .video-provider {
-    display: block;
-    font-weight: 400;
-    font-size: var(--step--1);
-  }
-  .video figcaption {
-    color: inherit;
   }
 
   /* Rich text */

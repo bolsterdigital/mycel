@@ -90,7 +90,12 @@ export const BLOCK_PRESENTATION: { readonly [T in BlockType]: BlockPresentation 
   gallery: { rest: 'text', display: ['variant', 'width'], source: [], stage: 'C2' },
   timeline: { rest: 'text', display: ['order'], source: [], stage: 'C2' },
   audio: { rest: 'text', display: [], source: [], stage: 'C2' },
-  'video-embed': { rest: 'text', display: ['width'], source: [], stage: 'C3' },
+  'video-embed': {
+    rest: 'text',
+    display: ['width'],
+    source: ['maker', 'makerUrl', 'licenceLabel', 'licenceUrl'],
+    stage: 'C3',
+  },
   form: { rest: 'text', display: ['variant', 'width'], source: [], stage: 'C3' },
   'signup-form': { rest: 'text', display: [], source: [], stage: 'C3' },
   // ADR 033 rule 4: the campaign as the site shows it now, with its state and count.

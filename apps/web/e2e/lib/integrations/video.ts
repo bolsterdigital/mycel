@@ -16,7 +16,7 @@ import {
 import { testTenant } from '@mycel/db/testing';
 import { expectNoAxeViolations } from '../axe';
 import { asOwner, withInvoker } from '../invoker';
-import { NARROW } from '../layout';
+import { layoutGate, NARROW, setTextSize } from '../layout';
 
 const PLAYERS =
   /^https:\/\/(www\.youtube-nocookie\.com|player\.vimeo\.com|player\.mediadelivery\.net|[^/]*youtube\.com)\//;
@@ -25,7 +25,7 @@ async function seed(slug: string) {
   const tenant = await asOwner((owner) =>
     testTenant(owner, slug, {
       name: 'Video',
-      locales: ['nl'],
+      locales: ['nl', 'en'],
       platformDomain: process.env['PLATFORM_DOMAIN']!,
       reuse: true,
     })
@@ -43,27 +43,43 @@ async function seed(slug: string) {
             type: 'doc' as const,
             content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }],
           },
+          en: {
+            type: 'doc' as const,
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }],
+          },
         },
       },
     });
-    const video = (provider: EmbedId, videoId: string, title: string) => ({
+    const video = (
+      provider: EmbedId,
+      videoId: string,
+      title: string,
+      extras: Partial<(typeof DEFS)['video-embed']['examples'][number]['props']> = {}
+    ) => ({
       type: 'video-embed' as const,
       version: DEFS['video-embed'].version,
-      props: { provider, videoId, title: { nl: title } },
+      props: { provider, videoId, title: { nl: title, en: title }, ...extras },
     });
     const { item, revision } = await invoker.run(useCases.createItem, system, {
       slug: 'video',
       document: {
         type: 'page',
         defaultLocale: 'nl',
-        locales: ['nl'],
-        title: { nl: 'De opening' },
+        locales: ['nl', 'en'],
+        title: { nl: 'De opening', en: 'The opening' },
         blocks: [
           text('Eerst wat tekst.'),
           video('youtube', 'dQw4w9WgXcQ', 'De opening'),
           text('Dan nog wat.'),
           video('vimeo', '76979871', 'Het gesprek'),
-          video('bunny-stream', '12345/12345678-abcd-4321-9876-0123456789ab', 'De rivierotter'),
+          video('bunny-stream', '12345/12345678-abcd-4321-9876-0123456789ab', 'De rivierotter', {
+            caption: { nl: 'De rivierotter op jacht.', en: 'The river otter hunting.' },
+            maker: 'Tom Koerner / U.S. Fish and Wildlife Service',
+            makerUrl: 'https://example.org/maker',
+            licenceLabel: 'CC BY 2.0',
+            licenceUrl: 'https://creativecommons.org/licenses/by/2.0/',
+            youtubeWatchId: 'aqz-KE-bpKQ',
+          }),
         ],
       },
     });
@@ -71,6 +87,11 @@ async function seed(slug: string) {
       itemId: item.id,
       revisionId: revision.id,
       locale: 'nl',
+    });
+    await invoker.run(useCases.publishItem, system, {
+      itemId: item.id,
+      revisionId: revision.id,
+      locale: 'en',
     });
   });
   const set = async (youtube: boolean, bunny = false) => {
@@ -136,6 +157,28 @@ export async function exerciseVideoEmbeds(page: Page) {
       await expect(bunnyPlay).toBeHidden();
       await expect(page.getByRole('link', { name: 'De rivierotter' })).toBeVisible();
     }
+
+    await page.setViewportSize(NARROW);
+    for (const [route, label, caption] of [
+      [path, 'Op YouTube', 'De rivierotter op jacht.'],
+      [`/${slug}/en/video`, 'On YouTube', 'The river otter hunting.'],
+    ] as const) {
+      await page.goto(route);
+      await setTextSize(page, '200%');
+      const watch = page.getByRole('link', { name: label, exact: true });
+      await expect(watch).toHaveAttribute('href', 'https://www.youtube.com/watch?v=aqz-KE-bpKQ');
+      await expect(page.locator('.video figcaption').getByText(caption)).toBeVisible();
+      const row = (await page.locator('.video-details').boundingBox())!;
+      const credit = (await page.locator('.video-credit').boundingBox())!;
+      const action = (await watch.boundingBox())!;
+      expect(action.y).toBeGreaterThanOrEqual(credit.y + credit.height - 1);
+      expect(action.x + action.width).toBeCloseTo(row.x + row.width, 0);
+      expect(action.width).toBeGreaterThanOrEqual(44);
+      expect(action.height).toBeGreaterThanOrEqual(44);
+      expect(await watch.evaluate((link) => link.scrollWidth <= link.clientWidth)).toBe(true);
+      await layoutGate(page, label, '.video-details');
+    }
+    expect(asked).toHaveLength(0);
 
     await set(true);
     const on = await page.request.get(path);
