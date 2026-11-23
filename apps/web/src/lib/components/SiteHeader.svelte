@@ -28,11 +28,13 @@
     locale,
     current = null,
     languages = chrome.languages,
+    readingProgress = false,
   }: {
     chrome: ChromeModel;
     locale: string;
     current?: string | null;
     languages?: ChromeModel['languages'];
+    readingProgress?: boolean;
   } = $props();
   const t = $derived(ui(locale));
   // Search lives in the panel even on a site without any placed menus.
@@ -164,5 +166,6 @@
       </div>
     </details>
   </div>
+  {#if readingProgress}<span class="site-reading-progress" aria-hidden="true"></span>{/if}
   <script type="module" src="/_site/navigation.js"></script>
 </header>

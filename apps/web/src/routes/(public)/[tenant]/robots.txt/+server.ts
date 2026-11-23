@@ -11,6 +11,7 @@
 import { createHash } from 'node:crypto';
 import { robotsTxt } from '@mycel/core';
 import { PUBLIC_CACHE } from '#lib/server/http/http-cache.js';
+import { SPECULATION_RULES_PATH } from '#lib/server/http/speculation.js';
 import { requireSite, sitePath, siteUrls } from '#lib/server/site.js';
 import { siteGeneral } from '#lib/server/public/theme.js';
 import type { RequestHandler } from './$types';
@@ -18,10 +19,14 @@ import type { RequestHandler } from './$types';
 export const GET: RequestHandler = async ({ locals }) => {
   const site = requireSite(locals);
   const absolute = await siteUrls(site);
-  const internal = ['/_speculation.json', '/confirm', '/unsubscribe'];
+  const internal = ['/confirm', '/unsubscribe'];
   const body = robotsTxt({
     use: (await siteGeneral(site)).aiUse,
-    disallowPaths: ['/admin', ...internal.map((path) => sitePath(site, path))],
+    disallowPaths: [
+      '/admin',
+      SPECULATION_RULES_PATH,
+      ...internal.map((path) => sitePath(site, path)),
+    ],
     sitemap: absolute('/sitemap.xml'),
   });
   return new Response(body, {

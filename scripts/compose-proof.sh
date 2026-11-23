@@ -96,7 +96,7 @@ expect 'TLS 1.3 accepted' 404 "$(page --tlsv1.3 -w '%{http_code}')"
 # not checked here: the only page in this proof is the 404 above, and a 404 carries none.
 expect 'speculation rules file on a hostname' '200 application/speculationrules+json' \
   "$(curl -sk -o /dev/null --max-time 10 --resolve "demo.example.test:$HTTPS_PORT:127.0.0.1" \
-    -w '%{http_code} %{content_type}' "https://demo.example.test:$HTTPS_PORT/_speculation.json" || true)"
+    -w '%{http_code} %{content_type}' "https://demo.example.test:$HTTPS_PORT/_site/speculation.json" || true)"
 
 # The discovery documents on each kind of host, through Caddy (a browser test covers the rest of the
 # table in docs/reference/hostnames.md). The last value says which address the catalog is about.

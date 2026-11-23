@@ -156,6 +156,7 @@ export const load: PageServerLoad = async ({
     intro: view.intro,
     corrections: view.corrections,
     dropCap: view.dropCap,
+    readingProgress: view.item.type === 'article',
     head: view.head,
     structured: view.structured,
     // Only a successful GET of a published public item counts (analytics.ts).
