@@ -88,6 +88,8 @@ export const ThemeColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'theme.color.inv
 
 const RolePair = z.object({ foreground: ThemeColor, background: ThemeColor }, unknownKey).strict();
 
+export const CAMPAIGN_THEME_ROLES = ['campaignForm', 'campaignProgress'] as const;
+
 /** At most as many accents as an action row has cards; one is a row in one colour. */
 export const CARD_ACCENTS_MAX = 4;
 
@@ -100,6 +102,9 @@ export const Palette = z
       accent: RolePair,
       muted: RolePair,
       warning: RolePair,
+      campaignForm: RolePair.optional(),
+      campaignProgress: RolePair.optional(),
+      campaignProgressFill: ThemeColor.optional(),
       /** Link text on body and surface; links in running text stay underlined (#8c). */
       link: ThemeColor,
       /** The focus indicator on every role background. */

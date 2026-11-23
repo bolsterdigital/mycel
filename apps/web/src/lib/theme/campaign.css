@@ -113,25 +113,34 @@
 .campaign-landing .campaign-intro h1 {
   font-size: clamp(var(--step-2), 0.5rem + 4cqi, var(--step-4));
 }
-/* The action area is a card of its own on the body pair, lifted by a shadow in the text colour
-   (a border that only forced colours draw takes its place there); the count is a tinted band
-   across its top, edge to edge, and the submit button fills the width. */
+/* The shared action column has a checked form pair and a separate band for the count.
+   Compact cards keep their own surface and counter styling. */
 .campaign-layout > .campaign-action {
   /* In vw, not the page's cqi: the area is a container itself, so a cqi inset would resolve
      against the page in its padding and against the area in the band's margins. */
   --campaign-pad: min(var(--space-3), 5vw);
   padding: var(--campaign-pad);
   border: 1px solid transparent;
-  color: var(--color-body-fg);
-  background: var(--color-body-bg);
+  color: var(--campaign-form-fg);
+  background: var(--campaign-form-bg);
   box-shadow: 0 4px 20px color-mix(in srgb, var(--color-body-fg) 14%, transparent);
 }
 .campaign-layout > .campaign-action > .campaign-count {
   margin: calc(-1 * var(--campaign-pad)) calc(-1 * var(--campaign-pad)) 0;
   padding: var(--campaign-pad);
   border-radius: var(--radius) var(--radius) 0 0;
-  color: var(--color-surface-fg);
-  background: var(--color-surface-bg);
+  color: var(--campaign-progress-fg);
+  background: var(--campaign-progress-bg);
+}
+.campaign-layout > .campaign-action > .campaign-count progress {
+  border: 1px solid currentColor;
+  background: var(--campaign-progress-bg);
+}
+.campaign-layout > .campaign-action > .campaign-count progress::-webkit-progress-value {
+  background: var(--campaign-progress-fill);
+}
+.campaign-layout > .campaign-action > .campaign-count progress::-moz-progress-bar {
+  background: var(--campaign-progress-fill);
 }
 /* Wide: text and action area side by side at about 2 : 1.3 (Dreamkit), the intro 5rem into the
    image and the action area 7.5rem, so the form starts higher than the title. 30rem of text, an

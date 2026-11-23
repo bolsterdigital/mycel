@@ -4,6 +4,10 @@
 // below was a spec of its own until TODO #50 folded the suite to its budget (testing.md
 // § End-to-end flows); each keeps its own fixtures.
 
+import {
+  enterCampaignThemeColours,
+  expectCampaignThemeColours,
+} from './lib/campaigns/action-colours';
 import { exerciseOverview } from './lib/blocks/overview';
 import { exerciseEventPage } from './lib/events/event-page';
 import { exerciseAgenda } from './lib/events/agenda';
@@ -1736,6 +1740,7 @@ test.describe('site-settings', () => {
     await card('light', 2, 'background').fill('#ffd54f');
     await card('dark', 1, 'foreground').fill('');
     await card('dark', 1, 'background').fill('');
+    await enterCampaignThemeColours(page);
     await saveTheme(page);
     await savedOk(page);
     const theme = (await themeState(tenantId)).value;
@@ -1745,6 +1750,7 @@ test.describe('site-settings', () => {
       { foreground: '#000000', background: '#ffd54f' },
     ]);
     expect(theme.palettes.dark.cardAccents).toEqual([WALK.dark[0]]);
+    await expectCampaignThemeColours(page, theme.palettes.light);
     // A half-filled card is refused by core, not completed by the form; the light walk stays.
     await card('light', 3, 'background').fill('#123456');
     await saveTheme(page);

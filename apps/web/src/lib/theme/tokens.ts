@@ -14,6 +14,7 @@
 // original polarity and are checked along the entire sRGB transition before becoming tokens.
 
 import {
+  campaignColours,
   contrastRatio,
   focusHalo,
   FONT_KEYS,
@@ -190,6 +191,7 @@ function chromeTokens(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
 }
 
 function palette(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
+  const { form, progress, fill } = campaignColours(p);
   const lines = THEME_ROLES.flatMap((role) => [
     `--color-${role}-fg: ${p[role].foreground};`,
     `--color-${role}-bg: ${p[role].background};`,
@@ -205,6 +207,11 @@ function palette(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
     `--color-link: ${p.link};`,
     `--color-focus: ${p.focus};`,
     `--color-focus-halo: ${focusHalo(p)};`,
+    `--campaign-form-fg: ${form.foreground};`,
+    `--campaign-form-bg: ${form.background};`,
+    `--campaign-progress-fg: ${progress.foreground};`,
+    `--campaign-progress-bg: ${progress.background};`,
+    `--campaign-progress-fill: ${fill};`,
     ...cardSlots(p),
     ...chromeTokens(p, chrome)
   );

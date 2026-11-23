@@ -37,8 +37,8 @@ const text = (...paragraphs: string[]) => ({
   },
 });
 
-export async function campaignCardFixture(stamp: string) {
-  const editor = systemPrincipal(await tenantId(), 'e2e-campaign-card');
+export async function campaignCardFixture(stamp: string, id?: string) {
+  const editor = systemPrincipal(id ?? (await tenantId()), 'e2e-campaign-card');
   const ids = await withInvoker(async (invoker) => {
     const publish = async (itemId: string, revisionId: string, locales = ['nl']) => {
       for (const locale of locales)

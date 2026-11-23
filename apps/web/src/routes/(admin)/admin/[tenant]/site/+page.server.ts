@@ -23,6 +23,8 @@
 // third party's code runs on the public site is the same decision.
 import {
   BRAND_LIMITS,
+  CAMPAIGN_THEME_ROLES,
+  THEME_ROLES,
   can,
   KEY_ROLES,
   KeyCapability,
@@ -349,7 +351,7 @@ export const actions: Actions = {
     const palettes: Record<string, Record<string, unknown>> = {};
     for (const mode of ['light', 'dark']) {
       const palette: Record<string, unknown> = {};
-      for (const role of ['body', 'surface', 'primary', 'accent', 'muted', 'warning'])
+      for (const role of THEME_ROLES)
         palette[role] = {
           foreground: text(data, `${mode}.${role}.foreground`),
           background: text(data, `${mode}.${role}.background`),
@@ -366,6 +368,13 @@ export const actions: Actions = {
         }))
         .filter((pair) => pair.foreground || pair.background);
       if (accents.length) palette['cardAccents'] = accents;
+      for (const role of CAMPAIGN_THEME_ROLES) {
+        const foreground = text(data, `${mode}.${role}.foreground`);
+        const background = text(data, `${mode}.${role}.background`);
+        if (foreground || background) palette[role] = { foreground, background };
+      }
+      const fill = text(data, `${mode}.campaignProgressFill`);
+      if (fill) palette['campaignProgressFill'] = fill;
       palettes[mode] = palette;
     }
     const theme = {

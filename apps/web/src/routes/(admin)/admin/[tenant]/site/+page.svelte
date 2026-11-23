@@ -30,6 +30,7 @@
     SOCIAL_NETWORKS,
     THEME_MODES,
     THEME_ROLES,
+    CAMPAIGN_THEME_ROLES,
   } from '@mycel/core';
   import {
     Actions,
@@ -96,19 +97,14 @@
     ratioOf(`${mode}.${role}`, data.theme.value.palettes[mode][role]);
   /** An action row's card colours: four optional pairs, an empty one is not used. */
   const CARD_SLOTS = [0, 1, 2, 3] as const;
-  const cardPair = (mode: 'light' | 'dark', i: number) => {
-    const stored = data.theme.value.palettes[mode].cardAccents?.[i];
-    return {
-      foreground: value(`${mode}.cardAccents.${i}.foreground`, stored?.foreground ?? ''),
-      background: value(`${mode}.cardAccents.${i}.background`, stored?.background ?? ''),
-    };
-  };
-  const cardComplete = (mode: 'light' | 'dark', i: number) => {
-    const pair = cardPair(mode, i);
-    return (['foreground', 'background'] as const).every((side) =>
-      HEX.test(colour(`${mode}.cardAccents.${i}.${side}`, pair[side]))
+  const optionalPair = (prefix: string, stored?: { foreground: string; background: string }) => ({
+    foreground: value(`${prefix}.foreground`, stored?.foreground ?? ''),
+    background: value(`${prefix}.background`, stored?.background ?? ''),
+  });
+  const pairComplete = (prefix: string, pair: { foreground: string; background: string }) =>
+    (['foreground', 'background'] as const).every((side) =>
+      HEX.test(colour(`${prefix}.${side}`, pair[side]))
     );
-  };
   const saved = (what: string) =>
     form && 'saved' in form && form.saved === what ? t('admin.site.saved') : undefined;
   /** The terms a site may keep submissions for, in whole months (core checks the same range). */
@@ -457,6 +453,39 @@
            contrast, one outline deep; the extra roles have one colour. Below 36rem the rows
            stack (Table `stack`). Rejected: a fieldset per role inside a fieldset per mode. -->
       {#each THEME_MODES as mode (mode)}
+        {#snippet optionalRole(
+          prefix: string,
+          roleLabel: string,
+          stored?: { foreground: string; background: string }
+        )}
+          {@const pair = optionalPair(prefix, stored)}
+          <tr>
+            <th scope="row">{roleLabel}</th>
+            {#each ['foreground', 'background'] as const as side (side)}
+              {@const name = `${prefix}.${side}`}
+              {@const sideLabel = t(`admin.site.${side}`)}
+              <td data-label={sideLabel}>
+                <ColorField
+                  id="site-{name.replaceAll('.', '-')}"
+                  {name}
+                  label="{roleLabel}: {sideLabel}"
+                  hideLabel
+                  locale={data.locale}
+                  value={pair[side]}
+                  onchange={(next) => {
+                    changed[name] = next;
+                  }}
+                />
+              </td>
+            {/each}
+            <td data-label={t('admin.site.colours.contrast')}>
+              <output aria-live="polite"
+                >{#if pairComplete(prefix, pair)}{@const r = ratioOf(prefix, pair)}{r.toFixed(1)}:1
+                  ({r >= 4.5 ? t('admin.site.pass') : t('admin.site.fail')}){/if}</output
+              >
+            </td>
+          </tr>
+        {/snippet}
         <Table
           id="site-colours-{mode}"
           caption={t(`admin.site.mode.${mode}`)}
@@ -519,39 +548,37 @@
                 <td></td>
               </tr>
             {/each}
+            {#each CAMPAIGN_THEME_ROLES as role (role)}
+              {@render optionalRole(
+                `${mode}.${role}`,
+                t(`admin.site.role.${role}`),
+                data.theme.value.palettes[mode][role]
+              )}
+            {/each}
+            <tr>
+              <th scope="row">{t('admin.site.role.campaignProgressFill')}</th>
+              <td data-label={t('admin.site.foreground')}>
+                <ColorField
+                  id="site-{mode}-campaignProgressFill"
+                  name="{mode}.campaignProgressFill"
+                  label={t('admin.site.role.campaignProgressFill')}
+                  hideLabel
+                  locale={data.locale}
+                  value={value(
+                    `${mode}.campaignProgressFill`,
+                    data.theme.value.palettes[mode].campaignProgressFill ?? ''
+                  )}
+                />
+              </td>
+              <td></td>
+              <td></td>
+            </tr>
             {#each CARD_SLOTS as i (i)}
-              {@const roleLabel = fill(t('admin.site.role.card'), { n: String(i + 1) })}
-              {@const pair = cardPair(mode, i)}
-              <tr>
-                <th scope="row">{roleLabel}</th>
-                {#each ['foreground', 'background'] as const as side (side)}
-                  {@const name = `${mode}.cardAccents.${i}.${side}`}
-                  {@const sideLabel = t(`admin.site.${side}`)}
-                  <td data-label={sideLabel}>
-                    <ColorField
-                      id="site-{mode}-card-{i}-{side}"
-                      {name}
-                      label="{roleLabel}: {sideLabel}"
-                      hideLabel
-                      locale={data.locale}
-                      value={pair[side]}
-                      onchange={(next) => {
-                        changed[name] = next;
-                      }}
-                    />
-                  </td>
-                {/each}
-                <td data-label={t('admin.site.colours.contrast')}>
-                  <output aria-live="polite"
-                    >{#if cardComplete(mode, i)}{@const r = ratioOf(
-                        `${mode}.cardAccents.${i}`,
-                        pair
-                      )}{r.toFixed(1)}:1 ({r >= 4.5
-                        ? t('admin.site.pass')
-                        : t('admin.site.fail')}){/if}</output
-                  >
-                </td>
-              </tr>
+              {@render optionalRole(
+                `${mode}.cardAccents.${i}`,
+                fill(t('admin.site.role.card'), { n: String(i + 1) }),
+                data.theme.value.palettes[mode].cardAccents?.[i]
+              )}
             {/each}
           {/snippet}
         </Table>
