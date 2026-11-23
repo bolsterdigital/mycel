@@ -1,3 +1,4 @@
+import { bunnyLibraries } from '../video/bunny.js';
 import { inspectMailchimp, createMailchimpRequester } from '../mailchimp/client.js';
 import { mailchimpTransport } from '../mailchimp/transport.js';
 // Composition root (docs/architecture/overview.md): the one place that turns configuration into
@@ -354,6 +355,7 @@ export function createRuntime(
     dns,
     platform,
     paymentProvider,
+    videoProviderFor: bunnyLibraries(config.BUNNY_VIDEO_LIBRARIES),
     media: { blobs, images: createSharpProcessor(), delivery: appDelivery },
     brandProcessor: createBrandProcessor(),
     log,

@@ -321,6 +321,17 @@ Version 1.
 
 Examples: `overview-articles-cards` (The newest articles of one section, one pinned on top, with an older link), `overview-articles-list`, `overview-pages-full`, `overview-events-upcoming` (An agenda: the next events, soonest first, with when and where on each card), `overview-events-past-list`, `overview-dossier-members` (The articles of one dossier, on the dossier page itself), `overview-dossiers`, `overview-campaigns` (Every published petition, newest first, each with where it stands and its count), `overview-signups-list` (Every signup campaign as a list under one pinned item: a title, and the phase when it is not open), `overview-fundraisers` (Every fundraiser, oldest first, under one pinned item), `overview-selection` (A fixed selection: these items in this order, never filled up).
 
+## `video` (Video from library)
+
+Version 1.
+
+| Prop      | Label    | Kind                      | Presence |
+| --------- | -------- | ------------------------- | -------- |
+| `videoId` | Video id | video reference (id)      | required |
+| `caption` | Caption  | localised multi-line text | optional |
+
+Examples: `video-shared`.
+
 ## Rich text in the no-JavaScript form
 
 A rich-text field is a `textarea` with a Markdown subset that reads back into exactly the stored document (`apps/web/src/lib/editor/markdown.ts`):

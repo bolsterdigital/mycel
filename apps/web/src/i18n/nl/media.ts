@@ -3,6 +3,36 @@
 import type { UiKey } from '../en.js';
 
 export const media: Partial<Record<UiKey, string>> = {
+  'admin.video.title': 'Video’s',
+  'admin.video.choose': 'Kies een video',
+  'admin.video.file': 'Kies een videobestand',
+  'admin.video.upload': 'Video uploaden en verwerken',
+  'admin.video.recordingTitle': 'Titel van de opname',
+  'admin.video.maker': 'Maker',
+  'admin.video.licence': 'Licentie',
+  'admin.video.poster': 'Omslagbeeld',
+  'admin.video.watch': 'Externe kijklink',
+  'admin.video.check': 'Verwerking controleren',
+  'admin.video.trash': 'Naar de prullenbak',
+  'admin.video.uploadLabel': 'Video uploaden',
+  'admin.video.scriptRequired': 'Voor video uploaden is JavaScript nodig.',
+  'admin.video.posterRequired':
+    'Voeg een openbaar beeld toe aan de mediabibliotheek om als omslagbeeld te gebruiken.',
+  'admin.video.empty': 'Nog geen video’s.',
+  'admin.video.failed':
+    'De video kon niet worden geüpload. Kies hetzelfde bestand om verder te gaan.',
+  'admin.video.storage': 'De site heeft zijn videolimiet bereikt.',
+  'admin.video.working': 'Bezig met uploaden',
+  'admin.video.actionFailed':
+    'De actie kon niet worden uitgevoerd. Een video die in gebruik is kan niet naar de prullenbak.',
+  'admin.video.state.reserved': 'In de wachtrij',
+  'admin.video.state.creating': 'Upload voorbereiden',
+  'admin.video.state.upload': 'Wacht op upload',
+  'admin.video.state.encoding': 'Wordt verwerkt',
+  'admin.video.state.ready': 'Klaar om te plaatsen',
+  'admin.video.state.failed': 'Verwerking mislukt',
+  'admin.video.state.over-limit': 'Sitelimiet overschreden',
+  'admin.video.state.unbound': 'Koppeling met bibliotheek nodig',
   'admin.media.title': 'Media',
   'admin.media.back': 'Terug naar {name}',
   'admin.media.storage': 'Opslag in gebruik: {used} van {max}.',

@@ -459,6 +459,7 @@ export async function emailDocument(
         return [web('mail.email.web.audio', { title: l(b.props.title) ?? '' })];
       case 'overview':
       case 'people-grid':
+      case 'video':
       case 'file-download':
         return [web('mail.email.web.more')];
       default:

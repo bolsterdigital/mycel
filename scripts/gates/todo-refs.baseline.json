@@ -385,7 +385,7 @@
   "scripts/drill/drill-run.sh": 8,
   "scripts/drill/drill-verify.mjs": 2,
   "scripts/e2e/e2e-env.test.mjs": 1,
-  "scripts/e2e/e2e.mjs": 12,
+  "scripts/e2e/e2e.mjs": 11,
   "scripts/e2e/mock-oidc.mjs": 1,
   "scripts/gates/check-dependency-rules.mjs": 2,
   "scripts/gates/check-dependency-rules.test.mjs": 1,

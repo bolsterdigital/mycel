@@ -289,7 +289,16 @@ export interface Database {
     item_id: string;
     revision_id: string;
     block_id: string | null;
-    type: 'form' | 'item' | 'author' | 'section' | 'media' | 'person' | 'person_group' | 'campaign';
+    type:
+      | 'form'
+      | 'item'
+      | 'author'
+      | 'section'
+      | 'media'
+      | 'person'
+      | 'person_group'
+      | 'campaign'
+      | 'video';
     ref_id: string;
   };
   /** Search tokens of each published, public, indexable locale (0055); no readable text. */
@@ -750,6 +759,28 @@ export interface Database {
     created_at: Timestamp;
     updated_at: Timestamp;
     deleted_at: Timestamp | null;
+  };
+  managed_videos: {
+    tenant_id: string;
+    id: string;
+    poster_id: string;
+    metadata: Json<unknown>;
+    published_tracks: ColumnType<Record<string, string>, string | undefined, string>;
+    duration_seconds: number | null;
+    has_source: boolean;
+    created_at: Timestamp;
+    trashed_at: Timestamp | null;
+  };
+  managed_video_uploads: {
+    tenant_id: string;
+    video_id: string;
+    upload_key: string;
+    library_id: string;
+    provider_id: string | null;
+    mp4_height: number | null;
+    state: import('@mycel/core').VideoUploadState;
+    storage_bytes: ColumnType<string, number, number>;
+    duration_seconds: number;
   };
   media_usages: {
     tenant_id: string;

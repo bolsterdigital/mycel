@@ -71,6 +71,7 @@ import { enterTenant } from './infra/roles.js';
 import { jobScheduler } from './operations/jobs.js';
 import { jobRecoveryRepository } from './infra/recovery.js';
 import { mediaRepository } from './media.js';
+import { videoRepository } from './media/video.js';
 import { navigationRepository } from './navigation/repository.js';
 import {
   apiKeyRepository,
@@ -222,6 +223,7 @@ export interface UnitOfWorkDeps {
    * in suites that touch no files: then `ctx.blobs` and `ctx.images` refuse when used.
    */
   media?: { blobs: BlobStore; images: ImageProcessor; delivery?: MediaDelivery } | undefined;
+  videoProviderFor?: ((tenantId: string) => import('@mycel/core').VideoProvider | null) | undefined;
   brandProcessor?: import('@mycel/core').BrandProcessor | undefined;
   /** `ctx.log`; the composition root passes the process logger, suites get `noopLogger`. */
   log?: Logger | undefined;
@@ -340,6 +342,8 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           jobRecovery: jobRecoveryRepository(trx, tenantId),
           usage: usageReader(trx, tenantId, deps.clock),
           media: mediaRepository(trx, tenantId),
+          videos: videoRepository(trx, tenantId),
+          videoProvider: deps.videoProviderFor?.(tenantId) ?? null,
           blobs: deps.media?.blobs ?? (unconfigured('BlobStore') as BlobStore),
           images: deps.media?.images ?? (unconfigured('ImageProcessor') as ImageProcessor),
           delivery: deps.media?.delivery ?? appDelivery,

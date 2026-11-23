@@ -256,6 +256,10 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
             : null;
         return `> ${md(b.text)}\n>\n> *${[who, source].filter(Boolean).join(', ')}*`;
       }
+      case 'video':
+        return [b.caption ? md(b.caption) : '', b.watch ? link(b.title, b.watch) : '']
+          .filter(Boolean)
+          .join('\n\n');
       case 'video-embed': {
         const line = `${link(b.title, b.url)} (${md(model.copy.videoOn.replace('{provider}', VIDEO_PROVIDER_NAMES[b.provider]))})`;
         return b.caption ? `${line}\n\n*${md(b.caption)}*` : line;

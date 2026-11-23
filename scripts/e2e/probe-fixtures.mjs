@@ -118,3 +118,120 @@ export async function openLanding(invoker, admin, useCases, itemId) {
     baseUpdatedAt: campaign.updatedAt,
   });
 }
+
+export async function seedSampleArticle(invoker, admin, useCases, uow) {
+  // An article with an author and a section, published in nl and en, for public-site.spec.ts
+  // for `/articles/<slug>`, its `/en/` twin, and the public metadata of the read route.
+  const story = { type: 'article', slug: 'bomen-in-de-straat' };
+  if (!(await invoker.run(useCases.listItems, admin, story)).items.length) {
+    const [author, section] = await uow.run(admin, async (ctx) => [
+      await ctx.authors.findBySlug('e2e-auteur'),
+      await ctx.sections.findBySlug('e2e-stad'),
+    ]);
+    const authorId = (
+      author ??
+      (await invoker.run(useCases.createPerson, admin, {
+        slug: 'e2e-auteur',
+        name: 'Sam de Vries',
+        email: 'sam@probe.test',
+        publicEmail: 'public-sam@probe.test',
+        bio: { nl: 'Sam schrijft over de stad.', en: 'Sam writes about the city.' },
+        role: { nl: 'Redacteur', en: 'Editor' },
+        links: [{ label: 'Website', url: 'https://example.org/sam' }],
+      }))
+    ).id;
+    const sectionId = (
+      section ??
+      (await invoker.run(useCases.createSection, admin, {
+        slug: 'e2e-stad',
+        title: { nl: 'Stad', en: 'City' },
+      }))
+    ).id;
+    const paragraph = (text) => ({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+    });
+    const { item, revision } = await invoker.run(useCases.createItem, admin, {
+      slug: story.slug,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: 'Bomen in de straat', en: 'Trees in the street' },
+        lead: {
+          nl: 'Waarom de buurt meer groen wil.',
+          en: 'Why the neighbourhood wants more green.',
+        },
+        authorIds: [authorId],
+        sectionId,
+        blocks: [
+          {
+            type: 'rich-text',
+            version: 1,
+            props: {
+              content: {
+                nl: paragraph('Schaduw, koelte en ruimte voor water.'),
+                en: paragraph('Shade, cool air and room for water.'),
+              },
+            },
+          },
+        ],
+      },
+    });
+    for (const locale of ['nl', 'en'])
+      await invoker.run(useCases.publishItem, admin, {
+        itemId: item.id,
+        revisionId: revision.id,
+        locale,
+      });
+  }
+}
+
+export async function seedManagedVideo({
+  uow,
+  admin,
+  id,
+  posterId,
+  libraryId,
+  recording,
+  videoSourceKey,
+}) {
+  await uow.run(admin, async ({ videos }) => {
+    if (!(await videos.get(id)))
+      await videos.insert({
+        id: id,
+        posterId: posterId,
+        durationSeconds: 54,
+        hasSource: false,
+        metadata: {
+          title: { nl: 'Een opname', en: 'A recording' },
+          maker: 'Mycel',
+          licence: { code: 'cc0' },
+          watchUrl: 'https://example.com/river',
+        },
+        publishedTracks: {
+          nl: 'WEBVTT\n\n00:00.000 --> 00:03.000\nLangs de rivier.\n',
+          en: 'WEBVTT\n\n00:00.000 --> 00:03.000\nAlong the river.\n',
+        },
+        createdAt: new Date(),
+        trashedAt: null,
+      });
+  });
+  await uow.run(admin, async ({ videos, blobs, media }) => {
+    if ((await videos.upload(id))?.state === 'ready') return;
+    const key = videoSourceKey(admin.tenantId, id);
+    await blobs.put(key, recording, { contentType: 'video/mp4' });
+    await media.replaceUsages(`video:${id}`, [{ mediaId: posterId, blockId: 'poster' }]);
+    await videos.update(id, { hasSource: true });
+    await videos.saveUpload({
+      videoId: id,
+      uploadKey: id,
+      libraryId: libraryId,
+      providerId: id,
+      mp4Height: 180,
+      storageBytes: 10000,
+      durationSeconds: 5,
+      state: 'ready',
+    });
+  });
+}

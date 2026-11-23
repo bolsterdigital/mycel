@@ -39,3 +39,32 @@
     button.hidden = false;
   }
 })();
+
+// Keep the native player inline when scripting is available. The same form opens it as
+// a regular page without JavaScript. No source is assigned before the authorized POST.
+for (const form of document.querySelectorAll('form[data-managed-video]')) {
+  form.addEventListener('submit', () => {
+    if (form.target) return;
+    const frame = document.createElement('iframe');
+    frame.name = `mycel-video-${crypto.randomUUID()}`;
+    frame.title = form.querySelector('button').getAttribute('aria-label');
+    frame.className = 'managed-video-frame';
+    frame.allowFullscreen = true;
+    form.target = frame.name;
+    const mode = document.createElement('input');
+    mode.type = 'hidden';
+    mode.name = 'inline';
+    mode.value = '1';
+    form.append(mode);
+    form.after(frame);
+    // Preserve the submit through the event's default action before moving focus.
+    frame.addEventListener(
+      'load',
+      () => {
+        form.hidden = true;
+        frame.focus();
+      },
+      { once: true }
+    );
+  });
+}

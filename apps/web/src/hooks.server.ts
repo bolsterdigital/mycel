@@ -137,7 +137,8 @@ export const handle: Handle = async (input) => {
       kind,
       event.url.protocol === 'https:',
       liveDraft,
-      event.locals.pageSources ?? null
+      event.locals.pageSources ?? null,
+      event.locals.videoUploadPage
     );
     rt.log[isProbe(event.url.pathname) ? 'debug' : 'info']('request', {
       method: event.request.method,

@@ -96,6 +96,21 @@ function asset(id: string, width: number, height: number, focal = { x: 0.5, y: 0
 
 /** Resolver fixtures for the example ids, plus one restricted image and one unpublished item. */
 const fixtures: ResolveSource = {
+  async video(id) {
+    return id === EXAMPLE_IDS.video
+      ? {
+          metadata: {
+            title: { en: 'A recording', nl: 'Een opname' },
+            maker: 'Mycel',
+            licence: { code: 'cc0' },
+            watchUrl: 'https://example.com/river',
+          },
+          duration: 54,
+          posterId: EXAMPLE_IDS.image,
+          playable: false,
+        }
+      : null;
+  },
   async peopleGrid(props, locale) {
     return [
       {

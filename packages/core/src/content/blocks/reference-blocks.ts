@@ -4,8 +4,10 @@
 // ceiling for each new type.
 import { campaignCardDefinition } from './campaign-card.js';
 import { overviewDefinition } from './overview.js';
+import { videoDefinition } from './video.js';
 
 export const REFERENCE_BLOCKS = {
   'campaign-card': campaignCardDefinition,
   overview: overviewDefinition,
+  video: videoDefinition,
 } as const;

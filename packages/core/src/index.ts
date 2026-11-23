@@ -224,3 +224,15 @@ export * from './connections/mailchimp/callback.js';
 export * from './connections/mailchimp/destination.js';
 
 export * from './supporters/lifecycle.js';
+
+export { VideoMetadata, videoSourceKey, type VideoUploadState } from './media/video-model.js';
+export type { VideoRecord, VideoUpload } from './media/video-model.js';
+export type { VideoRepository, VideoProvider, VideoProviderStatus } from './media/ports.js';
+export { runVideoCreate } from './media/video-service.js';
+export {
+  VideoPlacement,
+  videoPresentation,
+  grantVideo,
+  readVideoTrack,
+} from './media/video-playback.js';
+export { LICENCE_CODES } from './media/model.js';
