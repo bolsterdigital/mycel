@@ -162,6 +162,7 @@ export const EMAIL_FALLBACK_TYPES: readonly BlockType[] = [
   'signup-form',
   'campaign-card',
   'audio',
+  'video',
   'overview',
   'people-grid',
   'file-download',

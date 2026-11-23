@@ -13,7 +13,7 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
   const principal = locals.principal!;
   const rt = runtime();
   const write = can(principal, 'media:write');
-  const [videos, bound, media] = await Promise.all([
+  const [{ videos }, bound, media] = await Promise.all([
     loaded(rt.invoker.run(useCases.listVideos, principal, {})),
     rt.uow.run(principal, async (ctx) => !!ctx.videoProvider),
     write

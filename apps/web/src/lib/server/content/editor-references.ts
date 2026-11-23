@@ -60,7 +60,7 @@ export async function editorReferences(
   const campaigns = await editorCampaigns(principal, blocks, locale, fallback);
   const videos =
     can(principal, 'media:read') && can(principal, 'content:write')
-      ? (await runtime().invoker.run(useCases.listVideos, principal, {}))
+      ? (await runtime().invoker.run(useCases.listVideos, principal, {})).videos
           .filter((video) => video.state === 'ready')
           .map((video) => ({
             id: video.id,

@@ -1016,6 +1016,52 @@ https://vogelwijk.example.org
 "
 `;
 
+exports[`render-email > renders video in en > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/en/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">See this part on the website &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders video in en > text 1`] = `
+"Vogelwijk Energie
+
+View this e-mail in your browser: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+A neighbourhood battery
+=======================
+
+See this part on the website: https://vogelwijk.example.org/en/articles/buurtbatterij
+
+--
+You receive this e-mail from Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
+exports[`render-email > renders video in nl > html 1`] = `
+"<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">Een buurtbatterij</h1></td></tr>
+
+<tr><td style="padding:0 24px 20px;"><p style="margin:0;"><a href="https://vogelwijk.example.org/articles/buurtbatterij" style="color:#1f4f8f;text-decoration:underline;font-weight:700;">Bekijk dit onderdeel op de website &rarr;</a></p></td></tr>
+"
+`;
+
+exports[`render-email > renders video in nl > text 1`] = `
+"Vogelwijk Energie
+
+Bekijk deze e-mail in je browser: https://vogelwijk.example.org/articles/buurtbatterij
+
+Een buurtbatterij
+=================
+
+Bekijk dit onderdeel op de website: https://vogelwijk.example.org/articles/buurtbatterij
+
+--
+Je ontvangt deze e-mail van Vogelwijk Energie.
+https://vogelwijk.example.org
+"
+`;
+
 exports[`render-email > renders video-embed in en > html 1`] = `
 "<tr><td style="padding:28px 24px 20px;"><h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.25;font-weight:700;">A neighbourhood battery</h1></td></tr>
 

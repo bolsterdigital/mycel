@@ -85,8 +85,6 @@ export const createVideo = defineUseCase({
   ],
   async handler(ctx, { uploadKey, posterId, sizeBytes, durationSeconds, ...metadata }) {
     const provider = ctx.videoProvider;
-    if (!provider)
-      throw new UseCaseError('conflict', 'video uploads are unavailable for this site');
     await ctx.media.lock();
     const previous = await ctx.videos.byUploadKey(uploadKey);
     if (previous) {
@@ -94,6 +92,8 @@ export const createVideo = defineUseCase({
       return view(await liveVideo(ctx, previous.videoId), previous.state);
     }
     await usage(ctx, sizeBytes, durationSeconds);
+    if (!provider)
+      throw new UseCaseError('conflict', 'video uploads are unavailable for this site');
     const poster = await ctx.media.get(posterId);
     if (
       !poster ||
@@ -256,10 +256,10 @@ export const listVideos = defineUseCase({
   description: 'List the videos and upload states in this site’s media library.',
   requires: 'media:read',
   input: z.object({}).strict(),
-  output: z.array(VideoView),
+  output: z.object({ videos: z.array(VideoView) }),
   examples: [{ input: {} }],
   async handler(ctx) {
-    return Promise.all(
+    const videos = await Promise.all(
       (await ctx.videos.list()).map(async (video) => {
         const upload = await ctx.videos.upload(video.id);
         return view(
@@ -268,6 +268,7 @@ export const listVideos = defineUseCase({
         );
       })
     );
+    return { videos };
   },
 });
 

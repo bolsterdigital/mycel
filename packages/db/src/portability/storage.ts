@@ -505,7 +505,10 @@ export const STORAGE = {
   managed_videos: {
     category: 'media',
     owner: 'tenant',
-    copies: [FREE_TEXT('metadata', ['media.video.delete'])],
+    copies: [
+      FREE_TEXT('metadata', ['media.video.delete']),
+      FREE_TEXT('published_tracks', ['media.video.delete']),
+    ],
     retention: SITE_KEPT,
   },
   managed_video_uploads: {

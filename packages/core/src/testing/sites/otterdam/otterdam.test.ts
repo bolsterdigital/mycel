@@ -42,9 +42,11 @@ const documents = OTTERDAM.items.map((item) => ({ key: item.key, doc: item.docum
 const blocksOf = (key: string) => documents.find((d) => d.key === key)!.doc.blocks;
 
 describe('Otterdam is complete', () => {
-  it('shows every insertable block type but the paywall, in every variant value, on "All blocks"', () => {
+  it('shows every self-contained block type in all its variants on "All blocks"', () => {
     const blocks = blocksOf('test-blokken');
-    expect(ALL_BLOCKS_TYPES).toEqual(INSERTABLE_BLOCK_TYPES.filter((t) => t !== 'paywall'));
+    expect(ALL_BLOCKS_TYPES).toEqual(
+      INSERTABLE_BLOCK_TYPES.filter((t) => t !== 'paywall' && t !== 'video')
+    );
     for (const type of ALL_BLOCKS_TYPES) {
       const used = blocks.filter((b) => b.type === type);
       expect([type, used.length > 0]).toEqual([type, true]);
