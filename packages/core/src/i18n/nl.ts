@@ -14,6 +14,7 @@ export const nl: Partial<Messages> = {
   'forms.default.email': 'E-mailadres',
   'forms.default.consent': 'Aanmelden voor nieuws',
   'forms.amount.other': 'Ander bedrag (€)',
+  'forms.amount.customChoice': 'Anders',
   'forms.default.donationSubmit': 'Doneer',
   'forms.default.membershipSubmit': 'Word lid',
   'forms.default.donationThanks': 'Dank je wel voor je gift.',

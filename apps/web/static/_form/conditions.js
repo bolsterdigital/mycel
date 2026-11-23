@@ -20,22 +20,36 @@ export function enhance(form) {
   function update() {
     const values = Object.create(null);
     for (const field of fields) {
-      const control = form.querySelector(`[name="${field.name}"]`);
+      const controls = [...form.querySelectorAll(`[name="${field.name}"]`)];
+      const control = controls[0];
       if (!control) continue;
       const active = !field.activeWhen || matches(field.activeWhen, values);
       const required =
         field.baseRequired || !!(field.requiredWhen && matches(field.requiredWhen, values));
       const wrapper = control.closest('[data-form-field]');
       if (wrapper) wrapper.hidden = !active;
-      control.disabled = !active;
-      if ('required' in control) control.required = active && required;
-      if (!active || !control.validity.valid) continue;
-      const raw = control.value.trim();
+      for (const input of controls) {
+        input.disabled = !active;
+        input.required = active && required;
+      }
+      const picked = field.presets ? controls.find((input) => input.checked) : control;
+      const custom = field.customAmount;
+      const own = custom && form.querySelector(`[name="${custom.name}"]`);
+      if (own) own.disabled = !active;
+      if (!active || !picked?.validity.valid) continue;
+      const raw = (
+        custom && picked.value === custom.choice
+          ? (own?.value ?? '').replace(',', '.')
+          : picked.value
+      ).trim();
       if (raw && field.pattern && !new RegExp(field.pattern).test(raw)) continue;
       if (
         field.type === 'amount' &&
         raw &&
-        (Number(raw) < 0 || Math.abs(Number(raw) * 100 - Math.round(Number(raw) * 100)) > 1e-7)
+        (Number(raw) < (field.min ?? 0) ||
+          Number(raw) < 0 ||
+          (field.max !== undefined && Number(raw) > field.max) ||
+          Math.abs(Number(raw) * 100 - Math.round(Number(raw) * 100)) > 1e-7)
       )
         continue;
       let value;

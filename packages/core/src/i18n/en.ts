@@ -12,6 +12,7 @@ export const en = {
   'forms.default.email': 'Email',
   'forms.default.consent': 'Subscribe to news',
   'forms.amount.other': 'Another amount (€)',
+  'forms.amount.customChoice': 'Other',
   'forms.default.donationSubmit': 'Give',
   'forms.default.membershipSubmit': 'Become a member',
   'forms.default.donationThanks': 'Thank you for your gift.',

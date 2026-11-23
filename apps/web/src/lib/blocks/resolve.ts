@@ -926,6 +926,7 @@ function toRenderForm(
       requiredWhen: f.requiredWhen,
       name: f.name,
       type: f.type,
+      ...('layout' in f ? { layout: f.layout } : {}),
       label: text(f.label),
       required: f.required && !f.activeWhen,
       conditional: !!(f.activeWhen || f.requiredWhen),
@@ -934,7 +935,7 @@ function toRenderForm(
         ? { options: f.options.map((o) => ({ value: o.value, label: text(o.label) })) }
         : {}),
       ...('value' in f ? { value: f.value } : {}),
-      ...('min' in f ? { min: f.min, max: f.max } : {}),
+      ...(f.type === 'number' || f.type === 'amount' ? { min: f.min, max: f.max } : {}),
       ...('maxLength' in f ? { maxLength: f.maxLength } : {}),
       ...amountChoices(f, locale),
     })),

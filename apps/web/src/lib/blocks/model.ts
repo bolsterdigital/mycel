@@ -188,6 +188,7 @@ export interface RenderForm {
     requiredWhen?: FormField['requiredWhen'];
     name: string;
     type: FormField['type'];
+    layout?: 'compact' | 'half';
     label: string;
     required: boolean;
     help?: string;
@@ -199,8 +200,8 @@ export interface RenderForm {
     maxLength?: number;
     /** An amount field's choices, with their label in the page's locale ("€ 25"). */
     presets?: { value: string; label: string }[];
-    /** With presets: the label of the visitor's own amount, posted as `<name>-other`; absent when not offered. */
-    otherLabel?: string;
+    /** The localized option and input for a custom amount, absent when it is unavailable. */
+    customAmount?: { choice: string; name: string; option: string; label: string };
     /** A gift's choice of once, monthly or yearly, posted as `<name>-interval` (MY-254). */
     intervals?: { legend: string; options: { value: string; label: string }[] };
   }[];

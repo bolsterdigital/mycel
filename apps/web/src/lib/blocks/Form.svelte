@@ -74,7 +74,14 @@
       {#if mine.errors.length}
         <ul>
           {#each mine.errors as e (e.field)}
-            <li><a href="#f-{def.formId}-{e.field}">{e.message}</a></li>
+            {@const custom = def.fields.find((field) => field.name === e.field)?.customAmount}
+            <li>
+              <a
+                href="#f-{def.formId}-{e.field}{custom && textValue(e.field) === custom.choice
+                  ? '-custom'
+                  : ''}">{e.message}</a
+              >
+            </li>
           {/each}
         </ul>
       {/if}
@@ -154,41 +161,49 @@
     {#if field.type === 'hidden'}
       <input type="hidden" name={field.name} value={field.value ?? ''} />
     {:else if field.type === 'amount' && field.presets}
-      <!-- A gift: radio buttons for the presets and, when offered, an amount of one's own under
-           `<name>-other`, which wins when filled in (core `forms/fields.ts`). The radios are
-           required only when there is nothing else to fill in. -->
-      <fieldset class="field amount" data-form-field aria-describedby={describedBy}>
+      {@const choices = field.customAmount
+        ? [...field.presets, { value: field.customAmount.choice, label: field.customAmount.option }]
+        : field.presets}
+      <!-- One native radio group chooses which amount the server reads, even without script. -->
+      <fieldset class="field amount amount-picker" data-form-field aria-describedby={describedBy}>
         <legend>{field.label}</legend>
         {#if field.help}<p id="{id}-help">{field.help}</p>{/if}
         {#if error}<p class="error" id="{id}-error">{error}</p>{/if}
-        <div class="presets">
-          {#each field.presets as preset, i (preset.value)}
-            <label class="preset"
-              ><input
-                id={i === 0 ? id : `${id}-${i}`}
-                type="radio"
-                name={field.name}
-                value={preset.value}
-                required={field.required && !field.otherLabel}
-                checked={textValue(field.name) === preset.value}
-              />{preset.label}</label
-            >
+        <div class="amount-choices" class:amount-quad={choices.length === 4}>
+          {#each choices.filter((_, i) => i % 2 === 0) as first, pair (first.value)}
+            <div class="amount-pair">
+              {#each choices.slice(pair * 2, pair * 2 + 2) as preset, i (preset.value)}
+                <label
+                  class="amount-choice"
+                  class:custom-choice={preset.value === field.customAmount?.choice}
+                >
+                  <input
+                    id={pair === 0 && i === 0 ? id : `${id}-${pair * 2 + i}`}
+                    type="radio"
+                    name={field.name}
+                    value={preset.value}
+                    required={field.required}
+                    checked={textValue(field.name) === preset.value}
+                  />{preset.label}
+                </label>
+              {/each}
+            </div>
           {/each}
         </div>
-        {#if field.otherLabel}
-          <label for="{id}-other">{field.otherLabel}</label>
-          <input
-            id="{id}-other"
-            name="{field.name}-other"
-            type="number"
-            inputmode="decimal"
-            min={field.min}
-            max={field.max}
-            step="0.01"
-            autocomplete="off"
-            aria-invalid={error ? 'true' : undefined}
-            value={textValue(`${field.name}-other`)}
-          />
+        {#if field.customAmount}
+          <div class="amount-custom">
+            <label for="{id}-custom">{field.customAmount.label}</label>
+            <input
+              id="{id}-custom"
+              name={field.customAmount.name}
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              aria-invalid={error ? 'true' : undefined}
+              aria-describedby={describedBy}
+              value={textValue(field.customAmount.name)}
+            />
+          </div>
         {/if}
       </fieldset>
     {:else if field.type === 'consent' || field.type === 'checkbox'}
@@ -207,7 +222,12 @@
         {#if field.help}<p id="{id}-help">{field.help}</p>{/if}
       </div>
     {:else}
-      <div class="field" data-form-field>
+      <div
+        class="field"
+        class:field-compact={!!field.layout}
+        class:field-half={field.layout === 'half'}
+        data-form-field
+      >
         <label for={id}>{field.label}</label>
         {#if field.help}<p id="{id}-help">{field.help}</p>{/if}
         {#if error}<p class="error" id="{id}-error">{error}</p>{/if}

@@ -29,6 +29,10 @@ const Amount = z
 /** The name under which an amount field with presets posts its own amount. */
 export const otherAmountName = (name: string): string => `${name}-other`;
 
+/** An explicit choice in the picker, independent of the legacy free amount input. */
+export const CUSTOM_AMOUNT_CHOICE = 'other';
+export const customAmountName = (name: string): string => `${name}-custom`;
+
 /** How often a gift is given (MY-254): once, or every month or year by mandate. */
 export const GiftInterval = z.enum(['once', 'month', 'year']);
 export type GiftInterval = z.infer<typeof GiftInterval>;
@@ -86,11 +90,20 @@ const options = z
   .min(1)
   .max(50)
   .refine((a) => new Set(a.map((o) => o.value)).size === a.length);
+// Only short text controls can share a compact row. Missing layout keeps the original order
+// and full-width rows, including in stored definitions from before layouts existed.
+const textLayout = z.enum(['compact', 'half']).optional();
 export const FormField = z.discriminatedUnion('type', [
-  z.object({ ...common, type: z.literal('email') }),
+  z.object({ ...common, type: z.literal('email'), layout: textLayout }),
   z.object({
     ...common,
-    type: z.enum(['text', 'textarea', 'phone']),
+    type: z.enum(['text', 'phone']),
+    layout: textLayout,
+    maxLength: z.number().int().min(1).max(10000).optional(),
+  }),
+  z.object({
+    ...common,
+    type: z.literal('textarea'),
     maxLength: z.number().int().min(1).max(10000).optional(),
   }),
   z.object({
@@ -110,10 +123,8 @@ export const FormField = z.discriminatedUnion('type', [
      */
     presets: z.array(Amount).min(3).max(6).optional(),
     /**
-     * With presets: whether the visitor may also type an amount of their own. Its input is posted
-     * as `<name>-other`, a name no field can have (names take no hyphen), and wins over the
-     * chosen preset when filled in: typing an amount says more than a preset that was checked
-     * for them.
+     * With presets: whether the visitor may choose their own amount. The picker posts `other`
+     * and `<name>-custom`. Legacy clients can still post `<name>-other` to override a preset.
      */
     custom: z.boolean().optional(),
     /**
@@ -215,6 +226,24 @@ export function validPredicateReferences(
 const outside = (field: { min?: number | undefined; max?: number | undefined }, n: number) =>
   (field.min !== undefined && n < field.min) || (field.max !== undefined && n > field.max);
 
+function amountInput(field: FormField, raw: Record<string, FieldValue>) {
+  const choice = raw[field.name];
+  if (field.type !== 'amount' || !field.presets || field.custom === false)
+    return { input: choice, custom: false, explicit: false };
+  if (choice === CUSTOM_AMOUNT_CHOICE) {
+    const amount = raw[customAmountName(field.name)];
+    return {
+      input: typeof amount === 'string' ? amount.replace(',', '.') : amount,
+      custom: true,
+      explicit: true,
+    };
+  }
+  const legacy = raw[otherAmountName(field.name)];
+  return typeof legacy === 'string' && legacy.trim() !== ''
+    ? { input: legacy, custom: true, explicit: false }
+    : { input: choice, custom: false, explicit: false };
+}
+
 /** One pass in dependency order; predicates consume only earlier validated, active values. */
 export function evaluateFields(fields: readonly FormField[], raw: Record<string, FieldValue>) {
   const values: Record<string, FieldValue> = {};
@@ -244,15 +273,8 @@ export function evaluateFields(fields: readonly FormField[], raw: Record<string,
     const required =
       field.required || !!(field.requiredWhen && predicateMatches(field.requiredWhen, byId));
     if (required) requiredFieldIds.push(id);
-    const own =
-      field.type === 'amount' && field.presets ? raw[otherAmountName(field.name)] : undefined;
-    const typed =
-      field.type === 'amount' &&
-      field.presets &&
-      field.custom !== false &&
-      typeof own === 'string' &&
-      own.trim() !== '';
-    const input = field.type === 'hidden' ? field.value : typed ? own : raw[field.name];
+    const amount = amountInput(field, raw);
+    const input = field.type === 'hidden' ? field.value : amount.input;
     const text = typeof input === 'string' ? input.trim() : '';
     let value: FieldValue | undefined;
     let error: string | undefined;
@@ -276,7 +298,7 @@ export function evaluateFields(fields: readonly FormField[], raw: Record<string,
     } else if (input !== undefined && typeof input !== 'string' && typeof input !== 'number') {
       error = 'forms.error.value';
     } else if (!text && typeof input !== 'number') {
-      if (required) error = 'forms.error.required';
+      if (required || amount.explicit) error = 'forms.error.required';
     } else if (field.type === 'email') {
       const parsed = EmailAddress.safeParse(text);
       if (parsed.success) value = parsed.data;
@@ -292,7 +314,7 @@ export function evaluateFields(fields: readonly FormField[], raw: Record<string,
           (number < 0 ||
             Math.abs(number * 100 - Math.round(number * 100)) > 1e-7 ||
             // Without an amount of their own, only an offered one.
-            (field.presets && !typed && !field.presets.includes(number))))
+            (field.presets && !amount.custom && !field.presets.includes(number))))
       )
         error = 'forms.error.value';
       else value = number;
