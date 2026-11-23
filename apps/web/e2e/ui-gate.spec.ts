@@ -70,6 +70,8 @@ test.describe('ui-gate', () => {
       page.locator('.ui-group fieldset:not(.ui-choices, .nested)'),
       route.path
     ).toHaveCount(0);
+    if (route.path === '/admin/probe/media/video')
+      await expect(page.locator('[data-video-upload]')).toBeVisible();
     await setTextSize(page, text);
     await layoutGate(page, `${route.path} at ${text}`, route.within);
     if (text === '100%') await expectNoAxeViolations(page, { label: route.path });

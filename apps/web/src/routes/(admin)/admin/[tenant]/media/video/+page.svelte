@@ -131,6 +131,6 @@
 </main>
 
 {#if canStart}
-  <AdminScript src="/_admin/video-tus.js" classic />
+  <AdminScript src="/admin/video-tus.js" classic />
   <AdminScript src="/_admin/video-upload.js" classic />
 {/if}

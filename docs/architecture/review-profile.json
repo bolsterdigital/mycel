@@ -41,7 +41,7 @@
         "packages/core/src/media/video*.ts",
         "apps/web/src/routes/(public)/[tenant]/_video/**",
         "apps/web/src/routes/(admin)/admin/[tenant]/media/video/**",
-        "apps/web/src/routes/_admin/video-tus.js/**",
+        "apps/web/src/routes/(admin)/admin/video-tus.js/**",
         "packages/api/src/auth*",
         "packages/api/src/bearer*",
         "packages/api/src/runtime/signer.ts",
