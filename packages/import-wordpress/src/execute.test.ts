@@ -4,11 +4,12 @@
 // as left out (MY-286: BIJ1 Rotterdam had 31 such lines). The full run against Postgres is
 // `packages/api/src/runtime/wordpress.test.ts`.
 
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
 import { MemoryUnitOfWork, TENANT } from '@mycel/core/testing';
 import { execute } from './execute.js';
-import type { ImportPlan, PlannedItem } from './plan.js';
+import { plan, type ImportPlan, type PlannedItem } from './plan.js';
 
 const LATER = '00000000-0000-4000-8004-000000000002';
 const NEVER = '00000000-0000-4000-8004-000000000099';
@@ -48,6 +49,80 @@ const page = (ref: string, slug: string, blocks: unknown[]): PlannedItem => ({
 });
 
 describe('execute', () => {
+  const campaignExport = () =>
+    readFileSync(new URL('../fixtures/campaign-export.xml', import.meta.url), 'utf8');
+
+  it.each([
+    { form: '#facade', progress: '#eee', expectedProgress: '#eeeeee', ink: '#252134' },
+    { form: '#18352e', progress: '#242044', expectedProgress: '#242044', ink: '#fff0da' },
+  ])('imports campaign colours from resolved tokens ($form)', async (colours) => {
+    const invoker = new Invoker(buildRegistry(), new MemoryUnitOfWork());
+    const principal = systemPrincipal(TENANT, 'importer');
+    const before = await invoker.run(useCases.getSiteTheme, principal, {});
+    const prefix = '--wings-campaign-sidebar-';
+    const importPlan = plan(campaignExport(), {
+      brandTokens: {
+        css_vars: {
+          [prefix + 'form-bg-color']: colours.form,
+          [prefix + 'form-text-color']: colours.ink,
+          [prefix + 'progress-bg-color']: colours.progress,
+          [prefix + 'progress-text-color']: colours.ink,
+          [prefix + 'progress-bar-bg-color']: colours.ink,
+          '--wings-primary-color': '#ffaa00',
+        },
+      },
+    });
+    const result = await execute(importPlan, {
+      invoker,
+      principal,
+      media: () => Promise.resolve({ error: 'none' }),
+    });
+    expect(result.report.filter((line) => line.code.startsWith('theme.'))).toEqual([]);
+    const { value } = await invoker.run(useCases.getSiteTheme, principal, {});
+    expect(value.palettes).toEqual({
+      dark: before.value.palettes.dark,
+      light: {
+        ...before.value.palettes.light,
+        campaignForm: { background: colours.form, foreground: colours.ink },
+        campaignProgress: { background: colours.expectedProgress, foreground: colours.ink },
+        campaignProgressFill: colours.ink,
+      },
+    });
+  });
+
+  it.each([
+    { brand: undefined, remarks: 0 },
+    { brand: { tokens: { primary_color: '#ab1234' } }, remarks: 1 },
+    {
+      brand: {
+        css_vars: {
+          '--wings-campaign-sidebar-form-bg-color': 'var(--wings-primary-color)',
+          '--wings-campaign-sidebar-form-text-color': '#ffffff',
+          '--wings-campaign-sidebar-progress-bg-color': '#ffffff',
+          '--wings-campaign-sidebar-progress-text-color': '#ffffff',
+          '--wings-campaign-sidebar-progress-bar-bg-color': '#ffffff',
+        },
+      },
+      remarks: 3,
+    },
+  ])(
+    'keeps the theme when campaign colours are absent or unusable ($remarks remarks)',
+    async ({ brand, remarks }) => {
+      const invoker = new Invoker(buildRegistry(), new MemoryUnitOfWork());
+      const principal = systemPrincipal(TENANT, 'importer');
+      const before = await invoker.run(useCases.getSiteTheme, principal, {});
+      const result = await execute(plan(campaignExport(), { brandTokens: brand }), {
+        invoker,
+        principal,
+        media: () => Promise.resolve({ error: 'none' }),
+      });
+      expect(result.report.filter((line) => line.code === 'theme.campaign-skipped')).toHaveLength(
+        remarks
+      );
+      expect(await invoker.run(useCases.getSiteTheme, principal, {})).toEqual(before);
+    }
+  );
+
   it('reports a missing linked item in round two only, and never one that came over', async () => {
     const invoker = new Invoker(buildRegistry(), new MemoryUnitOfWork());
     const principal = systemPrincipal(TENANT, 'importer');

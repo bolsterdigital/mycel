@@ -14,12 +14,16 @@ import type { PlatformTenant } from '@mycel/db';
 
 export interface WordpressOptions {
   file: string;
+  brandTokensFile?: string;
   defaultLocale?: string;
   featuredAsHeader?: boolean;
 }
 
 export const planOf = (options: WordpressOptions): ImportPlan =>
   plan(readFileSync(options.file, 'utf8'), {
+    ...(options.brandTokensFile && {
+      brandTokens: JSON.parse(readFileSync(options.brandTokensFile, 'utf8')) as unknown,
+    }),
     ...(options.defaultLocale && { defaultLocale: options.defaultLocale }),
     ...(options.featuredAsHeader !== undefined && { featuredAsHeader: options.featuredAsHeader }),
   });
