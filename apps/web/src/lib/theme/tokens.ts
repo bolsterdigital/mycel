@@ -128,14 +128,12 @@ function interactionPair(pair: Palette['primary']): Palette['primary'] {
 }
 
 /**
- * A photo caption is quieter than other muted text (P185-79): the muted colour moved towards the
- * page as far as a caption stays readable, at most a quarter of the way. A theme whose muted text
- * has no contrast to spare keeps it. Here and not with `color-mix` in the stylesheet, which
+ * Captions are quieter than the surrounding text (P185-79): move the foreground towards the
+ * actual background by up to a quarter of the way. A pair with no contrast to spare keeps its
+ * original foreground. Here and not with `color-mix` in the stylesheet, which
  * cannot know the result's contrast.
  */
-function captionForeground(p: Palette): string {
-  const { foreground } = p.muted;
-  const { background } = p.body;
+function captionForeground(foreground: string, background: string): string {
   const step = Array.from({ length: 26 }, (_, i) => (25 - i) / 100).find(
     (t) => contrastRatio(mix(foreground, background, t), background) >= 4.6
   );
@@ -204,7 +202,8 @@ function palette(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
     `--color-primary-active-bg: ${active.background};`
   );
   lines.push(
-    `--color-caption-fg: ${captionForeground(p)};`,
+    `--color-caption-fg: ${captionForeground(p.muted.foreground, p.body.background)};`,
+    `--color-surface-caption-fg: ${captionForeground(p.surface.foreground, p.surface.background)};`,
     `--color-link: ${p.link};`,
     `--color-focus: ${p.focus};`,
     `--color-focus-halo: ${focusHalo(p)};`,
