@@ -142,6 +142,13 @@ import { confirmSubscription, previewConfirmation } from './mailing/service.js';
 import { getEmail } from './mailing/email.js';
 import { confirmOptOut, previewOptOut } from './mailing/unsubscribe.js';
 import { getEdition, listEditions, sendEdition, testEdition } from './mailing/edition.js';
+import {
+  createVideo,
+  checkVideo,
+  resumeVideo,
+  listVideos,
+  deleteVideo,
+} from './media/video-service.js';
 import { listAutomations, testAutomation, updateAutomation } from './mailing/automation.js';
 import {
   bulkDeleteMedia,
@@ -409,6 +416,11 @@ export const useCases = {
   getUsage,
   getEntitlements,
   uploadMedia,
+  createVideo,
+  checkVideo,
+  resumeVideo,
+  listVideos,
+  deleteVideo,
   getMedia,
   listMedia,
   updateMedia,

@@ -25,6 +25,7 @@
   import Image from './Image.svelte';
   import Quote from './Quote.svelte';
   import RichText from './RichText.svelte';
+  import ManagedVideo from './ManagedVideo.svelte';
   import SocialConversation from './SocialConversation.svelte';
   import VideoEmbed from './VideoEmbed.svelte';
   import { anchorIds } from './anchor.js';
@@ -62,7 +63,7 @@
       ? model.blocks.find(
           (b) =>
             ((b.type === 'image' || b.type === 'hero') && b.image) ||
-            (b.type === 'video-embed' && b.poster) ||
+            ((b.type === 'video-embed' || b.type === 'video') && b.poster) ||
             (b.type === 'people-grid' && b.people.some((p) => p.image)) ||
             (b.type === 'overview' && b.entries.some((e) => e.image))
         )?.id
@@ -130,6 +131,8 @@
     <Faq anchor={anchors.get(block.id)} {depth} {block} {model} />
   {:else if block.type === 'quote'}
     <Quote anchor={anchors.get(block.id)} {block} />
+  {:else if block.type === 'video'}
+    <ManagedVideo {block} {model} anchor={anchors.get(block.id)} eager={block.id === firstImage} />
   {:else if block.type === 'social-conversation'}
     <SocialConversation anchor={anchors.get(block.id)} {block} {model} {depth} />
   {:else if block.type === 'video-embed'}

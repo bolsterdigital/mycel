@@ -25,6 +25,7 @@ declare global {
       timeZone?: string;
       /** What a public page's integration decision adds to its CSP (hooks.server.ts). */
       pageSources?: PageSources;
+      videoUploadPage?: boolean;
     }
   }
 }

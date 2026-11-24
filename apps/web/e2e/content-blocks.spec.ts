@@ -98,8 +98,8 @@ test.describe('content-blocks', () => {
     await width.selectOption({ label: next });
     await (await block(page, 9)).getByLabel('Breedte').selectOption('wide');
     // A reference-only grid or overview edits a choice (columns, number), as does a campaign card
-    // (no text of its own, ADR 033 rule 4); other added types edit their first text field.
-    const first = (at: Locator) => at.locator('input[type="text"]').first();
+    // (no text of its own, ADR 033 rule 4); other added types edit their first text field or textarea.
+    const first = (at: Locator) => at.locator('input[type="text"], textarea').first();
     const gridColumns = (at: Locator) =>
       at.locator('select[name$=".columns"], select[name$=".limit"]');
     const variant = (at: Locator) => at.locator('select[name$=".variant"]');
@@ -567,10 +567,11 @@ test.describe('content-blocks', () => {
 
     // A forged type stays outside the existing pending validator and is explained in place.
     const unknown = atEnd().getByRole('button', { name: 'Kop', exact: true });
-    await unknown.evaluate(
-      (button) => ((button as HTMLButtonElement).value = 'not-registered|end')
-    );
-    await unknown.click();
+    await unknown.evaluate((element) => {
+      const button = element as HTMLButtonElement;
+      button.value = 'not-registered|end';
+      button.click();
+    });
     await expect(
       page.getByText('Dit bloktype of invoegpunt is niet meer beschikbaar. Kies een ander blok.')
     ).toBeVisible();

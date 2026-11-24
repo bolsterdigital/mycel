@@ -28,7 +28,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ROOT, loadDotEnv } from '../lib/repo.mjs';
 import { blockExamples, everyBlockType, missingBlockTypes } from './e2e-block-examples.mjs';
-import { landingPage, openLanding, probeFixtures } from './probe-fixtures.mjs';
+import {
+  landingPage,
+  openLanding,
+  probeFixtures,
+  seedManagedVideo,
+  seedSampleArticle,
+} from './probe-fixtures.mjs';
 
 const root = `${ROOT}/`;
 const qualityCorpus = JSON.parse(
@@ -177,6 +183,7 @@ run('npm', ['run', '-s', 'migrate', '-w', '@mycel/db']);
 }
 // The e2e admin is its own address: the mock IdP here has another issuer (port) than the one
 // `npm run dev` starts, so sharing admin@probe.test would let one claim the other's invitation.
+let videoBinding;
 run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   ...process.env,
   MYCEL_API_KEY: apiKey,
@@ -202,6 +209,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   } = await import('@mycel/db');
   const {
     BLOCK_DEFINITIONS,
+    videoSourceKey,
     EXAMPLE_IDS,
     PEOPLE_GRID_IDS,
     Invoker,
@@ -223,6 +231,17 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   } = await import('@mycel/core/testing');
   const operatorDb = createDb(process.env.DATABASE_URL);
   const probe = await createTenantDirectory(operatorDb).findBySlug('probe');
+  // Chromium intercepts this reserved fixture host. Tests never talk to a Bunny account.
+  videoBinding = {
+    tenantId: probe.id,
+    libraryId: '123456',
+    apiKey: 'fixture-upload',
+    cdnKey: 'fixture-delivery',
+    cdnHost: 'mycel-fixture.b-cdn.net',
+    storageHost: 'storage.bunnycdn.com',
+    storageZone: 'mycel-fixture',
+    storageReadKey: 'fixture-storage',
+  };
   await setEntitlements(
     operatorDb,
     probe.id,
@@ -263,6 +282,12 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   // asks for it in English and checks the draft never reaches the HTML (brief #8a, audit).
   const invoker = new Invoker(buildRegistry(), uow);
   const admin = systemPrincipal(probe.id, 'e2e');
+  const integration = await invoker.run(useCases.getIntegrationSettings, admin, {});
+  if (!integration.value['bunny-stream'].enabled)
+    await invoker.run(useCases.updateIntegrationSettings, admin, {
+      baseVersion: integration.version,
+      settings: { ...integration.value, 'bunny-stream': { enabled: true } },
+    });
   let qualityMailchimp = (await invoker.run(useCases.listConnections, admin, {})).connections.find(
     (c) => c.purpose === 'Quality Mailchimp fixture'
   );
@@ -295,71 +320,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   if (!patterns.some((p) => p.name.nl === call.name.nl))
     await invoker.run(useCases.createPattern, admin, call);
 
-  // An article with an author and a section, published in nl and en, for public-site.spec.ts
-  // (TODO #8c2): `/articles/<slug>`, its `/en/` twin, and the public metadata of the read route.
-  const story = { type: 'article', slug: 'bomen-in-de-straat' };
-  if (!(await invoker.run(useCases.listItems, admin, story)).items.length) {
-    const [author, section] = await uow.run(admin, async (ctx) => [
-      await ctx.authors.findBySlug('e2e-auteur'),
-      await ctx.sections.findBySlug('e2e-stad'),
-    ]);
-    const authorId = (
-      author ??
-      (await invoker.run(useCases.createPerson, admin, {
-        slug: 'e2e-auteur',
-        name: 'Sam de Vries',
-        email: 'sam@probe.test',
-        publicEmail: 'public-sam@probe.test',
-        bio: { nl: 'Sam schrijft over de stad.', en: 'Sam writes about the city.' },
-        role: { nl: 'Redacteur', en: 'Editor' },
-        links: [{ label: 'Website', url: 'https://example.org/sam' }],
-      }))
-    ).id;
-    const sectionId = (
-      section ??
-      (await invoker.run(useCases.createSection, admin, {
-        slug: 'e2e-stad',
-        title: { nl: 'Stad', en: 'City' },
-      }))
-    ).id;
-    const paragraph = (text) => ({
-      type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
-    });
-    const { item, revision } = await invoker.run(useCases.createItem, admin, {
-      slug: story.slug,
-      document: {
-        type: 'article',
-        defaultLocale: 'nl',
-        locales: ['nl', 'en'],
-        title: { nl: 'Bomen in de straat', en: 'Trees in the street' },
-        lead: {
-          nl: 'Waarom de buurt meer groen wil.',
-          en: 'Why the neighbourhood wants more green.',
-        },
-        authorIds: [authorId],
-        sectionId,
-        blocks: [
-          {
-            type: 'rich-text',
-            version: 1,
-            props: {
-              content: {
-                nl: paragraph('Schaduw, koelte en ruimte voor water.'),
-                en: paragraph('Shade, cool air and room for water.'),
-              },
-            },
-          },
-        ],
-      },
-    });
-    for (const locale of ['nl', 'en'])
-      await invoker.run(useCases.publishItem, admin, {
-        itemId: item.id,
-        revisionId: revision.id,
-        locale,
-      });
-  }
+  await seedSampleArticle(invoker, admin, useCases, uow);
 
   // One upcoming and one past event for the agenda examples (`overview-events-*`), which would
   // otherwise render only once another spec happened to publish an event. Far from now on both
@@ -466,6 +427,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
       blocks: [
         'hero-split-long-label',
         'quality-long-read',
+        'video-shared',
         'image-wide-caption-credit',
         'quote-blockquote',
         'image-float-left',
@@ -727,6 +689,15 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
         name: { en: 'Grid team', nl: 'Rasterteam' },
         personIds: [qualityAuthor.id],
       }));
+    await seedManagedVideo({
+      uow,
+      admin,
+      id: EXAMPLE_IDS.video,
+      posterId: landscape.id,
+      libraryId: videoBinding.libraryId,
+      recording: readFileSync(join(root, 'packages/api/fixtures/bunny/test-recording.mp4')),
+      videoSourceKey,
+    });
     const swap = (block) =>
       JSON.parse(
         JSON.stringify(block)
@@ -887,6 +858,7 @@ const env = {
   PLATFORM_DOMAIN: 'localhost',
   SITE_URL_MODE: 'hostnames',
   MAILER: 'console',
+  BUNNY_VIDEO_LIBRARIES: JSON.stringify([videoBinding]),
   MAIL_SPOOL_DIR: spool,
   PAYMENT_PROVIDER: 'fake',
   PAYMENT_FAKE_DIR: payments,

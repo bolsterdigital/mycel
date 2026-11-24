@@ -191,7 +191,8 @@ export async function blockReferenceIssues(
 ): Promise<Issue[]> {
   const issues: Issue[] = [];
   const refs = blockReferences(blocks);
-  if (refs.media.length || refs.documents.length || refs.audio.length) await ctx.media.lock();
+  if (refs.media.length || refs.documents.length || refs.audio.length || refs.videos.length)
+    await ctx.media.lock();
   for (const id of refs.forms)
     if (!(await ctx.forms.findById(id)))
       issues.push({ path, message: 'content.reference.form-unknown', params: { id } });
@@ -212,6 +213,11 @@ export async function blockReferenceIssues(
   for (const id of refs.sections)
     if (!(await ctx.sections.get(id)))
       issues.push({ path, message: 'content.reference.section-unknown', params: { id } });
+  for (const id of refs.videos) {
+    const video = await ctx.videos.get(id);
+    if (!video || video.trashedAt)
+      issues.push({ path, message: 'content.reference.video-unknown', params: { id } });
+  }
   for (const id of refs.media) {
     const issue = await imageIssue(ctx, id, path);
     if (issue) issues.push(issue);

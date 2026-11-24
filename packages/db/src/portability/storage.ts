@@ -503,6 +503,21 @@ export const STORAGE = {
       by: 'media.orphans',
     },
   },
+  managed_videos: {
+    category: 'media',
+    owner: 'tenant',
+    copies: [
+      FREE_TEXT('metadata', ['media.video.delete']),
+      FREE_TEXT('published_tracks', ['media.video.delete']),
+    ],
+    retention: SITE_KEPT,
+  },
+  managed_video_uploads: {
+    category: 'media',
+    owner: 'tenant',
+    copies: IDS_ONLY,
+    retention: SITE_KEPT,
+  },
   media_usages: {
     category: 'media',
     owner: 'tenant',

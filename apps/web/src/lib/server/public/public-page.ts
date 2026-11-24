@@ -191,6 +191,11 @@ export async function loadPublicItem(
     page: archivePage,
     path: contentPath(item, locale, tenant.defaultLocale),
     timeZone,
+    ...(item.access === 'public' &&
+    site.access.entitlements.blocks.video !== false &&
+    (await sitePlacement(site)).embeds.includes('bunny-stream')
+      ? { videoRoute: `/_video/${locale}/${item.type}/${item.slug}` }
+      : {}),
     itemId: item.id,
     ...(item.readerMedia ? { signedMedia: item.readerMedia } : {}),
   });

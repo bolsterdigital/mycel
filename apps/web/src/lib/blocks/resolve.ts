@@ -26,10 +26,9 @@
 // renderer that cannot run without a database), and passing the whole `MediaView` through
 // (restricted paths would sit in the model even if no component printed them).
 
-import { framingAttributes } from './framing.js';
-import { placementFor, type ImagePlacement } from '@mycel/core';
+import { renderAssetImage, renderFile } from './render-asset.js';
+import type { ImagePlacement } from '@mycel/core';
 import { personPath } from '../public/person-path.js';
-import { formatBytes } from '../admin/format.js';
 import {
   wallClock,
   fieldPattern,
@@ -51,6 +50,7 @@ import {
   type Principal,
   type UnitOfWork,
   UseCaseError,
+  videoPresentation,
   allBlocks,
   contentPath,
   pick,
@@ -60,12 +60,10 @@ import {
   useCases,
   type Block,
   type MediaCredit,
-  type MediaLicence,
-  LICENCE_URLS,
 } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
 import { amountChoices, membershipChoices } from './amount-field.js';
-import { blockCopy } from './copy.js';
+import { blockCopy, renderLicence } from './copy.js';
 import { referencesOf } from './references.js';
 import { headingsAboveFloats } from './float-order.js';
 import { opensInCard } from './card-body.js';
@@ -86,6 +84,7 @@ import { videoPlayerUrl, videoUrl, type RenderEvent, type RenderMeta } from './m
 /** Where the resolver reads tenant data; `runtimeSource` is the real one, tests may stub it. */
 export interface ResolveSource {
   defaultLocale?: string;
+  video?(id: string): ReturnType<typeof videoPresentation>;
   creditPerson?(id: string): Promise<{ name: string; slug: string | null } | null>;
   peopleGrid?(props: BlockProps<'people-grid'>, locale: string): Promise<PublicPersonCard[]>;
   form(id: string): Promise<{
@@ -130,6 +129,7 @@ export function runtimeSource(deps: {
   const { invoker, uow, reader, defaultLocale } = deps;
   return {
     defaultLocale,
+    video: (id) => uow.run(reader, (ctx) => videoPresentation(ctx, id)),
     creditPerson: (id) => uow.run(reader, (ctx) => resolveCreditPerson(ctx, id)),
     async peopleGrid(props, locale) {
       return uow.run(reader, (ctx) => resolvePeopleGrid(ctx, props, locale));
@@ -163,91 +163,6 @@ export function runtimeSource(deps: {
 }
 
 export { blockCopy };
-
-/** The width `src` aims for: enough for a content column, small enough for an old browser. */
-const FALLBACK_WIDTH = 960;
-
-/** A licence in this locale's words and its link; `other` is named by its own text. */
-function renderLicence(licence: MediaLicence | null, locale: string) {
-  if (!licence) return null;
-  const label = licence.text ?? ui(locale)(`block.licence.${licence.code}`);
-  return { label, href: LICENCE_URLS[licence.code] };
-}
-
-function renderAssetImage(
-  asset: MediaView | null,
-  use: {
-    decorative: boolean;
-    alt: Partial<Record<string, string>> | null;
-    caption?: Partial<Record<string, string>> | undefined;
-    credit?: NonNullable<RenderImage['credit']> | undefined;
-    placement?: ImagePlacement | undefined;
-  },
-  locale: string
-): RenderImage | null {
-  if (!asset || !delivered(asset) || asset.kind !== 'image' || asset.state !== 'ready') return null;
-  if (asset.width === null || asset.height === null) return null;
-  const widths = (format: string) =>
-    asset.variants
-      .filter((v) => v.format === format && /^w\d+$/.test(v.name) && v.width !== null && v.path)
-      .sort((a, b) => a.width! - b.width!);
-  const webp = widths('webp');
-  const avif = widths('avif');
-  const fallback =
-    [...webp].reverse().find((v) => v.width! <= FALLBACK_WIDTH) ??
-    webp[0] ??
-    asset.variants.find((v) => v.name === 'file' && v.path);
-  if (!fallback) return null;
-  const srcset = (vs: typeof webp) => vs.map((v) => `${v.path} ${v.width}w`).join(', ');
-  // The block's caption wins, an empty one hides the asset's; a missing translation stays missing.
-  const own = use.caption?.[locale];
-  const caption = own !== undefined ? own : (asset.caption[locale] ?? '');
-  const credit = use.credit ?? asset.credit;
-  const licence = renderLicence(asset.licence, locale);
-  const q = (n: number) => Math.min(10, Math.max(0, Math.round(n * 10)));
-  const widest = webp[webp.length - 1];
-  return {
-    alt: use.decorative ? '' : (use.alt?.[locale] ?? ''),
-    width: asset.width,
-    height: asset.height,
-    src: fallback.path,
-    srcset: srcset(webp),
-    avifSrcset: srcset(avif),
-    caption: caption.trim() ? caption : null,
-    // The licence belongs to the file, so a block's own credit keeps the asset's licence.
-    credit: credit.work || credit.photographer || licence ? { ...credit, licence } : null,
-    focal: { x: q(asset.focal.x), y: q(asset.focal.y) },
-    framing: framingAttributes(placementFor(use.placement, asset.id), asset.focal),
-    large: widest
-      ? {
-          src: widest.path,
-          width: widest.width!,
-          height: Math.round((widest.width! * asset.height) / asset.width),
-        }
-      : null,
-  };
-}
-
-/**
- * Whether an asset has addresses to print: a public one, or a restricted one whose every variant
- * came signed for this reader. A visitor's view of a restricted asset has none, so it fails closed.
- */
-const delivered = (asset: MediaView): boolean =>
-  asset.access === 'public' ||
-  (asset.variants.length > 0 && asset.variants.every((v) => v.path !== ''));
-
-/** Where a visitor fetches a document and what it is ("PDF, 845 kB"); fails closed like an image. */
-function renderFile(
-  asset: MediaView | null,
-  locale: string,
-  kind: 'document' | 'audio' = 'document'
-): { href: string; meta: string } | null {
-  if (!asset || !delivered(asset) || asset.kind !== kind || asset.state !== 'ready') return null;
-  const file = asset.variants.find((v) => v.name === 'file' && v.path);
-  if (!file) return null;
-  const meta = `${file.format.toUpperCase()}, ${formatBytes(asset.sizeBytes, locale)}`;
-  return { href: file.path, meta };
-}
 
 /**
  * What sits between an item's title and its blocks (#86): the lead in this locale and the hero
@@ -427,6 +342,7 @@ export async function resolveDocument(
      */
     page?: number;
     path?: string;
+    videoRoute?: string;
     /** The site's time zone for an overview's dates; UTC where a caller has none. */
     timeZone?: string;
     /**
@@ -457,6 +373,13 @@ export async function resolveDocument(
   for (const b of blocks)
     for (const ref of referencesOf(b).filter((ref) => ['media', 'form', 'item'].includes(ref.type)))
       (ref.type === 'media' ? mediaIds : ref.type === 'form' ? formIds : itemIds).add(ref.refId);
+  const videos = new Map<string, Awaited<ReturnType<typeof videoPresentation>>>();
+  for (const block of blocks) {
+    if (block.type !== 'video' || videos.has(block.props.videoId)) continue;
+    const video = (await source.video?.(block.props.videoId)) ?? null;
+    videos.set(block.props.videoId, video);
+    if (video) mediaIds.add(video.posterId);
+  }
   // Campaign cards first: an available one adds its image to the media and, on a `full` card
   // while participation is open, its form to the forms. A form block asks whether its form is
   // bound to a campaign that does not accept participation now.
@@ -831,6 +754,23 @@ export async function resolveDocument(
           source: text(b.props.attribution.source),
           url: b.props.attribution.url ?? null,
         };
+      case 'video': {
+        const video = videos.get(b.props.videoId);
+        return {
+          id,
+          type: 'video',
+          caption: text(b.props.caption),
+          title: video ? (pick(video.metadata.title, locale, options.fallbackLocale) ?? '') : '',
+          duration: video?.duration ?? null,
+          poster: video
+            ? renderAssetImage(own(video.posterId), { decorative: true, alt: null }, locale)
+            : null,
+          maker: video?.metadata.maker ?? null,
+          licence: video ? renderLicence(video.metadata.licence, locale) : null,
+          watch: video?.metadata.watchUrl ?? null,
+          play: video?.playable && options.videoRoute ? `${options.videoRoute}/${id}` : null,
+        };
+      }
       case 'social-conversation': {
         const posts = socialConversationLinks(b.props, locale);
         return posts.length ? { id, type: 'social-conversation', links: posts } : null;

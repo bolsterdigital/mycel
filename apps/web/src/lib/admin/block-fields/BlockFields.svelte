@@ -61,6 +61,7 @@
       forms?: readonly Option[] | null;
       /** The site's own campaigns that are not archived (ADR 033 rule 4); null: not offered. */
       campaigns?: readonly Option[] | null;
+      videos?: readonly Option[];
       items: readonly Option[];
       people: readonly Option[];
       personGroups: readonly Option[];
@@ -326,6 +327,18 @@
         <a href="{base}/forms">{t('admin.block.form.definition')}</a>
       </p>
     {/if}
+  {:else if f.kind === 'reference' && f.to === 'video'}
+    {@const chosen = v(name)}
+    {@const available = references?.videos ?? []}
+    {@render select(
+      name,
+      t('admin.video.choose'),
+      chosen && !available.some((o) => o.id === chosen)
+        ? [{ id: chosen, label: chosen }, ...available]
+        : available,
+      t('admin.block.none')
+    )}
+    <p class="ui-hint"><a href="{base}/media/video">{t('admin.video.title')}</a></p>
   {:else if f.kind === 'reference' && f.to === 'campaign' && references?.campaigns}
     {@const chosen = v(name)}
     {@const available = references.campaigns}

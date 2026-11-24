@@ -49,6 +49,8 @@ import { memoryFormMail, memoryForms, memoryRateLimits, memorySubmissions } from
 import { MemoryJobRecovery, MemoryScheduler } from './operations/jobs.js';
 import { memoryMailAutomations, memoryMailEditions, memoryMailSends } from './mailing.js';
 import type { EmailRenderer } from '../../mailing/ports.js';
+import { memoryVideos } from './media/video.js';
+import type { VideoProvider } from '../../media/ports.js';
 import { MemoryBlobStore, memoryImageProcessor, memoryMedia } from './media.js';
 import {
   memoryApiKeys,
@@ -80,6 +82,7 @@ export interface MemoryDeps {
   assistProviderLabel?: string | null;
   mailchimpDiscovery?: MailchimpDiscovery;
   emailRenderer?: EmailRenderer;
+  videoProvider?: VideoProvider;
   paymentProvider?: PaymentProvider | null;
 }
 
@@ -92,6 +95,7 @@ export const memoryEmailRenderer: EmailRenderer = {
 };
 
 export class MemoryUnitOfWork implements UnitOfWork {
+  readonly videoProvider: VideoProvider | null;
   readonly store: MemoryStore;
   readonly clock: Clock;
   readonly ids: Ids;
@@ -111,6 +115,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
   constructor(deps: MemoryDeps = {}) {
     this.mailchimpDiscovery = deps.mailchimpDiscovery ?? unavailableMailchimp;
     this.log = deps.log ?? noopLogger;
+    this.videoProvider = deps.videoProvider ?? null;
     this.store = deps.store ?? new MemoryStore();
     this.clock = deps.clock ?? new FakeClock();
     this.ids = deps.ids ?? new SequentialIds();
@@ -218,6 +223,8 @@ export class MemoryUnitOfWork implements UnitOfWork {
         jobRecovery: new MemoryJobRecovery(store, tenantId, clock),
         usage: memoryUsage(s, clock),
         media: memoryMedia(s, mediaLock.lock),
+        videos: memoryVideos(s),
+        videoProvider: this.videoProvider,
         blobs: this.blobs,
         images: this.images,
         delivery: this.delivery,

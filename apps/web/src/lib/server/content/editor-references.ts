@@ -58,9 +58,19 @@ export async function editorReferences(
 ) {
   const forms = await editorForms(principal, blocks, locale, fallback);
   const campaigns = await editorCampaigns(principal, blocks, locale, fallback);
+  const videos =
+    can(principal, 'media:read') && can(principal, 'content:write')
+      ? (await runtime().invoker.run(useCases.listVideos, principal, {})).videos
+          .filter((video) => video.state === 'ready')
+          .map((video) => ({
+            id: video.id,
+            label: pick(video.metadata.title, locale, fallback) ?? video.id,
+          }))
+      : [];
   return {
     forms,
     campaigns,
+    choices: { forms: forms.choices, campaigns: campaigns.choices, videos },
     rest: (b: Block, prefix: string) =>
       textRestOf(b, locale, prefix, forms.definitions, fallback, campaigns.cards),
   };

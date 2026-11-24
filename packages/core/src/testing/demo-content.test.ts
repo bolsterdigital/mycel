@@ -126,11 +126,12 @@ describe('demo content', () => {
     }
   );
 
-  // Every type new content can get, at its current version; not the hero, which new content
+  // The built-in demo can run without a video library. The playback fixture covers that block.
+  // Every other type new content can get, at its current version; not the hero, which new content
   // does not get (ADR 025 rule 4): the page's header is its title, lead and main image.
-  it('uses every insertable block type at its current version, and no hero', () => {
+  it('uses every self-contained insertable block type at its current version, and no hero', () => {
     const used = new Map(documents.flatMap((d) => d.blocks.map((b) => [b.type, b.version])));
-    for (const type of INSERTABLE_BLOCK_TYPES)
+    for (const type of INSERTABLE_BLOCK_TYPES.filter((type) => type !== 'video'))
       expect([type, used.get(type)]).toEqual([type, BLOCK_DEFINITIONS[type].version]);
     expect(used.has('hero')).toBe(false);
   });

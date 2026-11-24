@@ -13,7 +13,10 @@
   import { onMount } from 'svelte';
   import { renderedHtml } from './rendered-html.js';
 
-  let { src, classic = false }: { src: `/_admin/${string}.js`; classic?: boolean } = $props();
+  let {
+    src,
+    classic = false,
+  }: { src: `/_admin/${string}.js` | `/admin/${string}.js`; classic?: boolean } = $props();
 
   onMount(() => {
     void import(/* @vite-ignore */ new URL(src, document.baseURI).href);

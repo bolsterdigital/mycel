@@ -13,6 +13,7 @@ import { seedFormActions } from './form-actions.fixture.js';
 import { checkLegacyActorImport } from './legacy-actors.fixture.js';
 import { checkLegacyPeopleImport, seedGroupedPerson } from './legacy-people.fixture.js';
 import { seedCampaign } from './campaigns.fixture.js';
+import { expectVideoArchive, seedVideo } from './video.fixture.js';
 import { seedPayment } from './payments.fixture.js';
 import { seedEdition } from './editions.fixture.js';
 import { checkProfilesCarried, seedEvent } from './events.fixture.js';
@@ -217,6 +218,7 @@ describe.skipIf(skip)('tenant export and import', () => {
     await uow.run(admin, (ctx) =>
       ctx.media.replaceUsages(`item:${run}:rev:${n}`, [{ mediaId: media.id, blockId: 'b1' }])
     );
+    await seedVideo(uow, admin, blobs, media.id);
     const email = `supporter-${t.slug}@example.org`;
     const submitted = await invoker.run(useCases.submitForm, admin, {
       formId,
@@ -399,6 +401,7 @@ describe.skipIf(skip)('tenant export and import', () => {
     const empty = EXPORT_ORDER.filter((t) => manifestA.tables[t]!.rows === 0);
     expect(empty).toEqual([]);
     expect(manifestA.tables).not.toHaveProperty('connection_credentials');
+    expectVideoArchive(manifestA);
     const keys = Object.keys(manifestA.media);
     expect(keys.length).toBeGreaterThan(1);
     expect(keys.every((k) => k.startsWith(`tenants/${tenant.a.id}/`))).toBe(true);

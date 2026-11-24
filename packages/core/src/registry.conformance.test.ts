@@ -112,6 +112,7 @@ describe('a use case that consumes a limit checks it (ADR 015)', () => {
       'form.submit',
       'mailing.edition.send',
       'media.upload',
+      'media.video.create',
       'tenant.hostname.add',
       'tenant.member.invite',
     ]);

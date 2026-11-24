@@ -167,6 +167,9 @@
   {/snippet}
 
   {#snippet actions()}
+    {#if data.videoEnabled}
+      <Button href="{base}/media/video" variant="secondary">{t('admin.video.title')}</Button>
+    {/if}
     <Dialog
       id="media-upload"
       title={t('admin.media.upload.title')}

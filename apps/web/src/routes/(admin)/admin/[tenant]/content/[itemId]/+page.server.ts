@@ -206,8 +206,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
   const refs = await editorReferences(principal, doc.blocks, read, tenant.defaultLocale);
   rememberListFromReferer(cookies, request.headers.get('referer'), url, params.tenant, item.type);
   return {
-    forms: refs.forms.choices,
-    campaigns: refs.campaigns.choices,
+    ...refs.choices,
     contentType: item.type,
     contentProfile: item.profile,
     presence: await presenceOnLoad(principal, params.tenant, item.id, revision.id, names),

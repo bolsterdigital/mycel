@@ -41,6 +41,7 @@ import {
   uuidv7Ids,
 } from './index.js';
 import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
+import { seedVideo } from './portability/video.fixture.js';
 import { seedCampaign } from './portability/campaigns.fixture.js';
 import { seedPayment } from './portability/payments.fixture.js';
 import { seedEdition } from './portability/editions.fixture.js';
@@ -188,6 +189,7 @@ describe.skipIf(skip)('row level security conformance', () => {
     tenantId = (await testTenant(operatorDb, `rls-${run}`, { name: 'RLS' })).id;
     const clock = { now: () => new Date() };
     const signer = new FakeSigner();
+    const blobs = new MemoryBlobStore();
     const uow = createUnitOfWork(appDb, {
       clock,
       ids: uuidv7Ids,
@@ -195,7 +197,7 @@ describe.skipIf(skip)('row level security conformance', () => {
       inputHasher: new FakeInputHasher(),
       dns: new FakeDns(),
       platform: memoryPlatform,
-      media: { blobs: new MemoryBlobStore(), images: memoryImageProcessor },
+      media: { blobs, images: memoryImageProcessor },
       connectionCredentialKey: '10'.repeat(32),
     });
     const invoker = new Invoker(buildRegistry(), uow);
@@ -378,6 +380,7 @@ describe.skipIf(skip)('row level security conformance', () => {
     await uow.run(admin, (ctx) =>
       ctx.media.replaceUsages(`item:${run}:rev:1`, [{ mediaId: media.id, blockId: 'b1' }])
     );
+    await seedVideo(uow, admin, blobs, media.id);
     await confirmationMailSubscriber({
       mailer: new MemoryMailer(),
       signer,

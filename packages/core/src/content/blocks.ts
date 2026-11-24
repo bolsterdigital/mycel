@@ -251,6 +251,7 @@ export const REFERENCE_TYPES = [
   'person',
   'person_group',
   'campaign',
+  'video',
 ] as const;
 export type ReferenceType = (typeof REFERENCE_TYPES)[number];
 
@@ -288,6 +289,7 @@ export function blockReferences(blocks: readonly BlockInput[]): {
   audio: string[];
   /** Campaigns a card shows (ADR 033 rule 4). */
   campaigns: string[];
+  videos: string[];
   /** Sections an overview filters on. */
   sections: string[];
 } {
@@ -307,6 +309,7 @@ export function blockReferences(blocks: readonly BlockInput[]): {
     documents: of((r) => r.type === 'media' && !!r.document),
     audio: of((r) => r.type === 'media' && !!r.audio),
     campaigns: of((r) => r.type === 'campaign'),
+    videos: of((r) => r.type === 'video'),
     sections: of((r) => r.type === 'section'),
   };
 }

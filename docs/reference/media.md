@@ -123,6 +123,27 @@ Props (#8b2): `{ mediaId, decorative, alt: localised | null, caption?: localised
 
 The renderer (#8c) reads the asset with `media.get` (or the repository in the same transaction), builds `srcset` from the `variants` of one format each (`<picture>` with an AVIF and a WebP `<source>`), sets `width` and `height` from the asset (ADR 009 rule 4), and `object-position` from `focal`. A missing caption translation is not filled from another locale. A restricted asset has empty paths; such an image renders only in the item's own blocks and header for a reader with access, from the signed views of `readerMedia`; an anonymous visitor never gets a restricted path.
 
+## Managed video
+
+[ADR 039](../adr/039-managed-video.md) defines video as reusable media with publication through a page or article. Under Media, open Videos to choose a recording and a public image from the media library for its poster. After Bunny finishes encoding, use **Check processing** to verify readiness. Choose the recording via the **Video from library** block in each document. Each placement has its own caption.
+
+The installation operator assigns a dedicated Bunny Stream library to each site. Before enabling it, confirm EU storage and processing, retained originals, MP4 fallback, embed token authentication and token authentication on the delivery zone. Keep direct CDN access token-protected and originals accessible only through the private storage API. Configure CORS on that zone for the site's public origins, including HLS playlists, segments and MP4. Disable provider transcription. A live check of unsigned CDN URLs must refuse access.
+
+Set `BUNNY_VIDEO_LIBRARIES` to a JSON array of objects with these keys. The server resolves the binding by the tenant UUID.
+
+| Keys                                           | Value                                                                 |
+| ---------------------------------------------- | --------------------------------------------------------------------- |
+| `tenantId`, `libraryId`                        | Mycel site UUID and Bunny library's numeric id as a string            |
+| `apiKey`                                       | Stream API key scoped to this library                                 |
+| `cdnHost`, `cdnKey`                            | Dedicated `b-cdn.net` hostname and its CDN token key                  |
+| `storageHost`, `storageZone`, `storageReadKey` | EU Bunny Storage endpoint, library storage zone and its read-only key |
+
+In the site's managed integrations, enable Bunny Stream to permit the explicit play action. The initial HTML uses the site's own poster. The play action rechecks the published placement and scopes the HLS and MP4 grant to its recording for 15 minutes. A visitor can play the MP4 with JavaScript disabled. The reader sees the caption and any external watch link independently of delivery.
+
+Pending uploads reserve declared bytes and seconds. The server reconciles duration, storage and required outputs before a recording becomes playable. The entitlement keys are `video.storage_max_bytes` and `video.stored_max_minutes`. An uncertain create remains in the job queue for reconciliation under the intent marker.
+
+Tenant archives include video records, published tracks, poster assets and retained source bytes. Bunny library bindings are installation data. Import requires a new verified binding or upload before a restored record can play. Mycel refuses trash while a retained revision or pattern refers to a video. Trashing a local record leaves provider removal for a separate operation.
+
 ## A later delivery adapter
 
 A CDN or an image service (ImageKit) is another `MediaDelivery`: `variantPath` returns its URL for the same `(id, file)`, `signedVariantPath` its signed form. The variants and their names stay what this page lists, so content and the register do not change; the composition root (`packages/api/src/runtime/compose.ts`, `media.delivery`) is the only place that changes. Moving files between stores is a copy of the `tenants/` prefix; the keys are the contract.
