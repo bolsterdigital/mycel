@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import { normalizeHostname, type PlatformConfig } from '@mycel/core';
 import type { S3BlobStoreConfig } from '@mycel/blob';
+import { mastodonOrigin } from '../social/targets.js';
 import { HmacInputHasher } from './signer.js';
 
 const isHttps = (url: string | undefined) => url?.startsWith('https://') ?? false;
@@ -74,6 +75,16 @@ const Config = z
      * CONNECTION_CREDENTIAL_KEY, and PUBLIC_API_URL over https for Mollie's webhook (without
      * it the hourly reconciliation and the donor's return settle the payment).
      */
+    SOCIAL_CONVERSATION_BLUESKY: z.enum(['0', '1']).default('0'),
+    SOCIAL_CONVERSATION_MASTODON_ORIGINS: z
+      .string()
+      .optional()
+      .transform(list)
+      .pipe(
+        z
+          .array(z.string().refine(mastodonOrigin, 'expected a public Mastodon HTTPS origin'))
+          .max(32)
+      ),
     BUNNY_VIDEO_LIBRARIES: z.string().optional(),
     PAYMENT_PROVIDER: z.enum(['none', 'fake', 'mollie']).default('none'),
     /** Mollie's API origin; a recorded-answer server in tests only, refused in production. */

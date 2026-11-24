@@ -366,7 +366,9 @@ export type RenderBlock = { id: string } & (
     }
   | {
       type: 'social-conversation';
-      links: ReturnType<typeof socialConversationLinks>;
+      links: (ReturnType<typeof socialConversationLinks>[number] & {
+        counts?: { replies?: number; reposts?: number };
+      })[];
     }
   | {
       type: 'video-embed';

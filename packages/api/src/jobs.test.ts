@@ -101,6 +101,34 @@ describe('job handlers', () => {
     for (const r of RECURRING_JOBS) expect(Object.keys(JobPayloads)).toContain(r.type);
   });
 
+  it('plans one conversation refresh per tenant even when the planner is retried', async () => {
+    const other = '01900000-0000-7000-8000-000000000002';
+    const refreshed: string[] = [];
+    const handlers = jobHandlers({
+      uow,
+      operatorDb,
+      identity,
+      mail,
+      tenantIds: async () => [TENANT, other],
+      socialConversation: {
+        enabled: true,
+        async refresh(tenantId) {
+          refreshed.push(tenantId);
+        },
+      },
+    });
+    const plan = job({ type: 'social-conversation.plan', tenantId: null, payload: {} });
+    await handlers['social-conversation.plan']!(plan);
+    await handlers['social-conversation.plan']!(plan);
+    const jobs = uow.store.jobs.filter((entry) => entry.type === 'social-conversation.refresh');
+    expect(jobs.map(({ key }) => key)).toEqual([
+      `social-conversation.refresh:${TENANT}`,
+      `social-conversation.refresh:${other}`,
+    ]);
+    for (const entry of jobs) await handlers['social-conversation.refresh']!(entry);
+    expect(refreshed).toEqual([TENANT, other]);
+  });
+
   it('runs a tenant job in its tenant, and refuses one without a tenant or with a bad payload', async () => {
     // The hostname is gone (never added): done, nothing planned.
     expect(await handlers['hostnames.reverify']!(job({}))).toEqual({});

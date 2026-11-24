@@ -859,6 +859,8 @@ const env = {
   SITE_URL_MODE: 'hostnames',
   MAILER: 'console',
   BUNNY_VIDEO_LIBRARIES: JSON.stringify([videoBinding]),
+  SOCIAL_CONVERSATION_BLUESKY: '0',
+  SOCIAL_CONVERSATION_MASTODON_ORIGINS: '',
   MAIL_SPOOL_DIR: spool,
   PAYMENT_PROVIDER: 'fake',
   PAYMENT_FAKE_DIR: payments,

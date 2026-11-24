@@ -31,6 +31,7 @@ import {
 } from './lib/site-navigation/chrome/paint';
 import { exerciseLanguagePanel } from './lib/site-navigation/chrome/language-panel';
 import { exerciseSticky, seedSticky } from './lib/site-navigation/chrome/sticky';
+import { exerciseConversationCounts } from './lib/published/conversation-counts';
 import { exerciseOverviewCards } from './lib/blocks/overview-cards';
 import {
   exerciseBylinePair,
@@ -775,6 +776,12 @@ test.describe('blocks-registry', () => {
       await expectNoAxeViolations(page);
       await band.screenshot({ path: test.info().outputPath(`cta-${locale}-320-text200.png`) });
     });
+
+  test('public conversation counts change and expire with article revalidation', async ({
+    page,
+  }) => {
+    await exerciseConversationCounts(page);
+  });
 
   const socialPosts = BLOCK_DEFINITIONS['social-conversation'].examples[0]!.props;
   const conversation = {
