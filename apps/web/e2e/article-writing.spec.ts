@@ -683,6 +683,7 @@ test.describe('article-writing', () => {
       tags: _tags,
       corrections: _corrections,
       delivery: _delivery,
+      presentation: _presentation,
       ...document
     } = original.revision.document;
     // Its own slug: from the title it would be one more `een-artikel-n` on every run, and a
