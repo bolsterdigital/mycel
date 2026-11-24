@@ -2,12 +2,21 @@
 // table independently and never restores a binding from an archive.
 import { sql, type Kysely, type Selectable } from 'kysely';
 import {
+  transcriptTokens,
   VideoMetadata,
   type VideoRepository,
   type VideoRecord,
   type VideoUpload,
 } from '@mycel/core';
 import type { Database } from '../infra/schema.js';
+
+function indexedTracks(tracks: VideoRecord['publishedTracks']) {
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries(tracks).map(([locale, track]) => [locale, transcriptTokens(track ?? '')])
+    )
+  );
+}
 
 function record(row: Selectable<Database['managed_videos']>): VideoRecord {
   return {
@@ -16,6 +25,7 @@ function record(row: Selectable<Database['managed_videos']>): VideoRecord {
     metadata: VideoMetadata.parse(row.metadata),
     durationSeconds: row.duration_seconds,
     hasSource: row.has_source,
+    draftTracks: row.draft_tracks,
     publishedTracks: row.published_tracks,
     createdAt: row.created_at,
     trashedAt: row.trashed_at,
@@ -61,6 +71,8 @@ export function videoRepository(db: Kysely<Database>, tenantId: string): VideoRe
           id: video.id,
           poster_id: video.posterId,
           metadata: JSON.stringify(video.metadata),
+          draft_tracks: JSON.stringify(video.draftTracks ?? {}),
+          transcript_lexemes: indexedTracks(video.publishedTracks),
           published_tracks: JSON.stringify(video.publishedTracks),
           duration_seconds: video.durationSeconds,
           has_source: video.hasSource,
@@ -74,6 +86,9 @@ export function videoRepository(db: Kysely<Database>, tenantId: string): VideoRe
         .updateTable('managed_videos')
         .set({
           duration_seconds: patch.durationSeconds,
+          draft_tracks: JSON.stringify(patch.draftTracks),
+          published_tracks: JSON.stringify(patch.publishedTracks),
+          transcript_lexemes: patch.publishedTracks && indexedTracks(patch.publishedTracks),
           has_source: patch.hasSource,
           trashed_at: patch.trashedAt,
         })

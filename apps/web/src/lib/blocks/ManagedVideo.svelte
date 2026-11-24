@@ -51,6 +51,12 @@
     {/if}
     {#if block.caption}<figcaption>{block.caption}</figcaption>{/if}
   </figure>
+  {#if block.transcript.length}
+    <details>
+      <summary>{t('video.transcript')}</summary>
+      {#each block.transcript as cue}<p>{cue}</p>{/each}
+    </details>
+  {/if}
   {#if block.maker || block.licence || block.watch}
     <div class="video-details">
       {#if block.maker || block.licence}

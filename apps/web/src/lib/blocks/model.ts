@@ -355,6 +355,7 @@ export type RenderBlock = { id: string } & (
       maker: string | null;
       licence: { label: string; href: string | null } | null;
       watch: string | null;
+      transcript: string[];
       play: string | null;
     }
   | {

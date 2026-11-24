@@ -84,7 +84,7 @@ import { videoPlayerUrl, videoUrl, type RenderEvent, type RenderMeta } from './m
 /** Where the resolver reads tenant data; `runtimeSource` is the real one, tests may stub it. */
 export interface ResolveSource {
   defaultLocale?: string;
-  video?(id: string): ReturnType<typeof videoPresentation>;
+  video?(id: string, locale?: string): ReturnType<typeof videoPresentation>;
   creditPerson?(id: string): Promise<{ name: string; slug: string | null } | null>;
   peopleGrid?(props: BlockProps<'people-grid'>, locale: string): Promise<PublicPersonCard[]>;
   form(id: string): Promise<{
@@ -129,7 +129,7 @@ export function runtimeSource(deps: {
   const { invoker, uow, reader, defaultLocale } = deps;
   return {
     defaultLocale,
-    video: (id) => uow.run(reader, (ctx) => videoPresentation(ctx, id)),
+    video: (id, locale) => uow.run(reader, (ctx) => videoPresentation(ctx, id, locale)),
     creditPerson: (id) => uow.run(reader, (ctx) => resolveCreditPerson(ctx, id)),
     async peopleGrid(props, locale) {
       return uow.run(reader, (ctx) => resolvePeopleGrid(ctx, props, locale));
@@ -376,7 +376,8 @@ export async function resolveDocument(
   const videos = new Map<string, Awaited<ReturnType<typeof videoPresentation>>>();
   for (const block of blocks) {
     if (block.type !== 'video' || videos.has(block.props.videoId)) continue;
-    const video = (await source.video?.(block.props.videoId)) ?? null;
+    const video =
+      (await source.video?.(block.props.videoId, options.videoRoute ? locale : undefined)) ?? null;
     videos.set(block.props.videoId, video);
     if (video) mediaIds.add(video.posterId);
   }
@@ -768,6 +769,7 @@ export async function resolveDocument(
           maker: video?.metadata.maker ?? null,
           licence: video ? renderLicence(video.metadata.licence, locale) : null,
           watch: video?.metadata.watchUrl ?? null,
+          transcript: options.videoRoute && video?.playable ? video.transcript : [],
           play: video?.playable && options.videoRoute ? `${options.videoRoute}/${id}` : null,
         };
       }

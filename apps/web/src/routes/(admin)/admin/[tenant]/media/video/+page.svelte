@@ -31,8 +31,67 @@
     breadcrumb={[{ label: t('admin.media.title'), href: base }, { label: t('admin.video.title') }]}
   />
   {#if form && !form.ok}<Notice title={t('error.summary.title')} tone="error"
-      ><p>{t('admin.video.actionFailed')}</p></Notice
+      ><p>{t(form.error ?? 'admin.video.actionFailed')}</p></Notice
     >{/if}
+  {#if data.transcript}
+    {@const transcript = data.transcript}
+    {@const selection = new URLSearchParams({
+      recording: transcript.id,
+      language: transcript.language,
+    })}
+    <section id="transcript">
+      <h2>
+        {t('video.transcript')} ({transcript.language}) · {pick(
+          data.videos.find((v) => v.id === transcript.id)?.metadata.title ?? {},
+          data.locale,
+          data.tenant.defaultLocale
+        )}
+      </h2>
+      {#if transcript.published}<p role="status">{t('admin.video.transcript.live')}</p>
+      {:else if form?.saved}<p role="status">{t('admin.video.transcript.saved')}</p>{/if}
+      <form
+        method="POST"
+        enctype="multipart/form-data"
+        action={`?/saveTranscript&${selection}#transcript`}
+      >
+        <input type="hidden" name="id" value={transcript.id} />
+        <input type="hidden" name="language" value={transcript.language} />
+        <input type="hidden" name="version" value={form?.version ?? transcript.version} />
+        <Field
+          id="transcript-source"
+          label={t('admin.video.transcript.text')}
+          hint={t('admin.video.transcript.hint')}
+          hintInline
+          locale={data.locale}
+        >
+          {#snippet control(attrs)}<textarea
+              {...attrs}
+              name="source"
+              rows="12"
+              lang={transcript.language}
+              value={form?.source ?? transcript.source}
+            ></textarea>{/snippet}
+        </Field>
+        <Field
+          id="transcript-file"
+          name="file"
+          type="file"
+          accept=".vtt,.srt,.txt"
+          label={t('admin.video.transcript.file')}
+          locale={data.locale}
+        />
+        <Actions><Button type="submit">{t('admin.video.transcript.save')}</Button></Actions>
+      </form>
+      {#if data.canPublish && form?.source == null && transcript.source && !transcript.published}
+        <form method="POST" action={`?/publishTranscript&${selection}#transcript`}>
+          <input type="hidden" name="id" value={transcript.id} />
+          <input type="hidden" name="language" value={transcript.language} />
+          <input type="hidden" name="version" value={transcript.version} />
+          <Actions><Button type="submit">{t('admin.video.transcript.publish')}</Button></Actions>
+        </form>
+      {/if}
+    </section>
+  {/if}
   {#if canStart}
     <noscript><p>{t('admin.video.scriptRequired')}</p></noscript>
     <form
@@ -112,6 +171,15 @@
           >
           <p>{t(`admin.video.state.${video.state}`)}</p>
           {#if data.canWrite}
+            <Actions>
+              {#each data.tenant.locales as language (language)}
+                <Button
+                  variant="link"
+                  href={`?recording=${video.id}&language=${language}#transcript`}
+                  >{t('admin.video.transcript.edit')} ({language})</Button
+                >
+              {/each}
+            </Actions>
             <form method="POST">
               <input type="hidden" name="id" value={video.id} />
               <Actions>

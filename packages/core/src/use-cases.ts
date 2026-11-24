@@ -142,6 +142,7 @@ import { confirmSubscription, previewConfirmation } from './mailing/service.js';
 import { getEmail } from './mailing/email.js';
 import { confirmOptOut, previewOptOut } from './mailing/unsubscribe.js';
 import { getEdition, listEditions, sendEdition, testEdition } from './mailing/edition.js';
+import { getTranscript, saveTranscript, publishTranscript } from './media/transcript-service.js';
 import {
   createVideo,
   checkVideo,
@@ -419,6 +420,9 @@ export const useCases = {
   createVideo,
   checkVideo,
   resumeVideo,
+  getTranscript,
+  saveTranscript,
+  publishTranscript,
   listVideos,
   deleteVideo,
   getMedia,

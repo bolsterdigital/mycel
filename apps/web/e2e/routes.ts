@@ -4,6 +4,8 @@
 // gate in that flow's spec, on the same lib/layout.ts.
 // Rejected: a fixture hook per route (the setup of a flow would live twice, here and in its spec).
 
+import { EXAMPLE_IDS } from '@mycel/core';
+
 /** One page of the gate. */
 export interface GateRoute {
   path: string;
@@ -56,6 +58,10 @@ export const ADMIN_ROUTES: GateRoute[] = [
   { path: '/admin/probe/meldingen', within: 'main' },
   { path: '/admin/probe/media/trash', within: 'main' },
   { path: '/admin/probe/media/video', within: 'main' },
+  {
+    path: `/admin/probe/media/video?recording=${EXAMPLE_IDS.video}&language=nl`,
+    within: '#transcript',
+  },
   // The seed holds one pattern, so a card with its rename fold and delete confirmation is measured.
   { path: '/admin/probe/patterns', within: 'main', folds: true },
   { path: '/admin/probe/content/trash', within: 'main' },

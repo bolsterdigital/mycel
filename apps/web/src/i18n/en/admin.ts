@@ -421,6 +421,8 @@ export const admin = {
   'admin.audit.op.mailing.edition.send': 'Newsletter sent',
   'admin.audit.op.mailing.automation.update': 'Welcome mails changed',
   'admin.audit.op.mailing.automation.test': 'Welcome mails test sent',
+  'admin.audit.op.media.transcript.update': 'Transcript draft saved',
+  'admin.audit.op.media.transcript.publish': 'Transcript published',
   'admin.audit.op.media.video.create': 'Video upload prepared',
   'admin.audit.op.media.video.check': 'Video processing checked',
   'admin.audit.op.media.video.resume': 'Video upload resumed',

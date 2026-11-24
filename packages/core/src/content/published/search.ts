@@ -36,6 +36,10 @@
 // erasure rewrites).
 
 import { z } from 'zod';
+import { videoPresentation } from '../../media/video-playback.js';
+import { transcriptText } from '../../media/transcript.js';
+import { entitled } from '../../entitlements/guards.js';
+import { getIntegrationPlacement } from '../../integrations/service.js';
 import { Locale } from '../../i18n/locale.js';
 import { defineUseCase } from '../../registry.js';
 import { grantStands, hasAccess } from '../access/model.js';
@@ -67,6 +71,10 @@ export function searchTokens(text: string): string[] {
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean)
     .map((t) => t.slice(0, MAX_TOKEN_LENGTH));
+}
+
+export function transcriptTokens(track: string) {
+  return [...new Set(transcriptText(track).flatMap(searchTokens))];
 }
 
 /** The tokens a question searches for: distinct, long enough, at most `MAX_SEARCH_TOKENS`. */
@@ -303,8 +311,14 @@ export const findPublished = defineUseCase({
     // a visitor and for every other actor, an operator included (they search as a visitor here).
     const reader = await readerAccess(ctx);
     const now = ctx.clock.now();
+    const libraryId =
+      ctx.videoProvider &&
+      entitled(ctx.principal, 'blocks.video') &&
+      (await getIntegrationPlacement.handler(ctx, {})).embeds.includes('bunny-stream')
+        ? ctx.videoProvider.libraryId
+        : null;
     const hits = await ctx.content.searchPublished(
-      { tokens, locale, reader: searchReaderOf(reader, now) },
+      { tokens, locale, reader: searchReaderOf(reader, now), libraryId },
       (page - 1) * limit,
       limit + 1
     );
@@ -318,6 +332,14 @@ export const findPublished = defineUseCase({
       const open = hasAccess(reader, doc, now);
       if (!open && !matchesSearch(entry, tokens, null)) continue;
       const texts = searchTexts(open ? doc : teaserDocument(doc), locale);
+      if (libraryId && doc.access.level === 'public') {
+        for (const block of doc.blocks) {
+          if (block.type !== 'video') continue;
+          const video = await videoPresentation(ctx, block.props.videoId, locale);
+          if (video) texts.body.push(...video.transcript);
+        }
+        if (!carries([...entry.all, ...texts.body.flatMap(searchTokens)], tokens)) continue;
+      }
       items.push({
         id: hit.itemId,
         type: hit.type,

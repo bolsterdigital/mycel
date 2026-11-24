@@ -262,7 +262,12 @@ export interface ContentRepository {
    * later draft and an unpublished locale never do.
    */
   searchPublished(
-    query: { tokens: readonly string[]; locale: string; reader: SearchReader | null },
+    query: {
+      tokens: readonly string[];
+      locale: string;
+      reader: SearchReader | null;
+      libraryId?: string | null;
+    },
     offset: number,
     limit: number
   ): Promise<PublishedHit[]>;

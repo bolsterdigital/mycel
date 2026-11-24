@@ -28,6 +28,7 @@
 import { sql, type Kysely } from 'kysely';
 import {
   searchEntry,
+  transcriptTokens,
   type ContentRepository,
   type ContentType,
   type PublishedHit,
@@ -114,7 +115,7 @@ interface Row {
 }
 
 export function searchPublished(trx: Kysely<Database>): ContentRepository['searchPublished'] {
-  return async ({ tokens, locale, reader }, offset, limit) => {
+  return async ({ tokens, locale, reader, libraryId }, offset, limit) => {
     if (!tokens.length) return [];
     // Core's tokens hold letters and digits only, so a quoted lexeme needs no escaping; the
     // quote and backslash are doubled all the same, so this line does not rest on that.
@@ -126,6 +127,29 @@ export function searchPublished(trx: Kysely<Database>): ContentRepository['searc
       ? sql`(s.access_level in ('public', 'members')
              or (s.access_level = 'tier' and s.tier_ids && ${[...reader.tierIds]}::uuid[]))`
       : sql`s.access_level = 'public'`;
+    // Older archives carry the WebVTT alone. Use the same tokenizer until their next publish.
+    const legacy = libraryId
+      ? (
+          await sql<{ id: string; track: string }>`
+      select v.id, v.published_tracks ->> ${locale} as track from managed_videos v
+      where v.published_tracks ? ${locale} and not (v.transcript_lexemes ? ${locale})
+    `.execute(trx)
+        ).rows
+      : [];
+    const fallback = JSON.stringify(
+      Object.fromEntries(legacy.map((row) => [row.id, transcriptTokens(row.track)]))
+    );
+    const videoBody = libraryId
+      ? sql`or (s.access_level = 'public' and exists (
+      select 1 from content_block_refs r
+      join managed_videos v on v.tenant_id = r.tenant_id and v.id = r.ref_id
+      join managed_video_uploads u on u.tenant_id = v.tenant_id and u.video_id = v.id
+      cross join lateral jsonb_array_elements_text(coalesce(v.transcript_lexemes -> ${locale}, ${fallback}::jsonb -> v.id::text)) word
+      where r.revision_id = s.revision_id and r.type = 'video' and v.has_source and v.trashed_at is null
+        and u.state = 'ready' and u.library_id = ${libraryId} and u.provider_id is not null and u.mp4_height > 0
+      having (s.body || array_to_tsvector(array_agg(distinct word))) @@ ${query}::tsquery
+    ))`
+      : sql``;
     const { rows } = await sql<Row>`
       select s.item_id, i.type, i.slug, s.revision_id, l.published_at,
              s.title @@ ${query}::tsquery as in_title
@@ -135,7 +159,7 @@ export function searchPublished(trx: Kysely<Database>): ContentRepository['searc
        and l.published_revision_id = s.revision_id
       join content_items i on i.id = s.item_id and i.deleted_at is null
       where s.locale = ${locale}
-        and ((${opens} and s.body @@ ${query}::tsquery) or s.teaser @@ ${query}::tsquery)
+        and ((${opens} and s.body @@ ${query}::tsquery) or s.teaser @@ ${query}::tsquery ${videoBody})
       order by in_title desc, date_trunc('milliseconds', l.published_at) desc, s.item_id asc
       limit ${limit} offset ${offset}
     `.execute(trx);
