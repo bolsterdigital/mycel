@@ -778,7 +778,7 @@ test.describe('content-routes', () => {
     await expect(summary).toContainText('Ontbreekt nog in het Engels', { useInnerText: true });
     await expect(line).toHaveAttribute('data-tone', 'ok');
     // The layout belongs to the whole opening, not to the image.
-    await expect(page.locator('.ui-edit-side #articleProfile')).toHaveCount(1);
+    await expect(page.locator('.ui-edit-side #articleProfile-post')).toHaveCount(1);
     await expect(page.locator('.item-header #headerLayout')).toHaveCount(0);
 
     // The error tone on text carries no green check. Set by hand: no screen reaches it yet, because

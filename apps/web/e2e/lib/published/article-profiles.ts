@@ -5,9 +5,10 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { systemPrincipal, useCases } from '@mycel/core';
 import { callApi } from '../api';
-import { editorReady, postDraftPreview } from '../editor';
+import { editorReady, postDraftPreview, reloadsEditor } from '../editor';
 import { tenantId, withInvoker } from '../invoker';
 import { layoutGate, NARROW, setTextSize } from '../layout';
+import { openPublication } from '../publication';
 import { login } from '../login';
 import { isA11y } from '../project';
 
@@ -34,7 +35,10 @@ export async function exerciseArticleProfiles(page: Page) {
     imageId: photos[1]!,
     pagePolicy: 'always',
   });
-  const second = await createAuthor('-b', { name: 'Noor van den Berg', pagePolicy: 'never' });
+  const second = await createAuthor('-b', {
+    name: 'Noor van den Berg van Oosterwijk',
+    pagePolicy: 'never',
+  });
   const principal = systemPrincipal(await tenantId(), 'e2e');
   for (const [index, photo] of photos.entries()) {
     const story = await callApi(page.request, 'content.item.create', {
@@ -94,22 +98,30 @@ export async function exerciseArticleProfiles(page: Page) {
       if (isA11y())
         await page.screenshot({ path: test.info().outputPath(`profile-${index}-${width}.png`) });
     }
-    if (index) continue;
+    const locale = index ? 'nl' : 'en';
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'article byline at 200%', '.article-meta');
+
     const edit = '/admin/probe/content/' + story.item.id;
-    await login(page, edit);
+    await login(page, edit + '?locale=' + locale, undefined, { 'accept-language': locale });
     await editorReady(page);
-    const profile = page.locator('#articleProfile');
-    await profile.focus();
-    await profile.press('p');
-    await expect(profile).toHaveValue('post');
-    await profile.press('ArrowDown');
-    await expect(profile).toHaveValue('longread');
+    const post = page.locator('#articleProfile-post');
+    const long = page.locator('#articleProfile-longread');
+    await long.focus();
+    await page.keyboard.press('ArrowUp');
+    await expect(post).toBeChecked();
+    await page.keyboard.press('ArrowDown');
+    await expect(long).toBeChecked();
     const advanced = page.locator('details.longread');
     await advanced.locator('summary').focus();
     await page.keyboard.press('Enter');
     const header = advanced.locator('[name="profile.longread.header"]');
-    await expect(header).toHaveValue('standard');
-    await header.selectOption('');
+    await expect(
+      advanced.locator('[name="profile.longread.header"][value="standard"]')
+    ).toBeChecked();
+    await header.first().focus();
+    await page.keyboard.press('Space');
     await page.setViewportSize(NARROW);
     await setTextSize(page, '200%');
     await layoutGate(
@@ -117,10 +129,36 @@ export async function exerciseArticleProfiles(page: Page) {
       'article presentation controls at 320 and 200%',
       '.article-profile-fields'
     );
+    for (const label of await advanced.locator('.ui-choice label').all()) {
+      const box = await label.boundingBox();
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+    }
     if (isA11y())
-      await advanced.screenshot({ path: test.info().outputPath('article-profile-controls.png') });
+      await advanced.screenshot({
+        path: test.info().outputPath('article-profile-controls-' + locale + '.png'),
+      });
     await setTextSize(page, '100%');
-    await postDraftPreview(page, story.item.id);
+    await postDraftPreview(page, story.item.id, 'probe', locale);
     await expect(page.locator('.page-cover')).toBeVisible();
+    await page.goto(edit + '?locale=' + locale);
+    await editorReady(page);
+    await post.focus();
+    await page.keyboard.press('Space');
+    await reloadsEditor(page, () =>
+      page
+        .getByRole('button', { name: /^(Save|Opslaan)$/ })
+        .first()
+        .press('Enter')
+    );
+    await expect(post).toBeChecked();
+    await openPublication(page);
+    await page
+      .locator('#publication-' + locale)
+      .getByRole('button', { name: /^(Publish|Publiceren)$/ })
+      .press('Enter');
+    await page.goto('/probe/' + (locale === 'en' ? 'en/' : '') + 'articles/' + slug + index);
+    await expect(page.locator('.article-meta.expanded')).toHaveCount(0);
+    await expect(page.locator('.article-compact img')).toBeVisible();
   }
 }

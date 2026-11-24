@@ -118,7 +118,7 @@
 {/if}
 
 <style>
-  :global(.article-profile-fields:has(#articleProfile option:checked:not([value='']))) + .legacy {
+  :global(.article-profile-fields:has([name='articleProfile']:checked:not([value='']))) + .legacy {
     display: none;
   }
 </style>

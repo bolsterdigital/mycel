@@ -32,7 +32,13 @@ function sync(panel) {
   panel.querySelector('[data-placement-replaced]').hidden = !replaced;
   if (replaced) return;
 
-  const layout = form.elements.namedItem('headerLayout')?.value;
+  const profile = form.elements.namedItem('articleProfile')?.value;
+  const chosen = profile && form.elements.namedItem(`profile.${profile}.header`)?.value;
+  const layout = profile
+    ? (chosen || (profile === 'longread' ? 'cover' : 'standard')) === 'cover'
+      ? 'cover'
+      : 'compact'
+    : form.elements.namedItem('headerLayout')?.value;
   if (panel.dataset.picker === 'heroImageId' && layout) panel.dataset.layout = layout;
   const general = read(panel, 'framing');
   for (const picture of panel.querySelectorAll('[data-frame-preview] img')) {
@@ -76,6 +82,8 @@ function syncForm(event) {
   if (
     target.name === 'heroImageId' ||
     target.name === 'headerLayout' ||
+    target.name === 'articleProfile' ||
+    /^profile\.(post|longread)\.header$/.test(target.name) ||
     target.name === 'featuredImageId' ||
     target.name === 'imageId'
   )

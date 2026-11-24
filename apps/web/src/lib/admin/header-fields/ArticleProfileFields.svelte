@@ -1,8 +1,8 @@
-<!-- Both profiles keep their controls while the editor switches. Native selects and :has()
+<!-- Both profiles keep their controls while the editor switches. Native radios and :has()
      also switch the visible group before hydration and when the browser has no JavaScript. -->
 <script lang="ts">
   import { ARTICLE_OPTIONS, ARTICLE_PROFILES } from '@mycel/core';
-  import { Select } from '#lib/admin/ui/index.js';
+  import { Choices } from '#lib/admin/ui/index.js';
   import { ui } from '../../../i18n/index.js';
   let { locale, v, legacy }: { locale: string; v: (key: string) => string; legacy: boolean } =
     $props();
@@ -11,18 +11,18 @@
   let counts = $state<Partial<Record<string, number>>>({});
   function count(event: Event, profile: string) {
     const group = event.currentTarget as HTMLElement;
-    counts[profile] = Array.from(group.querySelectorAll('select')).filter((el) => el.value).length;
+    counts[profile] = group.querySelectorAll('input:checked:not([value=""])').length;
   }
 </script>
 
 <div class="article-profile-fields">
-  <Select
+  <Choices
     id="articleProfile"
     name="articleProfile"
-    label={t('article.profile.label')}
+    legend={t('article.profile.label')}
     hint={t('article.profile.hint')}
     {locale}
-    value={v('articleProfile')}
+    selected={[v('articleProfile')]}
     options={[
       ...(legacy ? [{ value: '', label: t('article.profile.keep') }] : []),
       ...ARTICLE_PROFILES.map((value) => ({ value, label: t(`article.profile.${value}`) })),
@@ -38,12 +38,12 @@
       >
       {#each keys as key (key)}
         {@const name = `profile.${profile}.${key}`}
-        <Select
+        <Choices
           id={name}
           {name}
           {locale}
-          label={t(`article.profile.${key}`)}
-          value={v(name)}
+          legend={t(`article.profile.${key}`)}
+          selected={[v(name)]}
           options={[
             { value: '', label: t('article.profile.default') },
             ...ARTICLE_OPTIONS[key].map((value) => ({
@@ -61,8 +61,9 @@
   details {
     display: none;
   }
-  .article-profile-fields:has(:global(#articleProfile option[value='post']:checked)) details.post,
-  .article-profile-fields:has(:global(#articleProfile option[value='longread']:checked))
+  .article-profile-fields:has(:global(input[name='articleProfile'][value='post']:checked))
+    details.post,
+  .article-profile-fields:has(:global(input[name='articleProfile'][value='longread']:checked))
     details.longread {
     display: block;
   }
@@ -71,8 +72,12 @@
     cursor: pointer;
     min-height: 44px;
   }
-  .article-profile-fields :global(select) {
-    max-width: 100%;
+  .article-profile-fields :global(.ui-choice label) {
+    display: flex;
+    align-items: center;
+    min-width: 44px;
+    hyphens: none;
+    overflow-wrap: normal;
     min-height: 44px;
   }
 </style>
