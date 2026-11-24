@@ -15,6 +15,10 @@
 </script>
 
 <svelte:head>
+  {#if data.dropCap && data.intro.article?.initial}<script
+      type="module"
+      src="/_site/article-initial.js"
+    ></script>{/if}
   {#each data.theme.preload as font (font)}
     <link rel="preload" href={font} as="font" type="font/woff2" crossorigin="anonymous" />
   {/each}
@@ -49,7 +53,11 @@
 </aside>
 <SiteHeader chrome={data.chrome} locale={data.locale} />
 
-<main class="page" data-drop-cap={data.dropCap ? '' : undefined}>
+<main
+  class="page"
+  data-drop-cap={data.dropCap && !data.intro.article ? '' : undefined}
+  data-measure-initial={data.dropCap && data.intro.article?.initial ? '' : undefined}
+>
   {#snippet blocks()}
     <Blocks
       model={data.model}

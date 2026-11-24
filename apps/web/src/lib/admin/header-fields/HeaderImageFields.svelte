@@ -29,8 +29,20 @@
   } = $props();
   const t = $derived(ui(locale));
   const photo = $derived(media.find((m) => m.id === v('heroImageId')));
+  const profile = $derived(v('articleProfile'));
+  const profileHeader = $derived(
+    v(`profile.${profile}.header`) || (profile === 'longread' ? 'cover' : 'standard')
+  );
   const layout = $derived(
-    v('headerLayout') === 'cover' ? 'cover' : v('headerLayout') === 'split' ? 'split' : 'standard'
+    profile
+      ? profileHeader === 'cover'
+        ? 'cover'
+        : 'compact'
+      : v('headerLayout') === 'cover'
+        ? 'cover'
+        : v('headerLayout') === 'split'
+          ? 'split'
+          : 'standard'
   );
 </script>
 

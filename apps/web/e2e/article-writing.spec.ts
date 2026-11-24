@@ -683,10 +683,10 @@ test.describe('article-writing', () => {
       tags: _tags,
       corrections: _corrections,
       delivery: _delivery,
+      presentation: _presentation,
       ...document
     } = original.revision.document;
-    // Its own slug: from the title it would be one more `een-artikel-n` on every run, and a
-    // database that lives on across runs runs out of them at a hundred.
+    // Reusing the title exhausts the numbered slugs after a hundred runs on one database.
     const created = await callApi(request, 'content.item.create', {
       slug: `page-prose-${Date.now()}`,
       document: { ...document, type: 'page' },

@@ -26,7 +26,7 @@ interface Side {
 function probe() {
   const where = (el: Element) => {
     if (el.matches('.cards-item :is(h2, h3, h4, h5, h6)')) return 'cards-title';
-    if (el.matches('.page-meta > a')) return 'byline-link';
+    if (el.matches('.page-meta a')) return 'byline-link';
     if (el.matches('.person-portrait img')) return 'profile-portrait';
     if (el.closest('.overview-card')) return 'card';
     if (el.closest('.page-hero')) return 'header';

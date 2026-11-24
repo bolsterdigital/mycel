@@ -83,6 +83,7 @@ const FIELDS: Record<string, UiKey> = {
   tags: 'admin.content.field.tags',
   corrections: 'admin.content.field.corrections',
   access: 'admin.content.field.level',
+  'presentation.profile': 'article.profile.label',
   'presentation.header': 'admin.content.field.headerLayout',
   'presentation.action.label': 'admin.content.headerAction.label',
   presentation: 'admin.content.headerAction.legend',
@@ -111,6 +112,16 @@ function labelOf(
   }
   const parts = path.split('.');
   if (locale) parts.pop();
+  if (path.startsWith('presentation.overrides.')) {
+    const labels = {
+      header: 'article.profile.header',
+      authors: 'article.profile.authors',
+      readingTime: 'article.profile.readingTime',
+      initial: 'article.profile.initial',
+    } as const;
+    const label = labels[last as keyof typeof labels] ?? 'article.profile.label';
+    return { label, params: {} };
+  }
   const field = FIELDS[parts.join('.')] ?? FIELDS[parts[0]!];
   return field
     ? { label: field, params: { locale } }

@@ -11,6 +11,26 @@ import { mergeDocuments, takeValue, valueAt } from './merge.js';
 import { ContentDocument, type ContentDocumentInput } from '../model.js';
 import { adoptAddedBlocks, mergeSave } from './save.js';
 
+it('merges the first two distinct overrides of a profile and reports competing choices by setting', () => {
+  const settings = (options: Record<string, string>) => ({
+    presentation: { profile: 'longread', overrides: { longread: options } },
+  });
+  const base = { presentation: { profile: 'longread' } };
+  const merged = mergeDocuments(
+    base,
+    settings({ header: 'standard' }),
+    settings({ authors: 'names' })
+  );
+  expect(merged).toEqual({
+    document: settings({ header: 'standard', authors: 'names' }),
+    conflicts: [],
+  });
+  expect(
+    mergeDocuments(base, settings({ header: 'standard' }), settings({ header: 'cover' }))
+      .conflicts[0]?.path
+  ).toBe('presentation.overrides.longread.header');
+});
+
 it('merges screen sizes independently but treats a single crop as one choice', () => {
   const manual = (x: number, y: number) => ({ mode: 'manual', point: { x, y } });
   const base = { heroPlacement: { framing: manual(0.5, 0.5) } };

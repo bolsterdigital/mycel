@@ -8,6 +8,7 @@
      it, stacked under the panel in a narrow container. Rejected: a CSS background image, which
      loses alt, srcset and the LCP hint. -->
 <script lang="ts">
+  import { withBase } from './rich-text.js';
   import Actions from './Actions.svelte';
   import Credit from './Credit.svelte';
   import Picture from './Picture.svelte';
@@ -54,7 +55,29 @@
 {/snippet}
 
 {#snippet meta()}
-  {#if intro.meta}
+  {#if intro.article}
+    <div class="page-meta article-meta" class:expanded={intro.article.portraits}>
+      {#if intro.article.authors.length}
+        <div class="article-authors">
+          {#each intro.article.authors as author, index (index)}
+            <span class="article-author">
+              {#if author.image}<Picture
+                  image={author.image}
+                  base={model.base}
+                  sizes="3rem"
+                  framed
+                />{/if}
+              {#if author.href}<a href={withBase(model.base, author.href)}>{author.name}</a
+                >{:else}<span>{author.name}</span>{/if}
+            </span>
+          {/each}
+        </div>
+      {/if}
+      {#if intro.meta?.date}<time datetime={intro.meta.date.iso}>{intro.meta.date.label}</time>{/if}
+      {#if intro.article.readingTime}<span>{intro.article.readingTime}</span>{/if}
+      {#if intro.meta?.section}<span>{intro.meta.section}</span>{/if}
+    </div>
+  {:else if intro.meta}
     <p class="page-meta">
       {#if intro.meta.date}<time datetime={intro.meta.date.iso}>{intro.meta.date.label}</time
         >{/if}{#if intro.meta.byline}{#if intro.meta.date}{' · '}{/if}{intro.meta.byline &&
@@ -119,8 +142,14 @@
   {@render lead()}
   {@render event()}
   {#if intro.hero}
-    <figure class="block image layout-wide page-hero">
-      <Picture image={intro.hero} base={model.base} sizes={IMAGE_SIZES.wide} eager />
+    <figure class="block image layout-wide page-hero" class:article-compact={!!intro.article}>
+      <Picture
+        image={intro.hero}
+        base={model.base}
+        sizes={intro.article ? '(max-width: 40rem) 100vw, min(67.5dvh, 45rem)' : IMAGE_SIZES.wide}
+        framed={!!intro.article}
+        eager
+      />
       {#if intro.hero.caption || intro.hero.credit}
         <figcaption>{@render caption()}</figcaption>
       {/if}

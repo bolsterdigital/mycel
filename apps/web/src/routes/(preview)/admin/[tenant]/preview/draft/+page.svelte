@@ -14,6 +14,10 @@
 </script>
 
 <svelte:head>
+  {#if form?.dropCap && form.intro.article?.initial}<script
+      type="module"
+      src="/_site/article-initial.js"
+    ></script>{/if}
   {#if form?.model}
     {#each form.theme.preload as font (font)}
       <link rel="preload" href={font} as="font" type="font/woff2" crossorigin="anonymous" />
@@ -36,7 +40,12 @@
   <SiteHeader chrome={form.chrome} locale={form.locale} />
   <!-- `data-live-preview-rendered`: the editor shows this frame only once it carries the mark, so
        a refused draft (an error page) never replaces the last good image (#66 PR 6d). -->
-  <main class="page" data-drop-cap={form.dropCap ? '' : undefined} data-live-preview-rendered>
+  <main
+    class="page"
+    data-drop-cap={form.dropCap && !form.intro.article ? '' : undefined}
+    data-measure-initial={form.dropCap && form.intro.article?.initial ? '' : undefined}
+    data-live-preview-rendered
+  >
     {#snippet blocks()}
       <Blocks
         model={form.model}

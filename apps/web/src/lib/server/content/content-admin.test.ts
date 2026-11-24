@@ -476,6 +476,24 @@ describe('documentFrom(valuesOf(doc))', () => {
     expect(doc.title).toEqual({ nl: 'Nieuwe titel', en: 'Report' });
   });
 
+  it('preserves legacy edits, separates profile overrides and resets one choice', () => {
+    const save = (base: ContentDocument, changes: Record<string, string>) =>
+      ContentDocument.parse(documentFrom(base, { ...valuesOf(base), ...changes }, '2026-11-24'));
+    const legacy = ContentDocument.parse({ ...article, presentation: { header: 'cover' } });
+    expect(save(legacy, { 'title.nl': 'Correctie' }).presentation).toEqual({ header: 'cover' });
+    const long = save(legacy, {
+      articleProfile: 'longread',
+      'profile.longread.header': 'standard',
+      'profile.longread.readingTime': 'hide',
+    });
+    const post = save(long, { articleProfile: 'post', 'profile.post.authors': 'portraits' });
+    const back = save(post, { articleProfile: 'longread', 'profile.longread.readingTime': '' });
+    expect(back.presentation).toEqual({
+      profile: 'longread',
+      overrides: { post: { authors: 'portraits' }, longread: { header: 'standard' } },
+    });
+  });
+
   it('adds a correction with today as its default date', () => {
     const v = { ...valuesOf(article), 'correctionText.nl': 'Naam hersteld' };
     const out = documentFrom(article, v, '2026-10-23');

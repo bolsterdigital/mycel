@@ -37,6 +37,8 @@ import {
   resolvePeopleGrid,
   resolveCreditPerson,
   type BlockProps,
+  type ArticleView,
+  type PublishedItem,
   type DocumentHeader,
   type HeaderAction,
   type CampaignCard,
@@ -177,6 +179,8 @@ export async function resolveIntro(
     heroImageId: string | null;
     heroAlt: string | null;
     heroPlacement?: ImagePlacement | undefined;
+    view?: ArticleView;
+    authors?: PublishedItem['authors'];
     header?: DocumentHeader;
     action?: HeaderAction | null;
     meta?: RenderMeta | null;
@@ -211,6 +215,36 @@ export async function resolveIntro(
     hero,
     header,
     ...(href && intro.action ? { action: { label: intro.action.label, href } } : {}),
+    ...(intro.view
+      ? {
+          article: {
+            portraits: intro.view.portraits,
+            initial: intro.view.initial,
+            readingTime: intro.view.minutes
+              ? ui(locale)('block.meta.readingTime').replace(
+                  '{minutes}',
+                  String(intro.view.minutes)
+                )
+              : null,
+            authors: await Promise.all(
+              (intro.authors ?? []).map(async (author) => ({
+                name: author.name,
+                href: author.pageEnabled
+                  ? personPath(author.slug, locale, source.defaultLocale ?? locale)
+                  : null,
+                image:
+                  author.imageId && intro.view?.portraits
+                    ? renderAssetImage(
+                        await source.media(author.imageId),
+                        { decorative: true, alt: null, placement: author.imagePlacement },
+                        locale
+                      )
+                    : null,
+              }))
+            ),
+          },
+        }
+      : {}),
     meta: intro.meta ?? null,
     ...(intro.event ? { event: intro.event } : {}),
   };

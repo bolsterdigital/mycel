@@ -468,7 +468,15 @@ img[data-frame-y-wide='100'] {
 }
 
 /* The same object fit and positioning also apply to the scaled preview. */
-:is(.page-cover, .page-split-media, .overview-card, .person-card, [data-frame-preview])
+:is(
+    .article-compact,
+    .article-author,
+    .page-cover,
+    .page-split-media,
+    .overview-card,
+    .person-card,
+    [data-frame-preview]
+  )
   img:where([data-frame-fit], [data-frame-fit-narrow], [data-frame-fit-wide]) {
   object-position: var(--frame-x, var(--fx, 50%)) var(--frame-y, var(--fy, 50%));
   background-color: var(--color-surface-bg);

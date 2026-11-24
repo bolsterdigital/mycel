@@ -1258,10 +1258,10 @@
         <p class="ui-hint">{t('admin.content.publication.chosenLocale')}</p>
       </PublicationDrawer>
     {/if}
-
     <section aria-labelledby="this-item">
       <h2 id="this-item">{t('admin.content.item.title')}</h2>
       <HeaderFields
+        legacy={!data.values.articleProfile}
         locale={data.locale}
         {work}
         {article}

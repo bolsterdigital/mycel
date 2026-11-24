@@ -8,6 +8,7 @@
 // one document per locale, and draft and live as two tables of documents (ADR 012 rule 4).
 
 import { ImagePlacement } from '../media/placement.js';
+import { ArticlePresentation } from './header/article-profile.js';
 import { z } from 'zod';
 import { Actor } from '../principal.js';
 import { Locale, localized } from '../i18n/locale.js';
@@ -267,7 +268,7 @@ const Dossiers = z
   .refine((d) => new Set(d.map((v) => v.itemId)).size === d.length, 'content.dossier.duplicate');
 
 /** The closed choice of article headers (ADR 025 rule 3). */
-export const ARTICLE_HEADERS = ['standard', 'cover'] as const;
+
 /**
  * The closed choice of page headers (ADR 025, amended 2026-11-23): the article's two plus `split`,
  * title, lead and at most one button in a panel beside the image. Rejected: `split` for articles,
@@ -352,10 +353,7 @@ function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
        * How this article's document header looks (ADR 025 rule 3); absent reads as `standard`, so
        * old revisions need no conversion. Only on an article: a page's strict schema refuses it.
        */
-      presentation: z
-        .object({ header: z.enum(ARTICLE_HEADERS).optional() })
-        .strict()
-        .optional(),
+      presentation: ArticlePresentation.optional(),
     })
     .strict();
   return z.discriminatedUnion('type', [page, article]).superRefine((doc, ctx) => {

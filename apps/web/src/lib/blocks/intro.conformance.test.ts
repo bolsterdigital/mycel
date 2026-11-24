@@ -110,6 +110,7 @@ async function page(
   head: {
     header?: 'standard' | 'cover' | 'split';
     action?: Parameters<typeof resolveIntro>[1]['action'];
+    view?: Parameters<typeof resolveIntro>[1]['view'];
     hero?: boolean;
     meta?: boolean;
     event?: boolean;
@@ -128,6 +129,7 @@ async function page(
       heroImageId: head.hero === false ? null : effectiveImages(article).hero.mediaId,
       heroAlt: heroAlt?.[locale] ?? null,
       ...(head.header ? { header: head.header } : {}),
+      ...(head.view ? { view: head.view } : {}),
       ...(head.action ? { action: head.action } : {}),
       ...(head.meta
         ? {
@@ -201,6 +203,19 @@ describe('the public item page (#86)', () => {
         const other = locale === 'nl' ? /Three years|After three|square/ : /Drie jaar|plein/;
         expect(html).not.toMatch(other);
       });
+});
+
+it('keeps an ordinary first letter until measurement, and respects the site choice without an image', async () => {
+  const view = { header: 'cover' as const, portraits: true, minutes: 1, initial: true };
+  const options = { view, header: view.header, hero: false, meta: true };
+  const on = await page('nl', 'default', undefined, options);
+  expect(on).toContain('data-measure-initial');
+  expect(on).not.toContain('data-drop-cap');
+  expect(on).not.toContain('page-cover');
+  expect(on).toContain('1 min lezen');
+  const off = await page('en', 'editorial-off', undefined, options);
+  expect(off).not.toMatch(/data-(measure-initial|drop-cap)/);
+  expect(off).toContain('1 min read');
 });
 
 describe('the split page header (ADR 025, amended 2026-11-23)', () => {

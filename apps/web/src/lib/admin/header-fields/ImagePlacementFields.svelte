@@ -23,7 +23,7 @@
     media: MediaChoice;
     base: string;
     locale: string;
-    layout: 'person' | 'overview' | 'cover' | 'split' | 'standard';
+    layout: 'person' | 'overview' | 'cover' | 'split' | 'standard' | 'compact';
     read: (key: string) => string;
     fallback?: string;
   } = $props();
@@ -176,6 +176,9 @@
   }
   .image-placement:not([data-layout='standard']) img {
     aspect-ratio: 3 / 2;
+  }
+  .image-placement[data-layout='compact'] [data-frame-preview='narrow'] img {
+    aspect-ratio: 16/9;
   }
   .image-placement[data-layout='person'] [data-frame-preview='narrow'] img {
     aspect-ratio: 286 / 200;
