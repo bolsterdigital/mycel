@@ -113,6 +113,8 @@ import { FakeTextModel } from '@mycel/core/fake-text-model';
 import { OpenAITextModel } from '@mycel/assist-openai';
 import { createEmailRenderer } from '@mycel/render-email';
 import { createAuthenticator, type Authenticator } from '../auth.js';
+import { conversationService } from '../social/refresh.js';
+import { publicJson } from '../social/public-json.js';
 import { createDnsResolver } from './dns.js';
 import { DirectoryPaymentProvider } from './fake-payments.js';
 import { MolliePaymentProvider } from '@mycel/pay-mollie';
@@ -249,6 +251,7 @@ export interface Runtime {
   platform: PlatformConfig;
   invoker: Invoker;
   uow: UnitOfWork;
+  conversationCounts: ReturnType<typeof conversationService>['read'];
   tenants: TenantDirectory;
   /** Hostname to site, as mycel_auth, cached (ADR 014). `invalidate` after an admin change. */
   sites: SiteDirectory & { invalidate(hostname?: string): void };
@@ -405,6 +408,17 @@ export function createRuntime(
     reconcileLagMs: config.MAIL_RECONCILE_LAG_MINUTES * 60 * 1000,
   };
   const formMail = { ...confirmation, access: (id: string) => identity.tenantAccess(id) };
+  const socialConversation = conversationService({
+    db: appDb,
+    uow,
+    identity,
+    clock,
+    providers: {
+      bluesky: config.SOCIAL_CONVERSATION_BLUESKY === '1',
+      mastodon: new Set(config.SOCIAL_CONVERSATION_MASTODON_ORIGINS),
+    },
+    get: publicJson(createDnsResolver({ timeoutMs: 1000 })),
+  });
   const subscribers = [
     supporterIngestSubscriber(uow),
     confirmationMailSubscriber(confirmation),
@@ -502,6 +516,7 @@ export function createRuntime(
     platform,
     invoker,
     uow,
+    conversationCounts: socialConversation.read,
     tenants,
     sites,
     siteUrl: (site, path) => siteUrl(site, platform, path),
@@ -542,6 +557,7 @@ export function createRuntime(
         identity,
         mail,
         editions: confirmation,
+        socialConversation,
         retentionDays: config.JOBS_RETENTION_DAYS,
         auditRetentionDays: config.AUDIT_RETENTION_DAYS,
         errors,
@@ -574,7 +590,9 @@ export function createRuntime(
       });
       const stopJobs = startJobWorker(operatorDb, inJobContext(handlers), {
         intervalMs: JOBS_INTERVAL_MS,
-        recurring: RECURRING_JOBS,
+        recurring: socialConversation.enabled
+          ? [...RECURRING_JOBS, { type: 'social-conversation.plan', cadence: 'hourly' }]
+          : RECURRING_JOBS,
         pools: JOB_POOLS,
         log,
         onError: errors.capture,

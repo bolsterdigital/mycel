@@ -38,10 +38,19 @@ export function itemCacheHeaders(view: {
   restricted: boolean;
   personal: boolean;
   etag: string | null;
+  conversationCountsVisible?: boolean;
 }): Record<string, string> {
   const vary: Record<string, string> = view.restricted ? { vary: 'Cookie' } : {};
   if (view.personal) return { 'cache-control': PRIVATE_NO_STORE, ...vary };
-  if (view.etag) return { etag: view.etag, 'cache-control': PUBLIC_CACHE, ...vary };
+  // A cached tally may be revoked before the ordinary article's stale window ends.
+  if (view.etag)
+    return {
+      etag: view.etag,
+      'cache-control': view.conversationCountsVisible
+        ? 'public, max-age=0, stale-while-revalidate=0, must-revalidate'
+        : PUBLIC_CACHE,
+      ...vary,
+    };
   return { 'cache-control': NO_STORE, ...vary };
 }
 

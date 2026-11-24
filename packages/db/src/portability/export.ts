@@ -92,6 +92,7 @@ export const TABLES = {
   media_usages: 'export',
   managed_videos: 'export',
   managed_video_uploads: 'operational',
+  social_conversation_counts: 'operational',
   content_items: 'export',
   content_revisions: 'export',
   // Who has an item open this minute (0038): no site data, and gone within the minute.

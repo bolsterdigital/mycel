@@ -97,6 +97,7 @@ import type { Database } from './infra/schema.js';
 import { usageReader } from './operations/usage.js';
 import { supporterAdmissions } from './infra/admissions.js';
 
+export { conversationCache, publishedConversationLinks } from './content/social-conversation.js';
 export type { Database } from './infra/schema.js';
 export { credentialKey, encryptCredential, decryptCredential } from './connections/connections.js';
 export { uuidv7, uuidv7Ids } from './infra/ids.js';

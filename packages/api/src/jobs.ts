@@ -16,6 +16,7 @@ import {
   runConnectionIntent,
   type ConnectionDispatchDeps,
   parseJobPayload,
+  jobKey,
   runVideoCreate,
   publishScheduled,
   renderShareCard,
@@ -83,6 +84,7 @@ export const JOB_POOLS: readonly JobPool[] = [
   // A newsletter run talks to the mail provider for up to three minutes (ADR 010 rule 9): in
   // the default pool it would hold up a scheduled publication, behind an export it would wait.
   { name: 'newsletter', types: ['mailing.edition.deliver'] },
+  { name: 'conversation', types: ['social-conversation.refresh'] },
 ];
 
 /** Platform jobs the worker plans for itself (brief #15 decision 6). */
@@ -375,6 +377,7 @@ export function jobHandlers({
   exports,
   connections,
   editions,
+  socialConversation,
 }: {
   uow: UnitOfWork;
   operatorDb: ReturnType<typeof createDb>;
@@ -396,12 +399,36 @@ export function jobHandlers({
   };
   /** Newsletter delivery; without it the job fails, which suites that send no edition allow. */
   editions?: EditionMailDeps | undefined;
+  socialConversation?: { enabled: boolean; refresh(tenantId: string): Promise<void> };
 }): JobHandlers {
   const exportConfig = (): ExportJobConfig => {
     if (!exports) throw new Error('the export jobs are not configured in this worker');
     return exports;
   };
   return {
+    'social-conversation.plan': platformJob('social-conversation.plan', async () => {
+      if (!socialConversation?.enabled) return;
+      await forEachTenant(
+        'social-conversation.plan',
+        tenantIds,
+        (id) =>
+          uow.run(systemPrincipal(id, 'jobs:social-conversation.plan'), async (ctx) => {
+            await ctx.jobs.enqueue({
+              type: 'social-conversation.refresh',
+              key: jobKey('social-conversation.refresh', id),
+              runAt: ctx.clock.now(),
+              payload: {},
+            });
+            return 1;
+          }),
+        errors
+      );
+    }),
+    'social-conversation.refresh': async (job) => {
+      if (!job.tenantId) throw new Error('social-conversation.refresh needs a tenant');
+      parseJobPayload('social-conversation.refresh', job.payload);
+      await socialConversation?.refresh(job.tenantId);
+    },
     'connections.mailchimp.sync': async (job) => {
       if (!job.tenantId || !connections?.mailchimpSync)
         throw new Error('Mailchimp comparison is not configured');

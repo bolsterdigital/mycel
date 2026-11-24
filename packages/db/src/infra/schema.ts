@@ -761,6 +761,15 @@ export interface Database {
     updated_at: Timestamp;
     deleted_at: Timestamp | null;
   };
+  social_conversation_counts: {
+    tenant_id: string;
+    network: 'bluesky' | 'mastodon';
+    post_key: string;
+    checked_at: Date;
+    expires_at: Date | null;
+    replies: number | null;
+    reposts: number | null;
+  };
   managed_videos: {
     tenant_id: string;
     id: string;

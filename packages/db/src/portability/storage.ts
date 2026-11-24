@@ -514,6 +514,16 @@ export const STORAGE = {
     ],
     retention: SITE_KEPT,
   },
+  social_conversation_counts: {
+    category: 'content',
+    owner: 'tenant',
+    copies: IDS_ONLY,
+    retention: {
+      kind: 'term',
+      term: 'Visible for at most two hours; inactive cache entries pruned after one day',
+      by: 'social-conversation.refresh',
+    },
+  },
   managed_video_uploads: {
     category: 'media',
     owner: 'tenant',

@@ -145,6 +145,7 @@ export interface PublicItem {
   personal: boolean;
   /** Strong, or null for an item with a form or a personal answer; see the comment at the top. */
   etag: string | null;
+  conversationCountsVisible: boolean;
 }
 
 export interface PublicZone {
@@ -163,7 +164,7 @@ export async function loadPublicItem(
   /** The request's cookies, for a restricted item; without them everyone is a visitor. */
   cookies?: Cookies
 ): Promise<PublicItem> {
-  const { invoker, uow } = runtime();
+  const { invoker, uow, conversationCounts } = runtime();
   const { tenant } = site;
   const reader = anonymousPrincipal(siteTenant(site), ['content:read', 'forms:read', 'media:read']);
   const read = async (as: Principal): Promise<PublishedItem> => {
@@ -199,6 +200,26 @@ export async function loadPublicItem(
     itemId: item.id,
     ...(item.readerMedia ? { signedMedia: item.readerMedia } : {}),
   });
+  let conversationCountsVisible = false;
+  if (item.type === 'article' && !restricted) {
+    const conversations = model.blocks.filter((block) => block.type === 'social-conversation');
+    if (conversations.length) {
+      const { social } = await siteChrome(site);
+      const counts = await conversationCounts(
+        reader,
+        social,
+        conversations.flatMap((block) => block.links.map(({ href }) => href))
+      ).catch(() => new Map());
+      for (const block of conversations) {
+        for (const link of block.links) {
+          const found = counts.get(link.href);
+          if (!found) continue;
+          link.counts = found;
+          conversationCountsVisible = true;
+        }
+      }
+    }
+  }
   // A later page exists only where an overview with an archive still has entries on it.
   if (
     archivePage > 1 &&
@@ -329,6 +350,7 @@ export async function loadPublicItem(
     gate,
     restricted,
     personal,
+    conversationCountsVisible,
   };
   if (personal || hasForm(model) || (prefooter && hasForm(prefooter.model)))
     return { ...page, etag: null };

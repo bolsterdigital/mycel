@@ -8,6 +8,9 @@
 import { z } from 'zod';
 
 export const JobPayloads = {
+  /** Hourly planner and bounded tenant refresh for public conversation counts. */
+  'social-conversation.plan': z.object({}).strict(),
+  'social-conversation.refresh': z.object({}).strict(),
   'connections.mailchimp.sync': z.object({ intentId: z.string().guid() }).strict(),
   'connections.run': z.object({ intentId: z.string().guid() }).strict(),
   /** Tenant job: evaluate one pending proposal outside the request transaction. */

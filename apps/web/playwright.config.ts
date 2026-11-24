@@ -55,6 +55,8 @@ export default defineConfig({
     reuseExistingServer: false,
     env: {
       ...(frontEnv as Record<string, string>),
+      // Browser fixtures seed the cache; the worker never sees this provider allowlist.
+      SOCIAL_CONVERSATION_MASTODON_ORIGINS: 'https://social.example.org',
       HOST: '127.0.0.1',
       PORT: String(port),
       PUBLIC_BASE_URL: origin,
