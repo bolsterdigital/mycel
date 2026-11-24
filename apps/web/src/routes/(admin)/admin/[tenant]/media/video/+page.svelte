@@ -171,15 +171,15 @@
           >
           <p>{t(`admin.video.state.${video.state}`)}</p>
           {#if data.canWrite}
-            <ul>
+            <Actions>
               {#each data.tenant.locales as language (language)}
-                <li>
-                  <a href={`?recording=${video.id}&language=${language}#transcript`}
-                    >{t('admin.video.transcript.edit')} ({language})</a
-                  >
-                </li>
+                <Button
+                  variant="link"
+                  href={`?recording=${video.id}&language=${language}#transcript`}
+                  >{t('admin.video.transcript.edit')} ({language})</Button
+                >
               {/each}
-            </ul>
+            </Actions>
             <form method="POST">
               <input type="hidden" name="id" value={video.id} />
               <Actions>
