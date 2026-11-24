@@ -25,7 +25,13 @@ import {
 import { DEFAULT_ENTITLEMENTS } from '../entitlements/model.js';
 import { Invoker } from '../invoke.js';
 import { systemPrincipal } from '../principal.js';
-import { MemoryUnitOfWork, probeForm, TENANT } from '../testing/index.js';
+import {
+  LOCALE_SENTINEL,
+  markEnglish,
+  MemoryUnitOfWork,
+  probeForm,
+  TENANT,
+} from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { imageUsesIn } from '../media/listing.js';
 import { altWarnings } from './model.js';
@@ -58,21 +64,6 @@ const docOf = (blocks: unknown[]) =>
       ? { access: { level: 'members', teaser: 'marker' } }
       : {}),
   });
-
-/**
- * Every visible string under an `en` key replaced by a sentinel: the value itself or a `text`
- * node inside it. Ids, URLs and discriminators stay, so the block still parses.
- */
-function sentinel(value: unknown, inEn = false, key = ''): unknown {
-  if (typeof value === 'string')
-    return inEn && (key === 'en' || key === 'text') ? 'LEAK-SENTINEL' : value;
-  if (Array.isArray(value)) return value.map((v) => sentinel(v, inEn, ''));
-  if (value && typeof value === 'object')
-    return Object.fromEntries(
-      Object.entries(value).map(([k, v]) => [k, sentinel(v, inEn || k === 'en', k)])
-    );
-  return value;
-}
 
 /** Every localised map of a value: objects whose keys are all locales of the examples. */
 function localeKeysOf(value: unknown, out: string[][] = []): string[][] {
@@ -249,11 +240,11 @@ describe('field descriptions (brief content-editor § B)', () => {
 
 describe('locale projection', () => {
   it.each(examples)('$name projected to nl carries nothing of en', ({ input }) => {
-    const block = stored(sentinel(input));
+    const block = stored(markEnglish(input));
     // Not vacuous: a block with localised fields really carries the sentinel before projection.
-    if (blockLocalized(block).length) expect(JSON.stringify(block)).toContain('LEAK-SENTINEL');
+    if (blockLocalized(block).length) expect(JSON.stringify(block)).toContain(LOCALE_SENTINEL);
     const projected = projectBlock(block, 'nl');
-    expect(JSON.stringify(projected)).not.toContain('LEAK-SENTINEL');
+    expect(JSON.stringify(projected)).not.toContain(LOCALE_SENTINEL);
     for (const keys of localeKeysOf(projected.props)) expect(keys).toEqual(['nl']);
   });
 
@@ -282,6 +273,40 @@ describe('locale projection', () => {
     ]);
     expect(paths('faq', 'faq-list')).toContain('props.entries.1.answer');
     expect(paths('quote', 'quote-blockquote')).toEqual(['props.text', 'props.attribution.role']);
+  });
+});
+
+describe('social conversation permalinks', () => {
+  const example = { id: 'conversation', type: 'social-conversation', version: 1 };
+
+  it('allows publication in a locale with no posts', () => {
+    const draft = {
+      ...example,
+      props: { blueskyPost: { nl: 'https://bsky.app/profile/did:plc:example/post/3k4duaz5vfs2b' } },
+    };
+    const doc = docOf([draft]);
+    expect(readinessIssues(doc, 'nl')).toEqual([]);
+    expect(readinessIssues(doc, 'en')).toEqual([]);
+    const projected = projectBlock(doc.blocks[0]!, 'en');
+    expect(stored(projected).props).toEqual({ blueskyPost: {} });
+  });
+
+  it.each([
+    ['blueskyPost', 'http://bsky.app/profile/example.org/post/3k4duaz5vfs2b'],
+    ['blueskyPost', 'https://bsky.app.evil.example/profile/example.org/post/3k4duaz5vfs2b'],
+    ['blueskyPost', 'https://bsky.app/profile/example.org'],
+    ['mastodonPost', 'https://user@social.example.org/@otterdam/123'],
+    ['mastodonPost', 'https://social.example.org/@otterdam'],
+    ['mastodonPost', 'https://127.0.0.1/@otterdam/123'],
+    ['mastodonPost', 'https://social.example.org/@otterdam/123?bad=>'],
+    ['mastodonPost', 'javascript:alert(1)'],
+  ])('rejects %s with %s', (key, href) => {
+    const result = BlockInput.safeParse({ ...example, props: { [key]: { nl: href } } });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]).toMatchObject({
+      path: ['props', key, 'nl'],
+      message: 'content.social-conversation.post-url',
+    });
   });
 });
 

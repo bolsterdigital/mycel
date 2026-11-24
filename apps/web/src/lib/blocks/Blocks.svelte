@@ -25,6 +25,7 @@
   import Image from './Image.svelte';
   import Quote from './Quote.svelte';
   import RichText from './RichText.svelte';
+  import SocialConversation from './SocialConversation.svelte';
   import VideoEmbed from './VideoEmbed.svelte';
   import { anchorIds } from './anchor.js';
 
@@ -129,6 +130,8 @@
     <Faq anchor={anchors.get(block.id)} {depth} {block} {model} />
   {:else if block.type === 'quote'}
     <Quote anchor={anchors.get(block.id)} {block} />
+  {:else if block.type === 'social-conversation'}
+    <SocialConversation anchor={anchors.get(block.id)} {block} {model} {depth} />
   {:else if block.type === 'video-embed'}
     <VideoEmbed anchor={anchors.get(block.id)} {block} {model} eager={block.id === firstImage} />
   {:else if block.type === 'form'}

@@ -717,6 +717,7 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.hero.image-required': 'admin.block.issue.heroImage',
   'content.link.unsafe': 'admin.block.issue.unsafeLink',
   'content.link.one-target': 'admin.block.issue.unsafeLink',
+  'content.social-conversation.post-url': 'admin.block.issue.socialPostUrl',
   'content.video.id-invalid': 'admin.block.issue.videoId',
   'content.reference.person-group-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.author-unknown': 'admin.content.issue.referenceUnknown',

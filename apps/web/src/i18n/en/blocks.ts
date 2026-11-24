@@ -141,6 +141,7 @@ export const blocks = {
   'admin.block.issue.heroImage': 'this variant needs an image',
   'admin.block.issue.unsafeLink':
     'give an address that starts with https://, http://, mailto: or /',
+  'admin.block.issue.socialPostUrl': 'Enter an HTTPS link to a post on this network.',
   'admin.block.issue.videoId': 'this is not a video id of that provider',
   'admin.block.issue.adjacentText': 'two text blocks cannot stand next to each other',
   'admin.block.issue.mergeAmbiguous':
@@ -177,6 +178,7 @@ export const blocks = {
   'admin.block.type.callout': 'Callout',
   'admin.block.type.faq': 'Questions and answers',
   'admin.block.type.quote': 'Quote',
+  'admin.block.type.social-conversation': 'Social conversation',
   'admin.block.type.video-embed': 'Video',
   'admin.block.type.form': 'Form',
   'admin.block.type.campaign-card': 'Campaign card',
@@ -317,6 +319,8 @@ export const blocks = {
   'admin.block.field.licenceUrl': 'Licence link',
   'admin.block.field.youtubeWatchId': 'YouTube ID of the same recording',
   'admin.block.field.videoPageId': 'Video page on this site',
+  'admin.block.field.blueskyPost': 'Bluesky post',
+  'admin.block.field.mastodonPost': 'Mastodon post',
   'admin.block.field.videoId': 'Video id',
   'admin.block.field.label': 'Label',
   'admin.block.field.target': 'Links to',
