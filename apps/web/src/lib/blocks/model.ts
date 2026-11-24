@@ -157,6 +157,12 @@ export interface RenderIntro {
    * page's (ADR 025, amended 2026-11-23).
    */
   header: DocumentHeader;
+  article?: {
+    portraits: boolean;
+    initial: boolean;
+    readingTime: string | null;
+    authors: { name: string; href: string | null; image: RenderImage | null }[];
+  };
   /** The split header's one button; absent without one or when its target is unavailable. */
   action?: RenderAction | null;
   meta: RenderMeta | null;

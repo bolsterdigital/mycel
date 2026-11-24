@@ -77,7 +77,7 @@ const KEY = 'mycel.transition-pair';
 const CARD = '.overview-card, .campaign-card, .person-card';
 const HEADINGS = 'h2, h3, h4, h5, h6';
 const CARDS_CTA = '.cards-item > .actions > a[href]';
-const BYLINE_LINK = '.page-meta > a[href]';
+const BYLINE_LINK = '.page-meta a[href]';
 /** Title links, Cards actions and the linked names in an article's byline. */
 const SOURCE_LINKS = `:is(${CARD}) :is(${HEADINGS}) a[href], ${CARDS_CTA}, ${BYLINE_LINK}`;
 

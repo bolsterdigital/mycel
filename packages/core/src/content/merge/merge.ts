@@ -81,7 +81,15 @@ function merge(base: unknown, mine: unknown, theirs: unknown, path: string, out:
     if (!isObject(base) || base['mediaId'] !== mine['mediaId']) base = {};
   }
   // An optional block-name map still merges per locale when it was absent on the base.
-  if (/^blocks\[id=[^\]]+\]\.name$/.test(path)) {
+  if (
+    /^blocks\[id=[^\]]+\]\.name$/.test(path) ||
+    /^presentation\.overrides(?:\.(post|longread))?$/.test(path) ||
+    (path === 'presentation' &&
+      !base &&
+      isObject(mine) &&
+      isObject(theirs) &&
+      ('profile' in mine || 'profile' in theirs))
+  ) {
     const result: Obj = {};
     const [b, m, t] = [base, mine, theirs].map((v) => (isObject(v) ? v : {}));
     for (const k of new Set([...Object.keys(b!), ...Object.keys(m!), ...Object.keys(t!)])) {

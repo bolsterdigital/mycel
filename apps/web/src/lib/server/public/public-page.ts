@@ -213,6 +213,7 @@ export async function loadPublicItem(
       ...(item.type === 'article'
         ? {
             header: item.presentation?.header ?? 'standard',
+            ...(item.articleView ? { view: item.articleView, authors: item.authors ?? [] } : {}),
             meta: renderMeta(
               {
                 publishedAt: item.publishedAt,
@@ -229,7 +230,7 @@ export async function loadPublicItem(
     locale,
     item.readerMedia
   );
-  if (intro.meta && item.authors?.length) {
+  if (!intro.article && intro.meta && item.authors?.length) {
     const parts = new Intl.ListFormat(locale, { type: 'conjunction' }).formatToParts(
       item.authors.map((a) => a.name)
     );

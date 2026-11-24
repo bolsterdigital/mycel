@@ -20,6 +20,8 @@
 // revision when nothing is published (a frontend must never promote a draft on its own), and
 // keeping `content.page.get` as an alias (two names for one contract drift apart).
 
+import { ArticleView, articleView } from './header/article-profile.js';
+import type { TransactionContext } from '../ports.js';
 import { z } from 'zod';
 import { ImagePlacement, placementFor } from '../media/placement.js';
 import { notFound } from '../errors.js';
@@ -93,9 +95,16 @@ export const PublishedItem = z.object({
   /** Images and short texts after inheritance (#86), so no reader derives them on its own. */
   effective: EffectiveView,
   corrections: z.array(z.object({ date: z.string().date(), text: z.string() })).optional(),
+  articleView: ArticleView.optional(),
   authors: z
     .array(
-      z.object({ id: z.string().guid(), slug: Slug, name: z.string(), pageEnabled: z.boolean() })
+      z.object({
+        id: z.string().guid(),
+        slug: Slug,
+        name: z.string(),
+        pageEnabled: z.boolean(),
+        imageId: z.string().guid().optional(),
+      })
     )
     .optional(),
   section: z.object({ slug: Slug, name: z.string() }).nullable().optional(),
@@ -241,21 +250,13 @@ export const getPublished = defineUseCase({
 
     // Authors and section as the public sees them: name and slug, never an author's e-mail.
     // A reference that no longer resolves is left out rather than failing the page.
-    const authors = [];
-    for (const id of doc.authorIds) {
-      const author = await ctx.authors.get(id);
-      if (author)
-        authors.push({
-          id: author.id,
-          slug: author.slug,
-          name: author.name,
-          pageEnabled: await personPageEnabled(ctx, author),
-        });
-    }
+    const view = articleView(doc, chosen);
+    const authors = await publishedAuthors(ctx, doc.authorIds, !!view?.portraits);
     const section = doc.sectionId ? await ctx.sections.get(doc.sectionId) : null;
     return {
       ...base,
-      presentation: { header: doc.presentation?.header ?? 'standard' },
+      presentation: { header: view?.header ?? doc.presentation?.header ?? 'standard' },
+      ...(view ? { articleView: view } : {}),
       corrections: doc.corrections.flatMap((c) => {
         const text = c.text[chosen];
         return text ? [{ date: c.date, text }] : [];
@@ -290,4 +291,24 @@ function pagePresentation(doc: Extract<ContentDocument, { type: 'page' }>, local
     header,
     ...(header === 'split' && action && label ? { action: { label, target: action.target } } : {}),
   };
+}
+
+export async function publishedAuthors(
+  ctx: TransactionContext,
+  authorIds: readonly string[],
+  portraits: boolean
+) {
+  const authors = [];
+  for (const id of authorIds) {
+    const author = await ctx.authors.get(id);
+    if (author)
+      authors.push({
+        id: author.id,
+        slug: author.slug,
+        name: author.name,
+        ...(portraits && author.imageId ? { imageId: author.imageId } : {}),
+        pageEnabled: await personPageEnabled(ctx, author),
+      });
+  }
+  return authors;
 }

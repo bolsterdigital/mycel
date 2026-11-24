@@ -312,6 +312,48 @@
       aspect-ratio: 16 / 9;
     }
   }
+  .page > .article-compact {
+    width: min(45rem, 67.5vh, 100% - 2 * var(--gutter));
+  }
+  .article-compact img {
+    aspect-ratio: 3 / 2;
+    width: 100%;
+  }
+  @container (max-width: 40rem) {
+    .page > .article-compact {
+      width: calc(100% - 2 * var(--gutter));
+    }
+    .article-compact img {
+      aspect-ratio: 16 / 9;
+    }
+  }
+  .article-meta,
+  .article-authors {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: baseline;
+    gap: 0.5em 1em;
+  }
+  .article-meta.expanded .article-authors {
+    flex-basis: 100%;
+  }
+  .article-author {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .article-author picture {
+    display: inline;
+  }
+  .article-author img {
+    display: inline-block;
+    inline-size: 3rem;
+    block-size: 3rem;
+    object-fit: cover;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-inline-end: 0.5em;
+  }
   /* An event's when and where: under the lead in the lead's rail, each term above its value
      so a long date or address wraps at 320 px without a column to squeeze it. */
   .page > .page-event {

@@ -19,6 +19,7 @@ import { exercisePublishedRepresentations } from './lib/published/representation
 import { exerciseFeeds } from './lib/published/feeds';
 import { exerciseShareCards, shareCardOf } from './lib/published/share-cards';
 import { exerciseOldAddresses } from './lib/published/old-addresses';
+import { exerciseArticleProfiles } from './lib/published/article-profiles';
 import { exerciseSplitHeader } from './lib/published/page-headers';
 import { exercisePublicSearch } from './lib/published/search';
 import { openPublication, closePublication } from './lib/publication';
@@ -580,9 +581,7 @@ test.describe('content-routes', () => {
   });
 
   /**
-   * A copy of the quality article with a lead and its first block image as hero: synthetic
-   * assets that are already public and ready, never an upload. One item per project and slug:
-   * two creates of one slug at once answer 500 instead of 409.
+   * A separate article per project using the quality fixture’s ready hero image.
    */
   const heroArticle = async (
     request: APIRequestContext,
@@ -613,6 +612,7 @@ test.describe('content-routes', () => {
   }) => {
     const slug = `e2e-intro-99-${isA11y() ? 'a11y' : 'no-js'}`;
     const target = await heroArticle(request, slug, (doc) => {
+      if (doc.type === 'article') doc.presentation = { header: 'standard' };
       // The quality article's text opens with a heading, which by design gets no drop cap.
       const paragraph = (text: string) => ({
         type: 'doc' as const,
@@ -778,7 +778,7 @@ test.describe('content-routes', () => {
     await expect(summary).toContainText('Ontbreekt nog in het Engels', { useInnerText: true });
     await expect(line).toHaveAttribute('data-tone', 'ok');
     // The layout belongs to the whole opening, not to the image.
-    await expect(page.locator('.ui-edit-side #headerLayout')).toHaveCount(1);
+    await expect(page.locator('.ui-edit-side #articleProfile')).toHaveCount(1);
     await expect(page.locator('.item-header #headerLayout')).toHaveCount(0);
 
     // The error tone on text carries no green check. Set by hand: no screen reaches it yet, because
@@ -2168,3 +2168,6 @@ test.describe('menu anchors', () => {
     return scrollLockKeepsWidth(browser.browserType(), baseURL!, headers, slug);
   });
 });
+
+test('article profiles preserve overrides and frame ordinary photos', async ({ page }) =>
+  exerciseArticleProfiles(page));

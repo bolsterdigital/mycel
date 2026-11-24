@@ -40,6 +40,10 @@
 </script>
 
 <svelte:head>
+  {#if data.view === 'item' && data.dropCap && data.intro.article?.initial}<script
+      type="module"
+      src="/_site/article-initial.js"
+    ></script>{/if}
   {#if data.view === 'thanks' || data.view === 'campaign-thanks'}
     <title>{data.title}</title>
   {:else}
@@ -125,7 +129,11 @@
   </main>
 {:else}
   {#if data.consent}<ConsentBanner consent={data.consent} />{/if}
-  <main class="page" data-drop-cap={data.dropCap ? '' : undefined}>
+  <main
+    class="page"
+    data-drop-cap={data.dropCap && !data.intro.article ? '' : undefined}
+    data-measure-initial={data.dropCap && data.intro.article?.initial ? '' : undefined}
+  >
     {#snippet refused()}
       {#if orphanMessage}
         <div class="block error-summary" role="alert" aria-labelledby="summary-refused">

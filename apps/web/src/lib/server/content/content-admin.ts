@@ -25,6 +25,8 @@
 // and loading the whole directory (unbounded).
 
 import {
+  ARTICLE_OPTIONS,
+  ARTICLE_PROFILES,
   canonicalTag,
   localizedFields,
   type Actor,
@@ -209,6 +211,10 @@ export function valuesOf(doc: ContentDocument): FormValues {
     v.eventOnlineUrl = doc.event?.onlineUrl ?? '';
   }
   if (doc.type === 'article') {
+    v.articleProfile = doc.presentation?.profile ?? '';
+    for (const profile of ARTICLE_PROFILES)
+      for (const key of Object.keys(ARTICLE_OPTIONS) as (keyof typeof ARTICLE_OPTIONS)[])
+        v[`profile.${profile}.${key}`] = doc.presentation?.overrides?.[profile]?.[key] ?? '';
     v.headerLayout = doc.presentation?.header ?? 'standard';
     v.authorIds = [...doc.authorIds];
     v.sectionId = doc.sectionId ?? '';
@@ -413,11 +419,34 @@ export function documentFrom(
     presentation?: { header?: 'standard' | 'cover' };
   };
   const header = 'headerLayout' in v ? one(v, 'headerLayout') : doc.presentation?.header;
+  const profile = 'articleProfile' in v ? one(v, 'articleProfile') : doc.presentation?.profile;
+  let presentation = doc.presentation;
+  if (profile) {
+    const overrides: Record<string, Record<string, string>> = {};
+    for (const id of ARTICLE_PROFILES) {
+      const options: Record<string, string> = {};
+      for (const key of Object.keys(ARTICLE_OPTIONS) as (keyof typeof ARTICLE_OPTIONS)[]) {
+        const name = `profile.${id}.${key}`;
+        const value = name in v ? one(v, name) : doc.presentation?.overrides?.[id]?.[key];
+        if (value) options[key] = value;
+      }
+      if (Object.keys(options).length) overrides[id] = options;
+    }
+    presentation = {
+      profile: profile as (typeof ARTICLE_PROFILES)[number],
+      ...(Object.keys(overrides).length ? { overrides } : {}),
+    };
+  } else if (
+    header !== doc.presentation?.header &&
+    !(header === 'standard' && !doc.presentation?.header)
+  ) {
+    presentation = header === 'cover' ? { header } : undefined;
+  }
   const subject = pick('emailSubject', doc.delivery.email?.subject);
   return {
     ...article,
     delivery: deliveryFrom(doc, v, subject, common.title, shown),
-    ...(header === 'cover' ? { presentation: { header } } : {}),
+    ...(presentation ? { presentation } : {}),
     type: 'article',
     authorIds: keepOrder(doc.authorIds, many(v, 'authorIds')),
     sectionId: one(v, 'sectionId') || null,

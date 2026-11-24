@@ -32,6 +32,7 @@ export const PUBLIC_SCRIPTS = [
   '/_image/lightbox.js',
   NAVIGATION_SCRIPT,
   '/_site/campaign-body.js',
+  '/_site/article-initial.js',
   TRANSITIONS_SCRIPT,
 ] as const;
 

@@ -433,7 +433,11 @@ export const createItem = defineUseCase({
       // A copy, not a link: the new document gets its own block ids.
       blocks = pattern.blocks.map(({ id: _id, ...b }) => b as BlockInput);
     }
-    const doc = finalize(ctx, document, blocks);
+    const first =
+      document.type === 'article' && !document.presentation
+        ? { ...document, presentation: { profile: 'post' as const } }
+        : document;
+    const doc = finalize(ctx, first, blocks);
     await assertReferences(ctx, doc);
     return insertDraft(ctx, slug, doc, taken);
   },

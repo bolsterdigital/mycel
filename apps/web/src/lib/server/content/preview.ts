@@ -12,6 +12,8 @@
 // and a cross-origin load per image).
 
 import {
+  articleView,
+  publishedAuthors,
   CampaignCardReason,
   anonymousPrincipal,
   effectiveImages,
@@ -86,13 +88,10 @@ export async function introOf(
       throw e;
     }
   };
-  const authors: string[] = [];
-  for (const authorId of doc.authorIds) {
-    const author = await found(() =>
-      invoker.run(useCases.getPerson, reader, { personId: authorId })
-    );
-    if (author) authors.push(author.name);
-  }
+  const view = articleView(doc, locale);
+  const authors = await runtime().uow.run(reader, (ctx) =>
+    publishedAuthors(ctx, doc.authorIds, !!view?.portraits)
+  );
   const section = doc.sectionId
     ? await found(() =>
         invoker.run(useCases.getSection, reader, { sectionId: doc.sectionId as string })
@@ -101,11 +100,12 @@ export async function introOf(
   const { timeZone } = (await invoker.run(useCases.getSiteGeneral, reader, {})).value;
   return {
     ...header,
-    header: doc.presentation?.header ?? ('standard' as const),
+    header: view?.header ?? doc.presentation?.header ?? ('standard' as const),
+    ...(view ? { view, authors } : {}),
     meta: renderMeta(
       {
         publishedAt: publishedAt ?? new Date().toISOString(),
-        authors,
+        authors: authors.map((a) => a.name),
         section: section ? (pick(section.title, locale, doc.defaultLocale) ?? section.slug) : null,
       },
       locale,
