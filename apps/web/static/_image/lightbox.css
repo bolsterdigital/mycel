@@ -86,7 +86,7 @@ dialog.lightbox::backdrop {
   max-height: 30vh;
   overflow-y: auto;
   padding-block: 0.75rem 1rem;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   line-height: 1.4;
 }
 .lightbox-caption[hidden] {
