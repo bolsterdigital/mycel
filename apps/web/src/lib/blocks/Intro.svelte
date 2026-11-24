@@ -61,7 +61,12 @@
         <div class="article-authors">
           {#each intro.article.authors as author, index (index)}
             <span class="article-author">
-              {#if author.image}<Picture image={author.image} base={model.base} sizes="3rem" />{/if}
+              {#if author.image}<Picture
+                  image={author.image}
+                  base={model.base}
+                  sizes="3rem"
+                  framed
+                />{/if}
               {#if author.href}<a href={withBase(model.base, author.href)}>{author.name}</a
                 >{:else}<span>{author.name}</span>{/if}
             </span>
@@ -141,7 +146,7 @@
       <Picture
         image={intro.hero}
         base={model.base}
-        sizes={intro.article ? '(max-width: 40rem) 100vw, min(67.5vh, 45rem)' : IMAGE_SIZES.wide}
+        sizes={intro.article ? '(max-width: 40rem) 100vw, min(67.5dvh, 45rem)' : IMAGE_SIZES.wide}
         framed={!!intro.article}
         eager
       />

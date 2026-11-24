@@ -100,9 +100,9 @@ export async function exerciseArticleProfiles(page: Page) {
     await editorReady(page);
     const profile = page.locator('#articleProfile');
     await profile.focus();
-    await page.keyboard.press('Home');
+    await profile.press('p');
     await expect(profile).toHaveValue('post');
-    await page.keyboard.press('End');
+    await profile.press('ArrowDown');
     await expect(profile).toHaveValue('longread');
     const advanced = page.locator('details.longread');
     await advanced.locator('summary').focus();

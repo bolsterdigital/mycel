@@ -313,9 +313,10 @@
     }
   }
   .page > .article-compact {
-    width: min(45rem, 67.5vh, 100% - 2 * var(--gutter));
+    width: min(45rem, 67.5dvh, 100% - 2 * var(--gutter));
   }
   .article-compact img {
+    object-fit: var(--frame-fit, cover);
     aspect-ratio: 3 / 2;
     width: 100%;
   }

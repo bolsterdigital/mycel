@@ -104,6 +104,7 @@ export const PublishedItem = z.object({
         name: z.string(),
         pageEnabled: z.boolean(),
         imageId: z.string().guid().optional(),
+        imagePlacement: ImagePlacement.optional(),
       })
     )
     .optional(),
@@ -301,14 +302,23 @@ export async function publishedAuthors(
   const authors = [];
   for (const id of authorIds) {
     const author = await ctx.authors.get(id);
-    if (author)
-      authors.push({
-        id: author.id,
-        slug: author.slug,
-        name: author.name,
-        ...(portraits && author.imageId ? { imageId: author.imageId } : {}),
-        pageEnabled: await personPageEnabled(ctx, author),
-      });
+    if (!author) continue;
+    const image = portraits && author.imageId ? await ctx.media.get(author.imageId) : null;
+    const visible =
+      image &&
+      !image.deletedAt &&
+      image.kind === 'image' &&
+      image.state === 'ready' &&
+      image.access === 'public';
+    authors.push({
+      id: author.id,
+      slug: author.slug,
+      name: author.name,
+      ...(visible
+        ? { imageId: image.id, imagePlacement: placementFor(author.imagePlacement, image.id) }
+        : {}),
+      pageEnabled: await personPageEnabled(ctx, author),
+    });
   }
   return authors;
 }

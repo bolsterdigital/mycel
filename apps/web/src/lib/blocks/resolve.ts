@@ -233,7 +233,7 @@ export async function resolveIntro(
                   author.imageId && intro.view?.portraits
                     ? renderAssetImage(
                         await source.media(author.imageId),
-                        { decorative: true, alt: null },
+                        { decorative: true, alt: null, placement: author.imagePlacement },
                         locale
                       )
                     : null,

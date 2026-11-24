@@ -268,7 +268,7 @@ const Dossiers = z
   .refine((d) => new Set(d.map((v) => v.itemId)).size === d.length, 'content.dossier.duplicate');
 
 /** The closed choice of article headers (ADR 025 rule 3). */
-export { ARTICLE_HEADERS } from './header/article-profile.js';
+
 /**
  * The closed choice of page headers (ADR 025, amended 2026-11-23): the article's two plus `split`,
  * title, lead and at most one button in a panel beside the image. Rejected: `split` for articles,
