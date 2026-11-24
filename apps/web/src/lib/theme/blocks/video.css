@@ -117,7 +117,7 @@
   overflow-wrap: anywhere;
 }
 /* Let a linked maker keep its own touch target when the watch link wraps below it. */
-.video-credit:has(> a) {
+.video-credit:has(> a:not([rel='license'])) {
   flex: 0 1 auto;
 }
 .video-credit svg {
