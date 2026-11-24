@@ -69,7 +69,7 @@
 }
 .page-split-media img {
   aspect-ratio: 4 / 3;
-  object-fit: cover;
+  object-fit: var(--frame-fit, cover);
 }
 @container (min-width: 56rem) {
   .page-split {

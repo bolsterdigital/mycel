@@ -67,6 +67,19 @@ function merge(base: unknown, mine: unknown, theirs: unknown, path: string, out:
   if (same(mine, theirs)) return mine;
   if (same(mine, base)) return theirs;
   if (same(theirs, base)) return mine;
+  // Two placements for the same image can merge per frame even before any frame was stored.
+  // Keep the whole placement together when the editors chose different images.
+  if (
+    (path === 'heroPlacement' || path === 'featuredPlacement') &&
+    isObject(mine) &&
+    isObject(theirs)
+  ) {
+    if (mine['mediaId'] !== theirs['mediaId']) {
+      out.push({ path, base, mine, theirs });
+      return mine;
+    }
+    if (!isObject(base) || base['mediaId'] !== mine['mediaId']) base = {};
+  }
   // An optional block-name map still merges per locale when it was absent on the base.
   if (/^blocks\[id=[^\]]+\]\.name$/.test(path)) {
     const result: Obj = {};
@@ -77,7 +90,17 @@ function merge(base: unknown, mine: unknown, theirs: unknown, path: string, out:
     }
     return Object.keys(result).length ? result : undefined;
   }
-  if (isObject(base) && isObject(mine) && isObject(theirs) && !atomic(base) && !atomic(mine)) {
+  // Each crop option is one choice: merging its mode and coordinates independently can
+  // produce an impossible union or combine the two editors' positions.
+  const frame = /^(heroPlacement|featuredPlacement)\.(framing|narrow|wide)$/.test(path);
+  if (
+    isObject(base) &&
+    isObject(mine) &&
+    isObject(theirs) &&
+    !frame &&
+    !atomic(base) &&
+    !atomic(mine)
+  ) {
     const result: Obj = {};
     for (const k of new Set([...Object.keys(base), ...Object.keys(mine), ...Object.keys(theirs)])) {
       const v = merge(base[k], mine[k], theirs[k], key(path, k), out);

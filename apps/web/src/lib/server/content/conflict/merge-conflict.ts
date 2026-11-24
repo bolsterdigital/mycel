@@ -74,6 +74,8 @@ const FIELDS: Record<string, UiKey> = {
   heroImageId: 'admin.content.field.heroImage',
   heroAlt: 'admin.content.field.heroAlt',
   featuredImageId: 'admin.content.field.featuredImage',
+  featuredPlacement: 'admin.content.field.featuredImage',
+  heroPlacement: 'admin.content.field.heroImage',
   'featured.title': 'admin.content.field.featuredTitle',
   'featured.description': 'admin.content.field.featuredDescription',
   authorIds: 'admin.content.field.authors',

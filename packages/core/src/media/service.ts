@@ -33,6 +33,7 @@ import {
   MediaCredit,
   MediaLicence,
   MediaFocal,
+  StoredMediaFocal,
   MediaKind,
   MediaView,
   NO_CREDIT,
@@ -87,7 +88,7 @@ const Editorial = {
   credit: MediaCredit.optional(),
   source: z.string().max(500).nullable().optional(),
   licence: MediaLicence.nullable().optional(),
-  focal: MediaFocal.optional(),
+  focal: StoredMediaFocal.optional(),
   access: MediaAccess.optional(),
 };
 
@@ -301,6 +302,7 @@ export const uploadMedia = defineUseCase({
         .max(MAX_BASE64, 'media.size.too-large')
         .regex(/^[A-Za-z0-9+/]*={0,2}$/, 'media.bytes.base64'),
       ...Editorial,
+      focal: MediaFocal.optional(),
     })
     .strict(),
   output: MediaView,
@@ -371,7 +373,7 @@ export const uploadMedia = defineUseCase({
         credit: input.credit ?? NO_CREDIT,
         source: input.source ?? null,
         licence: input.licence ?? null,
-        focal: input.focal ?? CENTRE,
+        focal: input.focal ? { ...input.focal, mode: 'explicit' } : { ...CENTRE, mode: 'auto' },
         state: 'ready',
         createdBy: ctx.principal.actor,
         createdAt: now,
@@ -465,6 +467,11 @@ export const updateMedia = defineUseCase({
     // ADR 034 rules 4 and 7: a registered person id is a known-absent reference, and its credit
     // is stored without the free-text name, also when a stale form sends it.
     if (patch.credit) patch.credit = await withoutErasedCredits(ctx, patch.credit);
+    if (patch.focal)
+      patch.focal =
+        patch.focal.mode === 'auto'
+          ? { ...CENTRE, mode: 'auto' }
+          : { ...patch.focal, mode: 'explicit' };
     if (
       patch.credit?.photographerPersonId &&
       !(await knownPerson(ctx, patch.credit.photographerPersonId))

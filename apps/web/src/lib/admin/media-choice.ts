@@ -1,4 +1,4 @@
-import type { MediaCredit } from '@mycel/core';
+import type { MediaCredit, StoredMediaFocal } from '@mycel/core';
 
 // One file a media picker offers (brief media-picker): shared by the server that lists them and
 // the component that renders them, so neither invents its own shape.
@@ -8,6 +8,7 @@ export interface MediaChoice {
   label: string;
   /** Whether `media/<id>/thumb` exists; a failed or document upload has none. */
   thumb: boolean;
+  focal?: StoredMediaFocal | undefined;
   /** A document, offered by a document slot's picker and not by an image slot's. */
   document?: boolean;
   /** A sound file, offered by a sound slot's picker and by no other. */

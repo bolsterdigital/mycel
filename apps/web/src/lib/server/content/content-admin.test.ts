@@ -380,6 +380,33 @@ describe('documentFrom(valuesOf(doc))', () => {
     expect(kept.seo.imageId).toBe(article.seo.imageId);
   });
 
+  it('binds a crop to one use of the image and discards it on replacement or reset', () => {
+    const mediaId = '01900000-0000-7000-8000-0000000000e3';
+    const draft = ContentDocument.parse({
+      ...page,
+      heroImageId: mediaId,
+      featuredImageId: undefined,
+      heroPlacement: { mediaId, framing: { mode: 'manual', point: { x: 0.5, y: 0.24 } } },
+      featuredPlacement: { mediaId, wide: { mode: 'full' } },
+    });
+    const values = {
+      ...valuesOf(draft),
+      'heroPlacement.shown': 'on',
+      'featuredPlacement.shown': 'on',
+    };
+    const read = (extra: Record<string, string>) =>
+      documentFrom(draft, { ...values, ...extra }, '2026-11-23');
+    const reset = read({ 'heroPlacement.reset': 'on' });
+    expect(reset.heroPlacement).toBeUndefined();
+    expect(reset.featuredPlacement).toEqual(draft.featuredPlacement);
+    const auto = read({ 'heroPlacement.framing.mode': 'auto' });
+    expect(auto.heroPlacement?.framing).toEqual({ mode: 'auto' });
+    expect(read({ heroImageId: '01900000-0000-7000-8000-0000000000e4' })).not.toHaveProperty(
+      'heroPlacement'
+    );
+    expect(() => read({ 'heroPlacement.framing.y': '101' })).toThrow('invalid image placement');
+  });
+
   it('takes the lead, hero and featured texts on a page, and drops an empty featured (#86)', () => {
     const v = valuesOf(featuredPage);
     expect(v).toMatchObject({

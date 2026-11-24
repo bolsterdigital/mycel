@@ -70,7 +70,7 @@
 
 {#if intro.header === 'cover' && intro.hero}
   <header class="page-cover">
-    <Picture image={intro.hero} base={model.base} sizes="100vw" eager />
+    <Picture image={intro.hero} base={model.base} sizes="100vw" framed eager />
     <h1><span>{model.title}</span></h1>
     <a class="page-cover-arrow" href="#page-content" aria-label={model.copy.toContent}>
       <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
@@ -101,7 +101,13 @@
       <Actions actions={intro.action ? [intro.action] : []} base={model.base} />
     </div>
     <div class="page-split-media">
-      <Picture image={intro.hero} base={model.base} sizes="(min-width: 56rem) 50vw, 100vw" eager />
+      <Picture
+        image={intro.hero}
+        base={model.base}
+        sizes="(min-width: 56rem) 50vw, 100vw"
+        framed
+        eager
+      />
     </div>
   </header>
   {#if intro.hero.caption || intro.hero.credit}

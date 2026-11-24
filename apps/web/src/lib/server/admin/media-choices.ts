@@ -8,6 +8,7 @@ import {
   UseCaseError,
   useCases,
   type MediaCredit,
+  type StoredMediaFocal,
   type Principal,
 } from '@mycel/core';
 import { failureOf } from './admin-actions.js';
@@ -41,6 +42,7 @@ export const mediaChoice = (m: {
   height?: number | null;
   caption?: Record<string, string>;
   credit?: MediaCredit;
+  focal?: StoredMediaFocal;
 }): MediaChoice => {
   const widths = m.variants
     .filter((v) => v.format === 'webp' && /^w\d+$/.test(v.name) && v.width !== null)
@@ -49,6 +51,7 @@ export const mediaChoice = (m: {
   return {
     id: m.id,
     label: m.filename,
+    ...(m.focal ? { focal: m.focal } : {}),
     thumb: m.variants.some((v) => v.name === 'thumb'),
     ...(m.kind === 'document' && { document: true }),
     ...(m.kind === 'audio' && { audio: true }),

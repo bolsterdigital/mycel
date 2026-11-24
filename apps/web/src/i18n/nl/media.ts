@@ -3,6 +3,25 @@
 import type { UiKey } from '../en.js';
 
 export const media: Partial<Record<UiKey, string>> = {
+  'admin.placement.reset': 'Herstel instelling uit Media',
+  'admin.placement.label': 'Uitsnede',
+  'admin.placement.inherit': 'Gebruik instelling uit Media',
+  'admin.placement.same': 'Gebruik algemene uitsnede',
+  'admin.placement.auto': 'Automatisch',
+  'admin.placement.manual': 'Handmatig',
+  'admin.placement.full': 'Volledig beeld',
+  'admin.placement.general': 'Algemene uitsnede',
+  'admin.placement.narrow': 'Smal kader',
+  'admin.placement.wide': 'Breed kader',
+  'admin.placement.exceptions': 'Andere uitsnede voor één schermmaat',
+  'admin.placement.x': 'Horizontale positie (%)',
+  'admin.placement.y': 'Verticale positie (%)',
+  'admin.placement.sourceAuto': 'Media gebruikt automatische kadrering.',
+  'admin.placement.sourceMedia': 'Media gebruikt een brandpunt.',
+  'admin.placement.hint':
+    'Gebruik bij Handmatig de positievelden. Sla een vervangend beeld op om het hier te zien.',
+  'admin.placement.replaced': 'Sla het vervangende beeld op om de uitsnede in te stellen.',
+  'admin.placement.invalid': 'Vul voor een handmatige uitsnede posities van 0 tot 100 in.',
   'admin.media.title': 'Media',
   'admin.media.back': 'Terug naar {name}',
   'admin.media.storage': 'Opslag in gebruik: {used} van {max}.',

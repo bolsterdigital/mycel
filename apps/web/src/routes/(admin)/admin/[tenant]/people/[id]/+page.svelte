@@ -3,6 +3,9 @@
      A person whose public page the site serves links to it beside the title, in a new tab, as a
      content item does (MY-265); an organisation has no page and so no link. -->
 <script lang="ts">
+  import ImagePlacementFields from '#lib/admin/header-fields/ImagePlacementFields.svelte';
+  import { placementValues } from '#lib/admin/header-fields/placement-fields.js';
+  import AdminScript from '#lib/admin/trusted/AdminScript.svelte';
   import { page } from '$app/state';
   import {
     FormPage,
@@ -22,6 +25,10 @@
   const value = (key: string, initial = '') => form?.values?.[key] ?? initial;
   const person = $derived(data.person);
   const organisation = $derived(data.kind === 'organisation');
+  const portrait = $derived(data.media?.find((m) => m.id === value('imageId', person?.imageId)));
+  const savedPlacement = $derived(placementValues('imagePlacement', person?.imagePlacement));
+  const frameValue = (key: string) =>
+    form?.values ? (form.values[key] ?? '') : (savedPlacement[key] ?? '');
   const contactFields = $derived(
     organisation
       ? (['publicEmail', 'email'] as const)
@@ -118,6 +125,18 @@
       upload={data.upload}
       value={value('imageId', person?.imageId)}
     />
+    {#if !organisation && portrait}
+      <ImagePlacementFields
+        name="imagePlacement"
+        picker="imageId"
+        media={portrait}
+        {base}
+        locale={data.locale}
+        layout="person"
+        read={frameValue}
+      />
+      <AdminScript src="/_admin/image-placement.js" />
+    {/if}
   {:else}<input type="hidden" name="imageId" value={value('imageId', person?.imageId)} />{/if}
   {#if !organisation}<Field
       id="person-role"
