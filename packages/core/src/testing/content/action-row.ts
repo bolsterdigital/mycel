@@ -3,6 +3,7 @@
 import { BLOCK_DEFINITIONS } from '../../content/block-types.js';
 import type { z } from 'zod';
 import type { useCases } from '../../use-cases.js';
+import { block, say } from '../sites/rich.js';
 type BlockIn = z.input<typeof useCases.createItem.input>['document']['blocks'][number];
 
 /** Three ways to join in, in a band: the row of cards a campaign page ends on. */
@@ -50,4 +51,28 @@ export function pageWays(articleSlug: string): BlockIn {
       ],
     },
   };
+}
+
+/** The fictional project's posts at the end of the demo article. */
+export function articleClosingActions(): BlockIn[] {
+  return [
+    say({
+      nl: 'We sturen alleen die ene mail per maand, en we delen je adres met niemand.',
+      en: 'We only send that one e-mail a month, and we share your address with no one.',
+    }),
+    block('social-conversation', {
+      blueskyPost: {
+        nl: 'https://bsky.app/profile/gezondetrommel.example/post/3k4duaz5vfs2b',
+        en: 'https://bsky.app/profile/gezondetrommel.example/post/3k4duaz5vfs2c',
+      },
+      mastodonPost: {
+        nl: 'https://social.example.org/@gezondetrommel/123456789',
+        en: 'https://social.example.org/@gezondetrommel/123456790',
+      },
+    }),
+    say({
+      nl: 'Nieuwe reacties en vragen nemen we mee bij de volgende meting.',
+      en: 'We will take new responses and questions into account in the next study.',
+    }),
+  ];
 }

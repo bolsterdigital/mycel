@@ -166,6 +166,7 @@ export const EMAIL_FALLBACK_TYPES: readonly BlockType[] = [
   'overview',
   'people-grid',
   'file-download',
+  'social-conversation',
 ];
 
 /**
@@ -436,6 +437,10 @@ export async function emailDocument(
         const cite = [who, source].filter(Boolean).join(', ');
         return [{ type: 'quote', text, cite: cite || null }];
       }
+      case 'social-conversation':
+        return b.props.blueskyPost?.[locale] || b.props.mastodonPost?.[locale]
+          ? [web('mail.email.web.more')]
+          : [];
       case 'video-embed': {
         const title = l(b.props.title) ?? '';
         return [

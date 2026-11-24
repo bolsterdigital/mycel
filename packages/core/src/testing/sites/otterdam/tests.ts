@@ -130,6 +130,11 @@ const BASES: Record<string, (r: SiteRefs) => Record<string, unknown>> = {
     text: nl('Waar de otter zwemt, leeft het water.'),
     attribution: { name: 'Joris van der Meer', role: nl('ecoloog') },
   }),
+  'social-conversation': () => {
+    const { blueskyPost, mastodonPost } =
+      BLOCK_DEFINITIONS['social-conversation'].examples[0]!.props;
+    return { blueskyPost: nl(blueskyPost!.nl!), mastodonPost: nl(mastodonPost!.nl!) };
+  },
   'video-embed': () => ({ videoId: 'aqz-KE-bpKQ', title: nl('Testvideo') }),
   form: (r) => ({ formId: r.form('contact') }),
   'campaign-card': (r) => ({ campaignId: r.campaign('vistrappen') }),

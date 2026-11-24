@@ -26,6 +26,7 @@ export const BLOCK_ICONS: Readonly<Record<BlockType, IconName>> = {
   audio: 'volume',
   'video-embed': 'video',
   video: 'video',
+  'social-conversation': 'link',
   form: 'clipboard-list',
   'signup-form': 'mail',
   'campaign-card': 'megaphone',
@@ -92,6 +93,7 @@ export const BLOCK_PRESENTATION: { readonly [T in BlockType]: BlockPresentation 
   timeline: { rest: 'text', display: ['order'], source: [], stage: 'C2' },
   audio: { rest: 'text', display: [], source: [], stage: 'C2' },
   video: { rest: 'text', display: [], source: [], stage: 'C3' },
+  'social-conversation': { rest: 'text', display: [], source: [], stage: 'C3' },
   'video-embed': {
     rest: 'text',
     display: ['width'],

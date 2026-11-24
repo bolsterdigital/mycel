@@ -226,6 +226,7 @@ export const publicSite: Partial<Record<UiKey, string>> = {
   'video.captions': 'Ondertiteling',
   'video.back': 'Terug naar de pagina',
   'video.unavailable': 'Deze video is momenteel niet beschikbaar.',
+  'block.socialConversation.title': 'Praat mee',
   'block.video.on': 'Video op {provider}',
   'block.video.credit': 'Videobeeld',
   'block.video.youtube': 'Op YouTube',

@@ -103,11 +103,15 @@ test.describe('content-blocks', () => {
     const gridColumns = (at: Locator) =>
       at.locator('select[name$=".columns"], select[name$=".limit"]');
     const variant = (at: Locator) => at.locator('select[name$=".variant"]');
+    const text = async (at: Locator, n: number) =>
+      (await first(at).getAttribute('name'))?.endsWith('.blueskyPost.nl')
+        ? `https://bsky.app/profile/example.org/post/${stamp}`
+        : `Blok ${n} ${stamp}`;
     for (let n = 13; n <= BLOCK_TYPES.length; n++) {
       const at = await block(page, n);
       if (await gridColumns(at).count()) await gridColumns(at).selectOption('4');
       else if (!(await first(at).count())) await variant(at).selectOption('full');
-      else await first(at).fill(`Blok ${n} ${stamp}`);
+      else await first(at).fill(await text(at, n));
     }
     await save(page, 1);
     // Each value back in the reopened form; the old signup form and the paywall have no field
@@ -120,7 +124,7 @@ test.describe('content-blocks', () => {
       const at = await block(page, n);
       if (await gridColumns(at).count()) await expect(gridColumns(at)).toHaveValue('4');
       else if (!(await first(at).count())) await expect(variant(at)).toHaveValue('full');
-      else await expect(first(at)).toHaveValue(`Blok ${n} ${stamp}`);
+      else await expect(first(at)).toHaveValue(await text(at, n));
     }
     await expect(card(page, 2).locator('.ui-block-card-title')).toHaveText(
       'Blok 02 Inschrijfformulier (oud)'

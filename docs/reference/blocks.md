@@ -4,7 +4,7 @@
 
 Every block type a page or article can hold (ADR 004, ADR 013 rule 2, ADR 020), as `packages/core/src/content/block-types.ts` defines it: its props as the admin edits them, its enumerated values and its examples. A block is stored as `{ id, type, version, props }`; agents and the API write the same props through the block operations (`content.block.insert`, `move`, `remove`, `update`, `split_insert`). The JSON Schema of every type is in `/openapi.json` and the MCP tool list.
 
-The **label** is the English admin copy; **presence** says whether a published block needs the field. A localised field holds one value per locale of the document; publishing a locale needs a value in it for every required field and every optional one that is filled in another locale.
+The **label** is the English admin copy. **Presence** says whether a published block needs the field. A localised field holds one value per locale of the document. Publishing a locale needs a value for every required field and for optional fields that require a translation once filled. Social conversation links may stay empty in any locale.
 
 ## `heading` (Heading)
 
@@ -297,6 +297,17 @@ Version 1.
 | `width`      | Width    | one of `content`, `wide`, `full` | required |
 
 Examples: `campaign-card-compact`, `campaign-card-full-wide`, `campaign-card-compact-full`.
+
+## `social-conversation` (Social conversation)
+
+Version 1.
+
+| Prop           | Label         | Kind           | Presence |
+| -------------- | ------------- | -------------- | -------- |
+| `blueskyPost`  | Bluesky post  | localised text | optional |
+| `mastodonPost` | Mastodon post | localised text | optional |
+
+Examples: `social-conversation-links` (Public HTTPS permalinks using `bsky.app/profile/<account>/post/<id>` and `<instance>/@<account>/<id>`).
 
 ## `overview` (Overview)
 

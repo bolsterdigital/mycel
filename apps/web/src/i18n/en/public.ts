@@ -224,6 +224,7 @@ export const publicSite = {
   'video.captions': 'Captions',
   'video.back': 'Back to the page',
   'video.unavailable': 'This video is currently unavailable.',
+  'block.socialConversation.title': 'Join the conversation',
   'block.video.on': 'Video on {provider}',
   'block.video.credit': 'Video credit',
   'block.video.youtube': 'On YouTube',

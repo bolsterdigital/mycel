@@ -23,6 +23,7 @@ import type {
   MediaCredit,
   ProofChallenge,
   RichTextDoc,
+  socialConversationLinks,
 } from '@mycel/core';
 
 /** UI text that does not come from the document (ADR 007), resolved for the model's locale. */
@@ -38,6 +39,7 @@ export interface BlockCopy {
   videoOn: string;
   /** The play button of a placed player; `{title}` and `{provider}` filled by the renderer. */
   videoPlay: string;
+  socialConversation: string;
   videoCredit: string;
   videoYouTube: string;
   footnotes: string;
@@ -354,6 +356,10 @@ export type RenderBlock = { id: string } & (
       licence: { label: string; href: string | null } | null;
       watch: string | null;
       play: string | null;
+    }
+  | {
+      type: 'social-conversation';
+      links: ReturnType<typeof socialConversationLinks>;
     }
   | {
       type: 'video-embed';

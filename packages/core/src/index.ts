@@ -84,6 +84,7 @@ export * from './content/published/dossier.js';
 export * from './content/published/feed.js';
 export * from './content/published/share-card.js';
 export * from './content/blocks/overview.js';
+export { socialConversationLinks } from './content/blocks/social-conversation.js';
 export * from './content/published/search.js';
 export * from './content/patterns.js';
 export * from './theme/model.js';
