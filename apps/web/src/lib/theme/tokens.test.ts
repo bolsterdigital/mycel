@@ -147,6 +147,7 @@ describe('theme tokens', () => {
     '--color-primary-active-fg',
     '--color-primary-active-bg',
     '--color-caption-fg',
+    '--color-surface-caption-fg',
     ...['form-fg', 'form-bg', 'progress-fg', 'progress-bg', 'progress-fill'].map(
       (part) => `--campaign-${part}`
     ),
@@ -174,6 +175,24 @@ describe('theme tokens', () => {
       const [, page] = /--color-body-bg: (#[a-f0-9]{6});/i.exec(css)!;
       expect(contrastRatio(caption!, page!)).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(caption!, page!)).toBeLessThanOrEqual(contrastRatio(muted!, page!));
+    }
+  });
+
+  it('softens the video caption on its surface in both palettes and keeps AA contrast', () => {
+    const boundary = structuredClone(DEFAULT_THEME);
+    boundary.palettes.light.surface = { foreground: '#767676', background: '#ffffff' };
+    for (const theme of [DEFAULT_THEME, ...Object.values(THEME_PRESETS), boundary]) {
+      const css = themeCss(theme);
+      const palettes = css.split(':root {').slice(1);
+      for (const [index, mode] of (['light', 'dark'] as const).entries()) {
+        const { foreground, background } = theme.palettes[mode].surface;
+        const caption = /--color-surface-caption-fg: (#[a-f0-9]{6});/i.exec(palettes[index]!)![1]!;
+        expect(contrastRatio(caption, background)).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(caption, background)).toBeLessThanOrEqual(
+          contrastRatio(foreground, background)
+        );
+        if (contrastRatio(foreground, background) > 5) expect(caption).not.toBe(foreground);
+      }
     }
   });
 

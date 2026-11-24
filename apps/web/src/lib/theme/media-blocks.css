@@ -10,6 +10,11 @@
    a caption never squeezes into a narrow column beside the credit). Without a caption the credit
    stands alone, right. Rejected: the credit only on hover (a touch screen never shows it, and
    Mycel hides no text) and one face for both, which made the two hard to tell apart. */
+/* One step below supporting text for captions under photos and video. */
+:root {
+  --media-caption-size: calc(var(--step--1) * 0.92);
+}
+
 .image figcaption,
 .gallery figcaption,
 .campaign-hero figcaption,
@@ -33,7 +38,7 @@
   flex: 0 1 auto;
   /* Its lines keep the content measure under a wide or full image (content-layout.md). */
   max-width: var(--content-width, 100%);
-  font-size: var(--step--1);
+  font-size: var(--media-caption-size);
   color: var(--color-body-fg);
 }
 
@@ -44,7 +49,7 @@
   flex: 0 1 auto;
   margin-inline-start: auto;
   text-align: end;
-  font-size: calc(var(--step--1) * 0.85);
+  font-size: calc(var(--media-caption-size) * 0.85);
   font-style: normal;
   color: var(--color-caption-fg, var(--color-muted-fg));
 }

@@ -95,18 +95,19 @@
 .video figcaption {
   padding: var(--space-1) var(--inset);
   font-family: var(--font-caption, inherit);
-  font-size: var(--step--1);
+  font-size: var(--media-caption-size);
   line-height: 1.35;
   background: var(--color-surface-bg);
-  color: var(--color-surface-fg);
+  color: var(--color-surface-caption-fg, var(--color-surface-fg));
 }
 .video-details {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  /* A watch link follows the credit’s first line when attribution wraps. */
+  align-items: first baseline;
   gap: 0 1rem;
   color: var(--color-caption-fg, var(--color-muted-fg));
-  font-size: var(--step--1);
+  font-size: var(--media-caption-size);
 }
 .video-credit {
   position: relative;
@@ -127,7 +128,7 @@
 }
 .video-details .video-youtube {
   display: inline-flex;
-  align-items: center;
+  align-items: first baseline;
   gap: 0.35em;
   margin-inline-start: auto;
   white-space: nowrap;
