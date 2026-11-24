@@ -82,7 +82,7 @@
         />
         <Actions><Button type="submit">{t('admin.video.transcript.save')}</Button></Actions>
       </form>
-      {#if data.canPublish && transcript.source && !transcript.published}
+      {#if data.canPublish && form?.source == null && transcript.source && !transcript.published}
         <form method="POST" action={`?/publishTranscript&${selection}#transcript`}>
           <input type="hidden" name="id" value={transcript.id} />
           <input type="hidden" name="language" value={transcript.language} />
