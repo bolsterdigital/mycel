@@ -28,3 +28,7 @@ a {
   align-items: center;
   min-block-size: 44px;
 }
+#restart button {
+  min-block-size: 44px;
+  font: inherit;
+}

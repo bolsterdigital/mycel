@@ -219,6 +219,7 @@ export const publicSite: Partial<Record<UiKey, string>> = {
   'block.lightbox.next': 'Volgende afbeelding',
   'block.lightbox.zoom': 'Ware grootte',
   'block.lightbox.count': 'Afbeelding {n} van {total}',
+  'video.restart': 'Video opnieuw starten',
   'video.play': 'Afspelen',
   'video.play.title': 'Afspelen: {title}',
   'video.watch': 'Bekijk extern',

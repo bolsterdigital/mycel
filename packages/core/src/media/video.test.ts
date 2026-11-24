@@ -10,7 +10,7 @@ import {
   videoSourceKey,
   type VideoProvider,
 } from '../index.js';
-import { expectCode, MemoryUnitOfWork, TENANT } from '../testing/index.js';
+import { expectCode, FakeClock, MemoryUnitOfWork, TENANT } from '../testing/index.js';
 import { EXAMPLE_PNG } from './service.js';
 import { runVideoCreate } from './video-service.js';
 
@@ -40,7 +40,8 @@ async function fixture() {
       await blobs.put(key, source, { contentType: 'video/mp4' });
     }),
   };
-  const uow = new MemoryUnitOfWork({ videoProvider: provider });
+  const clock = new FakeClock();
+  const uow = new MemoryUnitOfWork({ videoProvider: provider, clock });
   const invoker = new Invoker(buildRegistry(), uow);
   const admin = systemPrincipal(TENANT, 'video-test');
   const { id: posterId } = await invoker.run(useCases.uploadMedia, admin, {
@@ -58,7 +59,7 @@ async function fixture() {
     licence: { code: 'own-work' as const },
     watchUrl: 'https://example.org/recording',
   };
-  return { provider, uow, invoker, admin, input };
+  return { provider, uow, invoker, admin, input, clock };
 }
 
 describe('managed video', () => {
@@ -117,7 +118,7 @@ describe('managed video', () => {
   });
 
   it('grants the current public placement and its track, and holds old references for trash', async () => {
-    const { provider, uow, invoker, admin, input } = await fixture();
+    const { provider, uow, invoker, admin, input, clock } = await fixture();
     const video = await invoker.run(useCases.createVideo, admin, input);
     await runVideoCreate(uow, admin, video.id);
     vi.mocked(provider.status).mockResolvedValue({
@@ -158,6 +159,12 @@ describe('managed video', () => {
     expect(
       await uow.run(systemPrincipal(otherTenant, 'other'), (ctx) => grantVideo(ctx, target))
     ).toBeNull();
+    expect(opened!.expires - opened!.issued).toBe(900);
+    clock.advance(900_000);
+    expect(await track()).toBeNull();
+    const renewed = await grant();
+    expect(renewed?.expires).toBe(expires + 900);
+    expect(await uow.run(admin, (ctx) => grantVideo(ctx, { ...target, locale: 'nl' }))).toBeNull();
     await invoker.run(useCases.unpublishItem, admin, { itemId: draft.id, locale: target.locale });
     expect(await grant()).toBeNull();
     expect(await track()).toBeNull();

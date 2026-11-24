@@ -55,21 +55,36 @@ export const POST: RequestHandler = async (event) => {
   const grant = await runtime().uow.run(principal, (ctx) => grantVideo(ctx, target));
   const t = ui(target.locale);
   const back = sitePath(site, contentPath(target, target.locale, site.tenant.defaultLocale));
-  const trackSrc = new URLSearchParams({
-    exp: String(grant?.track?.expires),
-    sig: grant?.track?.signature ?? '',
-  });
-  const track = grant?.track
-    ? `<track kind="captions" srclang="${escape(target.locale)}" label="${escape(t('video.captions'))}" src="?${escape(trackSrc.toString())}">`
+  const trackSrc = grant?.track
+    ? '?' + new URLSearchParams({ exp: String(grant.track.expires), sig: grant.track.signature })
+    : null;
+  if (data.get('renew') === '1')
+    return Response.json(
+      grant && {
+        hls: grant.hls,
+        mp4: grant.mp4,
+        track: trackSrc,
+        lifetime: grant.expires - grant.issued,
+      },
+      {
+        status: grant ? 200 : 404,
+        headers: hidden,
+      }
+    );
+  const track = trackSrc
+    ? `<track kind="captions" srclang="${escape(target.locale)}" label="${escape(t('video.captions'))}" src="${escape(trackSrc)}">`
     : '';
   const title = grant?.title ?? t('video.unavailable');
   const fallback = `<a href="${escape(back)}" ${inline ? 'target="_top"' : ''}>${escape(t('video.back'))}</a>`;
   const player = grant
     ? `<video controls playsinline preload="none" crossorigin="anonymous" aria-label="${escape(title)}"
-        src="${escape(grant.mp4)}" data-hls="${escape(grant.hls)}" data-mp4="${escape(grant.mp4)}">${track}</video>
+        src="${escape(grant.mp4)}" data-lifetime="${grant.expires - grant.issued}" data-hls="${escape(grant.hls)}" data-mp4="${escape(grant.mp4)}">${track}</video>
       <p id="unavailable" hidden>${escape(t('video.unavailable'))} ${fallback}</p>
+      <form method="post" id="restart"${inline ? ' hidden' : ''}><input type="hidden" name="inline" value="${inline ? '1' : '0'}"><button>${escape(t('video.restart'))}</button></form>
       <script defer src="${escape(hlsScript)}"></script><script defer src="/_site/native-video.js"></script>`
-    : `<p>${escape(title)}</p>`;
+    : inline
+      ? `<p>${escape(title)}</p>`
+      : '';
   const origin = grant ? new URL(grant.hls).origin : null;
   const sources = origin ? `media-src 'self' blob: ${origin}; connect-src 'self' ${origin};` : '';
   const html = `<!doctype html><html lang="${escape(target.locale)}"><meta charset="utf-8">
@@ -81,6 +96,8 @@ export const POST: RequestHandler = async (event) => {
     status: grant ? 200 : 404,
     headers: {
       ...hidden,
+      // Native form POSTs need their same-site Origin for the framework's CSRF check.
+      'referrer-policy': 'same-origin',
       'content-type': 'text/html; charset=utf-8',
       'content-security-policy': `default-src 'self'; script-src 'self'; style-src 'self'; ${sources} frame-ancestors 'self'; object-src 'none'; base-uri 'none'`,
     },

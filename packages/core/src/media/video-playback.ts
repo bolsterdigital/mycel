@@ -82,7 +82,8 @@ export async function grantVideo(ctx: TransactionContext, target: VideoPlacement
   const placement = await placedRecording(ctx, target);
   if (!placement) return null;
   const { provider, providerId, mp4Height, item, video } = placement;
-  const expires = Math.floor(ctx.clock.now().getTime() / 1000) + 900;
+  const issued = Math.floor(ctx.clock.now().getTime() / 1000);
+  const expires = issued + 900;
   const caption = video.publishedTracks[target.locale];
   const track = caption
     ? {
@@ -100,6 +101,8 @@ export async function grantVideo(ctx: TransactionContext, target: VideoPlacement
       }
     : null;
   return {
+    expires,
+    issued,
     ...provider.signPlayback(providerId, mp4Height, new Date(expires * 1000)),
     title: pickAny(video.metadata.title, target.locale) ?? item.title,
     track,
