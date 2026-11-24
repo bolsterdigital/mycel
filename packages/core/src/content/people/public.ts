@@ -2,13 +2,14 @@
 // explicitly selected fields leave this module; rejected: returning the editorial Person and
 // relying on each renderer to remove internal email or to filter a later draft's authors.
 import { z } from 'zod';
+import { ImagePlacement, placementFor } from '../../media/placement.js';
 import { notFound, UseCaseError } from '../../errors.js';
 import { Locale } from '../../i18n/locale.js';
 import type { TransactionContext } from '../../ports.js';
 import { defineUseCase } from '../../registry.js';
 import { MAX_PAGE_SIZE } from '../../util/page-size.js';
 import { cardDocument } from '../access/projection.js';
-import { effectiveImages, effectiveSummary } from '../header/effective.js';
+import { effectiveOf } from '../header/effective.js';
 import { MAX_TRANSLATION_WALK } from '../listing.js';
 import { statusOf } from '../lifecycle.js';
 import { Person, PersonKind, Slug } from '../model.js';
@@ -35,6 +36,8 @@ export const PublishedArticleCard = z.object({
   locale: Locale,
   title: z.string(),
   lead: z.string().nullable(),
+  featuredPlacement: ImagePlacement.optional(),
+  firstPublishedAt: z.string().datetime({ offset: true }),
   featuredImageId: z.string().guid().nullable(),
   publishedAt: z.string().datetime({ offset: true }),
   /** Not `public`: the card says it is for members, and its address serves the teaser. */
@@ -126,13 +129,17 @@ async function articleCard(
   // A restricted article is a card from its teaser (`cardDocument`), as in an overview.
   const doc = revision && cardDocument(revision.document);
   if (!doc || doc.type !== 'article' || !doc.authorIds.includes(personId)) return null;
+  const effective = effectiveOf(doc, locale, images);
+  const imageId = effective.images.featured.mediaId;
   return {
     id: item.id,
     slug: item.slug,
     locale,
-    title: doc.title[locale] ?? '',
-    lead: effectiveSummary(doc, locale).text,
-    featuredImageId: effectiveImages(doc, images).featured.mediaId,
+    title: effective.title.text,
+    lead: effective.summary.text,
+    featuredImageId: imageId,
+    featuredPlacement: placementFor(doc.featuredPlacement, imageId),
+    firstPublishedAt: (state.firstPublishedAt ?? state.publishedAt).toISOString(),
     publishedAt: state.publishedAt.toISOString(),
     access: doc.access.level,
   };

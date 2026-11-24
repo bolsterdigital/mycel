@@ -1,9 +1,16 @@
 // The registry owns visibility and the safe locale projection. This adapter only resolves public
 // image variants and URLs; rejected: reading editorial Person records into Svelte page data.
+import { cardPlaceholder } from './chrome.js';
 import { languageLinks } from '../../public/language-links.js';
 import { createHash } from 'node:crypto';
-import { anonymousPrincipal, contentPath, UseCaseError, useCases } from '@mycel/core';
-import { runtimeSource, resolveIntro } from '../../blocks/resolve.js';
+import {
+  anonymousPrincipal,
+  contentPath,
+  type ImagePlacement,
+  UseCaseError,
+  useCases,
+} from '@mycel/core';
+import { runtimeSource, resolveIntro, overviewWhen } from '../../blocks/resolve.js';
 import { personPath } from '../../public/person-path.js';
 import { personData } from '../../public/structured-data.js';
 import { refuse } from '../http/refuse.js';
@@ -30,8 +37,14 @@ export async function loadPersonPage(site: Site, slug: string, locale: string, o
   if (offset > 0 && offset >= result.total) refuse(404);
   const source = runtimeSource({ invoker, uow, reader, defaultLocale: site.tenant.defaultLocale });
   // A portrait's adjacent heading names the person; the image itself is decorative.
-  const image = async (id: string | null) =>
-    (await resolveIntro(source, { lead: null, heroImageId: id, heroAlt: null }, locale)).hero;
+  const image = async (id: string | null, placement?: ImagePlacement) =>
+    (
+      await resolveIntro(
+        source,
+        { lead: null, heroImageId: id, heroAlt: null, heroPlacement: placement },
+        locale
+      )
+    ).hero;
   const timeZone = (await invoker.run(useCases.getSiteGeneral, reader, {})).value.timeZone;
   const portrait = await image(result.person.imageId);
   const articles = await Promise.all(
@@ -41,10 +54,8 @@ export async function loadPersonPage(site: Site, slug: string, locale: string, o
         site,
         contentPath({ type: 'article', slug: article.slug }, locale, site.tenant.defaultLocale)
       ),
-      image: await image(article.featuredImageId),
-      date: new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone }).format(
-        new Date(article.publishedAt)
-      ),
+      image: await image(article.featuredImageId, article.featuredPlacement),
+      date: overviewWhen({ event: null, date: article.firstPublishedAt }, locale, timeZone).date,
     }))
   );
   const absolute = await siteUrls(site);
@@ -63,6 +74,7 @@ export async function loadPersonPage(site: Site, slug: string, locale: string, o
     ),
     person: result.person,
     portrait,
+    placeholder: await cardPlaceholder(site, sitePath(site, '')),
     articles,
     base: sitePath(site, ''),
     locale,
