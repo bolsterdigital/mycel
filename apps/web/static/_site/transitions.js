@@ -74,7 +74,9 @@ export function side({ moment, here, other, card, pair }) {
 }
 
 const KEY = 'mycel.transition-pair';
-const CARD = '.overview-card, .campaign-card, .person-card';
+// A profile can link back to the article through its cards while it is the destination of
+// a byline transition. Only overview blocks initiate the overview-to-article pairing.
+const CARD = '.overview .overview-card, .campaign-card, .person-card';
 const HEADINGS = 'h2, h3, h4, h5, h6';
 const CARDS_CTA = '.cards-item > .actions > a[href]';
 const BYLINE_LINK = '.page-meta a[href]';

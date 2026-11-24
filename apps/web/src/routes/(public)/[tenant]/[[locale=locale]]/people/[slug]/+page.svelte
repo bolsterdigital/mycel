@@ -1,5 +1,6 @@
 <!-- Profiles and article cards are ordinary links and server-rendered content, usable without JS. -->
 <script lang="ts">
+  import ArticleCard from '#lib/blocks/ArticleCard.svelte';
   import Picture from '#lib/blocks/Picture.svelte';
   import StructuredData from '#lib/components/public/StructuredData.svelte';
   import { ui } from '../../../../../../i18n/index.js';
@@ -59,17 +60,20 @@
       <h2 id="person-articles">{t('public.people.articles')}</h2>
       <div class="person-articles">
         {#each data.articles as article (article.id)}
-          <article>
-            {#if article.image}<Picture
-                image={article.image}
-                base={data.base}
-                sizes="(min-width: 800px) 320px, 100vw"
-              />{/if}
-            <h3><a href={article.href}>{article.title}</a></h3>
-            <time datetime={article.publishedAt}>{article.date}</time>
-            {#if article.access !== 'public'}<p>{t('block.overview.restricted')}</p>{/if}
-            {#if article.lead}<p>{article.lead}</p>{/if}
-          </article>
+          <div class="person-article">
+            <ArticleCard
+              title={article.title}
+              href={article.href}
+              base={data.base}
+              image={article.image}
+              sizes="(min-width: 800px) 320px, 100vw"
+              placeholder={data.placeholder}
+              heading="h3"
+              date={article.date}
+              summary={article.lead}
+              restrictedLabel={article.access === 'public' ? null : t('block.overview.restricted')}
+            />
+          </div>
         {/each}
       </div>
     </section>

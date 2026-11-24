@@ -259,7 +259,11 @@ export async function resolveIntro(
  * The time an overview card shows: an event's when (as its own header writes it) and place,
  * else the first publication as a date.
  */
-export function overviewWhen(e: Overview['entries'][number], locale: string, tz: string) {
+export function overviewWhen(
+  e: Pick<Overview['entries'][number], 'date' | 'event'>,
+  locale: string,
+  tz: string
+) {
   if (e.event) {
     const { when, where, online } = renderEvent(e.event, locale);
     return {

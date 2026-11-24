@@ -39,21 +39,8 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
   gap: 2rem;
 }
-.person-articles article {
-  min-width: 0;
-}
-.person-articles img {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 3 / 2;
-  object-fit: cover;
-}
-.person-articles h3 {
-  overflow-wrap: anywhere;
-}
-.person-articles h3 a {
-  display: inline-block;
-  min-height: 44px;
+.person-article {
+  container-type: inline-size;
 }
 
 /* Cap the tracks as well as the photos so a two-person team stays compact on a wide page.

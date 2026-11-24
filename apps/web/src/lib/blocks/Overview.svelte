@@ -13,31 +13,11 @@
      hidden counter shows nothing. The list layout names a phase other than open after the title.
      With an archive the block ends in plain page links (`?p=2`), no JavaScript. An empty overview
      renders nothing. -->
-<script module lang="ts">
-  const excerptLimit = 150;
-  const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-
-  // Give the card a brief excerpt in its HTML so text can wrap naturally at larger sizes.
-  // The full summary still belongs to the item and the shared overview read model.
-  function cardExcerpt(summary: string): string {
-    const flat = summary.replace(/\s+/g, ' ').trim();
-    if (flat.length <= excerptLimit) return flat;
-    const letters = Array.from(graphemes.segment(flat), ({ segment }) => segment);
-    if (letters.length <= excerptLimit) return flat;
-    const head = letters.slice(0, excerptLimit - 1).join('');
-    const lastSpace = head.lastIndexOf(' ');
-    const excerpt =
-      letters[excerptLimit - 1] === ' ' || lastSpace < 0 ? head : head.slice(0, lastSpace);
-    return `${excerpt.replace(/[.…]+$/, '')}…`;
-  }
-</script>
-
 <script lang="ts">
   import { headingTag } from './headings.js';
   import type { RenderBlock, RenderModel } from './model.js';
   import { withBase } from './rich-text.js';
-  import Picture from './Picture.svelte';
-  import CardPlaceholder from './CardPlaceholder.svelte';
+  import ArticleCard from './ArticleCard.svelte';
   import CampaignCount from './CampaignCount.svelte';
 
   let {
@@ -70,39 +50,32 @@
       {#each block.entries as entry, i (entry.id)}
         <li class="overview-item">
           {#if block.layout === 'cards'}
-            <article class="campaign-card-inner overview-card">
-              {#if entry.image}
-                <div class="campaign-card-image">
-                  <Picture
-                    image={entry.image}
-                    base={model.base}
-                    {sizes}
-                    framed
-                    eager={eager && i === 0}
-                  />
-                </div>
-              {:else if model.placeholder}
-                <CardPlaceholder placeholder={model.placeholder} />
+            {#snippet campaignKind()}
+              {#if entry.campaign}
+                {@const c = entry.campaign}
+                <p class="campaign-kind">
+                  {campaignCopy.kind[c.kind]}{c.phase === 'open'
+                    ? ''
+                    : ` · ${campaignCopy.phase[c.phase]}`}
+                </p>
               {/if}
-              <div class="campaign-card-text">
-                <svelte:element this={headingTag(depth + 1)} class="overview-card-title">
-                  <a href={withBase(model.base, entry.href)}>{entry.title}</a>
-                </svelte:element>
-                {#if entry.campaign}
-                  {@const c = entry.campaign}
-                  <p class="campaign-kind">
-                    {campaignCopy.kind[c.kind]}{c.phase === 'open'
-                      ? ''
-                      : ` · ${campaignCopy.phase[c.phase]}`}
-                  </p>
-                {:else}
-                  <p class="overview-date">
-                    <time datetime={entry.date.iso}>{entry.date.label}</time>
-                  </p>
-                {/if}
-                {#if entry.place}<p class="overview-place">{entry.place}</p>{/if}
-                {#if entry.restricted}<p class="overview-access">{copy.restricted}</p>{/if}
-                {#if entry.summary}<p>{cardExcerpt(entry.summary)}</p>{/if}
+            {/snippet}
+            <ArticleCard
+              title={entry.title}
+              href={withBase(model.base, entry.href)}
+              base={model.base}
+              image={entry.image}
+              {sizes}
+              placeholder={model.placeholder}
+              heading={headingTag(depth + 1)}
+              date={entry.date}
+              summary={entry.summary}
+              place={entry.place}
+              restrictedLabel={entry.restricted ? copy.restricted : null}
+              eager={eager && i === 0}
+              metadata={entry.campaign ? campaignKind : undefined}
+            >
+              {#snippet footer()}
                 {#if entry.campaign}
                   <CampaignCount
                     campaign={entry.campaign}
@@ -110,8 +83,8 @@
                     id="{anchor ?? block.id}-{entry.id}"
                   />
                 {/if}
-              </div>
-            </article>
+              {/snippet}
+            </ArticleCard>
           {:else}
             <a href={withBase(model.base, entry.href)}>{entry.title}</a>
             {#if entry.campaign}

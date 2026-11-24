@@ -57,6 +57,19 @@ export async function exercisePublicPeople(page: Page) {
       await setTextSize(page, '100%');
       await page.setViewportSize({ width: 1280, height: 900 });
     }
+    const card = page.locator('.person-articles .overview-card').first();
+    await expect(card.getByRole('link')).toHaveCount(1);
+    const link = card.locator('h3.overview-card-title a');
+    await expect(link).toHaveAccessibleName(/\S/);
+    const destination = await link.getAttribute('href');
+    await link.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(link).toBeFocused();
+    await expect(card).toHaveCSS('outline-style', 'solid');
+    // Click outside the title: the stretched link must also work without JavaScript.
+    await card.locator('.overview-date').click({ force: true });
+    await expect(page).toHaveURL(new URL(destination!, page.url()).href);
   }
   const id = randomUUID().slice(0, 8);
   const principal = systemPrincipal(await tenantId(), 'e2e');
