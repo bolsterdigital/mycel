@@ -156,6 +156,51 @@ describe('managed video', () => {
     const { expires, signature } = opened!.track!;
     const track = () => uow.run(admin, (ctx) => readVideoTrack(ctx, target, expires, signature));
     expect(await track()).toBe(cues);
+    const transcript = { id: video.id, locale: target.locale };
+    const current = await invoker.run(useCases.getTranscript, admin, transcript);
+    const draftTrack = await invoker.run(useCases.saveTranscript, admin, {
+      ...transcript,
+      version: current.version,
+      source: '1\n00:00:00,000 --> 00:00:02,000\nOttersporen gevonden.',
+    });
+    const search = (q: string, principal = admin) =>
+      invoker.run(useCases.findPublished, principal, { q, locale: 'en' });
+    expect((await search('ottersporen')).items).toHaveLength(0);
+    expect(await track()).toBe(cues);
+    await expectCode(
+      invoker.run(useCases.publishTranscript, admin, { ...transcript, version: current.version }),
+      'conflict'
+    );
+    await expectCode(
+      invoker.run(
+        useCases.publishTranscript,
+        {
+          ...admin,
+          actor: { kind: 'operator', operatorId: intentId },
+          capabilities: ['media:write'],
+        },
+        { ...transcript, version: draftTrack.version }
+      ),
+      'forbidden'
+    );
+    await invoker.run(useCases.publishTranscript, admin, {
+      ...transcript,
+      version: draftTrack.version,
+    });
+    expect(await track()).toBeNull();
+    expect((await search('ottersporen')).items[0]?.excerpt).toContainEqual({
+      text: 'Ottersporen',
+      match: true,
+    });
+    expect((await search('ottersporen', systemPrincipal(otherTenant, 'other'))).items).toHaveLength(
+      0
+    );
+    const published = (await grant())!.track!;
+    expect(
+      await uow.run(admin, (ctx) =>
+        readVideoTrack(ctx, target, published.expires, published.signature)
+      )
+    ).toBe(draftTrack.source);
     expect(
       await uow.run(systemPrincipal(otherTenant, 'other'), (ctx) => grantVideo(ctx, target))
     ).toBeNull();
@@ -167,6 +212,7 @@ describe('managed video', () => {
     expect(await uow.run(admin, (ctx) => grantVideo(ctx, { ...target, locale: 'nl' }))).toBeNull();
     await invoker.run(useCases.unpublishItem, admin, { itemId: draft.id, locale: target.locale });
     expect(await grant()).toBeNull();
+    expect((await search('ottersporen')).items).toHaveLength(0);
     expect(await track()).toBeNull();
     await invoker.run(useCases.publishItem, admin, {
       itemId: draft.id,
@@ -179,6 +225,7 @@ describe('managed video', () => {
       settings: DEFAULT_INTEGRATIONS,
     });
     expect(await grant()).toBeNull();
+    expect((await search('ottersporen')).items).toHaveLength(0);
     expect(await track()).toBeNull();
     await invoker.run(useCases.unpublishItem, admin, { itemId: draft.id, locale: target.locale });
     await expectCode(invoker.run(useCases.deleteVideo, admin, { id: video.id }), 'conflict');

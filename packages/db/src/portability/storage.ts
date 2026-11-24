@@ -508,6 +508,8 @@ export const STORAGE = {
     owner: 'tenant',
     copies: [
       FREE_TEXT('metadata', ['media.video.delete']),
+      FREE_TEXT('draft_tracks', ['media.video.delete']),
+      FREE_TEXT('transcript_lexemes', ['media.video.delete']),
       FREE_TEXT('published_tracks', ['media.video.delete']),
     ],
     retention: SITE_KEPT,

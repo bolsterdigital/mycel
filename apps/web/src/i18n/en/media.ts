@@ -1,6 +1,18 @@
 // The media library.
 
 export const media = {
+  'video.transcript': 'Transcript',
+  'admin.video.transcript.edit': 'Edit transcript',
+  'admin.video.transcript.text': 'Draft text',
+  'admin.video.transcript.hint':
+    'Use WebVTT, SRT or one line per start time, for example 00:03 Along the river.',
+  'admin.video.transcript.file': 'Import transcript file',
+  'admin.video.transcript.save': 'Save draft',
+  'admin.video.transcript.publish': 'Publish saved draft',
+  'admin.video.transcript.live': 'This transcript is published.',
+  'admin.video.transcript.saved': 'Draft saved.',
+  'admin.video.transcript.conflict': 'The transcript changed. Reopen it before continuing.',
+  'admin.video.transcript.invalid': 'Check the times and text of each cue.',
   'admin.video.title': 'Videos',
   'admin.video.choose': 'Choose a video',
   'admin.video.file': 'Choose a recording',

@@ -427,6 +427,8 @@ export const admin: Partial<Record<UiKey, string>> = {
   'admin.audit.op.mailing.edition.send': 'Nieuwsbrief verstuurd',
   'admin.audit.op.mailing.automation.update': 'Welkomstmails gewijzigd',
   'admin.audit.op.mailing.automation.test': 'Testmail van welkomstmails verstuurd',
+  'admin.audit.op.media.transcript.update': 'Transcriptconcept opgeslagen',
+  'admin.audit.op.media.transcript.publish': 'Transcript gepubliceerd',
   'admin.audit.op.media.video.create': 'Video-upload voorbereid',
   'admin.audit.op.media.video.check': 'Videoverwerking gecontroleerd',
   'admin.audit.op.media.video.resume': 'Video-upload hervat',

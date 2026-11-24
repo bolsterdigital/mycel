@@ -3,6 +3,19 @@
 import type { UiKey } from '../en.js';
 
 export const media: Partial<Record<UiKey, string>> = {
+  'video.transcript': 'Transcript',
+  'admin.video.transcript.edit': 'Transcript bewerken',
+  'admin.video.transcript.text': 'Concepttekst',
+  'admin.video.transcript.hint':
+    'WebVTT, SRT of één regel per begintijd, bijvoorbeeld 00:03 Langs de rivier.',
+  'admin.video.transcript.file': 'Transcriptbestand importeren',
+  'admin.video.transcript.save': 'Concept opslaan',
+  'admin.video.transcript.publish': 'Opgeslagen concept publiceren',
+  'admin.video.transcript.live': 'Dit transcript is gepubliceerd.',
+  'admin.video.transcript.saved': 'Concept opgeslagen.',
+  'admin.video.transcript.conflict':
+    'Het transcript is gewijzigd. Open het opnieuw voordat je verdergaat.',
+  'admin.video.transcript.invalid': 'Controleer de tijden en de tekst van elke regel.',
   'admin.video.title': 'Video’s',
   'admin.video.choose': 'Kies een video',
   'admin.video.file': 'Kies een videobestand',

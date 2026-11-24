@@ -766,6 +766,8 @@ export interface Database {
     id: string;
     poster_id: string;
     metadata: Json<unknown>;
+    draft_tracks: ColumnType<Record<string, string>, string | undefined, string>;
+    transcript_lexemes: ColumnType<Record<string, string[]>, string | undefined, string>;
     published_tracks: ColumnType<Record<string, string>, string | undefined, string>;
     duration_seconds: number | null;
     has_source: boolean;

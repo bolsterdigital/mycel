@@ -65,6 +65,8 @@ export async function exerciseManagedVideo(page: Page) {
   // Give each browser a real placement it can withdraw independently of the shared examples.
   const principal = systemPrincipal(await tenantId(), 'e2e');
   const slug = 'video-' + randomUUID();
+  const uniqueTitle = slug.replaceAll('-', '');
+  const search = () => page.request.get('/probe/search?q=' + uniqueTitle + '+rivier');
   const itemId = await withInvoker(async (invoker) => {
     const { item, revision } = await invoker.run(useCases.createItem, principal, {
       slug,
@@ -72,7 +74,7 @@ export async function exerciseManagedVideo(page: Page) {
         type: 'page',
         defaultLocale: 'nl',
         locales: ['nl'],
-        title: { nl: 'Opname' },
+        title: { nl: uniqueTitle },
         blocks: [{ id: 'film', type: 'video', version: 1, props: { videoId: EXAMPLE_IDS.video } }],
       },
     });
@@ -85,6 +87,8 @@ export async function exerciseManagedVideo(page: Page) {
   });
   await page.goto('/probe/' + slug);
   expect(asked).toEqual([]);
+  expect(await (await search()).text()).toContain('href="/probe/' + slug + '"');
+  await expect(page.locator('.block.video details')).toContainText('Langs de rivier.');
   const play = page.getByRole('button', { name: title });
   const endpoint = (await play.locator('..').getAttribute('action'))!;
   const ungranted = await page.request.get(endpoint);
@@ -165,6 +169,7 @@ export async function exerciseManagedVideo(page: Page) {
   await withInvoker((invoker) =>
     invoker.run(useCases.unpublishItem, principal, { itemId, locale: 'nl' })
   );
+  expect(await (await search()).text()).not.toContain('href="/probe/' + slug + '"');
   const denied = page.waitForResponse(
     (r) => r.url().endsWith(endpoint) && r.request().method() === 'POST'
   );

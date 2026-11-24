@@ -21,6 +21,7 @@ export interface VideoRecord {
   metadata: VideoMetadata;
   durationSeconds: number | null;
   hasSource: boolean;
+  draftTracks?: Partial<Record<string, string>>;
   publishedTracks: Partial<Record<string, string>>;
   createdAt: Date;
   trashedAt: Date | null;

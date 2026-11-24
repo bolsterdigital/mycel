@@ -5,7 +5,12 @@ import { allBlocks } from '../../content/blocks.js';
 import { documentReferences, type Revision } from '../../content/model.js';
 import { compareItems, matchesItemDocument, matchesItemFilter } from '../../content/listing.js';
 import { comparePublished } from '../../content/published/list.js';
-import { compareHits, matchesSearch, searchEntry } from '../../content/published/search.js';
+import {
+  compareHits,
+  matchesSearch,
+  searchEntry,
+  transcriptTokens,
+} from '../../content/published/search.js';
 import type {
   PublishedCardRow,
   BulkPlanRepository,
@@ -133,12 +138,30 @@ function memoryPublished(
         )
         .slice(offset, offset + limit);
     },
-    async searchPublished({ tokens, locale, reader }, offset, limit) {
+    async searchPublished({ tokens, locale, reader, libraryId }, offset, limit) {
       const hits: PublishedHit[] = kept().flatMap((item) => {
         const state = item.publication.find((p) => p.locale === locale && p.publishedRevisionId);
         if (!state) return [];
         const revision = s.revisions.get(state.publishedRevisionId!)!;
         const entry = searchEntry(revision.document, locale);
+        if (entry?.access.level === 'public' && libraryId) {
+          for (const block of revision.document.blocks) {
+            if (block.type !== 'video') continue;
+            const video = s.videos.get(block.props.videoId);
+            const binding = s.videoUploads.get(block.props.videoId);
+            const track = video?.publishedTracks[locale];
+            if (
+              track &&
+              video?.hasSource &&
+              !video.trashedAt &&
+              binding?.libraryId === libraryId &&
+              binding.state === 'ready' &&
+              binding.providerId &&
+              binding.mp4Height
+            )
+              entry.all.push(...transcriptTokens(track));
+          }
+        }
         const match = entry && matchesSearch(entry, tokens, reader);
         if (!match) return [];
         return [

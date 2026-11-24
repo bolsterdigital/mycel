@@ -114,6 +114,7 @@ const fixtures: ResolveSource = {
           duration: 54,
           posterId: EXAMPLE_IDS.image,
           playable: false,
+          transcript: [],
         }
       : null;
   },

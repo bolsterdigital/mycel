@@ -163,7 +163,12 @@ export interface VideoRepository {
   insert(record: VideoRecord): Promise<void>;
   update(
     id: string,
-    patch: Partial<Pick<VideoRecord, 'durationSeconds' | 'hasSource' | 'trashedAt'>>
+    patch: Partial<
+      Pick<
+        VideoRecord,
+        'durationSeconds' | 'hasSource' | 'trashedAt' | 'draftTracks' | 'publishedTracks'
+      >
+    >
   ): Promise<void>;
   upload(id: string): Promise<VideoUpload | null>;
   byUploadKey(key: string): Promise<VideoUpload | null>;

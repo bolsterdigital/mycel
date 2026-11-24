@@ -227,6 +227,8 @@ export * from './connections/mailchimp/destination.js';
 
 export * from './supporters/lifecycle.js';
 
+export { transcriptTokens } from './content/published/search.js';
+export { MAX_TRANSCRIPT } from './media/transcript.js';
 export { VideoMetadata, videoSourceKey, type VideoUploadState } from './media/video-model.js';
 export type { VideoRecord, VideoUpload } from './media/video-model.js';
 export type { VideoRepository, VideoProvider, VideoProviderStatus } from './media/ports.js';

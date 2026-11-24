@@ -1,5 +1,6 @@
 // Playback reads the current published placement on every grant. A video record or a provider
 // binding alone can never open delivery. Drafts, teasers and zones cannot mint a grant.
+import { transcriptText } from './transcript.js';
 import { z } from 'zod';
 import { allBlocks, BlockId } from '../content/blocks.js';
 import { ContentType, Slug } from '../content/model.js';
@@ -20,7 +21,7 @@ export const VideoPlacement = z
   .strict();
 export type VideoPlacement = z.infer<typeof VideoPlacement>;
 
-export async function videoPresentation(ctx: TransactionContext, id: string) {
+export async function videoPresentation(ctx: TransactionContext, id: string, locale?: string) {
   const video = await ctx.videos.get(id);
   if (!video || video.trashedAt) return null;
   const upload = await ctx.videos.upload(id);
@@ -32,6 +33,7 @@ export async function videoPresentation(ctx: TransactionContext, id: string) {
     !!upload.mp4Height &&
     video.hasSource;
   return {
+    transcript: playable && locale ? transcriptText(video.publishedTracks[locale] ?? '') : [],
     metadata: video.metadata,
     duration: video.durationSeconds,
     posterId: video.posterId,
@@ -75,8 +77,9 @@ const trackToken = (
   revision: string,
   block: string,
   locale: string,
-  exp: number
-) => `video-track:${tenant}:${video}:${revision}:${block}:${locale}:${exp}`;
+  exp: number,
+  version: string
+) => `video-track:${tenant}:${video}:${revision}:${block}:${locale}:${exp}:${version}`;
 
 export async function grantVideo(ctx: TransactionContext, target: VideoPlacement) {
   const placement = await placedRecording(ctx, target);
@@ -95,7 +98,8 @@ export async function grantVideo(ctx: TransactionContext, target: VideoPlacement
             item.revisionId,
             target.block,
             target.locale,
-            expires
+            expires,
+            await ctx.inputHasher.hash(caption)
           )
         ),
       }
@@ -124,7 +128,8 @@ export async function readVideoTrack(
     placement.item.revisionId,
     target.block,
     target.locale,
-    exp
+    exp,
+    await ctx.inputHasher.hash(placement.video.publishedTracks[target.locale]!)
   );
   return (await ctx.signer.verify(signature)) === expected
     ? placement.video.publishedTracks[target.locale]!
