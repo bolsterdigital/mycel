@@ -40,10 +40,18 @@ export async function exerciseManagedVideo(page: Page) {
       ['/probe/en/blok-video-shared', 'Watch externally'],
     ] as const) {
       await page.goto(path);
+      const credit = page.locator('.video-credit');
+      await credit.evaluate((element) => {
+        element.prepend('Tom Koerner / U.S. Fish and Wildlife Service · ');
+      });
+      const watchLink = page.getByRole('link', { name: watch, exact: true });
+      const creditBox = (await credit.boundingBox())!;
+      const linkBox = (await watchLink.boundingBox())!;
+      expect(creditBox.x + creditBox.width).toBeLessThanOrEqual(linkBox.x);
+      expect(linkBox.y).toBeLessThan(creditBox.y + creditBox.height);
       await setTextSize(page, '200%');
       await layoutGate(page, watch, '.video-details');
-      const action = page.getByRole('link', { name: watch, exact: true });
-      const size = (await action.boundingBox())!;
+      const size = (await watchLink.boundingBox())!;
       expect(size.height).toBeGreaterThanOrEqual(44);
       expect(size.width).toBeGreaterThanOrEqual(44);
       await expectNoAxeViolations(page, { label: watch });

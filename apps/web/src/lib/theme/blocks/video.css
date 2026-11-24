@@ -110,7 +110,9 @@
 }
 .video-credit {
   position: relative;
-  flex: 0 1 auto;
+  /* Reserve the watch link first. Wrap the row when the credit has less than a short word group. */
+  flex: 1 1 10ch;
+  min-inline-size: 0;
   overflow-wrap: anywhere;
 }
 .video-credit svg {
