@@ -5,9 +5,11 @@
 import { campaignCardDefinition } from './campaign-card.js';
 import { socialConversationDefinition } from './social-conversation.js';
 import { overviewDefinition } from './overview.js';
+import { videoDefinition } from './video.js';
 
 export const REFERENCE_BLOCKS = {
   'campaign-card': campaignCardDefinition,
   'social-conversation': socialConversationDefinition,
   overview: overviewDefinition,
+  video: videoDefinition,
 } as const;

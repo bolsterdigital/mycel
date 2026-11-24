@@ -185,6 +185,7 @@ export const blocks: Partial<Record<UiKey, string>> = {
   'admin.block.type.callout': 'Kader',
   'admin.block.type.faq': 'Vragen en antwoorden',
   'admin.block.type.quote': 'Citaat',
+  'admin.block.type.video': 'Video uit bibliotheek',
   'admin.block.type.social-conversation': 'Gespreksblok',
   'admin.block.type.video-embed': 'Video',
   'admin.block.type.form': 'Formulier',

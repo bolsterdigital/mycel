@@ -11,6 +11,7 @@ export const JobPayloads = {
   'connections.mailchimp.sync': z.object({ intentId: z.string().guid() }).strict(),
   'connections.run': z.object({ intentId: z.string().guid() }).strict(),
   /** Tenant job: evaluate one pending proposal outside the request transaction. */
+  'video.create': z.object({ videoId: z.string().guid() }).strict(),
   'assist.run': z.object({ suggestionId: z.string().guid() }).strict(),
   /** Platform job: visit each tenant separately to remove expired proposals. */
   'assist.retention': z.object({}).strict(),

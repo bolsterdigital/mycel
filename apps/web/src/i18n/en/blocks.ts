@@ -178,6 +178,7 @@ export const blocks = {
   'admin.block.type.callout': 'Callout',
   'admin.block.type.faq': 'Questions and answers',
   'admin.block.type.quote': 'Quote',
+  'admin.block.type.video': 'Video from library',
   'admin.block.type.social-conversation': 'Social conversation',
   'admin.block.type.video-embed': 'Video',
   'admin.block.type.form': 'Form',

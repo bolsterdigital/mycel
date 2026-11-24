@@ -150,13 +150,18 @@ export function applySecurityHeaders(
   kind: ResponseKind,
   https: boolean,
   liveDraft = false,
-  sources: PageSources | null = null
+  sources: PageSources | null = null,
+  videoUploadPage = false
 ): void {
   for (const [name, value] of Object.entries(securityHeaders(kind, https)))
     if (!headers.has(name)) headers.set(name, value);
   const policy = headers.get('content-security-policy');
   if (kind === 'public' && policy && sources)
     headers.set('content-security-policy', pageSources(policy, sources));
-  if (kind === 'admin' && policy)
-    headers.set('content-security-policy', frameAncestors(policy, liveDraft ? "'self'" : "'none'"));
+  if (kind === 'admin' && policy) {
+    const scoped = videoUploadPage
+      ? widen(widen(policy, 'connect-src', ['https://video.bunnycdn.com']), 'media-src', ['blob:'])
+      : policy;
+    headers.set('content-security-policy', frameAncestors(scoped, liveDraft ? "'self'" : "'none'"));
+  }
 }

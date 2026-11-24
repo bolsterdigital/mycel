@@ -3,6 +3,7 @@ import { expect, test, type APIRequestContext, type Page, type Response } from '
 import { createHash } from 'node:crypto';
 import { exerciseAnalyticsSettings } from './lib/analytics/settings';
 import { exerciseIntegrationSettings } from './lib/integrations/settings';
+import { exerciseManagedVideo } from './lib/integrations/managed-video';
 import { exerciseVideoEmbeds } from './lib/integrations/video';
 import { exerciseConsent } from './lib/integrations/consent';
 import { exercisePageviews } from './lib/analytics/pageviews';
@@ -1758,6 +1759,9 @@ test('an administrator switches integrations on and off; an editor cannot', ({ p
 // A switched-on provider's video loads its player on a click, never before, and frames only it.
 test('a video loads its player on a click and asks the provider nothing before', ({ page }) =>
   exerciseVideoEmbeds(page));
+
+test('managed video plays MP4 after permission to load, with or without JavaScript', ({ page }) =>
+  exerciseManagedVideo(page));
 
 // A switched-on tag manager waits for the visitor's choice; refusing or withdrawing loads nothing.
 test('the tag manager loads only after consent, and never on a page with a form', ({ page }) =>

@@ -27,7 +27,7 @@
 // (restricted paths would sit in the model even if no component printed them).
 
 import { renderAssetImage, renderFile } from './render-asset.js';
-import { type ImagePlacement } from '@mycel/core';
+import type { ImagePlacement } from '@mycel/core';
 import { personPath } from '../public/person-path.js';
 import {
   wallClock,
@@ -52,6 +52,7 @@ import {
   type Principal,
   type UnitOfWork,
   UseCaseError,
+  videoPresentation,
   allBlocks,
   contentPath,
   pick,
@@ -64,7 +65,7 @@ import {
 } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
 import { amountChoices, membershipChoices } from './amount-field.js';
-import { blockCopy } from './copy.js';
+import { blockCopy, renderLicence } from './copy.js';
 import { referencesOf } from './references.js';
 import { headingsAboveFloats } from './float-order.js';
 import { opensInCard } from './card-body.js';
@@ -85,6 +86,7 @@ import { videoPlayerUrl, videoUrl, type RenderEvent, type RenderMeta } from './m
 /** Where the resolver reads tenant data; `runtimeSource` is the real one, tests may stub it. */
 export interface ResolveSource {
   defaultLocale?: string;
+  video?(id: string): ReturnType<typeof videoPresentation>;
   creditPerson?(id: string): Promise<{ name: string; slug: string | null } | null>;
   peopleGrid?(props: BlockProps<'people-grid'>, locale: string): Promise<PublicPersonCard[]>;
   form(id: string): Promise<{
@@ -129,6 +131,7 @@ export function runtimeSource(deps: {
   const { invoker, uow, reader, defaultLocale } = deps;
   return {
     defaultLocale,
+    video: (id) => uow.run(reader, (ctx) => videoPresentation(ctx, id)),
     creditPerson: (id) => uow.run(reader, (ctx) => resolveCreditPerson(ctx, id)),
     async peopleGrid(props, locale) {
       return uow.run(reader, (ctx) => resolvePeopleGrid(ctx, props, locale));
@@ -373,6 +376,7 @@ export async function resolveDocument(
      */
     page?: number;
     path?: string;
+    videoRoute?: string;
     /** The site's time zone for an overview's dates; UTC where a caller has none. */
     timeZone?: string;
     /**
@@ -403,6 +407,13 @@ export async function resolveDocument(
   for (const b of blocks)
     for (const ref of referencesOf(b).filter((ref) => ['media', 'form', 'item'].includes(ref.type)))
       (ref.type === 'media' ? mediaIds : ref.type === 'form' ? formIds : itemIds).add(ref.refId);
+  const videos = new Map<string, Awaited<ReturnType<typeof videoPresentation>>>();
+  for (const block of blocks) {
+    if (block.type !== 'video' || videos.has(block.props.videoId)) continue;
+    const video = (await source.video?.(block.props.videoId)) ?? null;
+    videos.set(block.props.videoId, video);
+    if (video) mediaIds.add(video.posterId);
+  }
   // Campaign cards first: an available one adds its image to the media and, on a `full` card
   // while participation is open, its form to the forms. A form block asks whether its form is
   // bound to a campaign that does not accept participation now.
@@ -777,6 +788,23 @@ export async function resolveDocument(
           source: text(b.props.attribution.source),
           url: b.props.attribution.url ?? null,
         };
+      case 'video': {
+        const video = videos.get(b.props.videoId);
+        return {
+          id,
+          type: 'video',
+          caption: text(b.props.caption),
+          title: video ? (pick(video.metadata.title, locale, options.fallbackLocale) ?? '') : '',
+          duration: video?.duration ?? null,
+          poster: video
+            ? renderAssetImage(own(video.posterId), { decorative: true, alt: null }, locale)
+            : null,
+          maker: video?.metadata.maker ?? null,
+          licence: video ? renderLicence(video.metadata.licence, locale) : null,
+          watch: video?.metadata.watchUrl ?? null,
+          play: video?.playable && options.videoRoute ? `${options.videoRoute}/${id}` : null,
+        };
+      }
       case 'social-conversation': {
         const posts = socialConversationLinks(b.props, locale);
         return posts.length ? { id, type: 'social-conversation', links: posts } : null;

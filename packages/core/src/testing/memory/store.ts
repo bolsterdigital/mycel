@@ -148,6 +148,8 @@ export interface TenantStore {
   admissions: Map<string, Date>;
   /** `media` (0012), keyed by id; `usageCount` is computed from `mediaUsages`. */
   media: Map<string, StoredMedia>;
+  videos: Map<string, import('../../media/video-model.js').VideoRecord>;
+  videoUploads: Map<string, import('../../media/video-model.js').VideoUpload>;
   /** `media_usages` (0012), keyed by `<media id> <ref> <block id>`. */
   mediaUsages: Map<string, { mediaId: string; ref: string; blockId: string }>;
   /** `audit_log` (0015), in insertion order. */
@@ -246,6 +248,8 @@ const emptyTenant = (): TenantStore => ({
   hostnames: new Map(),
   admissions: new Map(),
   media: new Map(),
+  videos: new Map(),
+  videoUploads: new Map(),
   mediaUsages: new Map(),
   audit: [],
   supporterLifecycles: new Map(),

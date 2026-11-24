@@ -16,6 +16,7 @@ import {
   runConnectionIntent,
   type ConnectionDispatchDeps,
   parseJobPayload,
+  runVideoCreate,
   publishScheduled,
   renderShareCard,
   renderShareCards,
@@ -419,6 +420,17 @@ export function jobHandlers({
         job.tenantId,
         intentId
       );
+    },
+    'video.create': async (job) => {
+      if (!job.tenantId) throw new Error('video.create needs a tenant');
+      const { videoId } = parseJobPayload('video.create', job.payload);
+      const access = await identity.tenantAccess(job.tenantId);
+      await runVideoCreate(
+        uow,
+        systemPrincipal(job.tenantId, 'jobs:video.create', access),
+        videoId
+      );
+      return {};
     },
     'assist.run': async (job) => {
       if (!job.tenantId) throw new Error('assist.run needs a tenant');

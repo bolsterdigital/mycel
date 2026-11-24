@@ -35,6 +35,7 @@
 // `--root <dir>` checks another tree; scripts/gates/fixtures/dependency-rules/ holds one small repo
 // per rule that must fail, and check-dependency-rules.test.mjs runs them.
 
+import { createHash } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import ts from 'typescript';
@@ -267,6 +268,18 @@ if (existsSync(dockerfile)) {
   }
 }
 
+// combine-errors ships an MIT licence file with the package, but has no SPDX metadata.
+// Pin the known text and version, so an upgrade with omitted metadata still fails closed.
+function licenceFileFallback(name, version, packageFile) {
+  if (name !== 'combine-errors' || version !== '3.0.4') return 'UNKNOWN';
+  const licence = join(root, dirname(packageFile), 'License.md');
+  if (!existsSync(licence)) return 'UNKNOWN';
+  const digest = createHash('sha256').update(readFileSync(licence)).digest('hex');
+  return digest === '6ff58ad508cf3a7fe1b469cfbf47e21d4757a33f8578833cd3b36c34c08b2ede'
+    ? 'MIT'
+    : 'UNKNOWN';
+}
+
 // Licence check over installed production dependencies (skipped when node_modules is absent).
 const nm = join(root, 'node_modules');
 if (existsSync(nm)) {
@@ -281,7 +294,9 @@ if (existsSync(nm)) {
     const lic =
       typeof pkg.license === 'string'
         ? pkg.license
-        : (pkg.license?.type ?? pkg.licenses?.[0]?.type ?? 'UNKNOWN');
+        : (pkg.license?.type ??
+          pkg.licenses?.[0]?.type ??
+          licenceFileFallback(pkg.name, pkg.version, pj));
     if (!licenceAllowed(lic) && !devOnly.has(pkg.name))
       errors.push(
         `dependency ${pkg.name}@${pkg.version}: licence ${lic} not in allow-list (ADR 006)`

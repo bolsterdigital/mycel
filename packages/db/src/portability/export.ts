@@ -35,6 +35,7 @@ import {
   UseCaseError,
   exportSource,
   mediaKeys,
+  videoSourceKey,
   type BlobStore,
   type ExportManifest,
   type MediaRecord,
@@ -89,6 +90,8 @@ export const TABLES = {
   patterns: 'export',
   media: 'export',
   media_usages: 'export',
+  managed_videos: 'export',
+  managed_video_uploads: 'operational',
   content_items: 'export',
   content_revisions: 'export',
   // Who has an item open this minute (0038): no site data, and gone within the minute.
@@ -173,6 +176,7 @@ export const EXPORT_ORDER: readonly ExportTable[] = [
   'patterns',
   'media',
   'media_usages',
+  'managed_videos',
   'content_items',
   'content_revisions',
   'content_bulk_plans',
@@ -371,6 +375,10 @@ export async function exportTenant(options: ExportOptions): Promise<ExportManife
         f.hash.update(text);
         f.rows++;
         await f.handle.write(text);
+        if (table === 'managed_videos') {
+          const video = JSON.parse(line) as { id: string; has_source: boolean };
+          if (video.has_source) required.set(videoSourceKey(tenant.id, video.id), video.id);
+        }
         if (table !== 'media') return;
         const m = JSON.parse(line) as MediaLine;
         if (m.deleted_at === null)

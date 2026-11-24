@@ -353,6 +353,17 @@ export type RenderBlock = { id: string } & (
       url: string | null;
     }
   | {
+      type: 'video';
+      caption: string | null;
+      title: string;
+      duration: number | null;
+      poster: RenderImage | null;
+      maker: string | null;
+      licence: { label: string; href: string | null } | null;
+      watch: string | null;
+      play: string | null;
+    }
+  | {
       type: 'social-conversation';
       links: ReturnType<typeof socialConversationLinks>;
     }

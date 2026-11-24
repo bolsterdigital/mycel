@@ -33,6 +33,7 @@ export const PUBLIC_SCRIPTS = [
   NAVIGATION_SCRIPT,
   '/_site/campaign-body.js',
   '/_site/article-initial.js',
+  '/_site/embed.js',
   TRANSITIONS_SCRIPT,
 ] as const;
 

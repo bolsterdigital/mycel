@@ -92,6 +92,7 @@ const IMPORT_RULE = {
   patterns: 'as-exported',
   media: 'as-exported',
   media_usages: 'as-exported',
+  managed_videos: 'as-exported',
   content_items: 'as-exported',
   content_revisions: 'as-exported',
   content_bulk_plans: 'as-exported',

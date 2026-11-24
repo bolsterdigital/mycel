@@ -32,7 +32,7 @@ export interface LocalField {
 
 /** A tenant reference inside a block's props (the `type` column of `content_block_refs`). */
 export interface PropReference {
-  type: 'form' | 'item' | 'media' | 'person' | 'person_group' | 'campaign' | 'section';
+  type: 'form' | 'item' | 'media' | 'person' | 'person_group' | 'campaign' | 'section' | 'video';
   refId: string;
   /** This media slot takes a document, not an image; the `content_block_refs` row stays `media`. */
   document?: true;
@@ -72,7 +72,7 @@ export type BlockField =
   | {
       key: string;
       kind: 'reference';
-      to: 'form' | 'item' | 'person' | 'person_group' | 'campaign' | 'section';
+      to: 'form' | 'item' | 'person' | 'person_group' | 'campaign' | 'section' | 'video';
       optional?: 'null' | 'omit';
     }
   | { key: string; kind: 'choice'; options: readonly string[]; initial?: string; optional?: 'omit' }

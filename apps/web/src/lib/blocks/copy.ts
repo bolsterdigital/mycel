@@ -2,6 +2,7 @@
 // the item's locale. Its own module so the resolver stays one subject; resolve.ts re-exports it.
 // Rejected: each component reading the catalog itself, which would put the locale lookup in
 // every component and keep the preview from rendering the page's locale beside the admin's.
+import { LICENCE_URLS, type MediaLicence } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
 import { creditWords } from './credit.js';
 import type { BlockCopy } from './model.js';
@@ -87,4 +88,11 @@ export function blockCopy(locale: string): BlockCopy {
       restricted: t('block.overview.restricted'),
     },
   };
+}
+
+/** A licence in this locale's words and its link; `other` is named by its own text. */
+export function renderLicence(licence: MediaLicence | null, locale: string) {
+  if (!licence) return null;
+  const label = licence.text ?? ui(locale)(`block.licence.${licence.code}`);
+  return { label, href: LICENCE_URLS[licence.code] };
 }

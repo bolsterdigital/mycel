@@ -82,7 +82,10 @@
         data-domain={data.pageview.domain}
         data-url={data.pageview.url}
       ></script>{/if}
-    {#if data.embeds.length > 0}<script defer src="/_site/embed.js"></script>{/if}
+    {#if data.embeds.length > 0 || data.model.blocks.some((block) => block.type === 'video' && block.play)}<script
+        defer
+        src="/_site/embed.js"
+      ></script>{/if}
     {#if data.consent}
       <link rel="stylesheet" href="/_site/consent.css" />
       <script

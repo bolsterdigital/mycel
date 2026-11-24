@@ -256,6 +256,10 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
             : null;
         return `> ${md(b.text)}\n>\n> *${[who, source].filter(Boolean).join(', ')}*`;
       }
+      case 'video':
+        return [b.caption ? md(b.caption) : '', b.watch ? link(b.title, b.watch) : '']
+          .filter(Boolean)
+          .join('\n\n');
       case 'social-conversation':
         return [
           heading(BLOCK_DEPTH, model.copy.socialConversation),

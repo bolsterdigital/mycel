@@ -1,25 +1,13 @@
-// Images and files use the same delivery boundary. Resolve srcset, crop and attribution before rendering.
-import {
-  LICENCE_URLS,
-  placementFor,
-  type ImagePlacement,
-  type MediaLicence,
-  type MediaView,
-} from '@mycel/core';
-import { framingAttributes } from './framing.js';
+// Image and download models share the same delivery check so restricted media only reaches
+// either renderer when the resolver has supplied variants signed for this reader.
+import { placementFor, type ImagePlacement, type MediaView } from '@mycel/core';
 import { formatBytes } from '../admin/format.js';
-import { ui } from '../../i18n/index.js';
+import { renderLicence } from './copy.js';
+import { framingAttributes } from './framing.js';
 import type { RenderImage } from './model.js';
 
 /** The width `src` aims for: enough for a content column, small enough for an old browser. */
 const FALLBACK_WIDTH = 960;
-
-/** A licence in this locale's words and its link; `other` is named by its own text. */
-function renderLicence(licence: MediaLicence | null, locale: string) {
-  if (!licence) return null;
-  const label = licence.text ?? ui(locale)(`block.licence.${licence.code}`);
-  return { label, href: LICENCE_URLS[licence.code] };
-}
 
 export function renderAssetImage(
   asset: MediaView | null,

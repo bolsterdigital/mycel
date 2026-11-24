@@ -163,7 +163,10 @@ const label = (values: Record<string, string>) =>
     .join(', ');
 
 /** The block types in the order of the definitions, without the ones "All blocks" leaves out. */
-export const ALL_BLOCKS_TYPES = INSERTABLE_BLOCK_TYPES.filter((t) => t !== 'paywall');
+// Managed recordings need a provisioned library and are seeded on the dedicated playback pages.
+export const ALL_BLOCKS_TYPES = INSERTABLE_BLOCK_TYPES.filter(
+  (t) => t !== 'paywall' && t !== 'video'
+);
 
 function allBlocks(r: SiteRefs): BlockInput[] {
   const out: BlockInput[] = [

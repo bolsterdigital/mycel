@@ -74,6 +74,7 @@ const Config = z
      * CONNECTION_CREDENTIAL_KEY, and PUBLIC_API_URL over https for Mollie's webhook (without
      * it the hourly reconciliation and the donor's return settle the payment).
      */
+    BUNNY_VIDEO_LIBRARIES: z.string().optional(),
     PAYMENT_PROVIDER: z.enum(['none', 'fake', 'mollie']).default('none'),
     /** Mollie's API origin; a recorded-answer server in tests only, refused in production. */
     MOLLIE_API_ORIGIN: z.string().url().optional(),

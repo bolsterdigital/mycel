@@ -55,6 +55,7 @@ export const ADMIN_ROUTES: GateRoute[] = [
   { path: '/admin/probe/status/audit', within: 'main' },
   { path: '/admin/probe/meldingen', within: 'main' },
   { path: '/admin/probe/media/trash', within: 'main' },
+  { path: '/admin/probe/media/video', within: 'main' },
   // The seed holds one pattern, so a card with its rename fold and delete confirmation is measured.
   { path: '/admin/probe/patterns', within: 'main', folds: true },
   { path: '/admin/probe/content/trash', within: 'main' },

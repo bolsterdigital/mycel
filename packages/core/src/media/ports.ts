@@ -6,6 +6,7 @@
 // Rejected: URLs in the `image` block (vendor lock-in inside content) and a public bucket with
 // direct links (originals and restricted media would then have an address).
 
+import type { VideoRecord, VideoUpload } from './video-model.js';
 import type { Signer } from '../ports.js';
 import type { MediaFilter, MediaOrder } from './listing.js';
 import type { ImageFormat, MediaFocal, MediaPatch, MediaRecord, NewMedia } from './model.js';
@@ -156,9 +157,43 @@ export interface MediaRepository {
   idsOf(): Promise<string[]>;
 }
 
+export interface VideoRepository {
+  get(id: string): Promise<VideoRecord | null>;
+  list(): Promise<VideoRecord[]>;
+  insert(record: VideoRecord): Promise<void>;
+  update(
+    id: string,
+    patch: Partial<Pick<VideoRecord, 'durationSeconds' | 'hasSource' | 'trashedAt'>>
+  ): Promise<void>;
+  upload(id: string): Promise<VideoUpload | null>;
+  byUploadKey(key: string): Promise<VideoUpload | null>;
+  saveUpload(upload: VideoUpload): Promise<void>;
+  usage(except?: string): Promise<{ storageBytes: number; durationSeconds: number }>;
+  used(id: string): Promise<boolean>;
+}
+
+export interface VideoProviderStatus {
+  state: 'upload' | 'encoding' | 'failed' | 'complete';
+  durationSeconds: number;
+  storageBytes: number;
+  mp4Height: number | null;
+}
+
+export interface VideoProvider {
+  libraryId: string;
+  create(intentId: string): Promise<string>;
+  find(intentId: string): Promise<string | null>;
+  status(id: string, now: Date): Promise<VideoProviderStatus>;
+  retainSource(id: string, key: string, blobs: BlobStore, now: Date): Promise<void>;
+  signUpload(id: string, expiresAt: Date): { signature: string; expires: number };
+  signPlayback(id: string, mp4Height: number, expiresAt: Date): { hls: string; mp4: string };
+}
+
 declare module '../ports.js' {
   interface TransactionContext {
     media: MediaRepository;
+    videos: VideoRepository;
+    videoProvider: VideoProvider | null;
     blobs: BlobStore;
     images: ImageProcessor;
     delivery: MediaDelivery;

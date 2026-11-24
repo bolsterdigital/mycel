@@ -10,6 +10,7 @@ export const EXAMPLE_IDS = {
   portrait: exampleId(0xd002),
   document: exampleId(0xd003),
   audio: exampleId(0xd004),
+  video: exampleId(0xd005),
   campaign: exampleId(0xc1),
   section: exampleId(0x5ec1),
   dossier: exampleId(0xd055),
