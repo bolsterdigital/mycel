@@ -42,6 +42,7 @@ import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { testTenant } from '@mycel/db/testing';
 import { callApi, longArticle, requireApi } from './lib/api';
 import { ask, armRenderer, rendererStack } from './lib/evidence/renderer';
+import { block, editorReady, reloadsEditor } from './lib/editor';
 
 // The generic gate over routes.ts: every route at 320 CSS px in default and 200% text passes
 // lib/layout.ts, and axe in the a11y project. One login per locale and text size walks every
@@ -772,6 +773,198 @@ test.describe('blocks-registry', () => {
       await expectNoAxeViolations(page);
       await band.screenshot({ path: test.info().outputPath(`cta-${locale}-320-text200.png`) });
     });
+
+  const socialPosts = BLOCK_DEFINITIONS['social-conversation'].examples[0]!.props;
+  const conversation = {
+    id: 'conversation',
+    type: 'social-conversation',
+    version: 1,
+    props: socialPosts,
+  } as const;
+
+  test('social posts stay in their published article revision and locale', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const slug = `conversation-${crypto.randomUUID()}`;
+    const title = { nl: 'Nieuws uit Otterdam', en: 'News from Otterdam' };
+    const props = socialPosts;
+    const document = {
+      type: 'article',
+      defaultLocale: 'nl',
+      locales: ['nl', 'en'],
+      title,
+      blocks: [conversation],
+    };
+    const created = await callApi<{ item: { id: string }; revision: { id: string } }>(
+      request,
+      'content.item.create',
+      { slug, document }
+    );
+    const principal = systemPrincipal(await tenantId(), 'e2e');
+    const publish = (itemId: string, revisionId: string, locale: string) =>
+      withInvoker((invoker) =>
+        invoker.run(useCases.publishItem, principal, { itemId, revisionId, locale })
+      );
+    const publicPath = (locale: string) => `/probe/${locale === 'en' ? 'en/' : ''}articles/${slug}`;
+    const section = page.locator('.social-conversation');
+    const foreign: string[] = [];
+    page.on('request', (r) => {
+      if (['bsky.app', 'social.example.org'].includes(new URL(r.url()).hostname))
+        foreign.push(r.url());
+    });
+
+    for (const locale of ['nl', 'en'] as const) {
+      await publish(created.item.id, created.revision.id, locale);
+      const path = publicPath(locale);
+      await page.setViewportSize(NARROW);
+      expect((await page.goto(path))?.status()).toBe(200);
+      await expect(section.getByRole('heading', { level: 2 })).toHaveText(
+        locale === 'nl' ? 'Praat mee' : 'Join the conversation'
+      );
+      const bluesky = section.getByRole('link', { name: 'Bluesky', exact: true });
+      const mastodon = section.getByRole('link', { name: 'Mastodon', exact: true });
+      await expect(bluesky).toHaveAttribute('href', props.blueskyPost![locale]!);
+      await expect(mastodon).toHaveAttribute('href', props.mastodonPost![locale]!);
+      await bluesky.focus();
+      await page.keyboard.press('Tab');
+      await expect(mastodon).toBeFocused();
+      if (isA11y()) {
+        await setTextSize(page, '200%');
+        await layoutGate(page, `conversation links ${locale} at 320/200%`, '.social-conversation');
+        await expect(mastodon).toHaveCSS('outline-style', 'solid');
+        const first = (await bluesky.boundingBox())!;
+        const second = (await mastodon.boundingBox())!;
+        for (const { width, height } of [first, second]) {
+          expect(width).toBeGreaterThanOrEqual(44);
+          expect(height).toBeGreaterThanOrEqual(44);
+        }
+        expect(second.y).toBeGreaterThanOrEqual(first.y + first.height);
+        await expectNoAxeViolations(page);
+        await section.screenshot({
+          path: test.info().outputPath(`conversation-${locale}-320-text200.png`),
+        });
+      }
+      const markdown = await (await page.request.get(`${path}?format=md`)).text();
+      expect(markdown).toContain(`[Bluesky](<${props.blueskyPost![locale]!}>)`);
+      expect(markdown).toContain(`[Mastodon](<${props.mastodonPost![locale]!}>)`);
+    }
+    expect(foreign).toEqual([]);
+    const destination = props.mastodonPost!.en!;
+    await page.route(destination, (route) => route.fulfill({ body: 'Mastodon post' }));
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(destination);
+
+    const edit = `/admin/probe/content/${created.item.id}`;
+    await login(page, `${edit}?locale=en&block=conversation`, undefined, {
+      'accept-language': 'en',
+    });
+    await editorReady(page);
+    const form = await block(page, 1);
+    await expect(form.getByLabel('Bluesky post')).toHaveValue(props.blueskyPost!.en!);
+    await expect(form.getByLabel('Mastodon post')).toHaveValue(props.mastodonPost!.en!);
+    if (isA11y()) {
+      await setTextSize(page, '200%');
+      await layoutGate(page, 'conversation editor en at 320/200%', 'section.ui-block-card');
+      await expectNoAxeViolations(page);
+      await form.screenshot({
+        path: test.info().outputPath('conversation-editor-en-320-text200.png'),
+      });
+    }
+    await form.getByLabel('Bluesky post').fill('');
+    await form.getByLabel('Mastodon post').fill('');
+    await reloadsEditor(page, () =>
+      page.getByRole('button', { name: 'Save', exact: true }).click()
+    );
+    const saved = await callApi<{
+      revision: {
+        id: string;
+        document: { blocks: { props: unknown }[] };
+      };
+    }>(request, 'content.item.get', { itemId: created.item.id });
+    expect(saved.revision.id).not.toBe(created.revision.id);
+    expect(saved.revision.document.blocks[0]!.props).toEqual({
+      blueskyPost: { nl: props.blueskyPost!.nl },
+      mastodonPost: { nl: props.mastodonPost!.nl },
+    });
+
+    await page.goto(publicPath('en'));
+    await expect(section.getByRole('link')).toHaveCount(2);
+    await publish(created.item.id, saved.revision.id, 'en');
+    expect((await page.reload())?.status()).toBe(200);
+    await expect(section).toHaveCount(0);
+    const emptyMarkdown = await (await page.request.get(`${publicPath('en')}?format=md`)).text();
+    expect(emptyMarkdown).not.toContain('bsky.app');
+    expect(emptyMarkdown).not.toContain('social.example.org');
+    await page.goto(publicPath('nl'));
+    await expect(section.getByRole('link')).toHaveCount(2);
+
+    const email = `${slug}@probe.test`;
+    const { operatorId } = await withInvoker((invoker) =>
+      invoker.run(useCases.inviteMember, principal, { email, capabilities: ['tenant:admin'] })
+    );
+    await asOwner((owner) =>
+      owner.updateTable('operators').set({ ui_locale: 'nl' }).where('id', '=', operatorId).execute()
+    );
+    await page.context().clearCookies();
+    await login(page, `${edit}?locale=nl&block=conversation`, email);
+    await editorReady(page);
+    const dutch = await block(page, 1);
+    await expect(dutch.getByLabel('Bluesky-bericht')).toHaveValue(props.blueskyPost!.nl!);
+    await expect(dutch.getByLabel('Mastodon-bericht')).toHaveValue(props.mastodonPost!.nl!);
+    if (isA11y()) {
+      await setTextSize(page, '200%');
+      await layoutGate(page, 'conversation editor nl at 320/200%', 'section.ui-block-card');
+      await expectNoAxeViolations(page);
+      await dutch.screenshot({
+        path: test.info().outputPath('conversation-editor-nl-320-text200.png'),
+      });
+    }
+  });
+
+  test('social posts behind the teaser boundary stay out of HTML and Markdown', async ({
+    page,
+  }) => {
+    const slug = `conversation-members-${crypto.randomUUID()}`;
+    const principal = systemPrincipal(await tenantId(), 'e2e');
+    await withInvoker(async (invoker) => {
+      const { item, revision } = await invoker.run(useCases.createItem, principal, {
+        slug,
+        document: {
+          type: 'article',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: 'Nieuws voor leden' },
+          access: { level: 'members', teaser: 'marker' },
+          blocks: [
+            { type: 'heading', version: 1, props: { text: { nl: 'Lees verder' } } },
+            { type: 'paywall', version: 1, props: {} },
+            {
+              ...conversation,
+              props: {
+                blueskyPost: { nl: socialPosts.blueskyPost!.nl! },
+                mastodonPost: { nl: socialPosts.mastodonPost!.nl! },
+              },
+            },
+          ],
+        },
+      });
+      await invoker.run(useCases.publishItem, principal, {
+        itemId: item.id,
+        revisionId: revision.id,
+        locale: 'nl',
+      });
+    });
+    const path = `/probe/articles/${slug}`;
+    expect((await page.goto(path))?.status()).toBe(200);
+    await expect(page.getByRole('heading', { name: 'Lees verder' })).toBeVisible();
+    await expect(page.locator('.social-conversation')).toHaveCount(0);
+    const teaserMarkdown = await (await page.request.get(`${path}?format=md`)).text();
+    expect(teaserMarkdown).toContain('Lees verder');
+    expect(teaserMarkdown).not.toContain('bsky.app');
+    expect(teaserMarkdown).not.toContain('social.example.org');
+  });
 
   test('people grids respect column choices, small text layouts and image budgets', async ({
     page,

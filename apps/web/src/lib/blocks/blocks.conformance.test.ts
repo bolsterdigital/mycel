@@ -30,7 +30,14 @@ import {
   type MediaView,
   DEFAULT_THEME,
 } from '@mycel/core';
-import { demoArticle, demoPage, probeForm, conditionalProbeForm } from '@mycel/core/testing';
+import {
+  demoArticle,
+  demoPage,
+  probeForm,
+  conditionalProbeForm,
+  LOCALE_SENTINEL,
+  markEnglish,
+} from '@mycel/core/testing';
 import { formValues } from '../editor/block-form.js';
 import Blocks from './Blocks.svelte';
 import BlockText from '../admin/ui/display/BlockText.svelte';
@@ -56,7 +63,6 @@ const LOCALES = ['nl', 'en'] as const;
 const RESTRICTED = '01900000-0000-7000-8000-00000000d0ff';
 const UNKNOWN_FILE = '01900000-0000-7000-8000-00000000d0fe';
 const UNPUBLISHED = '01900000-0000-7000-8000-00000000c0ff';
-const SENTINEL = 'LEAK-SENTINEL';
 
 function asset(id: string, width: number, height: number, focal = { x: 0.5, y: 0.5 }): MediaView {
   const widths = [320, 640, 960].filter((w) => w <= width);
@@ -323,17 +329,6 @@ function markupProblems(html: string): string[] {
   return out;
 }
 
-/** Every visible string under an `en` key replaced by a sentinel (core's conformance approach). */
-function sentinel(value: unknown, inEn = false, key = ''): unknown {
-  if (typeof value === 'string') return inEn && (key === 'en' || key === 'text') ? SENTINEL : value;
-  if (Array.isArray(value)) return value.map((v) => sentinel(v, inEn, ''));
-  if (value && typeof value === 'object')
-    return Object.fromEntries(
-      Object.entries(value).map(([k, v]) => [k, sentinel(v, inEn || k === 'en', k)])
-    );
-  return value;
-}
-
 // A new block starts from the empty form, which the seeded examples never go through: a form that
 // offers fewer rows than the schema asks, or selects another value than the schema's default, shows
 // only once an editor uses it (review of #286).
@@ -527,10 +522,10 @@ describe('the kind of an image credit', () => {
 describe('nothing leaks into any representation', () => {
   it('carries no text of the other locale', async () => {
     for (const { name, block } of examples) {
-      const marked = Block.parse(sentinel(block));
+      const marked = Block.parse(markEnglish(block));
       const { html, markdown } = await representations([marked], 'nl');
-      expect(html, name).not.toContain(SENTINEL);
-      expect(markdown, name).not.toContain(SENTINEL);
+      expect(html, name).not.toContain(LOCALE_SENTINEL);
+      expect(markdown, name).not.toContain(LOCALE_SENTINEL);
     }
   });
 
@@ -896,12 +891,12 @@ describe('the demo documents render whole', () => {
         expect(markdown).not.toMatch(/<[a-z][a-z0-9-]*[\s>/]/i);
         const marked = blocks.map((b) =>
           Block.parse({
-            ...(sentinel(b) as object),
+            ...(markEnglish(b) as object),
             name: { nl: 'EDITORIAL-NAME-SENTINEL', en: 'INTERNAL' },
           })
         );
         const leak = await representations(marked, 'nl');
-        expect(leak.html + leak.markdown).not.toContain(SENTINEL);
+        expect(leak.html + leak.markdown).not.toContain(LOCALE_SENTINEL);
         expect(JSON.stringify(leak)).not.toContain('EDITORIAL-NAME-SENTINEL');
       });
 

@@ -217,6 +217,7 @@ export const publicSite = {
   'block.lightbox.next': 'Next image',
   'block.lightbox.zoom': 'Actual size',
   'block.lightbox.count': 'Image {n} of {total}',
+  'block.socialConversation.title': 'Join the conversation',
   'block.video.on': 'Video on {provider}',
   'block.video.credit': 'Video credit',
   'block.video.youtube': 'On YouTube',

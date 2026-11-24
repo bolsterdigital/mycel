@@ -16,7 +16,7 @@
 // (network in a seed, a hotlink on a public page, a licence that may change under us).
 
 import type { z } from 'zod';
-import { pageWays } from './content/action-row.js';
+import { articleClosingActions, pageWays } from './content/action-row.js';
 import { demoPerson, teamAndNews } from './content/people.js';
 import { campaignCardBlocks, demoCampaign } from './content/campaign.js';
 import { demoReportPdf } from './content/report-pdf.js';
@@ -1119,10 +1119,7 @@ export function demoArticle(refs: {
           'Signing up takes one click, and unsubscribing is just as quick.'
         ),
         signup!,
-        bridge(
-          'We sturen alleen die ene mail per maand, en we delen je adres met niemand.',
-          'We only send that one e-mail a month, and we share your address with no one.'
-        ),
+        ...articleClosingActions(),
       ],
     },
   };

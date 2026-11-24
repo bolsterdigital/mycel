@@ -56,6 +56,7 @@ import {
   pick,
   translate,
   publicItemPath,
+  socialConversationLinks,
   useCases,
   type Block,
   type MediaCredit,
@@ -634,7 +635,7 @@ export async function resolveDocument(
   const pageLink = (n: number) =>
     options.path === undefined ? null : n === 1 ? options.path : `${options.path}?p=${n}`;
 
-  const renderBlock = (b: Block, id: string): RenderBlock => {
+  const renderBlock = (b: Block, id: string): RenderBlock | null => {
     switch (b.type) {
       case 'overview': {
         const list = overviews.get(id) ?? { entries: [], older: false };
@@ -830,6 +831,10 @@ export async function resolveDocument(
           source: text(b.props.attribution.source),
           url: b.props.attribution.url ?? null,
         };
+      case 'social-conversation': {
+        const posts = socialConversationLinks(b.props, locale);
+        return posts.length ? { id, type: 'social-conversation', links: posts } : null;
+      }
       case 'video-embed':
         return {
           id,
@@ -867,7 +872,9 @@ export async function resolveDocument(
         // Ids inside the card derive from the card's own, so two cards of one campaign differ.
         const body = full?.landing.body
           ? headingsAboveFloats(
-              full.landing.body.blocks.map((inner) => renderBlock(inner, `${id}-${inner.id}`))
+              full.landing.body.blocks
+                .map((inner) => renderBlock(inner, `${id}-${inner.id}`))
+                .filter((block) => block !== null)
             )
           : null;
         return {
@@ -888,7 +895,7 @@ export async function resolveDocument(
         return b satisfies never;
     }
   };
-  const out = blocks.map((b) => renderBlock(b, b.id));
+  const out = blocks.map((b) => renderBlock(b, b.id)).filter((block) => block !== null);
 
   return {
     locale,
