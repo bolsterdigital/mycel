@@ -84,7 +84,7 @@
   width: 100%;
   height: 200px;
   border-radius: var(--radius) var(--radius) 0 0;
-  object-fit: cover;
+  object-fit: var(--frame-fit, cover);
 }
 /* Give logos their own padded frame so the whole mark remains visible. */
 .person-card-organisation img {

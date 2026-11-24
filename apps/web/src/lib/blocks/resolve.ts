@@ -26,6 +26,8 @@
 // renderer that cannot run without a database), and passing the whole `MediaView` through
 // (restricted paths would sit in the model even if no component printed them).
 
+import { framingAttributes } from './framing.js';
+import { placementFor, type ImagePlacement } from '@mycel/core';
 import { personPath } from '../public/person-path.js';
 import { formatBytes } from '../admin/format.js';
 import {
@@ -58,12 +60,10 @@ import {
   useCases,
   type Block,
   type MediaCredit,
-  type MediaLicence,
-  LICENCE_URLS,
 } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
 import { amountChoices, membershipChoices } from './amount-field.js';
-import { blockCopy } from './copy.js';
+import { blockCopy, renderLicence } from './copy.js';
 import { referencesOf } from './references.js';
 import { headingsAboveFloats } from './float-order.js';
 import { opensInCard } from './card-body.js';
@@ -167,13 +167,6 @@ export { blockCopy };
 /** The width `src` aims for: enough for a content column, small enough for an old browser. */
 const FALLBACK_WIDTH = 960;
 
-/** A licence in this locale's words and its link; `other` is named by its own text. */
-function renderLicence(licence: MediaLicence | null, locale: string) {
-  if (!licence) return null;
-  const label = licence.text ?? ui(locale)(`block.licence.${licence.code}`);
-  return { label, href: LICENCE_URLS[licence.code] };
-}
-
 function renderAssetImage(
   asset: MediaView | null,
   use: {
@@ -181,6 +174,7 @@ function renderAssetImage(
     alt: Partial<Record<string, string>> | null;
     caption?: Partial<Record<string, string>> | undefined;
     credit?: NonNullable<RenderImage['credit']> | undefined;
+    placement?: ImagePlacement | undefined;
   },
   locale: string
 ): RenderImage | null {
@@ -216,6 +210,7 @@ function renderAssetImage(
     // The licence belongs to the file, so a block's own credit keeps the asset's licence.
     credit: credit.work || credit.photographer || licence ? { ...credit, licence } : null,
     focal: { x: q(asset.focal.x), y: q(asset.focal.y) },
+    framing: framingAttributes(placementFor(use.placement, asset.id), asset.focal),
     large: widest
       ? {
           src: widest.path,
@@ -259,6 +254,7 @@ export async function resolveIntro(
     lead: string | null;
     heroImageId: string | null;
     heroAlt: string | null;
+    heroPlacement?: ImagePlacement | undefined;
     header?: DocumentHeader;
     action?: HeaderAction | null;
     meta?: RenderMeta | null;
@@ -279,7 +275,11 @@ export async function resolveIntro(
     locale,
     source.defaultLocale ?? locale
   );
-  const hero = renderAssetImage(asset, { ...use, ...(credit ? { credit } : {}) }, locale);
+  const hero = renderAssetImage(
+    asset,
+    { ...use, placement: intro.heroPlacement, ...(credit ? { credit } : {}) },
+    locale
+  );
   const header = hero && intro.header && intro.header !== 'standard' ? intro.header : 'standard';
   // An item target that is no longer published renders no button, as in the navigation (ADR 036).
   const target = header === 'split' ? intro.action?.target : undefined;
@@ -654,7 +654,11 @@ export async function resolveDocument(
             ...overviewWhen(e, locale, timeZone),
             image:
               b.props.layout === 'cards' && e.imageId
-                ? renderImage(media.get(e.imageId) ?? null, { decorative: true, alt: null }, locale)
+                ? renderImage(
+                    media.get(e.imageId) ?? null,
+                    { decorative: true, alt: null, placement: e.imagePlacement },
+                    locale
+                  )
                 : null,
             pinned: e.pinned,
             restricted: e.restricted,
@@ -677,7 +681,7 @@ export async function resolveDocument(
             ...person,
             image: renderImage(
               media.get(person.imageId ?? '') ?? null,
-              { decorative: true, alt: null },
+              { decorative: true, alt: null, placement: person.imagePlacement },
               locale
             ),
             // An organisation has no profile page; its name links to its own website (or its

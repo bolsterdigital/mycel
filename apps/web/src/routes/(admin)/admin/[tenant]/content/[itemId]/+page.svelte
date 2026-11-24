@@ -15,7 +15,8 @@
   import ItemTitleField from '#lib/editor/ItemTitleField.svelte';
   import { languageName } from '#lib/admin/format.js';
   import BlockFields from '#lib/admin/block-fields/BlockFields.svelte';
-  import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
+  import HeaderImageFields from '#lib/admin/header-fields/HeaderImageFields.svelte';
+  import ImagePlacementFields from '#lib/admin/header-fields/ImagePlacementFields.svelte';
   import HeroConversion from '#lib/admin/hero-conversion/HeroConversion.svelte';
   import EventFields from '#lib/admin/event-fields/EventFields.svelte';
   import HeaderFields from '#lib/admin/header-fields/HeaderFields.svelte';
@@ -79,7 +80,12 @@
     for (const src of [
       '/_admin/tabs.js',
       ...(data.canWrite
-        ? ['/_admin/edit-screen.js', '/_admin/session-restore.js', '/_admin/block-move.js']
+        ? [
+            '/_admin/edit-screen.js',
+            '/_admin/session-restore.js',
+            '/_admin/block-move.js',
+            '/_admin/image-placement.js',
+          ]
         : []),
       ...(data.canWrite && data.upload ? ['/_admin/block-drop.js'] : []),
       ...(!data.translating && data.item.type === 'page' && data.canWrite
@@ -602,34 +608,17 @@
     {#if data.contentProfile === 'event'}
       <EventFields locale={data.locale} {work} zone={data.siteTimeZone} {v} />
     {/if}
-    <MediaPicker
-      id="heroImageId"
-      name="heroImageId"
-      label={t('admin.content.field.heroImage')}
-      hint={t('admin.content.field.heroImageHint')}
-      locale={data.locale}
-      value={v('heroImageId')}
-      options={data.media}
+    <HeaderImageFields
       {base}
+      locale={data.locale}
+      {work}
+      {docLocales}
+      {v}
+      {saved}
+      media={data.media}
       upload={data.upload}
-    >
-      {#snippet related()}
-        <HeroAltRow
-          locale={data.locale}
-          {work}
-          locales={docLocales}
-          image={v('heroImageId')}
-          savedImage={saved('heroImageId')}
-          text={v(`heroAlt.${work}`)}
-          savedText={saved(`heroAlt.${work}`)}
-          others={Object.fromEntries(
-            docLocales.filter((l) => l !== work).map((l) => [l, saved(`heroAlt.${l}`)])
-          )}
-          clearing={v('heroDecorative') === 'on'}
-          flagged={heroAltRefused}
-        />
-      {/snippet}
-    </MediaPicker>
+      {heroAltRefused}
+    />
     {#if data.heroConversion}
       <div id="hero-conversion">
         <HeroConversion
@@ -748,6 +737,10 @@
 {/snippet}
 
 {#snippet featuredTab()}
+  {@const photo = data.media.find(
+    (m) =>
+      m.id === (v('featuredImageId') || v('heroImageId') || chain(work).images.featured.mediaId)
+  )}
   <MediaPicker
     id="featuredImageId"
     name="featuredImageId"
@@ -760,6 +753,20 @@
     upload={data.upload}
   />
   {@render inheritedImage('featuredImageId', chain(work).images.featured)}
+  {#if photo}
+    <ImagePlacementFields
+      name="featuredPlacement"
+      picker="featuredImageId"
+      media={photo}
+      {base}
+      locale={data.locale}
+      layout="overview"
+      read={v}
+      fallback={chain(work).images.featured.source === 'site'
+        ? (chain(work).images.featured.mediaId ?? '')
+        : ''}
+    />
+  {/if}
   {@render text(`featuredTitle.${work}`, t('admin.content.field.featuredTitle'))}
   {@render inheritedText(`featuredTitle.${work}`, chain(work).title)}
   {@render translateLinks(
@@ -1317,24 +1324,6 @@
 </EditPage>
 
 <style>
-  /* The hero and its description are one group (#158); the shared picker stays frameless. */
-  .item-header :global(#heroImageId) {
-    gap: 0;
-    padding: 0;
-    border: var(--border-width) solid var(--color-border-strong);
-    border-radius: var(--radius);
-  }
-  .item-header :global(#heroImageId > legend) {
-    margin-inline-start: var(--space-1);
-    padding-inline: var(--space-0);
-    margin-block-end: 0;
-  }
-  .item-header :global(#heroImageId .ui-media-picker-selection) {
-    padding: var(--space-1) var(--space-2);
-  }
-  .item-header :global(#heroImageId .ui-media-picker-related) {
-    display: block;
-  }
   .native-block {
     border: 0;
     padding: 0;

@@ -26,6 +26,7 @@ export const DONE: Record<string, UiKey> = {
 
 /** Core's readiness and reference issues as admin copy; unknown keys get the generic line. */
 export const ISSUE_COPY: Record<string, UiKey> = {
+  'content.image.placement-invalid': 'admin.placement.invalid',
   'content.publish.locale-not-in-document': 'admin.content.issue.localeNotInDocument',
   'content.publish.locale-not-in-item': 'admin.content.issue.localeNotInDocument',
   'content.publish.missing-translation': 'admin.content.issue.missingTranslation',

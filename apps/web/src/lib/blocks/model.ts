@@ -9,6 +9,7 @@
 // path form); HTML prepends it, Markdown makes the path absolute through `siteUrl`. Rejected:
 // storing finished hrefs, which would make the Markdown of a dev request carry the dev prefix.
 
+import type { framingAttributes } from './framing.js';
 import { bunnyStreamVideoUrl, type EmbedId } from '@mycel/core';
 import type {
   BlockProps,
@@ -112,6 +113,7 @@ export interface RenderImage {
     | null;
   /** The focal point quantised to steps of 10 % (0..10), rendered as classes under the CSP. */
   focal: { x: number; y: number };
+  framing?: ReturnType<typeof framingAttributes>;
   /** The widest public WebP variant, which the lightbox opens; null without a variant. */
   large: { src: string; width: number; height: number } | null;
 }

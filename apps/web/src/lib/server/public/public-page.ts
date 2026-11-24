@@ -211,6 +211,7 @@ export async function loadPublicItem(
       lead: item.lead,
       heroImageId: item.effective.images.hero.mediaId,
       heroAlt: item.heroAlt,
+      heroPlacement: item.heroPlacement,
       ...(item.type === 'page' && item.presentation
         ? { header: item.presentation.header, action: item.presentation.action ?? null }
         : {}),

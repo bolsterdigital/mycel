@@ -415,6 +415,7 @@ export const STORAGE = {
       PEOPLE('role', 'deletes the person row'),
       PEOPLE('organisation', 'deletes the person row'),
       PEOPLE('image_id', 'deletes the reference; the portrait is a media asset (media.delete)'),
+      PEOPLE('image_placement', 'deletes the card crop together with the portrait reference'),
     ],
     retention: SITE_KEPT,
   },

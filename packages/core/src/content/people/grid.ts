@@ -1,11 +1,15 @@
 // The authored grid exposes only public profile fields, including for a person without a
 // profile page. It resolves an already-authorised document, never an anonymous arbitrary-id
 // directory query. Rejected: opening an endpoint that lets visitors choose their own person ids.
+import { placementFor, type ImagePlacement } from '../../media/placement.js';
 import type { TransactionContext } from '../../ports.js';
 import type { BlockProps } from '../blocks.js';
 import { type PublicPerson, projectPerson, personPageEnabled } from './public.js';
 
-export type PublicPersonCard = PublicPerson & { pageEnabled: boolean };
+export type PublicPersonCard = PublicPerson & {
+  pageEnabled: boolean;
+  imagePlacement?: ImagePlacement | undefined;
+};
 
 /** Internal reference resolution after publication/access checks (or an authorised preview). */
 export async function resolvePeopleGrid(
@@ -24,6 +28,9 @@ export async function resolvePeopleGrid(
     if (person)
       people.push({
         ...projectPerson(person, locale),
+        ...(person.kind === 'person'
+          ? { imagePlacement: placementFor(person.imagePlacement, person.imageId) }
+          : {}),
         pageEnabled: await personPageEnabled(ctx, person, site),
       });
   }

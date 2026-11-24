@@ -77,6 +77,7 @@ import {
   exerciseNavigationStress,
   exerciseNavigationPreviewStress,
 } from './lib/site-navigation/stress';
+import { exerciseImagePlacement } from './lib/published/image-placement';
 import { exerciseItemPreviewStress } from './lib/site-navigation/item-preview';
 import { WALK, seedSiteSettings } from './lib/site-navigation/settings-fixture';
 import { CAPTION_MONO, themeCss } from '../src/lib/theme/tokens';
@@ -2094,6 +2095,8 @@ test.describe('site-settings', () => {
     });
   }
 });
+
+test('one image has independent crops in three uses', ({ page }) => exerciseImagePlacement(page));
 
 test('an event page shows when and where, in its header and its data', async ({ page }) => {
   await exerciseEventPage(page);

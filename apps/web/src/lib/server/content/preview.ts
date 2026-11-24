@@ -63,6 +63,7 @@ export async function introOf(
     lead: doc.lead?.[locale] ?? null,
     heroImageId: effectiveImages(doc).hero.mediaId,
     heroAlt: doc.heroAlt?.[locale] ?? null,
+    heroPlacement: doc.heroPlacement,
   };
   if (doc.type !== 'article') {
     // The site's zone only names the offset in structured data; the header shows the wall clock.
