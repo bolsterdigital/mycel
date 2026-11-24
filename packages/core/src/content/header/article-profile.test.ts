@@ -1,4 +1,6 @@
 // Exercise the edition chosen by publication and by the access projection before estimating time.
+import { articleView } from './article-profile.js';
+import { ContentDocument } from '../model.js';
 import { expect, it } from 'vitest';
 import { Invoker } from '../../invoke.js';
 import { anonymousPrincipal, systemPrincipal } from '../../principal.js';
@@ -76,4 +78,30 @@ it('estimates only visible words for a new Post and preserves a scheduled legacy
     revisionId: old.revision.id,
   });
   expect(pinned.revision.document.presentation).toEqual({ header: 'cover' });
+});
+
+it('counts only the served locale and ignores an empty body and non-editorial fields', () => {
+  const doc = ContentDocument.parse({
+    type: 'article',
+    locales: ['nl', 'en'],
+    defaultLocale: 'nl',
+    title: { nl: 'Titel', en: 'Title' },
+    presentation: { profile: 'post' },
+    blocks: [],
+  });
+  if (doc.type !== 'article') throw new Error('article fixture');
+  expect(articleView(doc, 'en')?.minutes).toBeNull();
+  doc.lead = { nl: 'woord '.repeat(201), en: 'word' };
+  expect(articleView(doc, 'nl')?.minutes).toBe(2);
+  expect(articleView(doc, 'en')?.minutes).toBe(1);
+  doc.presentation = {
+    profile: 'longread',
+    overrides: { longread: { readingTime: 'hide', initial: 'plain' } },
+  };
+  expect(articleView(doc, 'en')).toEqual({
+    header: 'cover',
+    portraits: true,
+    minutes: null,
+    initial: false,
+  });
 });

@@ -63,6 +63,10 @@ export function articleView(
     for (const block of allBlocks(doc.blocks)) {
       if (block.type === 'heading' || block.type === 'quote')
         texts.push(block.props.text[locale] ?? '');
+      if (block.type === 'callout') {
+        const body = block.props.body[locale];
+        if (body) texts.push(block.props.title?.[locale] ?? '', wordsOf(body));
+      }
       if (block.type === 'rich-text') {
         const body = block.props.content[locale];
         if (body) texts.push(wordsOf(body));

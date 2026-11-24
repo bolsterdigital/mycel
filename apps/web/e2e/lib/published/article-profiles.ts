@@ -155,7 +155,7 @@ export async function exerciseArticleProfiles(page: Page) {
     await openPublication(page);
     await page
       .locator('#publication-' + locale)
-      .getByRole('button', { name: /^(Publish|Publiceren)$/ })
+      .getByRole('button', { name: /^(Publish changes|Wijzigingen publiceren)$/i })
       .press('Enter');
     await page.goto('/probe/' + (locale === 'en' ? 'en/' : '') + 'articles/' + slug + index);
     await expect(page.locator('.article-meta.expanded')).toHaveCount(0);
