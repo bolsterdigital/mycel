@@ -75,9 +75,9 @@
   .article-profile-fields :global(.ui-choice label) {
     display: flex;
     align-items: center;
-    min-width: 44px;
+    min-inline-size: 3rem;
     hyphens: none;
     overflow-wrap: normal;
-    min-height: 44px;
+    min-block-size: max(44px, 2.75rem);
   }
 </style>

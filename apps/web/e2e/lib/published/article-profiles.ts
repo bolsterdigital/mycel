@@ -104,6 +104,7 @@ export async function exerciseArticleProfiles(page: Page) {
     await layoutGate(page, 'article byline at 200%', '.article-meta');
 
     const edit = '/admin/probe/content/' + story.item.id;
+    if (index) await page.context().clearCookies();
     await login(page, edit + '?locale=' + locale, undefined, { 'accept-language': locale });
     await editorReady(page);
     const post = page.locator('#articleProfile-post');
@@ -130,9 +131,15 @@ export async function exerciseArticleProfiles(page: Page) {
       '.article-profile-fields'
     );
     for (const label of await advanced.locator('.ui-choice label').all()) {
-      const box = await label.boundingBox();
-      expect(box!.height).toBeGreaterThanOrEqual(44);
-      expect(box!.width).toBeGreaterThanOrEqual(44);
+      await expect
+        .poll(
+          async () => {
+            const box = await label.boundingBox();
+            return box ? Math.min(box.width, box.height) : 0;
+          },
+          { message: 'whole label target: ' + (await label.textContent()) }
+        )
+        .toBeGreaterThanOrEqual(44);
     }
     if (isA11y())
       await advanced.screenshot({
