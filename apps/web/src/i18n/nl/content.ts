@@ -10,7 +10,7 @@ export const content: Partial<Record<UiKey, string>> = {
   'article.profile.post': 'Post',
   'article.profile.longread': 'Longread',
   'article.profile.advanced': 'Geavanceerde weergave ({count} afwijkingen)',
-  'article.profile.default': 'Profielstandaard',
+  'article.profile.default': 'Volg profiel',
   'article.profile.header': 'Kop',
   'article.profile.authors': 'Auteurs',
   'article.profile.readingTime': 'Leestijd',
