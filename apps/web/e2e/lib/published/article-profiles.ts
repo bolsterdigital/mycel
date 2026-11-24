@@ -152,12 +152,25 @@ export async function exerciseArticleProfiles(page: Page) {
         .press('Enter')
     );
     await expect(post).toBeChecked();
+    const savedPreview = await page.locator(`[data-preview-link="${locale}"]`).getAttribute('href');
+    const saved = await page.request.get(savedPreview!);
+    expect(saved.ok()).toBe(true);
+    expect(await saved.text()).toContain('article-compact');
     await openPublication(page);
     await page
       .locator('#publication-' + locale)
       .getByRole('button', { name: /^(Publish changes|Wijzigingen publiceren)$/i })
       .press('Enter');
-    await page.goto('/probe/' + (locale === 'en' ? 'en/' : '') + 'articles/' + slug + index);
+    await expect(
+      page
+        .getByRole('status')
+        .filter({ hasText: /Published in|Gepubliceerd in/ })
+        .first()
+    ).toBeVisible();
+    // The earlier visit is fresh in this browser's HTTP cache for 60 seconds. Read as a new visitor.
+    await page.goto(
+      '/probe/' + (locale === 'en' ? 'en/' : '') + 'articles/' + slug + index + '?edition=published'
+    );
     await expect(page.locator('.article-meta.expanded')).toHaveCount(0);
     await expect(page.locator('.article-compact img')).toBeVisible();
   }
