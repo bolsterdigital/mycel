@@ -67,6 +67,19 @@ function merge(base: unknown, mine: unknown, theirs: unknown, path: string, out:
   if (same(mine, theirs)) return mine;
   if (same(mine, base)) return theirs;
   if (same(theirs, base)) return mine;
+  // Two placements for the same image can merge per frame even before any frame was stored.
+  // Keep the whole placement together when the editors chose different images.
+  if (
+    (path === 'heroPlacement' || path === 'featuredPlacement') &&
+    isObject(mine) &&
+    isObject(theirs)
+  ) {
+    if (mine['mediaId'] !== theirs['mediaId']) {
+      out.push({ path, base, mine, theirs });
+      return mine;
+    }
+    if (!isObject(base) || base['mediaId'] !== mine['mediaId']) base = {};
+  }
   // An optional block-name map still merges per locale when it was absent on the base.
   if (/^blocks\[id=[^\]]+\]\.name$/.test(path)) {
     const result: Obj = {};

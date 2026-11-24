@@ -176,6 +176,51 @@ describe('mergeSave', () => {
   const image = '01900000-0000-7000-8000-000000000a11';
   const doc = (d: Doc) => d as unknown as ContentDocument;
 
+  describe.each([
+    ['heroImageId', 'heroPlacement'],
+    ['featuredImageId', 'featuredPlacement'],
+  ] as const)('%s framing', (imageKey, placementKey) => {
+    const narrow = { mode: 'full' } as const;
+    const wide = { mode: 'manual', point: { x: 0.5, y: 0.24 } } as const;
+    const base = ContentDocument.parse({ ...page(), [imageKey]: image });
+    const place = (options: { narrow?: typeof narrow | typeof wide; wide?: typeof wide }) =>
+      ContentDocument.parse({ ...base, [placementKey]: { mediaId: image, ...options } });
+
+    it('merges the first choices for different screen sizes on the same image', () => {
+      const { document, conflicts } = mergeSave(base, place({ narrow }), place({ wide }));
+      expect(conflicts).toEqual([]);
+      expect(document[placementKey]).toEqual({ mediaId: image, narrow, wide });
+    });
+
+    it('conflicts on the screen size when the first choices differ', () => {
+      const mine = place({ narrow });
+      const { document, conflicts } = mergeSave(base, mine, place({ narrow: wide, wide }));
+      expect(conflicts.map((c) => c.path)).toEqual([`${placementKey}.narrow`]);
+      expect(document[placementKey]).toEqual({ mediaId: image, narrow, wide });
+    });
+
+    it('keeps a reset as a choice when the other editor changed the crop', () => {
+      const placed = place({ narrow });
+      expect(mergeSave(placed, base, placed).document[placementKey]).toBeUndefined();
+      const { document, conflicts } = mergeSave(placed, base, place({ narrow, wide }));
+      expect(conflicts.map((c) => c.path)).toEqual([placementKey]);
+      expect(document[placementKey]).toBeUndefined();
+    });
+
+    it('keeps choices for different images together with their own binding', () => {
+      const replacement = '01900000-0000-7000-8000-000000000a12';
+      const mine = ContentDocument.parse({
+        ...base,
+        [imageKey]: replacement,
+        [placementKey]: { mediaId: replacement, wide },
+      });
+      const original = place({ narrow });
+      const { document, conflicts } = mergeSave(original, mine, place({ narrow, wide }));
+      expect(conflicts.map((c) => c.path)).toEqual([placementKey]);
+      expect(document[placementKey]).toEqual({ mediaId: replacement, wide });
+    });
+  });
+
   it('makes the block list one choice when the merged tree breaks a rule of the document', () => {
     // Each side removes a heading with the text after it: alone each is valid, together b1 and
     // b5 would meet as two text blocks.
