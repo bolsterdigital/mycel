@@ -31,6 +31,7 @@ import {
   runSuffix,
 } from '@mycel/core/testing';
 import {
+  conversationCache,
   createDb,
   createTenantDirectory,
   createUnitOfWork,
@@ -39,6 +40,7 @@ import {
   TABLES,
   uuidv7,
   uuidv7Ids,
+  withTenant,
 } from './index.js';
 import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 import { seedVideo } from './portability/video.fixture.js';
@@ -202,6 +204,14 @@ describe.skipIf(skip)('row level security conformance', () => {
     });
     const invoker = new Invoker(buildRegistry(), uow);
     const admin = systemPrincipal(tenantId, 'rls-test');
+    await withTenant(appDb, admin, (trx) => {
+      const now = clock.now();
+      return conversationCache(trx, tenantId).claim(
+        { network: 'mastodon', key: 'https://social.example.org/@demo/123' },
+        now,
+        now
+      );
+    });
     await invoker.run(useCases.updateSiteTheme, admin, {
       baseVersion: 0,
       theme: useCases.updateSiteTheme.examples[0].input.theme,

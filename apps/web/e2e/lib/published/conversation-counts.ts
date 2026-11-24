@@ -32,7 +32,7 @@ export async function exerciseConversationCounts(page: Page) {
       })
     );
   };
-  const distant = new Date(checkedAt.getTime() + 60_000);
+  const distant = new Date(checkedAt.getTime() + 300_000);
   const path = (locale: string) =>
     `/${tenant.slug}/${locale === 'nl' ? '' : 'en/'}articles/conversation`;
   try {
@@ -95,7 +95,9 @@ export async function exerciseConversationCounts(page: Page) {
     const current = await page.request.get(path('nl'));
     const tag = current.headers()['etag']!;
     expect(tag).toBeTruthy();
-    expect(current.headers()['cache-control']).toBe('public, no-cache');
+    expect(current.headers()['cache-control']).toBe(
+      'public, max-age=0, stale-while-revalidate=0, must-revalidate'
+    );
     const conditional = (etag: string) =>
       page.request.get(path('nl'), { headers: { 'if-none-match': etag } });
     expect((await conditional(tag)).status()).toBe(304);

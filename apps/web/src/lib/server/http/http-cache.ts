@@ -46,7 +46,9 @@ export function itemCacheHeaders(view: {
   if (view.etag)
     return {
       etag: view.etag,
-      'cache-control': view.conversationCountsVisible ? 'public, no-cache' : PUBLIC_CACHE,
+      'cache-control': view.conversationCountsVisible
+        ? 'public, max-age=0, stale-while-revalidate=0, must-revalidate'
+        : PUBLIC_CACHE,
       ...vary,
     };
   return { 'cache-control': NO_STORE, ...vary };
