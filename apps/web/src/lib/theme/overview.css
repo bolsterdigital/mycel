@@ -78,9 +78,13 @@
   color: var(--color-surface-fg);
   background: var(--color-surface-bg);
 }
-.overview-card:has(a:focus-visible) .overview-card-title a {
-  outline: none;
-  box-shadow: none;
+/* In forced colours the surface inversion disappears. Keep the native title-link
+   outline as well as the card ring so the focused action remains identifiable. */
+@media (forced-colors: none) {
+  .overview-card:has(a:focus-visible) .overview-card-title a {
+    outline: none;
+    box-shadow: none;
+  }
 }
 .overview-date,
 .overview-place,
