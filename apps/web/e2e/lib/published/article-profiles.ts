@@ -105,8 +105,18 @@ export async function exerciseArticleProfiles(page: Page) {
 
     const edit = '/admin/probe/content/' + story.item.id;
     if (index) await page.context().clearCookies();
-    await login(page, edit + '?locale=' + locale, undefined, { 'accept-language': locale });
+    const email = `${slug}-${locale}@probe.test`;
+    await withInvoker((invoker) =>
+      invoker.run(useCases.inviteMember, principal, { email, capabilities: ['tenant:admin'] })
+    );
+    await login(page, '/admin/probe/profiel', email);
+    const preference = page.locator('form').filter({ has: page.locator('[name="uiLocale"]') });
+    await preference.locator('[name="uiLocale"]').selectOption(locale);
+    await preference.locator('button[type="submit"]').click();
+    await expect(page).toHaveURL(/profiel\?saved=1$/);
+    await page.goto(edit + '?locale=' + locale);
     await editorReady(page);
+    await expect(page.locator('html')).toHaveAttribute('lang', locale);
     const post = page.locator('#articleProfile-post');
     const long = page.locator('#articleProfile-longread');
     await long.focus();
