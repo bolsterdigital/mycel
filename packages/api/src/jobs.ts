@@ -83,8 +83,8 @@ export const JOB_POOLS: readonly JobPool[] = [
   { name: 'bulk', types: ['tenant.export', 'media.orphans', 'content.share-cards'] },
   // A newsletter run talks to the mail provider for up to three minutes (ADR 010 rule 9): in
   // the default pool it would hold up a scheduled publication, behind an export it would wait.
-  { name: 'conversation', types: ['social-conversation.refresh'] },
   { name: 'newsletter', types: ['mailing.edition.deliver'] },
+  { name: 'conversation', types: ['social-conversation.refresh'] },
 ];
 
 /** Platform jobs the worker plans for itself (brief #15 decision 6). */

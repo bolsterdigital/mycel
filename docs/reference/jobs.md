@@ -78,7 +78,7 @@ A tenant handler throws when the job has no tenant, a platform handler when it h
 
 ## Public social conversation counts
 
-The publisher keeps the post permalink in the article revision and the matching account under Site → Site header and footer → Social profiles. With no profile, a different account or a disabled provider, the site shows the permalink by itself.
+The publisher keeps the post permalink in the article revision and the matching account under Site → Header and footer → Social profiles. With no profile, a different account or a disabled provider, the site shows the permalink by itself.
 
 Set `SOCIAL_CONVERSATION_BLUESKY=1` on the web and worker to enable the fixed public Bluesky AppView. Set `SOCIAL_CONVERSATION_MASTODON_ORIGINS` to a comma-separated list of the exact HTTPS origins operated or approved by the installation. Both are off by default. Turning a provider off on both processes stops its refreshes and hides its cached values. The worker uses anonymous [Bluesky profile and post reads](https://github.com/bluesky-social/bsky-docs/blob/main/docs/advanced-guides/api-directory.mdx) and the [Mastodon status API](https://docs.joinmastodon.org/methods/statuses/#get). It follows no redirects, pins a freshly checked public DNS address for TLS, caps JSON at 128 KiB and gives each HTTPS request four seconds after DNS. The browser makes no provider request before a visitor follows the link.
 

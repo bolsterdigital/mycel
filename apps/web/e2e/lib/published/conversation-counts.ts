@@ -6,7 +6,7 @@ import { conversationCache, withTenant } from '@mycel/db';
 import { closeTenantWork, testTenant } from '@mycel/db/testing';
 import { asOwner, withInvoker } from '../invoker';
 import { expectNoAxeViolations } from '../axe';
-import { layoutGate, setTextSize } from '../layout';
+import { NARROW, layoutGate, setTextSize } from '../layout';
 import { isA11y } from '../project';
 
 const origin = 'https://social.example.org';
@@ -67,6 +67,7 @@ export async function exerciseConversationCounts(page: Page) {
       }
     });
     await snapshot(1, distant);
+    await page.setViewportSize(NARROW);
     const section = page.locator('.social-conversation');
     const foreign: string[] = [];
     page.on('request', (request) => {

@@ -54,7 +54,7 @@
 
     span {
       display: inline-block;
-      margin-inline-end: 0.5em;
+      margin-inline-start: 0.5em;
     }
 
     a {
