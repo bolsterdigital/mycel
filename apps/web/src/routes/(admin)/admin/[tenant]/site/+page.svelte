@@ -60,6 +60,11 @@
   let { data, form }: PageProps = $props();
   const t = $derived(ui(data.locale));
   const base = $derived(`/admin/${data.tenant.slug}`);
+  /** MY-302: say that an uploaded family replaces this choice on the site, and what it still does. */
+  const uploadedFont = (key: 'headingFont' | 'bodyFont') => {
+    const family = data.uploadedFonts[key === 'headingFont' ? 'heading' : 'body'];
+    return family ? fill(t('admin.site.font.uploaded'), { family }) : undefined;
+  };
   const extraRoles = ['link', 'focus'] as const;
   const numericFields = [
     'baseSize',
@@ -625,6 +630,7 @@
             legend={t(`admin.site.${key}`)}
             locale={data.locale}
             size="m"
+            hint={uploadedFont(key)}
             options={FONT_KEYS.map((font) => ({ value: font, label: FONTS[font].family }))}
             selected={[value(key, data.theme.value[key])]}
             optionLabel={specimen}

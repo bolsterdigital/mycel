@@ -25,6 +25,7 @@ import {
   siteTheme,
   themePath,
 } from '#lib/server/public/theme.js';
+import { SITE_FONT_PREFIX } from '#lib/theme/tokens.js';
 import type { LayoutServerLoad } from './$types';
 
 export const csr = false;
@@ -41,7 +42,13 @@ export const load: LayoutServerLoad = async ({ locals, request, params, route, s
     siteBrand(site),
     siteGeneral(site),
   ]);
-  const theme = { href: sitePath(site, themePath(hash)), preload, colors, transitions };
+  const theme = {
+    href: sitePath(site, themePath(hash)),
+    // An uploaded face (MY-302) lives below the site; a catalogue file is absolute.
+    preload: preload.map((p) => (p.startsWith(SITE_FONT_PREFIX) ? sitePath(site, p) : p)),
+    colors,
+    transitions,
+  };
   const head = {
     manifest: sitePath(site, '/manifest.webmanifest'),
     touchIcon: logo.active ? sitePath(site, iconPath(logo.version, colors.light, 180)) : null,

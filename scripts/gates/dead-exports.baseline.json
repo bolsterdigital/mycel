@@ -34,6 +34,5 @@
   "packages/db/src/index.ts#nextPeriod",
   "packages/db/src/index.ts#schemaVersion",
   "packages/db/src/index.ts#touchJob",
-  "packages/media-sharp/src/index.ts#SharpProcessorOptions",
-  "packages/media-sharp/src/index.ts#validateWoff2"
+  "packages/media-sharp/src/index.ts#SharpProcessorOptions"
 ]

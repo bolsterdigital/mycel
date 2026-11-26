@@ -198,6 +198,7 @@ import { eraseSupporter, getSupporterErasure } from './supporters/erase.js';
 import { erasePeople } from './content/people/erase.js';
 import { checkThemeUseCase } from './theme/service.js';
 import { getBrandAsset, putBrandAsset, removeBrandAsset } from './theme/assets.js';
+import { listSiteFonts } from './theme/site-fonts.js';
 import {
   getSiteTheme,
   updateSiteTheme,
@@ -467,6 +468,7 @@ export const useCases = {
   getBrandAsset,
   putBrandAsset,
   removeBrandAsset,
+  listSiteFonts,
   getAttentionSummary,
   listAttention,
   updateAttentionSeenAt,

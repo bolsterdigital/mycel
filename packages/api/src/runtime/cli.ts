@@ -10,11 +10,16 @@
 // In the image: `docker compose run --rm worker mycel <command>` (the worker service is the one
 // with DATABASE_URL, ADR 011 rule 1). From a checkout: `npm run mycel -- <command>`.
 
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
   AdminRestoreInput,
   ERASURE_UNSECURED_WARN_MS,
   OperatorErasureInput,
+  SiteFontFamilyInput,
+  SiteFontRole,
+  SiteFontStyle,
+  SiteFontWeight,
   type TenantStatus,
 } from '@mycel/core';
 import {
@@ -25,9 +30,13 @@ import {
   exportTenant,
   importTenant,
   reapplyOperatorErasures,
+  listSiteFontsOf,
   reindexSearch,
+  removeSiteFont,
+  uploadSiteFontFace,
   type PlatformTenant,
 } from '@mycel/db';
+import { validateWoff2 } from '@mycel/media-sharp';
 import { ensureS3Bucket } from '@mycel/blob';
 import { buildVersion } from '@mycel/observability';
 import {
@@ -61,6 +70,9 @@ export const USAGE = `usage:
   mycel erasures apply [--tenant <slug>]
   mycel erasures status [--tenant <slug>]
   mycel search rebuild [--tenant <slug>]
+  mycel fonts list --tenant <slug>
+  mycel fonts add --tenant <slug> --role heading|body --family <name> --category sans|serif|slab --weight <100-900> [--style normal|italic] --file <face.woff2> --licence-holder <who> --licence-source <foundry or reseller> --licence-domain <host>[,<host>] --self-hosting-allowed [--replace-family]
+  mycel fonts remove --tenant <slug> --role heading|body [--weight <100-900> --style normal|italic]
   mycel wordpress plan --file <export.xml> [--brand-tokens <wings-tokens.json>] [--default-locale <nl>] [--featured-header on|off] [--posts-page <wp-id> --posts-per-page <count>] [--json]
   mycel wordpress import --tenant <slug> --file <export.xml> [--brand-tokens <wings-tokens.json>] [--media-dir <uploads>] [--default-locale <nl>] [--featured-header on|off] [--posts-page <wp-id> --posts-per-page <count>] [--into-existing]
   mycel version`;
@@ -82,6 +94,22 @@ export type Command =
   | { kind: 'erasures.apply'; slug?: string }
   | { kind: 'erasures.status'; slug?: string }
   | { kind: 'search.rebuild'; slug?: string }
+  | { kind: 'fonts.list'; slug: string }
+  | {
+      kind: 'fonts.add';
+      slug: string;
+      file: string;
+      family: SiteFontFamilyInput;
+      weight: number;
+      style: SiteFontStyle;
+      replaceFamily: boolean;
+    }
+  | {
+      kind: 'fonts.remove';
+      slug: string;
+      role: SiteFontRole;
+      face: { weight: number; style: SiteFontStyle } | null;
+    }
   | (WordpressOptions & {
       kind: 'wordpress.plan';
       json: boolean;
@@ -168,6 +196,107 @@ function wordpressOptions(f: Record<string, string>): Omit<WordpressOptions, 'fi
   };
 }
 
+/** A value of a font option, parsed by its core schema; a refusal names the option. */
+function fontValue<T>(
+  schema: { safeParse(v: unknown): { success: true; data: T } | { success: false } },
+  flag: string,
+  value: unknown
+): T {
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) throw new UsageError(`--${flag} is not valid`);
+  return parsed.data;
+}
+
+/** `mycel fonts …` (MY-302): the platform's upload of a site's own heading or body font. */
+function fontsCommand(verb: string | undefined, rest: string[]): Command {
+  if (verb === 'list') {
+    const f = flags(rest, ['tenant']);
+    if (!f['tenant']) throw new UsageError('fonts list needs --tenant');
+    return { kind: 'fonts.list', slug: f['tenant'] };
+  }
+  if (verb === 'add') {
+    const f = flags(
+      rest,
+      [
+        'tenant',
+        'role',
+        'family',
+        'category',
+        'weight',
+        'style',
+        'file',
+        'licence-holder',
+        'licence-source',
+        'licence-domain',
+      ],
+      ['self-hosting-allowed', 'replace-family']
+    );
+    for (const key of [
+      'tenant',
+      'role',
+      'family',
+      'category',
+      'weight',
+      'file',
+      'licence-holder',
+      'licence-source',
+      'licence-domain',
+    ])
+      if (!f[key]) throw new UsageError(`fonts add needs --${key}`);
+    // The uploader's statement that the licence allows self-hosting on these domains (ADR 013).
+    if (f['self-hosting-allowed'] !== 'true')
+      throw new UsageError(
+        'fonts add needs --self-hosting-allowed: confirm that the licence allows self-hosting on these domains'
+      );
+    const family = SiteFontFamilyInput.safeParse({
+      role: f['role'],
+      family: f['family'],
+      category: f['category'],
+      licence: {
+        holder: f['licence-holder'],
+        source: f['licence-source'],
+        domains: f['licence-domain']!.split(',')
+          .map((d) => d.trim())
+          .filter(Boolean),
+      },
+    });
+    if (!family.success)
+      throw new UsageError(
+        `fonts add: ${family.error.issues.map((i) => `${i.path.join('.')} ${i.message}`).join('; ')}`
+      );
+    return {
+      kind: 'fonts.add',
+      slug: f['tenant']!,
+      file: f['file']!,
+      family: family.data,
+      weight: fontValue(SiteFontWeight, 'weight', Number(f['weight'])),
+      style: fontValue(SiteFontStyle, 'style', f['style'] ?? 'normal'),
+      replaceFamily: f['replace-family'] === 'true',
+    };
+  }
+  if (verb === 'remove') {
+    const f = flags(rest, ['tenant', 'role', 'weight', 'style']);
+    if (!f['tenant'] || !f['role']) throw new UsageError('fonts remove needs --tenant and --role');
+    if ((f['weight'] === undefined) !== (f['style'] === undefined))
+      throw new UsageError(
+        '--weight and --style name one face together; leave both out to remove the family'
+      );
+    return {
+      kind: 'fonts.remove',
+      slug: f['tenant'],
+      role: fontValue(SiteFontRole, 'role', f['role']),
+      face:
+        f['weight'] === undefined
+          ? null
+          : {
+              weight: fontValue(SiteFontWeight, 'weight', Number(f['weight'])),
+              style: fontValue(SiteFontStyle, 'style', f['style']),
+            },
+    };
+  }
+  throw new UsageError(`unknown command "fonts ${verb ?? ''}"`);
+}
+
 /** The command an argument vector asks for; throws UsageError for anything else. */
 export function parseCommand(argv: readonly string[]): Command {
   const [noun, verb, ...rest] = argv;
@@ -209,6 +338,7 @@ export function parseCommand(argv: readonly string[]): Command {
     const f = flags(rest, ['tenant']);
     return { kind: 'search.rebuild', ...(f['tenant'] ? { slug: f['tenant'] } : {}) };
   }
+  if (noun === 'fonts') return fontsCommand(verb, rest);
   if (noun === 'wordpress' && verb === 'plan') {
     const f = flags(rest, WORDPRESS_FLAGS, ['json']);
     if (!f['file']) throw new UsageError('wordpress plan needs --file');
@@ -422,6 +552,50 @@ async function main(argv: string[]): Promise<number> {
           console.log(`${t.slug}\t${items} items, ${rows} index rows`);
         }
         console.log(`search: rebuilt in ${tenants.length} tenant(s)`);
+        break;
+      }
+      case 'fonts.list': {
+        const t = await bySlug(command.slug);
+        const fonts = await listSiteFontsOf(db, t.id);
+        if (!fonts.length)
+          console.log(`${t.slug}\tno uploaded fonts; the theme's catalogue fonts apply`);
+        for (const font of fonts) {
+          console.log(
+            `${font.role}\t${font.family} (${font.category})\tlicence: ${font.licence.holder}, ${font.licence.source}, ${font.licence.domains.join(' ')}`
+          );
+          for (const face of font.faces)
+            console.log(
+              `  ${face.weight} ${face.style}\t${face.bytes} bytes\t${face.sha256.slice(0, 16)}`
+            );
+        }
+        break;
+      }
+      case 'fonts.add': {
+        const t = await bySlug(command.slug);
+        const bytes = new Uint8Array(await readFile(command.file));
+        const font = await uploadSiteFontFace(
+          db,
+          t.id,
+          {
+            family: command.family,
+            weight: command.weight,
+            style: command.style,
+            bytes,
+            replaceFamily: command.replaceFamily,
+          },
+          by,
+          validateWoff2
+        );
+        console.log(
+          `${t.slug}\t${font.role} ${font.family}: ${font.faces.map((f) => `${f.weight} ${f.style}`).join(', ')}`
+        );
+        break;
+      }
+      case 'fonts.remove': {
+        const t = await bySlug(command.slug);
+        const removed = await removeSiteFont(db, t.id, command.role, command.face, by);
+        console.log(`${t.slug}\t${removed ? 'removed' : 'nothing to remove'}`);
+        if (!removed) return 1;
         break;
       }
       case 'erasures.status': {

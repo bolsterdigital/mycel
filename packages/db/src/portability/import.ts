@@ -63,6 +63,8 @@ const RETIRED_TABLES: readonly string[] = ['api_keys'];
  */
 const IMPORT_RULE = {
   site_settings: 'as-exported',
+  site_fonts: 'as-exported',
+  site_font_faces: 'as-exported',
   connections: 'as-exported',
   tenant_hostnames: 'custom-only',
   form_feed_settings: 'as-exported',

@@ -43,6 +43,7 @@ import type { DomainEvent } from '../../ports.js';
 import type { SupporterEvent } from '../../supporters/events.js';
 import type { SupporterProjection } from '../../supporters/model.js';
 import type { BrandAsset } from '../../theme/assets.js';
+import type { SiteFont } from '../../theme/site-fonts.js';
 import type { ResolvedTheme } from '../../theme/model.js';
 import { DEFAULT_THEME } from '../../theme/presets.js';
 import {
@@ -71,6 +72,9 @@ export interface TenantStore {
   integrations: { version: number; value: IntegrationSettings };
   brandLogo: { version: number; asset: BrandAsset | null };
   brandFont: { version: number; asset: BrandAsset | null };
+  /** Uploaded fonts with their faces' bytes, keyed `role:weight:style`; tests seed them directly. */
+  siteFonts: SiteFont[];
+  siteFontBytes: Map<string, Uint8Array>;
   connections: Map<string, ConnectionRecord>;
   mailchimpReceipts: Map<string, import('../../connections/mailchimp/ports.js').MailchimpReceipt>;
   connectionSecrets: Map<string, string>;
@@ -190,6 +194,8 @@ const emptyTenant = (): TenantStore => ({
   integrations: { version: 0, value: DEFAULT_INTEGRATIONS },
   brandLogo: { version: 0, asset: null },
   brandFont: { version: 0, asset: null },
+  siteFonts: [],
+  siteFontBytes: new Map(),
   connections: new Map(),
   connectionSecrets: new Map(),
   mailchimpReceipts: new Map(),

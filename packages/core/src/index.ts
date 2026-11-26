@@ -103,6 +103,7 @@ export * from './navigation/ports.js';
 export * from './navigation/resolve.js';
 export * from './navigation/service.js';
 export * from './theme/assets.js';
+export * from './theme/site-fonts.js';
 export * from './util/page-size.js';
 export { exampleId, isUuid } from './util/ids.js';
 export * from './forms/model.js';

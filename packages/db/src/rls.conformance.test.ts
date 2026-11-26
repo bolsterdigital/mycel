@@ -49,6 +49,7 @@ import { seedPayment } from './portability/payments.fixture.js';
 import { seedEdition } from './portability/editions.fixture.js';
 import { seedSupporter } from './supporters/rls.fixture.js';
 import { seedNavigation } from './portability/navigation.fixture.js';
+import { seedSiteFont } from './portability/fonts.fixture.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
@@ -350,6 +351,7 @@ describe.skipIf(skip)('row level security conformance', () => {
     await seedPayment(operatorDb, admin, email);
     await seedEdition(invoker, uow, admin);
     await seedNavigation(invoker, admin);
+    await seedSiteFont(operatorDb, admin.tenantId);
     // Ingest released that signup's admission seat (0010); a reservation without a signup keeps
     // one in `supporter_admissions`. Reserved directly, not through a second signup: that signup's
     // event would sit in the shared outbox, where any drain of every tenant (a running worker; and

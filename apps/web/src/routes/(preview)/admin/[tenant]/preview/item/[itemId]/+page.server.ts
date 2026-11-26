@@ -19,6 +19,7 @@ import { cardPlaceholder, chromeModel } from '#lib/server/public/chrome.js';
 import { siteTheme } from '#lib/server/public/theme.js';
 import { resolveDocument, resolveIntro, runtimeSource } from '#lib/blocks/resolve.js';
 import { langOf, ui } from '../../../../../../../i18n/index.js';
+import { siteFontHref } from '#lib/theme/tokens.js';
 import type { PageServerLoad } from './$types';
 import { refuse } from '#lib/server/http/refuse.js';
 
@@ -71,7 +72,10 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
     model,
     intro,
     dropCap: doc.type === 'article' && theme.dropCap === 'articles',
-    theme: { href: `${base}/_theme/${theme.hash}.css`, preload: theme.preload },
+    theme: {
+      href: `${base}/_theme/${theme.hash}.css`,
+      preload: theme.preload.map((p) => siteFontHref(p, base)),
+    },
     ...(await chromeModel(site, locale, base, doc.locales)),
     issues: readinessIssues(doc, locale).map((i) => i.path),
     revision: {

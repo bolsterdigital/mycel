@@ -366,7 +366,12 @@ export function memorySite(
   s: TenantStore
 ): Pick<
   TransactionContext,
-  'siteSettings' | 'analyticsSettings' | 'integrationSettings' | 'brandAssets' | 'brandProcessor'
+  | 'siteSettings'
+  | 'analyticsSettings'
+  | 'integrationSettings'
+  | 'brandAssets'
+  | 'brandProcessor'
+  | 'siteFonts'
 > {
   return {
     analyticsSettings: {
@@ -429,6 +434,15 @@ export function memorySite(
       },
     },
     brandProcessor: memoryBrandProcessor,
+    siteFonts: {
+      list: async () => structuredClone(s.siteFonts),
+      face: async (role, weight, style) => {
+        const font = s.siteFonts.find((f) => f.role === role);
+        const face = font?.faces.find((f) => f.weight === weight && f.style === style);
+        const bytes = s.siteFontBytes.get(`${role}:${weight}:${style}`);
+        return face && bytes ? { bytes: bytes.slice(), sha256: face.sha256 } : null;
+      },
+    },
   };
 }
 

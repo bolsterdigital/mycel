@@ -10,7 +10,15 @@
 // Serif's files keep their origin's name), and one file per weight for every family (a variable
 // font is one download whatever the heading weight).
 
-import { FONTS, type FontCategory, type FontKey } from '@mycel/core';
+import {
+  FONTS,
+  siteFontFamily,
+  siteFontFile,
+  type FontCategory,
+  type FontKey,
+  type SiteFontFace,
+  type SiteFontRole,
+} from '@mycel/core';
 
 /** The Latin subset of the files that are subset (`fonts.md`), as a `unicode-range`. */
 export const LATIN =
@@ -116,6 +124,19 @@ export const familyName = (key: FontKey): string => `'${FONTS[key].family}'`;
 /** The `font-family` value of a catalogue font: its own family, then its category's fallback. */
 export const fontStack = (key: FontKey): string =>
   `${familyName(key)}, ${FALLBACK[FONTS[key].category]}`;
+
+/** The stack of a site's uploaded font (MY-302): its fixed CSS name, then the system face. */
+export const siteFontStack = (role: SiteFontRole, category: FontCategory): string =>
+  `'${siteFontFamily(role)}', ${FALLBACK[category]}`;
+
+/**
+ * One `@font-face` rule of an uploaded face. Every part is closed: the family is fixed text, the
+ * file name is role, weight, style and hex (`siteFontFile`), weight and style are validated, so
+ * nothing the uploader typed reaches the stylesheet. Relative to the theme stylesheet, which is
+ * served at `<site>/_theme/<hash>.css` and in the preview at `<preview>/_theme/<hash>.css`.
+ */
+export const siteFaceRule = (role: SiteFontRole, f: SiteFontFace): string =>
+  `@font-face { font-family: '${siteFontFamily(role)}'; src: url('../_font/${siteFontFile(role, f)}') format('woff2'); font-style: ${f.style}; font-weight: ${f.weight}; font-display: swap; }`;
 
 /** One `@font-face` rule; only a subset file carries the Latin `unicode-range`. */
 export const faceRule = (key: FontKey, f: FontFace): string =>

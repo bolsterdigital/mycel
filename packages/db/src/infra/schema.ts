@@ -761,6 +761,25 @@ export interface Database {
     updated_at: Timestamp;
     deleted_at: Timestamp | null;
   };
+  site_fonts: {
+    tenant_id: string;
+    role: 'heading' | 'body';
+    family: string;
+    category: 'sans' | 'serif' | 'slab';
+    licence_holder: string;
+    licence_source: string;
+    licence_domains: string[];
+    licence_confirmed_at: Timestamp;
+    updated_at: Timestamp;
+  };
+  site_font_faces: {
+    tenant_id: string;
+    role: 'heading' | 'body';
+    weight: number;
+    style: 'normal' | 'italic';
+    bytes: Buffer;
+    sha256: string;
+  };
   social_conversation_counts: {
     tenant_id: string;
     network: 'bluesky' | 'mastodon';

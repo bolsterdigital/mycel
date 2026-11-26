@@ -24,6 +24,8 @@ export const site: Partial<Record<UiKey, string>> = {
   'admin.site.fail': 'voldoet niet',
   'admin.site.headingFont': 'Kopletter',
   'admin.site.bodyFont': 'Tekstletter',
+  'admin.site.font.uploaded':
+    'Deze site gebruikt een eigen letter: {family}, geüpload door de platformbeheerder. De keuze hier geldt alleen voor mail en de deelkaart.',
   'admin.site.font.specimen': 'Samen staan we sterker',
   'admin.site.font.weightUnavailable':
     'De kopletter heeft geen variant in deze kopdikte. Kies een andere dikte of een andere letter.',

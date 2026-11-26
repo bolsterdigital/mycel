@@ -53,6 +53,8 @@ export { EXPORT_FORMAT, type ExportManifest };
  */
 export const TABLES = {
   site_settings: 'export',
+  site_fonts: 'export',
+  site_font_faces: 'export',
   connections: 'export',
   connection_intents: 'operational',
   mailchimp_receipts: 'operational',
@@ -159,6 +161,8 @@ export type ExportTable = {
  */
 export const EXPORT_ORDER: readonly ExportTable[] = [
   'site_settings',
+  'site_fonts',
+  'site_font_faces',
   'connections',
   'tenant_hostnames',
   'forms',

@@ -19,11 +19,38 @@ import {
   focusHalo,
   FONT_KEYS,
   luminance,
+  preloadFace,
+  siteFontFile,
   THEME_ROLES,
+  type FontCategory,
   type Palette,
   type ResolvedTheme,
+  type SiteFontFace,
+  type SiteFontRole,
 } from '@mycel/core';
-import { faceRule, fontFaces, fontStack, italicFile, romanFile } from './font-files.js';
+import {
+  faceRule,
+  fontFaces,
+  fontStack,
+  italicFile,
+  romanFile,
+  siteFaceRule,
+  siteFontStack,
+} from './font-files.js';
+
+/**
+ * A site's uploaded fonts per role (MY-302, ADR 013 amendment of 2026-11-26). A role listed here
+ * replaces the theme's catalogue font for that role: its faces are declared, the catalogue font's
+ * are not (unless the other role still uses it), so a page never fetches a family it does not
+ * show. The catalogue choice stays the face of mail and the share card.
+ */
+export type UploadedFonts = Partial<
+  Record<SiteFontRole, { category: FontCategory; faces: readonly SiteFontFace[] }>
+>;
+const NO_UPLOADS: UploadedFonts = Object.freeze({});
+/** Only a role with at least one face counts; an empty family declares nothing. */
+const uploaded = (fonts: UploadedFonts, role: SiteFontRole) =>
+  fonts[role]?.faces.length ? fonts[role] : undefined;
 
 /**
  * The system's monospace for captions (`captionFont: 'mono'`): no file to load, so no preload or
@@ -34,19 +61,41 @@ export const CAPTION_MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, mono
 
 /**
  * The roman files the first paint needs: the body's regular first, then the heading's at its
- * weight (one file when both are the same). `withItalicPreload` relies on that order.
+ * weight (one file when both are the same). `withItalicPreload` relies on that order. An uploaded
+ * font's face is a path below the site instead (`SITE_FONT_PREFIX`), never a catalogue file.
  */
 export function preloadFonts(
-  theme: Pick<ResolvedTheme, 'headingFont' | 'bodyFont' | 'headingWeight'>
+  theme: Pick<ResolvedTheme, 'headingFont' | 'bodyFont' | 'headingWeight'>,
+  fonts: UploadedFonts = NO_UPLOADS
 ): string[] {
+  const file = (role: SiteFontRole, key: ResolvedTheme['bodyFont'], weight: number) => {
+    const font = uploaded(fonts, role);
+    if (!font) return [romanFile(key, weight)];
+    const face = preloadFace(font.faces, weight);
+    return face ? [`${SITE_FONT_PREFIX}${siteFontFile(role, face)}`] : [];
+  };
   return [
-    ...new Set([romanFile(theme.bodyFont, 400), romanFile(theme.headingFont, theme.headingWeight)]),
+    ...new Set([
+      ...file('body', theme.bodyFont, 400),
+      ...file('heading', theme.headingFont, theme.headingWeight),
+    ]),
   ];
 }
 
+/**
+ * Where an uploaded face lives below the site. A preload of one is this path, which the layout
+ * puts under the public site or the preview (`siteFontHref`); a catalogue file is absolute and the
+ * same on every host.
+ */
+export const SITE_FONT_PREFIX = '/_font/';
+export const siteFontHref = (preload: string, base: string): string =>
+  preload.startsWith(SITE_FONT_PREFIX) ? `${base}${preload}` : preload;
+
 // Elements a browser renders italic by default; no stylesheet here sets `font-style` itself.
 const ITALIC_ELEMENT = /<(?:em|i|cite|dfn|var|address)[\s>]/;
-const FIRST_FONT_PRELOAD = /<link rel="preload" href="(\/fonts\/[^"]+)"[^>]*>/;
+// The first font preload of any origin: an uploaded body font (MY-302) comes first and has no
+// catalogue italic, so a page with one gets none from here.
+const FIRST_FONT_PRELOAD = /<link rel="preload" href="([^"]+)" as="font"[^>]*>/;
 /** Each catalogue font's regular body file to its italic, for the fonts that have one. */
 const ITALIC_OF = new Map(
   FONT_KEYS.flatMap((key) => {
@@ -78,10 +127,21 @@ export function withItalicPreload(html: string): string {
 }
 
 /** The `@font-face` rules of the chosen families only; one family when heading and body agree. */
-function fontFaceRules(theme: Pick<ResolvedTheme, 'headingFont' | 'bodyFont'>): string {
-  return [...new Set([theme.bodyFont, theme.headingFont])]
-    .flatMap((key) => fontFaces(key).map((f) => faceRule(key, f)))
-    .join('\n');
+function fontFaceRules(
+  theme: Pick<ResolvedTheme, 'headingFont' | 'bodyFont'>,
+  fonts: UploadedFonts
+): string {
+  const catalogue = [
+    ...(uploaded(fonts, 'body') ? [] : [theme.bodyFont]),
+    ...(uploaded(fonts, 'heading') ? [] : [theme.headingFont]),
+  ];
+  const site = (['body', 'heading'] as const).flatMap(
+    (role) => uploaded(fonts, role)?.faces.map((f) => siteFaceRule(role, f)) ?? []
+  );
+  return [
+    ...[...new Set(catalogue)].flatMap((key) => fontFaces(key).map((f) => faceRule(key, f))),
+    ...site,
+  ].join('\n');
 }
 
 /** Rounded to four decimals and without trailing zeros: `1.25`, `0.9`, never `NaN` or `1e-7`. */
@@ -236,14 +296,16 @@ const stepName = (n: number) => (n < 0 ? `--step--${-n}` : `--step-${n}`);
 export const PAGE_TRANSITION_RULE =
   '@media (prefers-reduced-motion: no-preference) {\n  @view-transition {\n    navigation: auto;\n  }\n}';
 
-export function themeCss(theme: ResolvedTheme): string {
+export function themeCss(theme: ResolvedTheme, fonts: UploadedFonts = NO_UPLOADS): string {
+  const body = uploaded(fonts, 'body');
+  const heading = uploaded(fonts, 'heading');
   const sizes = STEPS.map(
     (n) => `${stepName(n)}: ${num((theme.baseSize * theme.scaleRatio ** n) / 16)}rem;`
   );
   const root = [
     ...palette(theme.palettes.light, theme.chrome),
-    `--font-body: ${fontStack(theme.bodyFont)};`,
-    `--font-heading: ${fontStack(theme.headingFont)};`,
+    `--font-body: ${body ? siteFontStack('body', body.category) : fontStack(theme.bodyFont)};`,
+    `--font-heading: ${heading ? siteFontStack('heading', heading.category) : fontStack(theme.headingFont)};`,
     ...(theme.captionFont === 'mono' ? [`--font-caption: ${CAPTION_MONO};`] : []),
     `--heading-weight: ${theme.headingWeight};`,
     // Capitals set a little wider, or they read as a block (MY-283); absent is as written.
@@ -259,7 +321,7 @@ export function themeCss(theme: ResolvedTheme): string {
   ];
   const indent = (lines: string[], by: string) => lines.map((l) => `${by}${l}`).join('\n');
   return [
-    fontFaceRules(theme),
+    fontFaceRules(theme, fonts),
     `:root {\n${indent(root, '  ')}\n}`,
     `@media (prefers-color-scheme: dark) {\n  :root {\n${indent(palette(theme.palettes.dark, theme.chrome), '    ')}\n  }\n}`,
     ...(theme.pageTransitions === 'off' ? [] : [PAGE_TRANSITION_RULE]),

@@ -30,6 +30,7 @@ import { runtime } from '#lib/server/runtime.js';
 import { cardPlaceholder, chromeModel } from '#lib/server/public/chrome.js';
 import { siteTheme } from '#lib/server/public/theme.js';
 import { langOf, ui } from '../../../../../../i18n/index.js';
+import { siteFontHref } from '#lib/theme/tokens.js';
 import type { Actions, PageServerLoad } from './$types';
 import { refuse, refusalOf } from '#lib/server/http/refuse.js';
 
@@ -113,7 +114,10 @@ export const actions: Actions = {
       intro,
       dropCap: doc.type === 'article' && theme.dropCap === 'articles',
       issues: readinessIssues(doc, locale).map((issue) => issue.path),
-      theme: { href: `${base}/_theme/${theme.hash}.css`, preload: theme.preload },
+      theme: {
+        href: `${base}/_theme/${theme.hash}.css`,
+        preload: theme.preload.map((p) => siteFontHref(p, base)),
+      },
       ...(await chromeModel(site, locale, base, doc.locales)),
       formNote: ui(admin)('admin.content.preview.form'),
       campaignNotes: campaignNotes(admin),
