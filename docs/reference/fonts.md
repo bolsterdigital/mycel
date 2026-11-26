@@ -121,3 +121,31 @@ The admin's theme settings show each font as a radio with a line of sample text 
 ## Caching
 
 Caddy serves `/fonts/*` for a year as immutable (`docker/caddy/Caddyfile`), because the application never sees these files. A file keeps its name for as long as its content: new font content means a new file name, or a returning visitor keeps the old file until the year is over.
+
+## A site's own font (MY-302)
+
+A commercial font cannot be in this catalogue (the repository is public), so a site may also have its own heading and body font: a family per role, uploaded as WOFF2 faces with the licence the uploader confirmed (ADR 013 rule 1, amendment of 2026-11-26; `packages/core/src/theme/site-fonts.ts`, migration 0092). An uploaded family replaces the theme's catalogue font for that role on the site; the catalogue choice stays the face of mail and the share card, which cannot carry a licensed web font.
+
+Uploading is a platform operation, not a use case: for now only the platform uploads, and a capability cannot say that because `tenant:admin` holds every capability. Reading is the query `site.font.list` (`content:read`), which the admin, the renderer and an agent share.
+
+```sh
+npm run mycel -- fonts add --tenant <slug> --role heading --family Gottak --category sans \
+  --weight 700 --style normal --file Gottak-Bold.woff2 \
+  --licence-holder "<who bought it>" --licence-source "<foundry or reseller>" \
+  --licence-domain example.org,www.example.org --self-hosting-allowed
+npm run mycel -- fonts list --tenant <slug>
+npm run mycel -- fonts remove --tenant <slug> --role heading [--weight 700 --style normal]
+```
+
+| Rule               | Value                                                                                                                                           |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| File               | WOFF2 only, at most 1 MiB per face, structurally checked by the wordmark's validator (`validateWoff2` in `@mycel/media-sharp`) before any write |
+| Faces              | weights 100 to 900 in steps of 100, `normal` or `italic`, at most eight per role                                                                |
+| Family             | one per role; a different name for a role that has one is refused unless `--replace-family`, which removes the old faces                        |
+| Licence            | holder, source and one to twenty domains; `--self-hosting-allowed` is required and records when it was confirmed                                |
+| Served at          | `<site>/_font/<role>-<weight>-<style>-<hash>.woff2`, immutable, from the site's own hostname; an older hash is a 404                            |
+| In the stylesheet  | the fixed family `Mycel Site Heading` or `Mycel Site Body`, then the system face of the uploaded category; never the uploaded name              |
+| Export and erasure | `site_fonts` and `site_font_faces` travel in a tenant export and are deleted with the tenant                                                    |
+| Audit              | `platform.site.font.upload` and `platform.site.font.remove`, actor `cli`                                                                        |
+
+Not built: a licence counter some licences require (Monotype, MyFonts; a fixed host list, named in the site's privacy statement) and an external font kit (Adobe Fonts, Fonts.com) as an ADR 022 exception per site.

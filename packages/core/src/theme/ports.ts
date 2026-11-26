@@ -8,6 +8,7 @@ import type { BrandAsset, BrandKind } from './assets.js';
 import type { Theme } from './contrast.js';
 import type { SiteRetention, SiteRetentionInput } from '../ops/retention.js';
 import type { SiteChrome, SiteGeneral, SiteImages } from './settings.js';
+import type { SiteFont, SiteFontRole, SiteFontStyle } from './site-fonts.js';
 
 export interface SiteSettingsRepository {
   theme(): Promise<{ version: number; value: z.output<typeof Theme> }>;
@@ -31,6 +32,19 @@ export interface BrandProcessor {
    */
   icon(logo: Uint8Array, size: number, background: string): Promise<Uint8Array>;
 }
+/**
+ * A site's uploaded fonts, read in the tenant context. The platform writes them outside a use case
+ * (`site-fonts.ts`), so the port has no write.
+ */
+export interface SiteFontsRepository {
+  list(): Promise<SiteFont[]>;
+  /** One face's bytes, by role, weight and style; null when the site has no such face. */
+  face(
+    role: SiteFontRole,
+    weight: number,
+    style: SiteFontStyle
+  ): Promise<{ bytes: Uint8Array; sha256: string } | null>;
+}
 export interface BrandAssetsRepository {
   get(kind: BrandKind): Promise<{ version: number; asset: BrandAsset | null }>;
   replace(kind: BrandKind, baseVersion: number, asset: BrandAsset | null): Promise<number | null>;
@@ -41,5 +55,6 @@ declare module '../ports.js' {
     siteSettings: SiteSettingsRepository;
     brandAssets: BrandAssetsRepository;
     brandProcessor: BrandProcessor;
+    siteFonts: SiteFontsRepository;
   }
 }

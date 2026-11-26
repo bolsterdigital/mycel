@@ -95,12 +95,13 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
   const section: SiteSection = SECTIONS.find((s) => s === asked) ?? 'general';
   const principal = locals.principal!;
   if (!can(principal, NEEDS[section])) refuse(403);
-  const [general, theme, chrome, logo, font] = await Promise.all([
+  const [general, theme, chrome, logo, font, siteFonts] = await Promise.all([
     runtime().invoker.run(useCases.getSiteGeneral, principal, {}),
     runtime().invoker.run(useCases.getSiteTheme, principal, {}),
     runtime().invoker.run(useCases.getSiteChrome, principal, {}),
     runtime().invoker.run(useCases.getBrandAsset, principal, { kind: 'logo' }),
     runtime().invoker.run(useCases.getBrandAsset, principal, { kind: 'font' }),
+    runtime().invoker.run(useCases.listSiteFonts, principal, {}),
   ]);
   const assist =
     section === 'assist'
@@ -129,6 +130,10 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
   return {
     section,
     subject: t(SUBJECT[section]),
+    // MY-302: the family the platform uploaded per role; it replaces the catalogue font there.
+    uploadedFonts: Object.fromEntries(siteFonts.fonts.map((f) => [f.role, f.family])) as Partial<
+      Record<'heading' | 'body', string>
+    >,
     general,
     zones: section === 'general' ? timeZoneOptions(langOf(locals)) : [],
     retention,

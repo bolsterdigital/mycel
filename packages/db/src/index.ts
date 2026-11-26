@@ -47,6 +47,7 @@ import {
   siteSettingsRepository,
   brandAssetsRepository,
 } from './site-settings.js';
+import { siteFontsRepository } from './theme/site-fonts.js';
 import { connectionIntentsRepository } from './connections/connection-intents.js';
 import {
   connectionRepository,
@@ -140,6 +141,7 @@ export {
   type ExportOptions,
 } from './portability/export.js';
 export { STORAGE } from './portability/storage.js';
+export { listSiteFontsOf, removeSiteFont, uploadSiteFontFace } from './theme/site-fonts.js';
 export { importTenant, type ImportOptions, type ImportReport } from './portability/import.js';
 export {
   JOB_LEASE_SECONDS,
@@ -299,6 +301,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           analyticsSettings: analyticsSettingsRepository(trx, tenantId),
           integrationSettings: integrationSettingsRepository(trx, tenantId),
           brandAssets: brandAssetsRepository(trx, tenantId),
+          siteFonts: siteFontsRepository(trx, tenantId),
           brandProcessor:
             deps.brandProcessor ??
             (unconfigured('BrandProcessor') as import('@mycel/core').BrandProcessor),

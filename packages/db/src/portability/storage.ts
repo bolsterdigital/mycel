@@ -160,6 +160,23 @@ export const STORAGE = {
     ],
     retention: SITE_KEPT,
   },
+  site_fonts: {
+    category: 'site',
+    owner: 'tenant',
+    copies: [
+      {
+        field: 'licence_holder',
+        subject: 'anyone',
+        route: {
+          kind: 'platform',
+          operations: ['platform.site.font.upload', 'platform.site.font.remove'],
+          does: 'the platform replaces the licence with a new upload or removes the family',
+        },
+      },
+    ],
+    retention: SITE_KEPT,
+  },
+  site_font_faces: { category: 'site', owner: 'tenant', copies: IDS_ONLY, retention: SITE_KEPT },
   connections: {
     category: 'connections',
     owner: 'tenant',

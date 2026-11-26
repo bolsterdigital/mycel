@@ -109,6 +109,69 @@ describe('parseCommand', () => {
     );
   });
 
+  it('parses the font commands and refuses an upload without the self-hosting confirmation', () => {
+    const add = [
+      'fonts',
+      'add',
+      '--tenant',
+      'tegenmacht',
+      '--role',
+      'heading',
+      '--family',
+      'Gottak',
+      '--category',
+      'sans',
+      '--weight',
+      '700',
+      '--file',
+      'Gottak-Bold.woff2',
+      '--licence-holder',
+      'Tegenmacht',
+      '--licence-source',
+      'Foundry',
+      '--licence-domain',
+      'example.org, www.example.org',
+    ];
+    expect(parseCommand([...add, '--self-hosting-allowed'])).toEqual({
+      kind: 'fonts.add',
+      slug: 'tegenmacht',
+      file: 'Gottak-Bold.woff2',
+      family: {
+        role: 'heading',
+        family: 'Gottak',
+        category: 'sans',
+        licence: {
+          holder: 'Tegenmacht',
+          source: 'Foundry',
+          domains: ['example.org', 'www.example.org'],
+        },
+      },
+      weight: 700,
+      style: 'normal',
+      replaceFamily: false,
+    });
+    expect(() => parseCommand(add)).toThrow('--self-hosting-allowed');
+    expect(() => parseCommand([...add, '--self-hosting-allowed', '--style', 'oblique'])).toThrow(
+      UsageError
+    );
+    expect(() =>
+      parseCommand([...add.map((a) => (a === '700' ? '750' : a)), '--self-hosting-allowed'])
+    ).toThrow(UsageError);
+    expect(parseCommand(['fonts', 'list', '--tenant', 'x'])).toEqual({
+      kind: 'fonts.list',
+      slug: 'x',
+    });
+    expect(parseCommand(['fonts', 'remove', '--tenant', 'x', '--role', 'body'])).toEqual({
+      kind: 'fonts.remove',
+      slug: 'x',
+      role: 'body',
+      face: null,
+    });
+    expect(() =>
+      parseCommand(['fonts', 'remove', '--tenant', 'x', '--role', 'body', '--weight', '400'])
+    ).toThrow(UsageError);
+  });
+
   it('parses the arguments of the platform commands', () => {
     expect(parseCommand(['tenants', 'list'])).toEqual({ kind: 'tenants.list' });
     expect(parseCommand(['tenants', 'create', 'demo', 'Demo', 'nl,en'])).toEqual({

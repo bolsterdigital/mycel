@@ -11,13 +11,14 @@ import {
   type SiteChrome,
   type SiteGeneral,
 } from '@mycel/core';
-import { preloadFonts, themeCss, themeHash } from '../../theme/tokens.js';
+import { preloadFonts, themeCss, themeHash, type UploadedFonts } from '../../theme/tokens.js';
 import { runtime } from '../runtime.js';
 import { siteTenant, type Site } from '../site.js';
 
 export interface SiteTheme {
   css: string;
   hash: string;
+  /** Catalogue files are absolute; an uploaded face is `/_font/<file>` below the site (`siteFontHref`). */
   preload: string[];
   /** Not in the CSS: the page sets `data-drop-cap`, so the ETag digest carries it (#86). */
   dropCap: DropCap;
@@ -65,23 +66,56 @@ export const ICON_SIZES = [180, 192, 512] as const;
 export const iconPath = (version: number, background: string, size: number) =>
   `/_brand/icon/${version}-${background.slice(1).toLowerCase()}-${size}.png`;
 
+const fontsBySite = new WeakMap<Site, Promise<UploadedFonts>>();
+/** The site's uploaded fonts (MY-302), once per request like the brand assets. */
+export function siteFonts(site: Site): Promise<UploadedFonts> {
+  let found = fontsBySite.get(site);
+  if (!found) {
+    found = runtime()
+      .invoker.run(
+        useCases.listSiteFonts,
+        anonymousPrincipal(siteTenant(site), ['content:read']),
+        {}
+      )
+      .then(({ fonts }) =>
+        Object.fromEntries(
+          fonts.map((f) => [
+            f.role,
+            {
+              category: f.category,
+              faces: f.faces.map(({ weight, style, sha256, bytes }) => ({
+                weight,
+                style,
+                sha256,
+                bytes,
+              })),
+            },
+          ])
+        )
+      );
+    fontsBySite.set(site, found);
+  }
+  return found;
+}
+
 async function loadSiteTheme(site: Site): Promise<SiteTheme> {
   const { value: theme } = await runtime().invoker.run(
     useCases.getSiteTheme,
     anonymousPrincipal(siteTenant(site), ['content:read']),
     {}
   );
-  const { font } = await siteBrand(site);
+  const [{ font }, uploads] = await Promise.all([siteBrand(site), siteFonts(site)]);
   const key = JSON.stringify({
     theme,
     font: font.version,
     active: font.active,
+    uploads,
     tenant: site.tenant.id,
   });
   let found = cssCache.get(key);
   if (!found) {
     const css =
-      themeCss(theme as ResolvedTheme) +
+      themeCss(theme as ResolvedTheme, uploads) +
       (font.active
         ? `@font-face { font-family: 'Mycel Wordmark'; src: url('../_brand/font/${font.version}.woff2') format('woff2'); font-display: swap; }\n.site-wordmark { font-family: 'Mycel Wordmark', Inter, sans-serif; }\n`
         : '');
@@ -89,7 +123,7 @@ async function loadSiteTheme(site: Site): Promise<SiteTheme> {
     found = themeHash(css).then((hash) => ({
       css,
       hash,
-      preload: preloadFonts(theme),
+      preload: preloadFonts(theme, uploads),
       dropCap,
       colors: { light: palettes.light.body.background, dark: palettes.dark.body.background },
       transitions: pageTransitions === 'on',

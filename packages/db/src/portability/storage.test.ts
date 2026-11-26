@@ -7,7 +7,12 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { JobPayloads, OPERATOR_PLATFORM_OPERATIONS, useCases } from '@mycel/core';
+import {
+  JobPayloads,
+  OPERATOR_PLATFORM_OPERATIONS,
+  SITE_FONT_PLATFORM_OPERATIONS,
+  useCases,
+} from '@mycel/core';
 import { TABLES } from './export.js';
 import {
   OFF_TABLE_STORAGE,
@@ -21,6 +26,10 @@ import {
 const ROOT = resolve(import.meta.dirname, '../../../..');
 const useCaseNames = new Set<string>(Object.values(useCases).map((u) => u.name));
 const jobTypes = new Set<string>(Object.keys(JobPayloads));
+const platformOperations = new Set([
+  ...OPERATOR_PLATFORM_OPERATIONS,
+  ...SITE_FONT_PLATFORM_OPERATIONS,
+]);
 const entries: [string, Omit<StorageEntry, 'category'>][] = [
   ...Object.entries(STORAGE),
   ...Object.entries(OFF_TABLE_STORAGE),
@@ -39,7 +48,7 @@ function routeProblems(copy: Copy): string[] {
       return r.operations.length === 0
         ? ['platform route without an operation']
         : r.operations
-            .filter((n) => !OPERATOR_PLATFORM_OPERATIONS.includes(n))
+            .filter((n) => !platformOperations.has(n))
             .map((n) => `no platform operation ${n}`);
     case 'expires':
       return r.why.trim() ? [] : ['expires without why'];

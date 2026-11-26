@@ -22,6 +22,8 @@ export const site = {
   'admin.site.fail': 'fails',
   'admin.site.headingFont': 'Heading font',
   'admin.site.bodyFont': 'Body font',
+  'admin.site.font.uploaded':
+    'This site uses its own font: {family}, uploaded by the platform administrator. The choice here only applies to email and the share card.',
   'admin.site.font.specimen': 'Together we stand stronger',
   'admin.site.font.weightUnavailable':
     'The heading font has no face in this heading weight. Choose another weight or another font.',

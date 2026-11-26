@@ -5,9 +5,8 @@
 // manifest, the platform hostname and the verification excepted; B is never in A's export and never
 // touched. Import refuses a newer schema, a taken slug or tenant id, and a file that does not match
 // its manifest. The table list is held to the live catalog, so a new tenant table fails here until
-// it has its place in the export order. The second database needs CREATEDB (CI and a typical dev
-// server connect as a superuser); without it the round trip is skipped. Skips without DATABASE_URL
-// and APP_DATABASE_URL; in CI that is a failure.
+// it has its place in the export order. The second database needs CREATEDB, which CI has; without
+// it the round trip is skipped. Skips without DATABASE_URL and APP_DATABASE_URL (CI: a failure).
 
 import { seedFormActions } from './form-actions.fixture.js';
 import { checkLegacyActorImport } from './legacy-actors.fixture.js';
@@ -18,6 +17,7 @@ import { seedPayment } from './payments.fixture.js';
 import { seedEdition } from './editions.fixture.js';
 import { checkProfilesCarried, seedEvent } from './events.fixture.js';
 import { seedNavigation } from './navigation.fixture.js';
+import { seedSiteFont } from './fonts.fixture.js';
 import { checkAccessCarried, seedAccess } from './access.fixture.js';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
@@ -263,6 +263,7 @@ describe.skipIf(skip)('tenant export and import', () => {
     await seedEvent(invoker, admin);
     await seedAccess(invoker, admin, email);
     await seedEdition(invoker, uow, admin);
+    await seedSiteFont(operatorDb, t.id);
   }
   const files = async (dir: string) =>
     Object.fromEntries(
