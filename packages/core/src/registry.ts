@@ -142,6 +142,8 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   'reader.signin.request',
   'site.brand.get',
   'site.chrome.get',
+  // MY-302: the renderer declares the uploaded faces; the licence is the platform's statement.
+  'site.font.list',
   // ADR 036 rule 8: published, public targets only; nothing personalised.
   'site.navigation.resolve',
   // The pre-footer zone: the published, public zone the published navigation places.

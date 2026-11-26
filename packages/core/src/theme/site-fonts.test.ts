@@ -1,7 +1,7 @@
 // The rules the platform's font upload shares with a later tenant use case (MY-302): one family
 // per role, at most eight faces, the size limit, the licence's domains, and the read query.
 import { describe, expect, it } from 'vitest';
-import { Invoker, buildRegistry, systemPrincipal, useCases } from '../index.js';
+import { Invoker, anonymousPrincipal, buildRegistry, systemPrincipal, useCases } from '../index.js';
 import { MemoryUnitOfWork, FakeClock } from '../testing/index.js';
 import {
   SITE_FONT_FACES_MAX,
@@ -88,5 +88,8 @@ describe('site font rules', () => {
     const invoker = new Invoker(buildRegistry(), uow);
     const principal = systemPrincipal('00000000-0000-4000-8000-000000000001', 'test');
     expect(await invoker.run(useCases.listSiteFonts, principal, {})).toEqual({ fonts: [] });
+    // The public renderer reads them as a visitor, like the brand assets.
+    const visitor = anonymousPrincipal(principal.tenantId, ['content:read']);
+    expect(await invoker.run(useCases.listSiteFonts, visitor, {})).toEqual({ fonts: [] });
   });
 });
