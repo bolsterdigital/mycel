@@ -65,6 +65,10 @@
        A percentage in padding resolves against the band's own containing block, the page. */
     --wide-inset: max(var(--gutter), (100% - var(--wide-width)) / 2);
     --tap: 2.75rem;
+    /* A thin dividing line: the text colour thinned into the page, so it shows whichever way the
+       surface goes. Rejected: the surface colour, which a theme may set lighter than the page
+       (Tegenmacht: #f2f2f2 on #e5e5e5), and the line disappears. Decorative, so no 3:1 minimum. */
+    --color-rule: color-mix(in srgb, var(--color-body-fg) 22%, var(--color-body-bg));
   }
 }
 
@@ -86,6 +90,19 @@
     hyphens: auto;
     color: var(--color-body-fg);
     background: var(--color-body-bg);
+  }
+  /* On a short public page (search, a form, a thank-you) the footer still closes the screen: the
+     main area takes the height the header and footer leave. Scoped to the public layout, since
+     the admin imports this file too. The body is the flex container because app.html's wrapper
+     is `display: contents`. Rejected: a fixed footer, which covers content at 200% text, and
+     `100vh`, which jumps on mobile as the toolbar hides. */
+  body:has(> .sveltekit-body > #public-main) {
+    display: flex;
+    flex-direction: column;
+    min-height: 100svh;
+  }
+  #public-main {
+    flex: 1 0 auto;
   }
   h1,
   h2,
@@ -383,14 +400,14 @@
   .page > .page-rule {
     margin-block: 0 var(--space-3);
     border: 0;
-    border-block-start: 1px solid var(--color-surface-bg);
+    border-block-start: 1px solid var(--color-rule);
   }
 
   /* An article's corrections after its body (ADR 012 rule 1): set off by a thin line, the date in
      the muted colour of the meta line. */
   .page > .page-corrections {
     clear: both;
-    border-block-start: 1px solid var(--color-surface-bg);
+    border-block-start: 1px solid var(--color-rule);
     padding-block-start: var(--space-3);
   }
   .page-corrections ul {

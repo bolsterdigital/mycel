@@ -58,14 +58,15 @@
   aspect-ratio: 3 / 2;
   object-fit: var(--frame-fit, cover);
 }
-/* A card without an image (MY-277, CardPlaceholder.svelte): the primary pair with the site's logo
-   or initial, centred in the same 3:2 area. */
+/* A card without an image (MY-277, CardPlaceholder.svelte): the site's logo or initial, centred
+   in the same 3:2 area, on the header's pair, because that is the background the logo is made
+   for. Rejected: the primary pair, which put Tegenmacht's light wordmark on its light cyan. */
 .card-placeholder {
   display: grid;
   place-items: center;
   aspect-ratio: 3 / 2;
-  color: var(--color-primary-fg);
-  background: var(--color-primary-bg);
+  color: var(--chrome-header-fg, var(--color-primary-fg));
+  background: var(--chrome-header-bg, var(--color-primary-bg));
 }
 .campaign-card-image.card-placeholder img {
   width: auto;

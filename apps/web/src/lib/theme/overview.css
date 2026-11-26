@@ -55,16 +55,12 @@
   border-radius: var(--radius);
 }
 /* Only the inversion, no underline (MY-277, Jaap 2026-11-22: "On hover hebben de titels in de
-   cards underline, dat hoort niet"); a placeholder turns to the surface pair so it stays apart
-   from the inverted card. */
+   cards underline, dat hoort niet"). A placeholder keeps the header's pair: its logo is made for
+   that background, and on the surface pair a light logo disappears. */
 @media (hover: hover) {
   .overview-card:hover {
     color: var(--color-primary-fg);
     background: var(--color-primary-bg);
-  }
-  .overview-card:hover .card-placeholder {
-    color: var(--color-surface-fg);
-    background: var(--color-surface-bg);
   }
 }
 .overview-card:has(a:focus-visible) {
@@ -73,10 +69,6 @@
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
   box-shadow: 0 0 0 2px var(--color-focus-halo);
-}
-.overview-card:has(a:focus-visible) .card-placeholder {
-  color: var(--color-surface-fg);
-  background: var(--color-surface-bg);
 }
 /* In forced colours the surface inversion disappears. Keep the native title-link
    outline as well as the card ring so the focused action remains identifiable. */
