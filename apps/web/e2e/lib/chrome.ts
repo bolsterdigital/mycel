@@ -52,6 +52,8 @@ export async function chromeRails(page: Page | Frame) {
       first: box(edge((el) => el.firstElementChild)),
       last: box(edge((el) => el.lastElementChild)),
       padding: [parseFloat(style.paddingBlockStart), parseFloat(style.paddingBlockEnd)],
+      main: box(main)!,
+      viewport: innerHeight,
       // MY-269: the names the chrome stands still under, and whether a stylesheet of the page
       // turns cross-document view transitions on (the theme's rule, on by default).
       names: ['.site-header', '.site-footer'].map((s) => {
@@ -95,15 +97,21 @@ export function expectChromeOnWideRail(m: Rails, oneRow?: boolean) {
   }
 }
 
-/** Header to first content and last content to footer are the page's padding, whatever the
- *  first and last element are, and the two are the same distance. */
+/** Header to first content and last content to the end of the page are the page's padding,
+ *  whatever the first and last element are. The footer follows the page directly, or, on a page
+ *  shorter than the screen, closes the screen (base.css: the main area takes the rest). */
 export function expectChromeTransitions(m: Rails) {
   // Page transitions (MY-269) are on in every e2e theme; header and footer keep their names.
   expect(m.names).toEqual([m.header ? 'site-header' : null, m.footer ? 'site-footer' : null]);
   expect(m.viewTransitions).toBe(true);
   const [top, bottom] = m.padding as [number, number];
   if (m.header) expect(m.first!.top - m.header.bottom).toBeCloseTo(top, 0);
-  if (m.footer) expect(m.footer.top - m.last!.bottom).toBeCloseTo(bottom, 0);
+  expect(m.main.bottom - m.last!.bottom).toBeCloseTo(bottom, 0);
+  if (m.footer) {
+    const gap = m.footer.top - m.last!.bottom;
+    expect(gap).toBeGreaterThan(bottom - 0.5);
+    if (gap > bottom + 0.5) expect(m.footer.bottom).toBeCloseTo(m.viewport, 0);
+  }
   expect(bottom).toBeGreaterThanOrEqual(32);
 }
 

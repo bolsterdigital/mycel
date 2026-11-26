@@ -16,7 +16,7 @@ The operator shell's `.page.admin` does not become a public query container or f
 
 ## Site chrome
 
-The site header and footer are full-width bands whose content sits on the wide rail: their inline padding is `--wide-inset`, the larger of the gutter and half of what the wide rail leaves of the page. Logo, navigation, footer text, footer links and credit therefore start and end exactly where a wide block does, at every width, and the band's border runs to the page edges.
+The site header and footer are full-width bands whose content sits on the wide rail: their inline padding is `--wide-inset`, the larger of the gutter and half of what the wide rail leaves of the page. Logo, navigation, footer text, footer links and credit therefore start and end exactly where a wide block does, at every width, and the band's border runs to the page edges. On a public page shorter than the screen the footer still closes the screen: the body is a flex column of at least `100svh` and the main area takes what header and footer leave, so the gap between the last content and the footer grows instead of the page ending in empty body colour. Thin dividing lines (the header rule, corrections, menu panel, dropdown and dialog) use `--color-rule`, the body text colour at 22% over the body background, so they stay visible when a theme sets its surface lighter than the page.
 
 | Rail    | Token                                  | Used by                                                |
 | ------- | -------------------------------------- | ------------------------------------------------------ |
