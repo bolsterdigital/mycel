@@ -11,8 +11,12 @@
 //   - `?t=<seconds>` on the address (also `3:10` or `3m10s`) starts the player there, a same-page
 //     link with `?t=` jumps without a reload, and "share from" copies such a link;
 //   - captions in the picture, under it or off, on the player's text track, remembered per browser;
+//     off until the reader picks them, since the transcript beside the player already shows the text;
 //   - chapters under the player (MY-305 PR 2) become buttons that seek, and the chapter that
-//     plays gets `aria-current="true"`, whether or not there is a transcript.
+//     plays gets `aria-current="true"`, whether or not there is a transcript;
+//   - while the recording plays and the reader scrolls its place out of view, the stage gets
+//     `is-docked` and the stylesheet pins the player in a corner, with a button that closes it
+//     (pauses and puts it back). Its place keeps its height, so the page does not jump.
 // No single-key shortcuts (WCAG 2.1.4) and no live region for the running text.
 //
 // A plain module in `static/`, from the site's own origin under `script-src 'self'`, after
@@ -118,6 +122,11 @@ function enhance(stage) {
   const chapters = [...stage.querySelectorAll('[data-chapters] li')];
   const chapterStarts = chapters.map((chapter) => Number(chapter.dataset.start));
   let chapter = -1;
+  const place = stage.querySelector('.media-stage-player .video-frame');
+  const undock = stage.querySelector('[data-undock]');
+  let past = false;
+  let docked = false;
+  let dismissed = false;
 
   let video = null;
   let pending = null;
@@ -125,7 +134,7 @@ function enhance(stage) {
   let current = -1;
   let following = true;
   let startAt = momentOf(location.search);
-  let mode = storedMode() ?? 'showing';
+  let mode = storedMode() ?? 'disabled';
 
   // The panel scrolls, never the page: the line's offset in the list (`position: relative`).
   function reveal(line) {
@@ -219,9 +228,37 @@ function enhance(stage) {
     if (play) void element.play().catch(() => {});
     follow(time);
   }
+  // Docked only while the reader is past the player's place and has not closed it: it docks when
+  // it plays there and stays docked through a pause, so the reader can resume from the corner.
+  function updateDock() {
+    const on = past && !!video && !dismissed && (docked || !video.paused);
+    if (on === docked) return;
+    docked = on;
+    stage.classList.toggle('is-docked', on);
+    if (undock) undock.hidden = !on;
+  }
+  if (place && typeof IntersectionObserver === 'function')
+    new IntersectionObserver(
+      ([entry]) => {
+        past = entry.intersectionRatio < 0.35 && entry.boundingClientRect.top < 0;
+        updateDock();
+      },
+      { threshold: [0, 0.35, 1] }
+    ).observe(place);
+  undock?.addEventListener('click', () => {
+    dismissed = true;
+    video?.pause();
+    updateDock();
+  });
+
   function attach(element) {
     if (video === element) return;
     video = element;
+    element.addEventListener('play', () => {
+      dismissed = false;
+      updateDock();
+    });
+    element.addEventListener('pause', updateDock);
     element.addEventListener('timeupdate', () => follow(element.currentTime));
     element.addEventListener('seeked', () => follow(element.currentTime));
     watchTracks(element);
@@ -301,11 +338,14 @@ function enhance(stage) {
 
   const search = panel?.querySelector('[data-read-along-search]');
   const input = search?.querySelector('input');
-  const count = search?.querySelector('[role="status"]');
+  // The count and its steps only show while there is something to step through.
+  const find = panel?.querySelector('[data-read-along-find]');
+  const count = find?.querySelector('[role="status"]');
   const highlights = typeof Highlight === 'function' && !!globalThis.CSS?.highlights;
   let hits = [];
   let hit = -1;
   function paint() {
+    if (find) find.hidden = !input.value.trim();
     if (highlights) {
       const ranges = hits.map(({ line, start, end }) => {
         const range = new Range();
@@ -358,7 +398,7 @@ function enhance(stage) {
         paint();
       }
     });
-    for (const button of search.querySelectorAll('[data-find]'))
+    for (const button of find?.querySelectorAll('[data-find]') ?? [])
       button.addEventListener('click', () => step(button.dataset.find === 'next' ? 1 : -1));
     search.hidden = false;
   }

@@ -227,6 +227,7 @@ export const publicSite = {
   'video.back': 'Back to the page',
   'video.unavailable': 'This video is currently unavailable.',
   'video.readAlong': 'Read along',
+  'video.dock.close': 'Close player',
   'video.chapters': 'Chapters',
   'video.readAlong.search': 'Search the transcript',
   'video.readAlong.previous': 'Previous',

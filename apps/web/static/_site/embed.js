@@ -50,6 +50,7 @@ for (const form of document.querySelectorAll('form[data-managed-video]')) {
     frame.title = form.querySelector('button').getAttribute('aria-label');
     frame.className = 'managed-video-frame';
     frame.allowFullscreen = true;
+    frame.allow = 'autoplay; fullscreen; picture-in-picture';
     form.target = frame.name;
     const mode = document.createElement('input');
     mode.type = 'hidden';
@@ -63,6 +64,14 @@ for (const form of document.querySelectorAll('form[data-managed-video]')) {
       () => {
         form.hidden = true;
         frame.focus();
+        // The reader pressed play: start it, rather than showing a second play button. The frame
+        // is same-origin and the click is the page's activation; a refusal leaves the controls.
+        const video = frame.contentDocument?.querySelector('video');
+        // Captions on by default for a video in an ordinary page; a media article's stage shows
+        // its transcript beside the player and leaves them off (read-along.js decides there).
+        const track = video?.textTracks[0];
+        if (track && !form.closest('[data-media-stage]')) track.mode = 'showing';
+        void video?.play()?.catch(() => {});
       },
       { once: true }
     );

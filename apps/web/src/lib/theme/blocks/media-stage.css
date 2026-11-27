@@ -1,17 +1,22 @@
-/* A media article's recording on top (MY-305; ADR 025, amended 2026-11-27): the player on the wide
-   rail, and its transcript beside it once the page is wide enough for both, under it otherwise.
-   Beside the player the panel takes the player's height (size containment, so its long list does
-   not set the row) and scrolls inside; under it the list has a height of its own. Every state the
-   read-along script sets is an attribute (`hidden`, `aria-current`) or a highlight, never a style
-   attribute, which the CSP refuses. Colours are the theme's validated pairs: the panel on the
-   surface, the sounding line on the primary pair, hits on the accent pair and the active hit in
-   the body pair turned over. Rejected: a fixed panel height in pixels (200% text would leave it
-   one line tall) and scrolling the page to the line (the reader loses their place in the text). */
-.page > .media-stage {
+/* A media article's recording on top (MY-305; ADR 025, amended 2026-11-27): the player on a rail
+   wider than the wide one, and its transcript beside it once the page is wide enough for both,
+   under it otherwise. Under the player first its own controls on one row, then the chapters as a
+   compact list, so the article's text follows soon after. Beside the player the panel takes the
+   column's height (size containment, so its long list does not set the row) and scrolls inside;
+   under it the list has a height of its own. Every state the read-along script sets is an
+   attribute (`hidden`, `aria-current`), a class on the stage (`is-docked`) or a highlight, never a
+   style attribute, which the CSP refuses. Colours are the theme's validated pairs: the panel on
+   the surface, the sounding line on the primary pair, hits on the accent pair and the active hit
+   in the body pair turned over. Rejected: a fixed panel height in pixels (200% text would leave it
+   one line tall), scrolling the page to the line (the reader loses their place in the text) and
+   chapter tiles with borders (ten chapters took more height than the player). */
+.page > .media-stage.layout-wide {
+  --dock-width: min(22rem, 60vw);
   display: grid;
   /* A column never wider than the page: a search field's own width must not push it out. */
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
+  width: min(84rem, 100% - 2 * var(--gutter));
   margin-block: 0 var(--space-3);
 }
 .page .media-stage .media-recording > * {
@@ -24,7 +29,7 @@
   min-inline-size: 0;
 }
 .media-recording .video-details {
-  margin-block-start: var(--space-1);
+  margin-block-start: 0.25rem;
 }
 
 /* The caption under the picture: the cue the player would print over it. */
@@ -42,30 +47,36 @@
 }
 .media-caption-line[hidden],
 .media-controls[hidden],
+.media-undock[hidden],
 .read-along-search[hidden],
+.read-along-find[hidden],
 .read-along-now[hidden] {
   display: none;
 }
 
-/* Captions and sharing: whole controls that wrap as a group, never a label cut short. */
+/* Captions and sharing on one row: the legend is a flex item beside its choices (floated, so the
+   fieldset does not lift it out), and whole controls wrap as a group, never a label cut short. */
 .media-controls {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--space-1) var(--space-2);
+  gap: 0 var(--space-2);
 }
 .caption-modes {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--space-2);
+  align-items: center;
+  gap: 0 var(--space-1);
   min-inline-size: 0;
   margin: 0;
   padding: 0;
   border: 0;
 }
 .caption-modes legend {
+  float: inline-start;
   padding: 0;
+  margin-inline-end: 0.25em;
   font-weight: 600;
 }
 .caption-modes label {
@@ -85,10 +96,13 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1) var(--space-2);
+  gap: 0 var(--space-1);
   min-inline-size: 0;
 }
+.media-share .button,
 .read-along-find .button {
+  padding-inline: 0.875rem;
+  font-size: var(--step--1);
   white-space: nowrap;
 }
 .media-share-status {
@@ -97,18 +111,23 @@
   overflow-wrap: anywhere;
 }
 
-/* Chapters: a grid of equal tiles under the player, as many columns as fit at 16rem (one on a
-   phone or at 200% text); with the script each tile is a button that seeks, the one that plays on
-   the primary pair. A long title wraps inside its tile. Rejected: buttons as wide as their text in
-   a wrapping row, which leaves a ragged wall of uneven widths. */
+/* Chapters: a compact list under the player, in as many columns as fit at 18rem (one on a phone
+   or at 200% text), rows parted by a rule; with the script each row is a button that seeks, the
+   one that plays on the primary pair with a bar in front. A long title wraps in its own row. */
+.media-chapters {
+  /* A narrow list (a phone at 200% text) puts the start above the title, as the read-along does. */
+  container-type: inline-size;
+  padding-block-start: var(--space-1);
+  border-block-start: 1px solid var(--color-rule);
+}
 .media-chapters h2 {
   margin: 0 0 0.25rem;
   font-size: var(--step-0);
 }
 .media-chapters ol {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  column-gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -116,22 +135,31 @@
 .media-chapters li {
   display: grid;
   min-inline-size: 0;
+  border-block-end: 1px solid var(--color-rule);
 }
 .media-chapters li:not(:has(> .media-chapter)),
 .media-chapter {
   display: grid;
   grid-template-columns: minmax(3.25em, max-content) minmax(0, 1fr);
   align-items: baseline;
+  align-content: center;
   column-gap: 0.5em;
   min-inline-size: 0;
-  padding: 0.35em 0.75em;
-  border: 1px solid currentColor;
-  border-radius: var(--radius);
+  padding: 0.3em 0.5em;
   overflow-wrap: break-word;
+}
+@container (max-width: 16em) {
+  .media-chapters li:not(:has(> .media-chapter)),
+  .media-chapter {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .media-chapter {
   inline-size: 100%;
   min-block-size: var(--tap);
+  border: 0;
+  border-inline-start: 0.25rem solid transparent;
+  border-radius: 0;
   font: inherit;
   text-align: start;
   color: inherit;
@@ -143,73 +171,153 @@
 }
 .media-chapter:focus-visible {
   outline: 2px solid currentColor;
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 .media-chapters time {
+  font-size: var(--step--1);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
 .media-chapter[aria-current='true'] {
-  border-color: var(--color-primary-bg);
+  border-inline-start-color: currentColor;
   color: var(--color-primary-fg);
   background: var(--color-primary-bg);
 }
 
-/* Read along. */
+/* Docked: the player leaves its place for a corner while its place keeps the height, and the
+   close button sits on top of it. The frame is not moved in the document, so it keeps playing. */
+.media-stage.is-docked .video-frame::before {
+  content: '';
+  display: block;
+  aspect-ratio: 16 / 9;
+}
+.media-stage.is-docked .video-player {
+  position: fixed;
+  z-index: 20;
+  inset: auto var(--space-1) var(--space-1) auto;
+  inline-size: var(--dock-width);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.35);
+}
+.media-undock {
+  position: fixed;
+  z-index: 21;
+  inset: auto var(--space-1) calc(var(--space-1) + var(--dock-width) * 9 / 16 + 0.375rem) auto;
+  min-block-size: 2rem;
+  padding: 0.25rem 0.75rem;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  font: inherit;
+  font-size: var(--step--1);
+  font-weight: 600;
+  color: var(--color-body-bg);
+  background: var(--color-body-fg);
+  cursor: pointer;
+}
+.media-undock:focus-visible {
+  outline: 2px solid var(--color-body-fg);
+  outline-offset: 2px;
+}
+
+/* Read along: the title and the search share a row while the panel is wide enough; the count
+   with its steps appears only for a query, and "back to now" floats over the foot of the list. */
 .read-along {
   /* The lines measure against the panel: a narrow one (or large text) puts the time above them. */
   container-type: inline-size;
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 0.5rem;
   min-block-size: 0;
   min-inline-size: 0;
-  padding: var(--space-2) var(--inset);
+  padding: var(--space-1) 0 0;
   border-radius: var(--radius);
   color: var(--color-surface-fg);
   background: var(--color-surface-bg);
+}
+.read-along-head {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem var(--space-1);
+  padding-inline: var(--inset);
 }
 .read-along h2 {
   margin: 0;
   font-size: var(--step-1);
 }
 .read-along-search {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.25rem;
+  position: relative;
+  min-inline-size: 0;
+}
+.read-along-label {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .read-along-search input {
   inline-size: 100%;
   min-inline-size: 0;
   min-block-size: var(--tap);
-  padding: 0.5rem 0.75rem;
-  border: 2px solid currentColor;
-  border-radius: var(--radius);
+  padding: 0.25rem 0.875rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
   font: inherit;
   color: var(--color-body-fg);
   background: var(--color-body-bg);
 }
-/* The count on a line of its own, the two steps together under it. */
 .read-along-find {
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1);
+  gap: 0.5rem;
 }
 .read-along-count {
-  flex: 1 0 100%;
-  min-block-size: 1lh;
+  flex: 1 1 auto;
   margin: 0;
   font-size: var(--step--1);
 }
-.read-along-now {
-  align-self: flex-start;
+@container (max-width: 22em) {
+  .read-along-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.read-along-now.button {
+  position: absolute;
+  z-index: 1;
+  inset-block-end: var(--space-1);
+  inset-inline: 0;
+  inline-size: max-content;
+  max-inline-size: calc(100% - 2 * var(--inset));
+  margin-inline: auto;
+  border-radius: 999px;
+  font-size: var(--step--1);
+  color: var(--color-body-bg);
+  background: var(--color-body-fg);
+  box-shadow: 0 0.25rem 0.75rem rgb(0 0 0 / 0.3);
+}
+/* A fine pointer needs no 44px target; touch keeps it. */
+@media (pointer: fine) {
+  .media-share .button,
+  .read-along-find .button,
+  .read-along-now.button {
+    min-height: 2.25rem;
+  }
+  .media-chapter {
+    min-block-size: 2.25rem;
+  }
 }
 .read-along-lines {
   position: relative;
-  max-block-size: min(28rem, 70dvh);
+  flex: 1 1 var(--lines-basis, auto);
+  max-block-size: var(--lines-max, min(28rem, 70dvh));
   margin: 0;
-  padding: 0;
+  padding: 0 0 calc(var(--tap) + var(--space-1));
   overflow-y: auto;
   overscroll-behavior: contain;
   list-style: none;
@@ -217,10 +325,10 @@
 .read-along-lines li,
 .read-along-seek {
   display: grid;
-  grid-template-columns: minmax(3.25em, max-content) minmax(0, 1fr);
+  grid-template-columns: minmax(2.75em, max-content) minmax(0, 1fr);
   align-items: baseline;
-  column-gap: 0.75em;
-  padding: 0.4em 0.5em;
+  column-gap: 0.5em;
+  padding: 0.35em var(--inset) 0.35em calc(var(--inset) - 0.25rem);
 }
 .read-along-lines li:has(> .read-along-seek) {
   display: block;
@@ -246,6 +354,7 @@
   font-weight: 600;
 }
 .read-along-lines time {
+  font-size: var(--step--1);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
@@ -289,12 +398,13 @@
   .page > .media-stage.with-transcript {
     grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr);
   }
+  /* The list's own container is the panel, so a rule for it here would ask the panel's width;
+     the panel passes the page's answer down instead. This left the list at its narrow height
+     with an empty panel under it until 2026-11-27. */
   .media-stage.with-transcript .read-along {
+    --lines-basis: 0;
+    --lines-max: none;
     contain: size;
-  }
-  .media-stage.with-transcript .read-along-lines {
-    flex: 1 1 0;
-    max-block-size: none;
   }
 }
 
@@ -306,5 +416,8 @@
   .read-along-lines li[aria-current='true'] > .read-along-seek,
   .read-along-lines li[aria-current='true']:not(:has(> .read-along-seek)) {
     border-inline-start-color: Highlight;
+  }
+  .media-stage.is-docked .video-player {
+    outline: 2px solid CanvasText;
   }
 }

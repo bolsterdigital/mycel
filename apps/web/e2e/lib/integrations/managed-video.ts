@@ -116,6 +116,10 @@ export async function exerciseManagedVideo(page: Page) {
   await expect(video).toHaveAttribute('controls', '');
   if (isA11y()) {
     await expect.poll(() => video.evaluate(() => document.readyState)).toBe('complete');
+    // The press on the poster was the press on play: it starts without a second one.
+    await expect.poll(() => video.evaluate((el: HTMLVideoElement) => !el.paused)).toBe(true);
+    // In an ordinary page the captions are on by default.
+    expect(await video.evaluate((el: HTMLVideoElement) => el.textTracks[0]?.mode)).toBe('showing');
   }
   await video.evaluate((el: HTMLVideoElement) => {
     void el.play().catch(() => {});

@@ -170,6 +170,8 @@ export async function exerciseMediaProfile(page: Page) {
   await query.press('Escape');
   await expect(query).toHaveValue('');
   await expect(count).toHaveText('');
+  // The steps only show while there is a query to step through.
+  await expect(stage.getByRole('button', { name: 'Next' })).toBeHidden();
 
   // A line seeks and plays, starting the player first; the sounding line follows the playback.
   await lines.nth(2).getByRole('button').click();
@@ -179,6 +181,28 @@ export async function exerciseMediaProfile(page: Page) {
     .toBeGreaterThanOrEqual(4);
   await expect(lines.nth(2)).toHaveAttribute('aria-current', 'true');
   await expect(lines.nth(2).getByRole('button')).toBeFocused();
+  // Scrolled past while it plays, the player docks in a corner over the page; closing it pauses
+  // the recording and puts the player back in its place, which kept its height meanwhile.
+  const place = await stage.locator('.video-frame').evaluate((el) => el.clientHeight);
+  await page.setViewportSize({ width: 1366, height: 500 });
+  await video.evaluate((el: HTMLVideoElement) => {
+    el.currentTime = 0;
+    void el.play();
+  });
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const close = page.getByRole('button', { name: 'Close player' });
+  await expect(stage).toHaveClass(/\bis-docked\b/);
+  await expect(close).toBeVisible();
+  expect(await stage.locator('.video-frame').evaluate((el) => el.clientHeight)).toBe(place);
+  await close.click();
+  await expect(stage).not.toHaveClass(/\bis-docked\b/);
+  await expect(close).toBeHidden();
+  expect(await video.evaluate((el: HTMLVideoElement) => el.paused)).toBe(true);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await video.evaluate((el: HTMLVideoElement) => {
+    el.currentTime = 4;
+  });
   // The chapter that plays is current; a chapter button seeks to its start.
   const chapter = (name: RegExp) =>
     stage.getByRole('region', { name: 'Chapters' }).getByRole('button', { name });
@@ -189,6 +213,9 @@ export async function exerciseMediaProfile(page: Page) {
   await expect(chapter(/On the bank/)).toHaveAttribute('aria-current', 'true');
   await expect(chapter(/In the water/)).not.toHaveAttribute('aria-current', 'true');
 
+  // Captions are off by default here, since the transcript beside the player shows the text.
+  await expect(stage.getByRole('radio', { name: 'Off' })).toBeChecked();
+  expect(await video.evaluate((el: HTMLVideoElement) => el.textTracks[0]?.mode)).toBe('disabled');
   // Captions under the picture: the track is hidden and its cue is printed below; remembered.
   await stage.getByRole('radio', { name: 'Below' }).check();
   await expect
