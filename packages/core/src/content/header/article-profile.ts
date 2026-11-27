@@ -1,10 +1,13 @@
 // Article profiles are revision data. Resolve defaults after access projection so the estimate
-// counts only the words this reader sees, and old editions retain their original header.
+// counts only the words this reader sees, and old editions retain their original header. The
+// media profile (ADR 025, amended 2026-11-27) names the first `video` block the reader is served
+// as the recording on top; the renderer lifts that block into the header. Rejected: a header
+// field of its own for the recording, which needs a schema change and a second playback grant.
 import { z } from 'zod';
 import { allBlocks } from '../blocks.js';
 import type { ContentDocument } from '../model.js';
 
-export const ARTICLE_PROFILES = ['post', 'longread'] as const;
+export const ARTICLE_PROFILES = ['post', 'longread', 'media'] as const;
 export const ARTICLE_HEADERS = ['standard', 'cover'] as const;
 export const ARTICLE_OPTIONS = {
   header: ARTICLE_HEADERS,
@@ -26,7 +29,11 @@ export const ArticlePresentation = z
     header: z.enum(ARTICLE_OPTIONS.header).optional(),
     profile: z.enum(ARTICLE_PROFILES).optional(),
     overrides: z
-      .object({ post: overrides.optional(), longread: overrides.optional() })
+      .object({
+        post: overrides.optional(),
+        longread: overrides.optional(),
+        media: overrides.optional(),
+      })
       .strict()
       .optional(),
   })
@@ -37,6 +44,12 @@ export const ArticleView = z.object({
   portraits: z.boolean(),
   minutes: z.number().int().positive().nullable(),
   initial: z.boolean(),
+  /**
+   * The media profile's recording on top: the first `video` block in the served projection, and
+   * whether the meta line shows its duration (the profile's `readingTime` override hides it).
+   * Absent on every other profile and on a media article without a recording, which reads as Post.
+   */
+  video: z.object({ blockId: z.string(), duration: z.boolean() }).strict().optional(),
 });
 export type ArticleView = z.infer<typeof ArticleView>;
 
@@ -57,6 +70,8 @@ export function articleView(
   if (!profile) return undefined;
   const options = doc.presentation?.overrides?.[profile];
   const long = profile === 'longread';
+  const recording =
+    profile === 'media' ? allBlocks(doc.blocks).find((block) => block.type === 'video') : undefined;
   let minutes = null;
   if (!options?.readingTime) {
     const texts = [doc.lead?.[locale] ?? ''];
@@ -76,9 +91,11 @@ export function articleView(
     if (words) minutes = Math.ceil(words / 200);
   }
   return {
-    header: options?.header ?? (long ? 'cover' : 'standard'),
+    // The recording is the header's image, so a media header is never a cover.
+    header: recording ? 'standard' : (options?.header ?? (long ? 'cover' : 'standard')),
     portraits: options?.authors ? options.authors === 'portraits' : long,
     minutes,
     initial: long && !options?.initial,
+    ...(recording ? { video: { blockId: recording.id, duration: !options?.readingTime } } : {}),
   };
 }

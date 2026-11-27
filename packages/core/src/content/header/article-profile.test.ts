@@ -105,3 +105,41 @@ it('counts only the served locale and ignores an empty body and non-editorial fi
     initial: false,
   });
 });
+
+it('puts the first served recording on top of a media article and falls back to Post without one', () => {
+  const video = (id: string) => ({
+    id,
+    type: 'video' as const,
+    version: 1 as const,
+    props: { videoId: '44444444-4444-4444-8444-444444444444' },
+  });
+  const doc = ContentDocument.parse({
+    type: 'article',
+    locales: ['nl'],
+    defaultLocale: 'nl',
+    title: { nl: 'Aflevering' },
+    lead: { nl: 'Een gesprek' },
+    presentation: { profile: 'media' },
+    blocks: [
+      { id: 'intro', type: 'heading', version: 1, props: { text: { nl: 'Vooraf' } } },
+      video('first'),
+      video('second'),
+    ],
+  });
+  if (doc.type !== 'article') throw new Error('article fixture');
+  expect(articleView(doc, 'nl')).toEqual({
+    header: 'standard',
+    portraits: false,
+    minutes: 1,
+    initial: false,
+    video: { blockId: 'first', duration: true },
+  });
+  doc.presentation = { profile: 'media', overrides: { media: { readingTime: 'hide' } } };
+  expect(articleView(doc, 'nl')?.video).toEqual({ blockId: 'first', duration: false });
+  doc.blocks = doc.blocks.filter((block) => block.type !== 'video');
+  doc.presentation = { profile: 'media', overrides: { media: { header: 'cover' } } };
+  const media = articleView(doc, 'nl');
+  doc.presentation = { profile: 'post', overrides: { post: { header: 'cover' } } };
+  expect(media).toEqual(articleView(doc, 'nl'));
+  expect(media?.video).toBeUndefined();
+});

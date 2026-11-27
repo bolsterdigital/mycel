@@ -64,7 +64,9 @@
   .article-profile-fields:has(:global(input[name='articleProfile'][value='post']:checked))
     details.post,
   .article-profile-fields:has(:global(input[name='articleProfile'][value='longread']:checked))
-    details.longread {
+    details.longread,
+  .article-profile-fields:has(:global(input[name='articleProfile'][value='media']:checked))
+    details.media {
     display: block;
   }
   summary {

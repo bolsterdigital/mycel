@@ -336,7 +336,7 @@ export const findPublished = defineUseCase({
         for (const block of doc.blocks) {
           if (block.type !== 'video') continue;
           const video = await videoPresentation(ctx, block.props.videoId, locale);
-          if (video) texts.body.push(...video.transcript);
+          if (video) texts.body.push(...video.transcriptText);
         }
         if (!carries([...entry.all, ...texts.body.flatMap(searchTokens)], tokens)) continue;
       }

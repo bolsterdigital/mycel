@@ -20,6 +20,7 @@ import {
 import Page from '../../routes/(public)/[tenant]/[[locale=locale]]/[...path]/+page.svelte';
 import Credit from './Credit.svelte';
 import { renderMarkdown } from './markdown.js';
+import { placeRecording } from './recording.js';
 import {
   renderCorrections,
   renderEvent,
@@ -62,10 +63,42 @@ const hero: MediaView = {
   ),
 };
 
+const VIDEO = '01900000-0000-7000-8000-000000000305';
 const source: ResolveSource = {
   form: async () => null,
   media: async (id) => (id === HERO ? hero : null),
   itemPath: async () => null,
+  // A playable recording with a transcript of two voices, a sound and a line past the hour.
+  video: async (id, locale) =>
+    id === VIDEO
+      ? {
+          metadata: {
+            title: { nl: 'Het gesprek', en: 'The conversation' },
+            maker: 'Mycel',
+            licence: { code: 'cc0' },
+            watchUrl: null,
+          },
+          duration: 2455,
+          posterId: HERO,
+          playable: true,
+          transcript: [
+            { start: 0, end: 2.5, text: '[muziek]', speaker: null },
+            {
+              start: 190,
+              end: 196.4,
+              text: locale === 'en' ? 'Welcome to the square.' : 'Welkom op het plein.',
+              speaker: 'Sam de Vries',
+            },
+            {
+              start: 3723.25,
+              end: 3725,
+              text: locale === 'en' ? 'Thanks.' : 'Dank.',
+              speaker: 'Noor',
+            },
+          ],
+          transcriptText: [],
+        }
+      : null,
 };
 
 const article = ContentDocument.parse({
@@ -115,14 +148,29 @@ async function page(
     meta?: boolean;
     event?: boolean;
     corrections?: { date: string; text: string }[];
+    /** The media profile: a recording before the body, lifted into the header. */
+    recording?: boolean;
   } = {}
 ) {
-  const model = await resolveDocument(
+  const doc = head.recording
+    ? {
+        ...article,
+        blocks: [
+          Block.parse({ id: 'film', type: 'video', version: 1, props: { videoId: VIDEO } }),
+          ...article.blocks,
+        ],
+      }
+    : article;
+  const resolved = await resolveDocument(
     source,
-    { locale, ...projectDocument(article, locale) },
-    { base: '', fallbackLocale: 'nl' }
+    { locale, ...projectDocument(doc, locale) },
+    {
+      base: '',
+      fallbackLocale: 'nl',
+      ...(head.recording ? { videoRoute: `/_video/${locale}/article/drie-jaar` } : {}),
+    }
   );
-  const intro = await resolveIntro(
+  const header = await resolveIntro(
     source,
     {
       lead: article.lead?.[locale] ?? null,
@@ -161,6 +209,7 @@ async function page(
     },
     locale
   );
+  const { intro, model } = placeRecording(header, resolved, head.view);
   const data = {
     view: 'item' as const,
     model,
@@ -341,6 +390,101 @@ describe('the two article headers (#105)', () => {
     });
     expect(body).toContain('Sam $&amp; $` Vries');
     expect(body).toContain('<span class="credit-word">Foto: </span>');
+  });
+});
+
+describe('the media header (ADR 025, amended 2026-11-27)', () => {
+  const at = (html: string, s: string) => html.indexOf(s);
+  const view = {
+    header: 'standard' as const,
+    portraits: false,
+    minutes: 1,
+    initial: false,
+    video: { blockId: 'film', duration: true },
+  };
+  for (const locale of ['nl', 'en'] as const)
+    it(`puts the recording and its transcript between the lead and the meta line in ${locale}`, async () => {
+      const html = await page(locale, 'default', undefined, { view, meta: true, recording: true });
+      await expect(html).toMatchFileSnapshot(`__snapshots__/item-intro-media.${locale}.html`);
+      // Title, lead, player, read-along, meta line, then the body without the recording.
+      expect(at(html, '<h1')).toBeLessThan(at(html, 'class="lead"'));
+      expect(at(html, 'class="lead"')).toBeLessThan(at(html, 'media-stage'));
+      expect(at(html, 'data-managed-video')).toBeLessThan(at(html, 'read-along'));
+      expect(at(html, 'read-along')).toBeLessThan(at(html, 'page-meta'));
+      expect(at(html, 'page-meta')).toBeLessThan(at(html, 'rich-text'));
+      expect(html.match(/data-managed-video/g)).toHaveLength(1);
+      expect(html).toContain('id="block-film"');
+      // The poster is the header's image: no hero, and it loads first.
+      expect(html).not.toContain('page-hero');
+      expect(html).toContain('fetchpriority="high"');
+      expect(html).not.toContain('loading="lazy"');
+      // The duration replaces the reading time; each line shows its start and its speaker.
+      expect(html).toContain('<span>41 min</span>');
+      expect(html).not.toMatch(/min (lezen|read)/);
+      expect(html).toMatch(/<time datetime="PT3M10S">3:10<\/time>/);
+      expect(html).toMatch(/<time datetime="PT62M3S">1:02:03<\/time>/);
+      expect(html).toContain('<span class="read-along-speaker">Sam de Vries</span>');
+      expect(html).not.toContain('<details');
+      expect(html).toContain(locale === 'nl' ? '>Lees mee</h2>' : '>Read along</h2>');
+      // What only works with the script is hidden until it runs; nothing styled inline.
+      expect(html).toMatch(/class="media-controls" data-media-controls="" hidden/);
+      expect(html).toMatch(/class="read-along-search" data-read-along-search="" hidden/);
+      expect(html).not.toMatch(/\sstyle=|<style/);
+    });
+
+  it('falls back to the Post header when the recording is not on the page', async () => {
+    const html = await page('nl', 'default', undefined, { view, meta: true });
+    expect(html).toContain('page-hero');
+    expect(html).toContain('1 min lezen');
+    expect(html).not.toContain('media-stage');
+  });
+
+  it('keeps the recording in the Markdown, where the editor put it', async () => {
+    const markdownSource = await resolveDocument(
+      source,
+      {
+        locale: 'nl',
+        ...projectDocument(
+          {
+            ...article,
+            blocks: [
+              Block.parse({ id: 'film', type: 'video', version: 1, props: { videoId: VIDEO } }),
+            ],
+          },
+          'nl'
+        ),
+      },
+      { base: '', fallbackLocale: 'nl', videoRoute: '/_video/nl/article/drie-jaar' }
+    );
+    const placed = placeRecording(
+      {
+        lead: null,
+        hero: null,
+        header: 'standard',
+        article: { portraits: false, initial: false, readingTime: null, authors: [] },
+        meta: null,
+      },
+      markdownSource,
+      view
+    );
+    expect(placed.model.lifted).toBe('film');
+    expect(
+      renderMarkdown(placed.model, {
+        canonicalUrl: 'https://x.test/a',
+        siteRoot: 'https://x.test',
+        lead: null,
+        corrections: null,
+        gate: null,
+      })
+    ).toBe(
+      renderMarkdown(markdownSource, {
+        canonicalUrl: 'https://x.test/a',
+        siteRoot: 'https://x.test',
+        lead: null,
+        corrections: null,
+        gate: null,
+      })
+    );
   });
 });
 

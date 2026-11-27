@@ -39,6 +39,7 @@ import { callApi } from './lib/api';
 import { startPhotoStory } from './lib/content-admin/photo-story';
 import { openPublication } from './lib/publication';
 import { block, editorReady, reloadsEditor } from './lib/editor';
+import { exerciseMediaProfile } from './lib/published/media-profile';
 
 const SITE = 'http://probe.localhost:4173';
 
@@ -2161,3 +2162,6 @@ test.describe('an image that opens larger on the site', () => {
     expect(errors).toEqual([]);
   });
 });
+
+test('a media article reads along with its recording, with or without a script', ({ page }) =>
+  exerciseMediaProfile(page));

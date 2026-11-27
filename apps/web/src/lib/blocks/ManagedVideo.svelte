@@ -1,6 +1,9 @@
 <!-- The initial document holds an image and a same-site POST. The provider is only reached after
-     publication and integration settings are checked again at playback. -->
+     publication and integration settings are checked again at playback. As a media article's
+     recording on top (`header`, MY-305) it fills the header's stage and leaves the transcript to
+     the read-along beside it; `below` sits directly under the picture. -->
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import { ui } from '../../i18n/index.js';
   import type { RenderBlock, RenderModel } from './model.js';
   import Picture from './Picture.svelte';
@@ -12,13 +15,21 @@
     model,
     anchor,
     eager,
+    header = false,
+    below,
   }: {
     block: Extract<RenderBlock, { type: 'video' }>;
     model: RenderModel;
     anchor?: string;
     eager: boolean;
+    header?: boolean;
+    below?: Snippet;
   } = $props();
   const t = $derived(ui(model.locale));
+  // The readable line as the transcript always read: the speaker's name before what they say.
+  const line = (cue: (typeof block.transcript)[number]) =>
+    cue.speaker ? `${cue.speaker}: ${cue.text}` : cue.text;
+  // Minutes past the hour stay minutes (`41:00`, `75:10`), as the block always showed them.
   const duration = $derived(
     block.duration === null
       ? null
@@ -26,13 +37,18 @@
   );
 </script>
 
-<div id={anchor} class="block video width-content">
+<div id={anchor} class={header ? 'video media-recording' : 'block video width-content'}>
   <figure class="video-frame">
     {#if block.play || block.poster}
       <div class="video-player">
         {#if block.poster}
           <div class="video-poster">
-            <Picture image={block.poster} base={model.base} sizes={IMAGE_SIZES.content} {eager} />
+            <Picture
+              image={block.poster}
+              base={model.base}
+              sizes={header ? IMAGE_SIZES.wide : IMAGE_SIZES.content}
+              {eager}
+            />
             {#if duration}<span class="video-duration">{duration}</span>{/if}
           </div>
         {/if}
@@ -51,10 +67,11 @@
     {/if}
     {#if block.caption}<figcaption>{block.caption}</figcaption>{/if}
   </figure>
-  {#if block.transcript.length}
+  {@render below?.()}
+  {#if block.transcript.length && !header}
     <details>
       <summary>{t('video.transcript')}</summary>
-      {#each block.transcript as cue}<p>{cue}</p>{/each}
+      {#each block.transcript as cue, index (index)}<p>{line(cue)}</p>{/each}
     </details>
   {/if}
   {#if block.maker || block.licence || block.watch}

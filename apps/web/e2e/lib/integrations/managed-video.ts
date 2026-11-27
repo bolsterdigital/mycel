@@ -14,15 +14,18 @@ const recording = fileURLToPath(
   new URL('../../../../../packages/api/fixtures/bunny/test-recording.mp4', import.meta.url)
 );
 
-export async function exerciseManagedVideo(page: Page) {
-  let cdnNow = 0;
+/**
+ * The fixture CDN: a malformed manifest, so the player falls back to the real MP4 bytes, and a
+ * 403 for a signature at or past `now()`. Returns the paths asked, in order.
+ */
+export async function routeFixtureCdn(page: Page, now: () => number = () => 0) {
   const asked: string[] = [];
   await page.route(`${host}/**`, async (route) => {
     const { pathname } = new URL(route.request().url());
     asked.push(pathname);
     const headers = { 'access-control-allow-origin': '*', 'accept-ranges': 'bytes' };
     const expires = Number(/&expires=(\d+)/.exec(pathname)?.[1]);
-    if (expires <= cdnNow) return route.fulfill({ status: 403, headers });
+    if (expires <= now()) return route.fulfill({ status: 403, headers });
     if (pathname.endsWith('.m3u8'))
       return route.fulfill({
         headers,
@@ -31,6 +34,12 @@ export async function exerciseManagedVideo(page: Page) {
       });
     return route.fulfill({ headers, contentType: 'video/mp4', path: recording });
   });
+  return asked;
+}
+
+export async function exerciseManagedVideo(page: Page) {
+  let cdnNow = 0;
+  const asked = await routeFixtureCdn(page, () => cdnNow);
   const title = /Afspelen|Play video/;
   const main = '/probe/blok-video-shared';
   if (isA11y()) {

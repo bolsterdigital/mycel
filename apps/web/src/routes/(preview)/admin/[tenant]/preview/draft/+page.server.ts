@@ -12,6 +12,7 @@ import {
   isUuid,
 } from '@mycel/core';
 import { resolveDocument, resolveIntro, runtimeSource } from '#lib/blocks/resolve.js';
+import { placeRecording } from '#lib/blocks/recording.js';
 import { posted } from '#lib/editor/block-form.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { error } from '@sveltejs/kit';
@@ -90,7 +91,7 @@ export const actions: Actions = {
       defaultLocale: tenant.defaultLocale,
     });
     const live = item.publication.find((p) => p.locale === locale)?.publishedAt ?? null;
-    const [model, intro, theme] = await Promise.all([
+    const [resolved, [header, view], theme] = await Promise.all([
       resolveDocument(
         source,
         { locale, ...projectDocument(doc, locale) },
@@ -102,9 +103,16 @@ export const actions: Actions = {
           placeholder: await cardPlaceholder(site, base),
         }
       ),
-      introOf(principal, doc, locale, live).then((intro) => resolveIntro(source, intro, locale)),
+      introOf(principal, doc, locale, live).then(
+        async (intro) =>
+          [
+            await resolveIntro(source, intro, locale),
+            'view' in intro ? intro.view : undefined,
+          ] as const
+      ),
       siteTheme(site),
     ]);
+    const { intro, model } = placeRecording(header, resolved, view);
     const admin = langOf(locals);
     locals.lang = locale;
     return {

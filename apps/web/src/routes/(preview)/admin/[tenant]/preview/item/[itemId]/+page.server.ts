@@ -18,6 +18,7 @@ import { runtime } from '#lib/server/runtime.js';
 import { cardPlaceholder, chromeModel } from '#lib/server/public/chrome.js';
 import { siteTheme } from '#lib/server/public/theme.js';
 import { resolveDocument, resolveIntro, runtimeSource } from '#lib/blocks/resolve.js';
+import { placeRecording } from '#lib/blocks/recording.js';
 import { langOf, ui } from '../../../../../../../i18n/index.js';
 import { siteFontHref } from '#lib/theme/tokens.js';
 import type { PageServerLoad } from './$types';
@@ -49,7 +50,7 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
     reader: siteReader(site),
     defaultLocale: tenant.defaultLocale,
   });
-  const model = await resolveDocument(
+  const resolved = await resolveDocument(
     source,
     { locale, ...projectDocument(doc, locale) },
     {
@@ -61,7 +62,12 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
     }
   );
   const live = item.publication.find((p) => p.locale === locale)?.publishedAt ?? null;
-  const intro = await resolveIntro(source, await introOf(principal, doc, locale, live), locale);
+  const header = await introOf(principal, doc, locale, live);
+  const { intro, model } = placeRecording(
+    await resolveIntro(source, header, locale),
+    resolved,
+    'view' in header ? header.view : undefined
+  );
   const theme = await siteTheme(site);
   const admin = langOf(locals);
   // In the admin's language, read before `locals.lang` turns to the previewed locale below.

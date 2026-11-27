@@ -5,10 +5,11 @@ import type { UiKey } from '../en.js';
 export const content: Partial<Record<UiKey, string>> = {
   'article.profile.label': 'Artikelprofiel',
   'article.profile.hint':
-    'Post opent met een compact beeld. Longread opent met een cover, auteursportretten en een initiaal.',
+    'Post opent met een compact beeld. Longread opent met een cover, auteursportretten en een initiaal. Video/audio opent met de eerste opname en een transcript om mee te lezen.',
   'article.profile.keep': 'Huidige weergave behouden',
   'article.profile.post': 'Post',
   'article.profile.longread': 'Longread',
+  'article.profile.media': 'Video/audio',
   'article.profile.advanced': 'Geavanceerde weergave ({count} afwijkingen)',
   'article.profile.default': 'Volg profiel',
   'article.profile.header': 'Kop',
@@ -22,6 +23,7 @@ export const content: Partial<Record<UiKey, string>> = {
   'article.profile.hide': 'Verbergen',
   'article.profile.plain': 'Gewone letter',
   'block.meta.readingTime': '{minutes} min lezen',
+  'block.meta.duration': '{minutes} min',
   'admin.content.field.tiers': 'Toegangsniveaus',
   'admin.content.field.tiers.hint':
     'Telt alleen als het item voor lezers van een toegangsniveau is.',

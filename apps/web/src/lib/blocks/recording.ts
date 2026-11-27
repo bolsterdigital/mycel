@@ -1,0 +1,59 @@
+// The media profile's recording on top (ADR 025, amended 2026-11-27; MY-305). The core names the
+// first `video` block the reader is served (`ArticleView.video`); this places the rendered block
+// in the document header and marks it in the model (`lifted`), so the body skips it while the
+// Markdown, the embed check and the anchors keep it where the editor put it. A recording that
+// renders nothing (no poster, no playback) is not lifted: the article keeps the Post header with
+// its hero and reading time. Rejected: removing the block from the model, which would drop the
+// recording from the Markdown and from the page's script decision, and a second component tree
+// for the header that would drift from the block's own markup.
+
+import type { ArticleView } from '@mycel/core';
+import { ui } from '../../i18n/index.js';
+import type { RenderIntro, RenderModel } from './model.js';
+
+/** A time on the recording as a reader writes it: `3:10`, `1:02:03`. */
+export function clockTime(seconds: number): string {
+  const whole = Math.max(0, Math.floor(seconds));
+  const pair = (n: number) => String(n).padStart(2, '0');
+  const hours = Math.floor(whole / 3600);
+  const minutes = Math.floor(whole / 60) % 60;
+  return hours ? `${hours}:${pair(minutes)}:${pair(whole % 60)}` : `${minutes}:${pair(whole % 60)}`;
+}
+
+/** The same time as an HTML duration (`<time datetime>`): `PT3M10S`. */
+export function isoDuration(seconds: number): string {
+  const whole = Math.max(0, Math.floor(seconds));
+  return `PT${Math.floor(whole / 60)}M${whole % 60}S`;
+}
+
+/** Whole minutes for the meta line: rounded, and at least one for a recording that has any. */
+export function durationMinutes(seconds: number): number {
+  return Math.max(1, Math.round(seconds / 60));
+}
+
+export function placeRecording(
+  intro: RenderIntro,
+  model: RenderModel,
+  view: ArticleView | undefined
+): { intro: RenderIntro; model: RenderModel } {
+  const lift = view?.video;
+  const block = lift && model.blocks.find((b) => b.id === lift.blockId);
+  if (!lift || !intro.article || block?.type !== 'video' || !(block.play || block.poster))
+    return { intro, model };
+  const minutes = lift.duration && block.duration ? durationMinutes(block.duration) : null;
+  return {
+    intro: {
+      ...intro,
+      hero: null,
+      header: 'standard',
+      recording: block,
+      article: {
+        ...intro.article,
+        readingTime: minutes
+          ? ui(model.locale)('block.meta.duration').replace('{minutes}', String(minutes))
+          : null,
+      },
+    },
+    model: { ...model, lifted: block.id },
+  };
+}

@@ -4,6 +4,7 @@
 - **Date**: 2026-11-01
 - **Rules 1 and 3 partly superseded**: 2026-11-22 by [ADR 038](038-campaign-presentation.md), for landing pages bound to a campaign (header image first; a second, fixed page header layout chosen by the binding).
 - **Rule 3 amended**: 2026-11-23, pages get `cover` and `split` (MY-287), see [Amendment](#amendment-2026-11-23-page-headers).
+- **Amended**: 2026-11-27, a third article profile Video/audio whose recording opens the header (MY-305), see [Amendment](#amendment-2026-11-27-the-media-profile).
 - **Refines**: ADR 004 rules 1 and 5 (document metadata, versioned block schemas), ADR 012 rule 1 (page and article fields), ADR 020 rules 1 and 6 (stable ids, revisioned operations)
 - **Builds on**: ADR 007 (localisation), ADR 009 (one registry, HTML first), ADR 018 (revisions, baseRevisionId, separate publish capability)
 
@@ -46,3 +47,14 @@ Rejected: `split` for articles (an article's meta line and byline have no place 
 New articles start with an explicit Post presentation. An article revision may select Post or Longread and keep independent header, author, reading-time and initial overrides for each profile. Each setting and the active profile merge separately under ADR 026. Changing profile preserves the other profile's settings. Clearing an override restores its profile default. Reading, saving, scheduling and restoring an existing revision without a profile preserve its header and site initial behaviour until an editor selects a profile and publishes that revision.
 
 Post uses a compact image, inline author names, reading time and an ordinary initial. Longread uses a cover when an image is available, author portraits where available, reading time and a measured initial when the site permits it. A compact opening uses a centred 3:2 image on desktop bounded by 45vh and 45rem, and 16:9 on mobile. Compute reading time from the lead and visible editorial text in the served locale at 200 words per minute, rounded up, with no estimate for zero words. Both previews follow the same projection as the public article.
+
+## Amendment 2026-11-27: the media profile
+
+An episode of a programme is an article like any other, but its subject is a recording: the reader comes to watch or listen, and the text is context. The owner chose a third article form next to Post and Longread (MY-305, plan session 2026-11-27).
+
+1. **`media` is a third article profile**, labelled Video/audio, with the same independent overrides as the other two (`presentation.overrides.media`), merged per setting under ADR 026. No stored revision changes: an article without the profile reads as before.
+2. **The recording on top is the article's first `video` block in the served projection.** It is not a header field: the header renders that block (title, lead, the player at the stage's width, then the meta line), and the body leaves it out. The block keeps its id, its place in the block tree, its anchor and its playback route; the placement check, the grant and the track route are unchanged, so a recording plays on top exactly when it would play in the body. The Markdown and other text representations keep the block where the editor put it. The recording's poster is the header's image; the hero image is not shown in this header. A media article whose served projection has no recording, or whose recording renders nothing, reads as Post, hero and reading time included.
+3. **The meta line shows the recording's duration** in whole minutes (rounded, at least one) instead of the reading time; the profile's `readingTime: hide` override hides it.
+4. **The transcript reads along.** Beside or under the player the published transcript of the served locale is a list with a visible start time per line and the speaker of a voice span, readable without a script and not behind a disclosure. A script adds seeking per line, following the playback, search, a link to a moment (`?t=`) and the caption mode; it carries no copy and sets no style attribute. Other profiles keep the transcript in its disclosure.
+
+Rejected: a header field of its own for the recording (a schema change and a second placement to grant; it may follow later without changing stored content), moving the block out of the body on save (a silent change of content the editor did not touch, rule 6), and a second player component for the header (its markup would drift from the block's). Starting the player at `?t=` without a script needs the playback route to carry the moment; that is a separate change of that route.

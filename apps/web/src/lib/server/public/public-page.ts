@@ -61,6 +61,7 @@ import {
 import type { Cookies } from '@sveltejs/kit';
 import type { RenderCorrections, RenderIntro, RenderModel } from '../../blocks/model.js';
 import { hasForm } from './has-form.js';
+import { placeRecording } from '../../blocks/recording.js';
 import {
   renderEvent,
   renderMeta,
@@ -185,7 +186,7 @@ export async function loadPublicItem(
   const source = runtimeSource({ invoker, uow, reader, defaultLocale: tenant.defaultLocale });
   const { timeZone } = (await invoker.run(useCases.getSiteGeneral, reader, {})).value;
   const placeholder = await cardPlaceholder(site, sitePath(site, ''));
-  const model = await resolveDocument(source, item, {
+  const resolved = await resolveDocument(source, item, {
     base: sitePath(site, ''),
     placeholder,
     fallbackLocale: tenant.defaultLocale,
@@ -202,7 +203,7 @@ export async function loadPublicItem(
   });
   let conversationCountsVisible = false;
   if (item.type === 'article' && !restricted) {
-    const conversations = model.blocks.filter((block) => block.type === 'social-conversation');
+    const conversations = resolved.blocks.filter((block) => block.type === 'social-conversation');
     if (conversations.length) {
       const { social } = await siteChrome(site);
       const counts = await conversationCounts(
@@ -223,10 +224,10 @@ export async function loadPublicItem(
   // A later page exists only where an overview with an archive still has entries on it.
   if (
     archivePage > 1 &&
-    !model.blocks.some((b) => b.type === 'overview' && b.newer !== null && b.entries.length)
+    !resolved.blocks.some((b) => b.type === 'overview' && b.newer !== null && b.entries.length)
   )
     refuse(404);
-  const intro = await resolveIntro(
+  const header = await resolveIntro(
     source,
     {
       lead: item.lead,
@@ -256,6 +257,7 @@ export async function loadPublicItem(
     locale,
     item.readerMedia
   );
+  const { intro, model } = placeRecording(header, resolved, item.articleView);
   if (!intro.article && intro.meta && item.authors?.length) {
     const parts = new Intl.ListFormat(locale, { type: 'conjunction' }).formatToParts(
       item.authors.map((a) => a.name)

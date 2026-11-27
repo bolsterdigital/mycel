@@ -16,7 +16,8 @@ export const onlyA11y = (reason = 'runs with JavaScript, in the a11y project'): 
 // The scripts a public page may carry (ADR 009 rule 4: no client framework on a content page):
 // a form's proof-of-work module (brief form-intake § D2.3), the lightbox of an image that opens
 // larger, the site navigation's enhancement (ADR 036 rule 12), the "read more" of a full
-// campaign card's long text (ADR 038 amendment) and the floating pairs between pages (MY-269),
+// campaign card's long text (ADR 038 amendment), the floating pairs between pages (MY-269) and a
+// media article's read-along (MY-305),
 // all plain modules from the site's own origin. One list, so a spec that counts the other scripts
 // on a page does not spell it again.
 // Rejected: each spec naming the files it expects, which drifted into four copies of one selector.
@@ -34,6 +35,7 @@ export const PUBLIC_SCRIPTS = [
   '/_site/campaign-body.js',
   '/_site/article-initial.js',
   '/_site/embed.js',
+  '/_site/read-along.js',
   TRANSITIONS_SCRIPT,
 ] as const;
 

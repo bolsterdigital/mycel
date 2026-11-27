@@ -24,6 +24,7 @@ import type {
   ProofChallenge,
   RichTextDoc,
   socialConversationLinks,
+  TranscriptCue,
 } from '@mycel/core';
 
 /** UI text that does not come from the document (ADR 007), resolved for the model's locale. */
@@ -168,6 +169,12 @@ export interface RenderIntro {
   meta: RenderMeta | null;
   /** Absent on everything but an event page with a start. */
   event?: RenderEvent | null;
+  /**
+   * The media profile's recording on top (ADR 025, amended 2026-11-27): the article's first
+   * `video` block, rendered between the lead and the meta line instead of a hero image. The
+   * model keeps the block and names it `lifted`, so the body skips it.
+   */
+  recording?: Extract<RenderBlock, { type: 'video' }>;
 }
 
 export interface RenderAction {
@@ -361,7 +368,8 @@ export type RenderBlock = { id: string } & (
       maker: string | null;
       licence: { label: string; href: string | null } | null;
       watch: string | null;
-      transcript: string[];
+      /** The published transcript in this locale, line by line, for a playable recording. */
+      transcript: TranscriptCue[];
       play: string | null;
     }
   | {
@@ -492,6 +500,11 @@ export interface RenderModel {
    * and such a card has no image area.
    */
   placeholder?: CardPlaceholder;
+  /**
+   * The id of a block the document header renders (`RenderIntro.recording`), which the block
+   * list then leaves out. The Markdown, the embed check and the anchors still see the block.
+   */
+  lifted?: string;
 }
 
 /** The decorative stand-in for a card's missing image: the site's logo or its initial. */

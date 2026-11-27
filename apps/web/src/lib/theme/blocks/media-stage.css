@@ -1,0 +1,248 @@
+/* A media article's recording on top (MY-305; ADR 025, amended 2026-11-27): the player on the wide
+   rail, and its transcript beside it once the page is wide enough for both, under it otherwise.
+   Beside the player the panel takes the player's height (size containment, so its long list does
+   not set the row) and scrolls inside; under it the list has a height of its own. Every state the
+   read-along script sets is an attribute (`hidden`, `aria-current`) or a highlight, never a style
+   attribute, which the CSP refuses. Colours are the theme's validated pairs: the panel on the
+   surface, the sounding line on the primary pair, hits on the accent pair and the active hit in
+   the body pair turned over. Rejected: a fixed panel height in pixels (200% text would leave it
+   one line tall) and scrolling the page to the line (the reader loses their place in the text). */
+.page > .media-stage {
+  display: grid;
+  /* A column never wider than the page: a search field's own width must not push it out. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  margin-block: 0 var(--space-3);
+}
+.page .media-stage .media-recording > * {
+  max-width: none;
+}
+.media-stage-player {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  min-inline-size: 0;
+}
+.media-recording .video-details {
+  margin-block-start: var(--space-1);
+}
+
+/* The caption under the picture: the cue the player would print over it. */
+.media-caption-line {
+  margin: 0;
+  min-block-size: calc(2lh + 2 * var(--space-1));
+  padding: var(--space-1) var(--inset);
+  font-size: var(--step-1);
+  line-height: 1.35;
+  text-align: center;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  color: var(--color-primary-fg);
+  background: var(--color-primary-bg);
+}
+.media-caption-line[hidden],
+.media-controls[hidden],
+.read-along-search[hidden],
+.read-along-now[hidden] {
+  display: none;
+}
+
+/* Captions and sharing: whole controls that wrap as a group, never a label cut short. */
+.media-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+}
+.caption-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.caption-modes legend {
+  padding: 0;
+  font-weight: 600;
+}
+.caption-modes label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  min-block-size: var(--tap);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.caption-modes input {
+  inline-size: 1.25em;
+  block-size: 1.25em;
+  margin: 0;
+}
+.media-share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-inline-size: 0;
+}
+.read-along-find .button {
+  white-space: nowrap;
+}
+.media-share-status {
+  margin: 0;
+  font-size: var(--step--1);
+  overflow-wrap: anywhere;
+}
+
+/* Read along. */
+.read-along {
+  /* The lines measure against the panel: a narrow one (or large text) puts the time above them. */
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-block-size: 0;
+  min-inline-size: 0;
+  padding: var(--space-2) var(--inset);
+  border-radius: var(--radius);
+  color: var(--color-surface-fg);
+  background: var(--color-surface-bg);
+}
+.read-along h2 {
+  margin: 0;
+  font-size: var(--step-1);
+}
+.read-along-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.25rem;
+}
+.read-along-search input {
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--tap);
+  padding: 0.5rem 0.75rem;
+  border: 2px solid currentColor;
+  border-radius: var(--radius);
+  font: inherit;
+  color: var(--color-body-fg);
+  background: var(--color-body-bg);
+}
+/* The count on a line of its own, the two steps together under it. */
+.read-along-find {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+.read-along-count {
+  flex: 1 0 100%;
+  min-block-size: 1lh;
+  margin: 0;
+  font-size: var(--step--1);
+}
+.read-along-now {
+  align-self: flex-start;
+}
+.read-along-lines {
+  position: relative;
+  max-block-size: min(28rem, 70dvh);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+.read-along-lines li,
+.read-along-seek {
+  display: grid;
+  grid-template-columns: minmax(3.25em, max-content) minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 0.75em;
+  padding: 0.4em 0.5em;
+}
+.read-along-lines li:has(> .read-along-seek) {
+  display: block;
+  padding: 0;
+}
+.read-along-speaker,
+.read-along-text {
+  grid-column: 2;
+  overflow-wrap: break-word;
+}
+@container (max-width: 16em) {
+  .read-along-lines li,
+  .read-along-seek {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .read-along-speaker,
+  .read-along-text {
+    grid-column: 1;
+  }
+}
+.read-along-speaker {
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+.read-along-lines time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.read-along-seek {
+  inline-size: 100%;
+  /* Running text in a button: a long word at 200% breaks with a hyphen, never mid-letter. */
+  hyphens: auto;
+  min-block-size: var(--tap);
+  border: 0;
+  border-inline-start: 0.25rem solid transparent;
+  border-radius: 0;
+  font: inherit;
+  text-align: start;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.read-along-seek:hover .read-along-text {
+  text-decoration: underline;
+}
+.read-along-seek:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+.read-along-lines li[aria-current='true']:not(:has(> .read-along-seek)),
+.read-along-lines li[aria-current='true'] > .read-along-seek {
+  border-inline-start-color: currentColor;
+  color: var(--color-primary-fg);
+  background: var(--color-primary-bg);
+}
+::highlight(read-along-match) {
+  color: var(--color-accent-fg);
+  background-color: var(--color-accent-bg);
+}
+::highlight(read-along-hit) {
+  color: var(--color-body-bg);
+  background-color: var(--color-body-fg);
+}
+
+@container (min-width: 60rem) {
+  .page > .media-stage.with-transcript {
+    grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr);
+  }
+  .media-stage.with-transcript .read-along {
+    contain: size;
+  }
+  .media-stage.with-transcript .read-along-lines {
+    flex: 1 1 0;
+    max-block-size: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .read-along-lines li[aria-current='true'] > .read-along-seek,
+  .read-along-lines li[aria-current='true']:not(:has(> .read-along-seek)) {
+    border-inline-start-color: Highlight;
+  }
+}
