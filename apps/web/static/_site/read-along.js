@@ -11,6 +11,7 @@
 //   - `?t=<seconds>` on the address (also `3:10` or `3m10s`) starts the player there, a same-page
 //     link with `?t=` jumps without a reload, and "share from" copies such a link;
 //   - captions in the picture, under it or off, on the player's text track, remembered per browser;
+//     off until the reader picks them, since the transcript beside the player already shows the text;
 //   - chapters under the player (MY-305 PR 2) become buttons that seek, and the chapter that
 //     plays gets `aria-current="true"`, whether or not there is a transcript;
 //   - while the recording plays and the reader scrolls its place out of view, the stage gets
@@ -133,7 +134,7 @@ function enhance(stage) {
   let current = -1;
   let following = true;
   let startAt = momentOf(location.search);
-  let mode = storedMode() ?? 'showing';
+  let mode = storedMode() ?? 'disabled';
 
   // The panel scrolls, never the page: the line's offset in the list (`position: relative`).
   function reveal(line) {

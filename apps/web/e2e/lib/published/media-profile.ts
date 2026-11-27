@@ -213,6 +213,9 @@ export async function exerciseMediaProfile(page: Page) {
   await expect(chapter(/On the bank/)).toHaveAttribute('aria-current', 'true');
   await expect(chapter(/In the water/)).not.toHaveAttribute('aria-current', 'true');
 
+  // Captions are off by default here, since the transcript beside the player shows the text.
+  await expect(stage.getByRole('radio', { name: 'Off' })).toBeChecked();
+  expect(await video.evaluate((el: HTMLVideoElement) => el.textTracks[0]?.mode)).toBe('disabled');
   // Captions under the picture: the track is hidden and its cue is printed below; remembered.
   await stage.getByRole('radio', { name: 'Below' }).check();
   await expect
