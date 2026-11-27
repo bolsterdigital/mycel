@@ -97,40 +97,40 @@
   overflow-wrap: anywhere;
 }
 
-/* Chapters: a row under the player that wraps, each one whole; with the script a button that
-   seeks, the one that plays on the primary pair. A title longer than the row wraps inside its
-   own button instead of pushing the row out. */
+/* Chapters: a grid of equal tiles under the player, as many columns as fit at 16rem (one on a
+   phone or at 200% text); with the script each tile is a button that seeks, the one that plays on
+   the primary pair. A long title wraps inside its tile. Rejected: buttons as wide as their text in
+   a wrapping row, which leaves a ragged wall of uneven widths. */
 .media-chapters h2 {
   margin: 0 0 0.25rem;
   font-size: var(--step-0);
 }
 .media-chapters ol {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 0.5rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .media-chapters li {
-  display: flex;
+  display: grid;
   min-inline-size: 0;
-  max-inline-size: 100%;
 }
 .media-chapters li:not(:has(> .media-chapter)),
 .media-chapter {
-  display: inline-flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(3.25em, max-content) minmax(0, 1fr);
   align-items: baseline;
-  gap: 0 0.5em;
+  column-gap: 0.5em;
   min-inline-size: 0;
-  max-inline-size: 100%;
   padding: 0.35em 0.75em;
   border: 1px solid currentColor;
   border-radius: var(--radius);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .media-chapter {
+  inline-size: 100%;
   min-block-size: var(--tap);
   font: inherit;
   text-align: start;
