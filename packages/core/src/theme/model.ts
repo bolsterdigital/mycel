@@ -53,6 +53,25 @@ export type HeadingCase = (typeof HEADING_CASES)[number];
 export const BUTTON_SHAPES = ['theme', 'pill'] as const;
 export type ButtonShape = (typeof BUTTON_SHAPES)[number];
 
+/**
+ * How an article card stands on the page (overview, read more, an author's articles): on the
+ * surface pair, on the page with a line around it, without a frame (the image with the theme's
+ * corners, the text under it), or on the primary pair. Role references, never colours, so every
+ * choice keeps the contrast `checkTheme` measured. A closed choice, so `surface` renders the
+ * card as before. Rejected: free card colours (a pair nobody checked) and a style per overview
+ * block (a site would show two kinds of article card).
+ */
+export const CARD_STYLES = ['surface', 'outline', 'plain', 'primary'] as const;
+export type CardStyle = (typeof CARD_STYLES)[number];
+
+/**
+ * The shape of an article card's image area. A site whose images are video stills with their
+ * title drawn in (16:9) loses that text in a 3:2 crop. Closed, so every card of a site has one
+ * shape. Rejected: the image's own ratio per card (a row of unequal heights) and a free ratio.
+ */
+export const CARD_IMAGES = ['3:2', '16:9'] as const;
+export type CardImage = (typeof CARD_IMAGES)[number];
+
 /** The role pairs of a palette: each a foreground on its background. */
 export const THEME_ROLES = ['body', 'surface', 'primary', 'accent', 'muted', 'warning'] as const;
 
@@ -175,6 +194,8 @@ export const ThemeInput = z
       captionFont: z.enum(CAPTION_FONTS, notAllowed).optional(),
       headingCase: z.enum(HEADING_CASES, notAllowed).optional(),
       buttonShape: z.enum(BUTTON_SHAPES, notAllowed).optional(),
+      cardStyle: z.enum(CARD_STYLES, notAllowed).optional(),
+      cardImage: z.enum(CARD_IMAGES, notAllowed).optional(),
       /** Header and footer each in one of `CHROME_ROLES`; an absent one is `primary`. */
       chrome: z
         .object(
@@ -209,5 +230,7 @@ export interface ResolvedTheme {
   captionFont: CaptionFont;
   headingCase: HeadingCase;
   buttonShape: ButtonShape;
+  cardStyle: CardStyle;
+  cardImage: CardImage;
   chrome: { header: ChromeRole; footer: ChromeRole };
 }

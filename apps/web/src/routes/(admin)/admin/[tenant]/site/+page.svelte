@@ -18,6 +18,8 @@
   import {
     AI_USES,
     BUTTON_SHAPES,
+    CARD_IMAGES,
+    CARD_STYLES,
     CAPTION_FONTS,
     HEADING_CASES,
     CHROME_ROLES,
@@ -708,6 +710,32 @@
             label: t(`admin.site.buttonShape.${shape}`),
           }))}
           value={value('buttonShape', data.theme.value.buttonShape ?? 'theme')}
+        />
+        <Select
+          id="site-cardStyle"
+          name="cardStyle"
+          label={t('admin.site.cardStyle')}
+          locale={data.locale}
+          size="m"
+          hint={t('admin.site.cardStyle.hint')}
+          options={CARD_STYLES.map((style) => ({
+            value: style,
+            label: t(`admin.site.cardStyle.${style}`),
+          }))}
+          value={value('cardStyle', data.theme.value.cardStyle ?? 'surface')}
+        />
+        <Select
+          id="site-cardImage"
+          name="cardImage"
+          label={t('admin.site.cardImage')}
+          locale={data.locale}
+          size="m"
+          hint={t('admin.site.cardImage.hint')}
+          options={CARD_IMAGES.map((shape) => ({
+            value: shape,
+            label: t(`admin.site.cardImage.${shape}`),
+          }))}
+          value={value('cardImage', data.theme.value.cardImage ?? '3:2')}
         />
         {#each numericFields as key (key)}
           <Field

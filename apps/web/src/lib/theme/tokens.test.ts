@@ -6,6 +6,7 @@
 // the block conformance suite until that suite reached its size ceiling.
 import { existsSync, readFileSync } from 'node:fs';
 import {
+  CARD_STYLES,
   CHROME_ROLES,
   DEFAULT_THEME,
   FONTS,
@@ -313,6 +314,44 @@ describe('theme tokens', () => {
     expect(css).toContain(`--cta-highlight-bg: ${theme.palettes.dark.primary.background};`);
     const { buttonShape: _, ...old } = DEFAULT_THEME;
     expect(themeCss(old as ResolvedTheme)).toBe(themeCss(DEFAULT_THEME));
+  });
+
+  it('adds an article card choice as fixed lines, and nothing for the surface card at 3:2', () => {
+    const { cardStyle: _, cardImage: __, ...old } = DEFAULT_THEME;
+    const base = themeCss(DEFAULT_THEME);
+    expect(themeCss(old as ResolvedTheme)).toBe(base);
+    expect(base).not.toContain('--overview-card-');
+    const added = (theme: ResolvedTheme) => {
+      const before = new Set(base.split('\n'));
+      return themeCss(theme)
+        .split('\n')
+        .filter((line) => !before.has(line))
+        .map((line) => line.trim());
+    };
+    expect(added({ ...DEFAULT_THEME, cardImage: '16:9' })).toEqual([
+      '--overview-card-ratio: 16 / 9;',
+    ]);
+    for (const cardStyle of CARD_STYLES) {
+      const lines = added({ ...DEFAULT_THEME, cardStyle });
+      expect(lines.length > 0, cardStyle).toBe(cardStyle !== 'surface');
+      // Role references and fixed sizes only: no colour of its own, so no unchecked contrast.
+      for (const line of lines)
+        expect(line, cardStyle).toMatch(
+          /^--overview-card-[a-z-]+: (var\(--(color|space|radius)[a-z0-9-]*\)|transparent|currentColor|0)( (var\(--space-1\)|0))*;$/
+        );
+    }
+    // A card on the page's own pair reads its facts in the caption colour made for that pair.
+    for (const cardStyle of ['outline', 'plain'] as const)
+      expect(added({ ...DEFAULT_THEME, cardStyle })).toContain(
+        '--overview-card-meta: var(--color-caption-fg);'
+      );
+    // The primary card inverts its own pair when pointed at, the same contrast the other way.
+    expect(added({ ...DEFAULT_THEME, cardStyle: 'primary' })).toEqual(
+      expect.arrayContaining([
+        '--overview-card-hover-fg: var(--color-primary-bg);',
+        '--overview-card-hover-bg: var(--color-primary-fg);',
+      ])
+    );
   });
 
   it('loads Source Serif only for the serif pair, and both palettes explicitly', () => {

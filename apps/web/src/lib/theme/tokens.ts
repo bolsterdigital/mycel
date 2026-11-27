@@ -22,6 +22,7 @@ import {
   preloadFace,
   siteFontFile,
   THEME_ROLES,
+  type CardStyle,
   type FontCategory,
   type Palette,
   type ResolvedTheme,
@@ -280,6 +281,44 @@ function palette(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
   return lines;
 }
 
+/**
+ * An article card's style as the properties overview.css reads (`cardStyle`). Fixed lines per
+ * choice, never built from a theme value: each names role pairs of the palette, whose contrast
+ * `checkTheme` measured, so they follow the dark palette by themselves. `surface` adds nothing,
+ * so a stored theme keeps its stylesheet and its URL. `outline` stands on the page with a line;
+ * `plain` has no frame, so the text loses its side inset, the image area gets the corners, and
+ * pointing at it colours the title as a link instead of inverting a surface that is not there;
+ * `primary` is the primary pair, inverted when pointed at, as a button is. The facts line is the
+ * caption colour of the background it stands on.
+ * Rejected: a class per style on the page (the markup would have to know the theme).
+ */
+const CARD_STYLE_LINES: Record<CardStyle, readonly string[]> = {
+  surface: [],
+  outline: [
+    '--overview-card-fg: var(--color-body-fg);',
+    '--overview-card-bg: var(--color-body-bg);',
+    '--overview-card-meta: var(--color-caption-fg);',
+    '--overview-card-line: var(--color-rule);',
+  ],
+  plain: [
+    '--overview-card-fg: var(--color-body-fg);',
+    '--overview-card-bg: transparent;',
+    '--overview-card-meta: var(--color-caption-fg);',
+    '--overview-card-inset: var(--space-1) 0 0;',
+    '--overview-card-image-radius: var(--radius);',
+    '--overview-card-hover-fg: var(--color-body-fg);',
+    '--overview-card-hover-bg: transparent;',
+    '--overview-card-hover-title: var(--color-link);',
+  ],
+  primary: [
+    '--overview-card-fg: var(--color-primary-fg);',
+    '--overview-card-bg: var(--color-primary-bg);',
+    '--overview-card-meta: currentColor;',
+    '--overview-card-hover-fg: var(--color-primary-bg);',
+    '--overview-card-hover-bg: var(--color-primary-fg);',
+  ],
+};
+
 /** Steps below and above the base size, from `baseSize * scaleRatio^n`, in rem of 16 px. */
 export const STEPS = [-1, 0, 1, 2, 3, 4] as const;
 const stepName = (n: number) => (n < 0 ? `--step--${-n}` : `--step-${n}`);
@@ -316,6 +355,9 @@ export function themeCss(theme: ResolvedTheme, fonts: UploadedFonts = NO_UPLOADS
     `--measure: ${num(theme.measure)}ch;`,
     `--radius: ${num(theme.radius / 16)}rem;`,
     ...(theme.buttonShape === 'pill' ? ['--button-radius: 999px;'] : []),
+    // Absent (a theme stored before the choice) is the surface card with a 3:2 image.
+    ...(CARD_STYLE_LINES[theme.cardStyle] ?? []),
+    ...(theme.cardImage === '16:9' ? ['--overview-card-ratio: 16 / 9;'] : []),
     `--density: ${num(theme.density)};`,
     'color-scheme: light dark;',
   ];

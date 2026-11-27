@@ -14,6 +14,8 @@ import {
   DROP_CAPS,
   HEADING_CASES,
   BUTTON_SHAPES,
+  CARD_IMAGES,
+  CARD_STYLES,
   HEADING_WEIGHTS,
   PAGE_TRANSITION_CHOICES,
   THEME_VERSION,
@@ -176,6 +178,9 @@ const ResolvedTheme = z
     // Optional for the same reason: a theme stored before MY-283 sets its headings as written.
     headingCase: z.enum(HEADING_CASES).optional(),
     buttonShape: z.enum(BUTTON_SHAPES).optional(),
+    // Optional for the same reason: a theme stored before the choice shows the surface card, 3:2.
+    cardStyle: z.enum(CARD_STYLES).optional(),
+    cardImage: z.enum(CARD_IMAGES).optional(),
     // Required: the reader parses a stored theme with `Theme`, which resolves an absent choice.
     chrome: z.object({ header: z.enum(CHROME_ROLES), footer: z.enum(CHROME_ROLES) }).strict(),
   })

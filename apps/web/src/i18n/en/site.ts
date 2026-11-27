@@ -50,6 +50,18 @@ export const site = {
   'admin.site.buttonShape': 'Button shape',
   'admin.site.buttonShape.theme': 'Theme corner radius',
   'admin.site.buttonShape.pill': 'Pill',
+  'admin.site.cardStyle': 'Article cards',
+  'admin.site.cardStyle.hint':
+    'How a card stands on the page in an overview, under an article and on an author page.',
+  'admin.site.cardStyle.surface': 'Panel in the surface colour',
+  'admin.site.cardStyle.outline': 'Frame with a line',
+  'admin.site.cardStyle.plain': 'Plain, without a frame',
+  'admin.site.cardStyle.primary': 'Panel in the primary colour',
+  'admin.site.cardImage': 'Image on an article card',
+  'admin.site.cardImage.hint':
+    'Every card gets the same image area; the image fills it around its focal point.',
+  'admin.site.cardImage.3:2': 'Landscape (3:2)',
+  'admin.site.cardImage.16:9': 'Widescreen (16:9), like a video still',
   'admin.site.headingCase': 'Headings and buttons',
   'admin.site.headingCase.hint':
     'How headings, card titles and buttons are set. Capitals only change how they look; the text itself stays as written.',

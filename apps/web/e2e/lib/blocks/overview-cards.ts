@@ -145,6 +145,26 @@ export async function exerciseOverviewCards(page: Page) {
     await expect(stand).toBeVisible();
   }
   await expect(fauna.getByRole('link')).toHaveAccessibleName(LONG);
+  // The image fills its area (nobody framed it, so no bars above and under it), every card's area
+  // is as tall as the next, and the facts and the excerpt are smaller than the title.
+  await expect(fauna.locator('.campaign-card-image img')).toHaveCSS('object-fit', 'cover');
+  const shape = await cards.evaluateAll((all) =>
+    all.map((c) => {
+      const size = (selector: string) =>
+        parseFloat(getComputedStyle(c.querySelector(selector)!).fontSize);
+      return {
+        area: Math.round(c.querySelector('.campaign-card-image')!.getBoundingClientRect().height),
+        title: size('.overview-card-title'),
+        facts: size('.overview-meta'),
+        excerpt: size('.overview-excerpt'),
+      };
+    })
+  );
+  expect(new Set(shape.map((s) => s.area)).size, 'one image area height').toBe(1);
+  for (const s of shape) {
+    expect(s.facts, 'facts smaller than the title').toBeLessThan(s.title);
+    expect(s.excerpt, 'excerpt smaller than the title').toBeLessThan(s.title);
+  }
   expect(await paint(fauna)).toMatchObject({ inverted: false, ring: false, underline: 'none' });
 
   // The title fits its card, at 1280 px and at 320 px with 200% text.

@@ -1859,6 +1859,7 @@ test.describe('site-settings', () => {
     await page.getByLabel('Caption typeface').selectOption('mono');
     await page.getByLabel('Header colour').selectOption('surface');
     await page.getByLabel('Headings and buttons').selectOption('upper');
+    await page.getByLabel('Article cards').selectOption('plain');
     await saveTheme(page);
     await savedOk(page);
     const chrome = { header: 'surface', footer: 'primary' };
@@ -1866,6 +1867,7 @@ test.describe('site-settings', () => {
       dropCap: 'off',
       captionFont: 'mono',
       headingCase: 'upper',
+      cardStyle: 'plain',
       chrome,
     });
     expect(await searchTag()).not.toBe(searchBefore);

@@ -8,6 +8,16 @@ img[data-frame-fit] {
 img[data-frame-fit='cover'] {
   --frame-fit: cover;
 }
+/* A card's image area has one shape for every card of a row, so an image nobody framed fills it
+   around its focal point; the whole image an editor asked for (`contain`) stays whole. `:where`
+   keeps the weight of the rules around it, so a later narrow or wide choice still wins.
+   Rejected: showing an unframed image whole in a card too, which left bars of a different
+   height above and under every image that is not 3:2. */
+:where(.overview-card) img[data-frame-fit='auto'] {
+  --frame-fit: cover;
+  --frame-x: var(--fx, 50%);
+  --frame-y: var(--fy, 50%);
+}
 img[data-frame-x^='0'] {
   --frame-x-tens: 0%;
 }
@@ -140,7 +150,8 @@ img[data-frame-y='100'] {
 img[data-frame-y] {
   --frame-y: calc(var(--frame-y-tens) + var(--frame-y-ones));
 }
-[data-frame-preview='narrow'] img[data-frame-fit-narrow='contain'] {
+[data-frame-preview='narrow']
+  img:is([data-frame-fit-narrow='contain'], [data-frame-fit-narrow='auto']) {
   --frame-fit: contain;
   --frame-x: 50%;
   --frame-y: 50%;
@@ -151,7 +162,9 @@ img[data-frame-y] {
   --frame-y: 50%;
 }
 @media (width < 56rem) {
-  img[data-frame-fit-narrow='contain']:where(:not([data-frame-preview] *)) {
+  img:is([data-frame-fit-narrow='contain'], [data-frame-fit-narrow='auto']):where(
+      :not([data-frame-preview] *)
+    ) {
     --frame-fit: contain;
     --frame-x: 50%;
     --frame-y: 50%;
@@ -160,6 +173,11 @@ img[data-frame-y] {
     --frame-fit: cover;
     --frame-x: 50%;
     --frame-y: 50%;
+  }
+  :where(.overview-card) img[data-frame-fit-narrow='auto'] {
+    --frame-fit: cover;
+    --frame-x: var(--fx, 50%);
+    --frame-y: var(--fy, 50%);
   }
 }
 img[data-frame-x-narrow^='0'] {
@@ -294,7 +312,7 @@ img[data-frame-y-narrow='100'] {
 [data-frame-preview='narrow'] img[data-frame-y-narrow] {
   --frame-y: calc(var(--frame-y-narrow-tens) + var(--frame-y-narrow-ones));
 }
-[data-frame-preview='wide'] img[data-frame-fit-wide='contain'] {
+[data-frame-preview='wide'] img:is([data-frame-fit-wide='contain'], [data-frame-fit-wide='auto']) {
   --frame-fit: contain;
   --frame-x: 50%;
   --frame-y: 50%;
@@ -305,7 +323,9 @@ img[data-frame-y-narrow='100'] {
   --frame-y: 50%;
 }
 @media (width >= 56rem) {
-  img[data-frame-fit-wide='contain']:where(:not([data-frame-preview] *)) {
+  img:is([data-frame-fit-wide='contain'], [data-frame-fit-wide='auto']):where(
+      :not([data-frame-preview] *)
+    ) {
     --frame-fit: contain;
     --frame-x: 50%;
     --frame-y: 50%;
@@ -314,6 +334,11 @@ img[data-frame-y-narrow='100'] {
     --frame-fit: cover;
     --frame-x: 50%;
     --frame-y: 50%;
+  }
+  :where(.overview-card) img[data-frame-fit-wide='auto'] {
+    --frame-fit: cover;
+    --frame-x: var(--fx, 50%);
+    --frame-y: var(--fy, 50%);
   }
 }
 img[data-frame-x-wide^='0'] {

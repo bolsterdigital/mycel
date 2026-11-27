@@ -408,6 +408,9 @@ export const actions: Actions = {
       // The same: a posted case outside the choice is refused, an absent one is `normal`.
       headingCase: text(data, 'headingCase') || undefined,
       buttonShape: text(data, 'buttonShape') || undefined,
+      // The same for the article card: outside the choice is refused, absent is surface and 3:2.
+      cardStyle: text(data, 'cardStyle') || undefined,
+      cardImage: text(data, 'cardImage') || undefined,
       // Like the caption face: a posted role goes to core as it is, so one outside the choice is
       // refused; an absent one stays absent and core makes it primary.
       chrome: {

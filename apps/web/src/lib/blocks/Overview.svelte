@@ -53,11 +53,11 @@
             {#snippet campaignKind()}
               {#if entry.campaign}
                 {@const c = entry.campaign}
-                <p class="campaign-kind">
+                <span class="campaign-kind">
                   {campaignCopy.kind[c.kind]}{c.phase === 'open'
                     ? ''
                     : ` · ${campaignCopy.phase[c.phase]}`}
-                </p>
+                </span>
               {/if}
             {/snippet}
             <ArticleCard
