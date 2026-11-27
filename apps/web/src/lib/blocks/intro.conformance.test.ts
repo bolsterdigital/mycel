@@ -438,11 +438,15 @@ describe('the media header (ADR 025, amended 2026-11-27)', () => {
       // What only works with the script is hidden until it runs; nothing styled inline.
       expect(html).toMatch(/class="media-controls" data-media-controls="" hidden/);
       expect(html).toMatch(/class="read-along-search" data-read-along-search="" hidden/);
+      expect(html).toMatch(/class="read-along-find" data-read-along-find="" hidden/);
+      expect(html).toMatch(/class="media-undock" data-undock="" hidden/);
       expect(html).not.toMatch(/\sstyle=|<style/);
-      // The chapters under the player, before its controls: a list of starts and titles that the
-      // script turns into buttons; nothing hidden, since the list reads without it.
-      expect(at(html, 'data-managed-video')).toBeLessThan(at(html, 'data-chapters'));
-      expect(at(html, 'data-chapters')).toBeLessThan(at(html, 'data-media-controls'));
+      // The search keeps a label of its own beside its placeholder.
+      expect(html).toMatch(/<label class="read-along-label" for="read-along-film-query">/);
+      // Under the player first its controls, then the chapters: a list of starts and titles that
+      // the script turns into buttons; nothing hidden, since the list reads without it.
+      expect(at(html, 'data-managed-video')).toBeLessThan(at(html, 'data-media-controls'));
+      expect(at(html, 'data-media-controls')).toBeLessThan(at(html, 'data-chapters'));
       expect(html).toContain(locale === 'nl' ? '>Hoofdstukken</h2>' : '>Chapters</h2>');
       expect(html).toMatch(
         new RegExp(

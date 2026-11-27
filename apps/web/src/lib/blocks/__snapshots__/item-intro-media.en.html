@@ -51,18 +51,7 @@
           >
         </div>
       </div>
-      <section class="media-chapters" aria-labelledby="read-along-film-chapters" data-chapters="">
-        <h2 id="read-along-film-chapters">Chapters</h2>
-        <ol>
-          <li data-start="0">
-            <time datetime="PT0M0S">0:00</time> <span class="media-chapter-title">Opening</span>
-          </li>
-          <li data-start="190">
-            <time datetime="PT3M10S">3:10</time>
-            <span class="media-chapter-title">On the square</span>
-          </li>
-        </ol>
-      </section>
+      <button type="button" class="media-undock" data-undock="" hidden="">Close player</button>
       <div class="media-controls" data-media-controls="" hidden="">
         <fieldset class="caption-modes">
           <legend>Captions</legend>
@@ -87,13 +76,33 @@
           <p role="status" class="media-share-status" data-share-status=""></p>
         </div>
       </div>
+      <section class="media-chapters" aria-labelledby="read-along-film-chapters" data-chapters="">
+        <h2 id="read-along-film-chapters">Chapters</h2>
+        <ol>
+          <li data-start="0">
+            <time datetime="PT0M0S">0:00</time> <span class="media-chapter-title">Opening</span>
+          </li>
+          <li data-start="190">
+            <time datetime="PT3M10S">3:10</time>
+            <span class="media-chapter-title">On the square</span>
+          </li>
+        </ol>
+      </section>
     </div>
     <section class="read-along" aria-labelledby="read-along-film-title" data-read-along="">
-      <h2 id="read-along-film-title">Read along</h2>
-      <div class="read-along-search" data-read-along-search="" hidden="">
-        <label for="read-along-film-query">Search the transcript</label>
-        <input id="read-along-film-query" type="search" autocomplete="off" spellcheck="false" />
-        <div class="read-along-find">
+      <div class="read-along-head">
+        <h2 id="read-along-film-title">Read along</h2>
+        <div class="read-along-search" data-read-along-search="" hidden="">
+          <label class="read-along-label" for="read-along-film-query">Search the transcript</label>
+          <input
+            id="read-along-film-query"
+            type="search"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Search the transcript"
+          />
+        </div>
+        <div class="read-along-find" data-read-along-find="" hidden="">
           <p
             role="status"
             class="read-along-count"

@@ -116,6 +116,8 @@ export async function exerciseManagedVideo(page: Page) {
   await expect(video).toHaveAttribute('controls', '');
   if (isA11y()) {
     await expect.poll(() => video.evaluate(() => document.readyState)).toBe('complete');
+    // The press on the poster was the press on play: it starts without a second one.
+    await expect.poll(() => video.evaluate((el: HTMLVideoElement) => !el.paused)).toBe(true);
   }
   await video.evaluate((el: HTMLVideoElement) => {
     void el.play().catch(() => {});

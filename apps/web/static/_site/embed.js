@@ -50,6 +50,7 @@ for (const form of document.querySelectorAll('form[data-managed-video]')) {
     frame.title = form.querySelector('button').getAttribute('aria-label');
     frame.className = 'managed-video-frame';
     frame.allowFullscreen = true;
+    frame.allow = 'autoplay; fullscreen; picture-in-picture';
     form.target = frame.name;
     const mode = document.createElement('input');
     mode.type = 'hidden';
@@ -63,6 +64,12 @@ for (const form of document.querySelectorAll('form[data-managed-video]')) {
       () => {
         form.hidden = true;
         frame.focus();
+        // The reader pressed play: start it, rather than showing a second play button. The frame
+        // is same-origin and the click is the page's activation; a refusal leaves the controls.
+        void frame.contentDocument
+          ?.querySelector('video')
+          ?.play()
+          ?.catch(() => {});
       },
       { once: true }
     );
