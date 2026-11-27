@@ -46,6 +46,7 @@ describe('read more under an article (MY-304)', () => {
         date: { iso: '2026-11-19', label: 'November 19, 2026' },
         image: null,
         restricted: false,
+        recording: null,
         revisionId: exampleId(0xe201),
       },
       expect.objectContaining({ href: '/en/articles/stuk-2', restricted: true }),

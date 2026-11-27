@@ -82,6 +82,7 @@ import type {
   CardPlaceholder,
 } from './model.js';
 import { videoPlayerUrl, videoUrl, type RenderEvent, type RenderMeta } from './model.js';
+import { cardRecording } from './recording.js';
 
 /** Where the resolver reads tenant data; `runtimeSource` is the real one, tests may stub it. */
 export interface ResolveSource {
@@ -624,6 +625,7 @@ export async function resolveDocument(
             pinned: e.pinned,
             restricted: e.restricted,
             campaign: e.campaign ?? null,
+            recording: cardRecording(e.recording, locale),
             revisionId: e.revisionId,
           })),
           older: paged && list.older ? pageLink(page + 1) : null,

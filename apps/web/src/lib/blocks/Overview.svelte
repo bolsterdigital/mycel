@@ -72,6 +72,7 @@
               summary={entry.summary}
               place={entry.place}
               restrictedLabel={entry.restricted ? copy.restricted : null}
+              recording={entry.recording}
               eager={eager && i === 0}
               metadata={entry.campaign ? campaignKind : undefined}
             >

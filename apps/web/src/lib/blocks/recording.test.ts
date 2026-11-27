@@ -10,7 +10,15 @@ import {
 } from '../../../static/_site/read-along.js';
 import { blockCopy } from './copy.js';
 import type { RenderBlock, RenderIntro, RenderModel } from './model.js';
-import { clockTime, durationMinutes, isoDuration, placeRecording } from './recording.js';
+import { render } from 'svelte/server';
+import ArticleCard from './ArticleCard.svelte';
+import {
+  cardRecording,
+  clockTime,
+  durationMinutes,
+  isoDuration,
+  placeRecording,
+} from './recording.js';
 
 const recording: Extract<RenderBlock, { type: 'video' }> = {
   id: 'film',
@@ -90,6 +98,38 @@ describe('the recording on top', () => {
     expect(isoDuration(190.9)).toBe('PT3M10S');
     expect(durationMinutes(2455)).toBe(41);
     expect(durationMinutes(20)).toBe(1);
+  });
+});
+
+describe('the recording on a card (MY-304)', () => {
+  const card = (recording: ReturnType<typeof cardRecording>) =>
+    render(ArticleCard, {
+      props: {
+        title: 'Aflevering',
+        href: '/artikelen/aflevering',
+        base: '',
+        image: null,
+        sizes: '100vw',
+        heading: 'h3',
+        date: { iso: '2026-11-27', label: '27 november 2026' },
+        summary: null,
+        recording,
+      },
+    }).body.replace(/<!--.*?-->/g, '');
+
+  it('shows a decorative play mark, the word and the length in whole minutes', () => {
+    const shown = cardRecording({ seconds: 754 }, 'nl');
+    expect(shown).toEqual({ label: 'Video', duration: { iso: 'PT12M34S', label: '13 min' } });
+    const body = card(shown);
+    expect(body).toMatch(/<svg class="overview-play"[^>]*aria-hidden="true"/);
+    expect(body).toMatch(/> Video · <time datetime="PT12M34S">13 min<\/time>/);
+  });
+
+  it('shows the mark without a length when it is hidden or unknown, and nothing without one', () => {
+    expect(cardRecording({ seconds: null }, 'en')).toEqual({ label: 'Video', duration: null });
+    expect(card(cardRecording({ seconds: null }, 'en'))).not.toContain('PT');
+    expect(cardRecording(undefined, 'nl')).toBeNull();
+    expect(card(null)).not.toContain('overview-recording');
   });
 });
 

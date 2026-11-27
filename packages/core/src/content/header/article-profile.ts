@@ -4,7 +4,7 @@
 // as the recording on top; the renderer lifts that block into the header. Rejected: a header
 // field of its own for the recording, which needs a schema change and a second playback grant.
 import { z } from 'zod';
-import { allBlocks } from '../blocks.js';
+import { allBlocks, type Block } from '../blocks.js';
 import type { ContentDocument } from '../model.js';
 
 export const ARTICLE_PROFILES = ['post', 'longread', 'media'] as const;
@@ -62,6 +62,18 @@ function wordsOf(node: TextNode): string {
     .join(['paragraph', 'heading'].includes(node.type) ? '' : ' ');
 }
 
+/**
+ * The media profile's recording: the first `video` block of `doc` as given (so a card's teaser
+ * projection, which has no blocks, has none), and whether its duration may show.
+ */
+export function mediaRecording(doc: ContentDocument) {
+  if (doc.type !== 'article' || doc.presentation?.profile !== 'media') return undefined;
+  const block = allBlocks(doc.blocks).find(
+    (b): b is Extract<Block, { type: 'video' }> => b.type === 'video'
+  );
+  return block && { ...block, duration: !doc.presentation.overrides?.media?.readingTime };
+}
+
 export function articleView(
   doc: Extract<ContentDocument, { type: 'article' }>,
   locale: string
@@ -70,8 +82,7 @@ export function articleView(
   if (!profile) return undefined;
   const options = doc.presentation?.overrides?.[profile];
   const long = profile === 'longread';
-  const recording =
-    profile === 'media' ? allBlocks(doc.blocks).find((block) => block.type === 'video') : undefined;
+  const recording = mediaRecording(doc);
   let minutes = null;
   if (!options?.readingTime) {
     const texts = [doc.lead?.[locale] ?? ''];
@@ -96,6 +107,6 @@ export function articleView(
     portraits: options?.authors ? options.authors === 'portraits' : long,
     minutes,
     initial: long && !options?.initial,
-    ...(recording ? { video: { blockId: recording.id, duration: !options?.readingTime } } : {}),
+    ...(recording ? { video: { blockId: recording.id, duration: recording.duration } } : {}),
   };
 }

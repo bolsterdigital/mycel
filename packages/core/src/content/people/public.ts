@@ -9,6 +9,7 @@ import type { TransactionContext } from '../../ports.js';
 import { defineUseCase } from '../../registry.js';
 import { MAX_PAGE_SIZE } from '../../util/page-size.js';
 import { cardDocument } from '../access/projection.js';
+import { CardRecording, cardRecording, cardRecordings } from '../published/recording.js';
 import { effectiveOf } from '../header/effective.js';
 import { MAX_TRANSLATION_WALK } from '../listing.js';
 import { statusOf } from '../lifecycle.js';
@@ -42,6 +43,8 @@ export const PublishedArticleCard = z.object({
   publishedAt: z.string().datetime({ offset: true }),
   /** Not `public`: the card says it is for members, and its address serves the teaser. */
   access: z.enum(['public', 'members', 'tier']),
+  /** A Video/audio article's recording, as on an overview card (MY-304). */
+  recording: CardRecording.optional(),
 });
 export type PublishedArticleCard = z.infer<typeof PublishedArticleCard>;
 
@@ -131,7 +134,9 @@ async function articleCard(
   if (!doc || doc.type !== 'article' || !doc.authorIds.includes(personId)) return null;
   const effective = effectiveOf(doc, locale, images);
   const imageId = effective.images.featured.mediaId;
+  const recording = cardRecording(doc, await cardRecordings(ctx, [doc]));
   return {
+    ...(recording ? { recording } : {}),
     id: item.id,
     slug: item.slug,
     locale,

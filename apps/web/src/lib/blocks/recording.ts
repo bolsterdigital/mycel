@@ -9,7 +9,7 @@
 
 import type { ArticleView } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
-import type { RenderIntro, RenderModel } from './model.js';
+import type { RenderCardRecording, RenderIntro, RenderModel } from './model.js';
 
 /** A time on the recording as a reader writes it: `3:10`, `1:02:03`. */
 export function clockTime(seconds: number): string {
@@ -29,6 +29,25 @@ export function isoDuration(seconds: number): string {
 /** Whole minutes for the meta line: rounded, and at least one for a recording that has any. */
 export function durationMinutes(seconds: number): number {
   return Math.max(1, Math.round(seconds / 60));
+}
+
+/** A card's recording from the read model (`OverviewEntry.recording`), or null for none. */
+export function cardRecording(
+  recording: { seconds: number | null } | undefined,
+  locale: string
+): RenderCardRecording | null {
+  if (!recording) return null;
+  const t = ui(locale);
+  const seconds = recording.seconds;
+  return {
+    label: t('block.overview.recording'),
+    duration: seconds
+      ? {
+          iso: isoDuration(seconds),
+          label: t('block.meta.duration').replace('{minutes}', String(durationMinutes(seconds))),
+        }
+      : null,
+  };
 }
 
 export function placeRecording(

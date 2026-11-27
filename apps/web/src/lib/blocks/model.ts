@@ -434,6 +434,8 @@ export type RenderBlock = { id: string } & (
         restricted: boolean;
         /** In a campaign index (MY-292): kind, phase now and the public count; else null. */
         campaign: Pick<RenderCampaign, 'kind' | 'phase' | 'counter'> | null;
+        /** A Video/audio article's recording (MY-304); else null. */
+        recording: RenderCardRecording | null;
         revisionId: string;
       }[];
       /** Site-root paths of the neighbouring pages; only with `archive` on. */
@@ -508,6 +510,15 @@ export interface RenderModel {
 }
 
 /** The decorative stand-in for a card's missing image: the site's logo or its initial. */
+/**
+ * A card's recording (MY-304): a Video/audio article shows a play mark with the word for it and,
+ * unless its profile hides it, the length in whole minutes as the article's meta line writes it.
+ */
+export interface RenderCardRecording {
+  label: string;
+  duration: { iso: string; label: string } | null;
+}
+
 export interface CardPlaceholder {
   logo: { src: string; width: number; height: number } | null;
   initial: string;

@@ -207,6 +207,7 @@ export const publicSite = {
   'block.overview.newer': 'Show newer',
   'block.overview.pages': 'More in this overview',
   'block.overview.restricted': 'Members only',
+  'block.overview.recording': 'Video',
   'public.dossier.partOf': 'Part of the dossier',
   'public.readMore.title': 'Read more',
   'block.campaign.notOpen.upcoming': 'You cannot take part yet.',

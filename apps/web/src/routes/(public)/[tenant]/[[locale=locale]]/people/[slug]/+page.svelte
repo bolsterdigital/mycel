@@ -72,6 +72,7 @@
               date={article.date}
               summary={article.lead}
               restrictedLabel={article.access === 'public' ? null : t('block.overview.restricted')}
+              recording={article.recording}
             />
           </div>
         {/each}

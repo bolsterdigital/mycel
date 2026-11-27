@@ -11,6 +11,7 @@ import {
   useCases,
 } from '@mycel/core';
 import { runtimeSource, resolveIntro, overviewWhen } from '../../blocks/resolve.js';
+import { cardRecording } from '../../blocks/recording.js';
 import { personPath } from '../../public/person-path.js';
 import { personData } from '../../public/structured-data.js';
 import { refuse } from '../http/refuse.js';
@@ -56,6 +57,7 @@ export async function loadPersonPage(site: Site, slug: string, locale: string, o
       ),
       image: await image(article.featuredImageId, article.featuredPlacement),
       date: overviewWhen({ event: null, date: article.firstPublishedAt }, locale, timeZone).date,
+      recording: cardRecording(article.recording, locale),
     }))
   );
   const absolute = await siteUrls(site);

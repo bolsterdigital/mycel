@@ -17,6 +17,7 @@ import type { TransactionContext } from '../../ports.js';
 import type { ContentDocument } from '../model.js';
 import type { PublishedDossier } from './dossier.js';
 import { OverviewEntry, cardEntry } from './overview.js';
+import { cardRecordings } from './recording.js';
 
 /** How many cards the row shows at most. */
 const READ_MORE_CARDS = 3;
@@ -50,5 +51,9 @@ export async function readMore(
       ))
     );
   const site = (await ctx.siteSettings.images()).value;
-  return rows.map((row) => cardEntry(row, false, locale, site, general.timeZone));
+  const recordings = await cardRecordings(
+    ctx,
+    rows.map((r) => r.document)
+  );
+  return rows.map((row) => cardEntry(row, false, locale, site, general.timeZone, recordings));
 }

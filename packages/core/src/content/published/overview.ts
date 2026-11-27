@@ -6,7 +6,8 @@
 // one public cache entry (ADR 018 rules 7 and 8). The renderer shows an image only when the asset
 // itself is public. An agenda leaves restricted events out: when and where is what a members'
 // meeting keeps to its members (`teaserDocument`), and an agenda sorts by it. One query for the
-// pins and one for the list, never one per card.
+// pins and one for the list, never one per card; a Video/audio article's card adds its recording
+// (`recording.ts`), one video read per distinct recording on the page.
 //
 // Pages: page 1 shows the pins that are published here and fills up to the limit; page n > 1
 // continues the same list where page n - 1 stopped, without pins, so an archive reads as one
@@ -52,6 +53,8 @@ import { cardDocument } from '../access/projection.js';
 import { OverviewProps } from '../blocks/overview.js';
 import type { PublishedCardRow } from '../ports.js';
 import { CampaignStanding, campaignStandings } from '../../campaigns/card.js';
+import { CardRecording, NO_RECORDINGS, cardRecording, cardRecordings } from './recording.js';
+import type { CardRecordings } from './recording.js';
 import '../ports.js';
 import '../../campaigns/ports.js';
 import '../../theme/ports.js';
@@ -83,6 +86,8 @@ export const OverviewEntry = z.object({
   restricted: z.boolean(),
   /** In a campaign index, where the campaign of this landing page stands now; absent elsewhere. */
   campaign: CampaignStanding.nullable().optional(),
+  /** A Video/audio article's recording: the card shows a play mark and its length (MY-304). */
+  recording: CardRecording.optional(),
 });
 export type OverviewEntry = z.infer<typeof OverviewEntry>;
 
@@ -103,13 +108,16 @@ export function cardEntry(
   pinned: boolean,
   locale: string,
   site: ChainSite,
-  timeZone: string
+  timeZone: string,
+  recordings: CardRecordings = NO_RECORDINGS
 ): OverviewEntry {
   const doc = cardDocument(row.document);
   const effective = effectiveOf(doc, locale, site);
   const placement = placementFor(doc.featuredPlacement, effective.images.featured.mediaId);
+  const recording = cardRecording(doc, recordings);
   return {
     ...(placement ? { imagePlacement: placement } : {}),
+    ...(recording ? { recording } : {}),
     id: row.itemId,
     type: row.type,
     slug: row.slug,
@@ -134,8 +142,8 @@ export async function overviewOf(
   const pinIds = props.pinned.map((p) => p.itemId);
   const site = (await ctx.siteSettings.images()).value;
   const { timeZone } = (await ctx.siteSettings.general()).value;
-  const entry = (row: PublishedCardRow, pinned: boolean) =>
-    cardEntry(row, pinned, locale, site, timeZone);
+  const entry = (row: PublishedCardRow, pinned: boolean, recordings?: CardRecordings) =>
+    cardEntry(row, pinned, locale, site, timeZone, recordings);
 
   // The pins as page 1 shows them, in the editor's order; their count decides where the list
   // starts on every page, so page 2 continues page 1 exactly.
@@ -147,8 +155,10 @@ export async function overviewOf(
       )
     : [];
   const pins = pinIds.flatMap((id) => pinRows.filter((r) => r.itemId === id).slice(0, 1));
-  if (props.source === 'selection')
-    return { entries: page === 1 ? pins.map((r) => entry(r, true)) : [], older: false };
+  if (props.source === 'selection') {
+    const recordings = await cardRecordings(ctx, page === 1 ? pins.map((r) => r.document) : []);
+    return { entries: page === 1 ? pins.map((r) => entry(r, true, recordings)) : [], older: false };
+  }
   if (props.source === 'campaign') return campaignIndex(ctx, props, locale, page, pins, entry);
   const shownPins = Math.min(pins.length, limit);
   const first = limit - shownPins;
@@ -174,10 +184,15 @@ export async function overviewOf(
     offset,
     take + 1
   );
+  const listed = [...(page === 1 ? pins.slice(0, shownPins) : []), ...rows.slice(0, take)];
+  const recordings = await cardRecordings(
+    ctx,
+    listed.map((r) => r.document)
+  );
   return {
     entries: [
-      ...(page === 1 ? pins.slice(0, shownPins).map((r) => entry(r, true)) : []),
-      ...rows.slice(0, take).map((r) => entry(r, false)),
+      ...(page === 1 ? pins.slice(0, shownPins).map((r) => entry(r, true, recordings)) : []),
+      ...rows.slice(0, take).map((r) => entry(r, false, recordings)),
     ],
     older: rows.length > take,
   };
