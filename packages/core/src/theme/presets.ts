@@ -43,6 +43,8 @@ export const DEFAULT_THEME: ResolvedTheme = {
   captionFont: 'body',
   headingCase: 'normal',
   buttonShape: 'theme',
+  cardStyle: 'surface',
+  cardImage: '3:2',
   chrome: { header: 'primary', footer: 'primary' },
 };
 
@@ -85,6 +87,8 @@ export const THEME_PRESETS = {
     captionFont: 'body',
     headingCase: 'normal',
     buttonShape: 'theme',
+    cardStyle: 'surface',
+    cardImage: '3:2',
     chrome: { header: 'primary', footer: 'primary' },
   },
   /** Bold green and yellow, larger steps and rounder corners: for campaign pages. */
@@ -125,6 +129,8 @@ export const THEME_PRESETS = {
     captionFont: 'body',
     headingCase: 'normal',
     buttonShape: 'theme',
+    cardStyle: 'surface',
+    cardImage: '3:2',
     chrome: { header: 'primary', footer: 'primary' },
   },
 } as const satisfies Record<string, ResolvedTheme>;

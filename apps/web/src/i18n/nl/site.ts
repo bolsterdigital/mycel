@@ -52,6 +52,18 @@ export const site: Partial<Record<UiKey, string>> = {
   'admin.site.buttonShape': 'Knopvorm',
   'admin.site.buttonShape.theme': 'Hoekafronding van het thema',
   'admin.site.buttonShape.pill': 'Volledig afgerond',
+  'admin.site.cardStyle': 'Artikelkaarten',
+  'admin.site.cardStyle.hint':
+    'Hoe een kaart in een overzicht, onder een artikel en op een auteurspagina op de pagina staat.',
+  'admin.site.cardStyle.surface': 'Vlak in de vlakkleur',
+  'admin.site.cardStyle.outline': 'Kader met een lijn',
+  'admin.site.cardStyle.plain': 'Los, zonder kader',
+  'admin.site.cardStyle.primary': 'Vlak in de hoofdkleur',
+  'admin.site.cardImage': 'Beeld op een artikelkaart',
+  'admin.site.cardImage.hint':
+    'Elke kaart krijgt hetzelfde beeldvlak; het beeld vult het rond het brandpunt.',
+  'admin.site.cardImage.3:2': 'Liggend (3:2)',
+  'admin.site.cardImage.16:9': 'Breedbeeld (16:9), zoals een videobeeld',
   'admin.site.headingCase': 'Koppen en knoppen',
   'admin.site.headingCase.hint':
     'Hoe koppen, kaarttitels en knoppen worden gezet. Kapitalen veranderen alleen hoe ze eruitzien; de tekst zelf blijft zoals hij is geschreven.',

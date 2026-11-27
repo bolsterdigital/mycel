@@ -29,10 +29,35 @@
   /* Each card measures itself, so the campaign card's side-by-side rule needs a wide card. */
   container-type: inline-size;
 }
+/* The card itself (the redesign of 2026-11-27). Image area, then title, one line of facts and a
+   short excerpt, the last two smaller than the title, so a row of cards is a row of pictures and
+   titles. A site chooses how the card stands on the page (`cardStyle`: the surface pair, a line
+   around it, no frame at all, or the primary pair) and the shape of its image area (`cardImage`);
+   tokens.ts turns either choice into the `--overview-card-*` properties read here, and without
+   them the card is the surface pair with a 3:2 image. The card never pads itself: the image area
+   runs to its edges and the text keeps the inset. Rejected: a class per style on the page (the
+   markup would have to know the theme) and the summary at body size (taller cards, and larger
+   than the title where the heading font runs small). */
 .overview-card {
+  --card-image-ratio: var(--overview-card-ratio, 3 / 2);
   position: relative;
   height: 100%;
   align-content: start;
+  color: var(--overview-card-fg, var(--color-surface-fg));
+  background: var(--overview-card-bg, var(--color-surface-bg));
+}
+.overview-card.campaign-card-inner {
+  gap: 0;
+  padding: 0;
+}
+.overview-card.campaign-card-inner > .campaign-card-text {
+  gap: calc(0.75 * var(--space-1));
+  padding: var(--overview-card-inset, min(var(--space-2), 6cqi));
+}
+/* Without a frame the image area carries the corners the card would have had. */
+.overview-card > .campaign-card-image {
+  overflow: clip;
+  border-radius: var(--overview-card-image-radius, 0);
 }
 /* About 20 px on a card of 260 px, 22.5 px from about 320 px; the steps grow with the text size. */
 .overview-card .overview-card-title {
@@ -41,34 +66,100 @@
   text-wrap: pretty;
 }
 /* A title is prose, not a URL: hyphenate in the page's language (an overview lists items in that
-   language), and break a word only as the last resort. */
-.overview-card-title a {
-  color: inherit;
-  text-decoration: none;
+   language), and break a word only as the last resort. On a card with room for its text only a
+   word of ten letters or more is hyphenated, so a card does not split "alleen" or "ander"; the
+   room is measured in the text's own size, so at 200% text on a narrow screen every word may
+   still be hyphenated before it is broken. */
+.overview-card-title a,
+.overview-excerpt {
   hyphens: auto;
   overflow-wrap: break-word;
 }
+@container (min-width: 14rem) {
+  .overview-card-title a,
+  .overview-excerpt {
+    hyphenate-limit-chars: 10 4 4;
+    -webkit-hyphenate-limit-before: 4;
+    -webkit-hyphenate-limit-after: 4;
+  }
+}
+.overview-card-title a {
+  color: inherit;
+  text-decoration: none;
+}
+/* The stretched link also draws the line of a card that has one, over the image's edges too. A
+   border, so forced colours, which drop the surface, still show where a card ends. */
 .overview-card-title a::after {
   content: '';
   position: absolute;
   inset: 0;
+  border: 1px solid var(--overview-card-line, transparent);
   border-radius: var(--radius);
+}
+/* The facts under the title, on one line while they fit. Each carries its dot in its own leading
+   space and the line is pulled back by that space and clipped there, so the dot of whatever
+   starts a line, the first fact or one that wrapped, is cut off. The clip makes the line a layer
+   above the stretched link, so it lets the pointer through: a click on a fact opens the item.
+   Rejected: a dot in the markup (it would open a wrapped line) and a paragraph per fact (a
+   taller card for every fact). */
+.overview-meta {
+  --overview-meta-gap: 1.1em;
+  pointer-events: none;
+  display: flex;
+  flex-wrap: wrap;
+  margin-inline-start: calc(-1 * var(--overview-meta-gap));
+  clip-path: inset(0 0 0 var(--overview-meta-gap));
+  font-size: var(--step--1);
+  line-height: 1.4;
+  color: var(--overview-card-meta, var(--color-surface-caption-fg));
+}
+.overview-meta:dir(rtl) {
+  clip-path: inset(0 var(--overview-meta-gap) 0 0);
+}
+.overview-meta > * {
+  position: relative;
+  padding-inline-start: var(--overview-meta-gap);
+}
+.overview-meta > *::before {
+  content: '·';
+  content: '·' / '';
+  position: absolute;
+  inset-inline-start: 0;
+  inline-size: var(--overview-meta-gap);
+  text-align: center;
+}
+/* Smaller than the title on every scale, never under 15 px. */
+.overview-excerpt {
+  font-size: max(var(--step--1), 0.9375rem);
+  line-height: 1.45;
+  text-wrap: pretty;
 }
 /* Only the inversion, no underline (MY-277, Jaap 2026-11-22: "On hover hebben de titels in de
    cards underline, dat hoort niet"). A placeholder keeps the header's pair: its logo is made for
-   that background, and on the surface pair a light logo disappears. */
+   that background, and on the surface pair a light logo disappears. A style without a surface
+   to invert names its own hover in the same properties: the title in the link colour. */
 @media (hover: hover) {
   .overview-card:hover {
-    color: var(--color-primary-fg);
-    background: var(--color-primary-bg);
+    --overview-card-meta: currentColor;
+    --overview-card-line: transparent;
+    color: var(--overview-card-hover-fg, var(--color-primary-fg));
+    background: var(--overview-card-hover-bg, var(--color-primary-bg));
+  }
+  .overview-card:hover .overview-card-title {
+    color: var(--overview-card-hover-title, inherit);
   }
 }
 .overview-card:has(a:focus-visible) {
-  color: var(--color-primary-fg);
-  background: var(--color-primary-bg);
+  --overview-card-meta: currentColor;
+  --overview-card-line: transparent;
+  color: var(--overview-card-hover-fg, var(--color-primary-fg));
+  background: var(--overview-card-hover-bg, var(--color-primary-bg));
   outline: 3px solid var(--color-focus);
   outline-offset: 2px;
   box-shadow: 0 0 0 2px var(--color-focus-halo);
+}
+.overview-card:has(a:focus-visible) .overview-card-title {
+  color: var(--overview-card-hover-title, inherit);
 }
 /* In forced colours the surface inversion disappears. Keep the native title-link
    outline as well as the card ring so the focused action remains identifiable. */

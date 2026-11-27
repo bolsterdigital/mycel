@@ -94,6 +94,8 @@ export function resolveTheme(input: ThemeInput): ResolvedTheme {
     captionFont: input.captionFont ?? DEFAULT_THEME.captionFont,
     headingCase: input.headingCase ?? DEFAULT_THEME.headingCase,
     buttonShape: input.buttonShape ?? DEFAULT_THEME.buttonShape,
+    cardStyle: input.cardStyle ?? DEFAULT_THEME.cardStyle,
+    cardImage: input.cardImage ?? DEFAULT_THEME.cardImage,
     chrome: {
       header: input.chrome?.header ?? DEFAULT_THEME.chrome.header,
       footer: input.chrome?.footer ?? DEFAULT_THEME.chrome.footer,

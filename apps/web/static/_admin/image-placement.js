@@ -55,7 +55,11 @@ function sync(panel) {
       const inheritedAuto = slot === 'framing' && panel.dataset.focal === 'auto';
       const fit = `data-frame-fit${suffix}`;
       if (fields.mode === 'inherit' && !inheritedAuto) picture.removeAttribute(fit);
-      else picture.setAttribute(fit, fields.mode === 'manual' ? 'cover' : 'contain');
+      else
+        picture.setAttribute(
+          fit,
+          fields.mode === 'manual' ? 'cover' : fields.mode === 'full' ? 'contain' : 'auto'
+        );
       for (const axis of ['x', 'y']) {
         const attribute = `data-frame-${axis}${suffix}`;
         if (fields.mode === 'manual') {

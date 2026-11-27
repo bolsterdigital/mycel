@@ -24,7 +24,9 @@
    Side by side the area stretches in both axes: its column's width and its row's height, the
    3:2 ratio only feeding the row's minimum. Rejected: the ratio with the default alignment, which
    for an item with a ratio is `start`; the stretched height then set the width, twice the
-   column, and the area painted over the text (review of PR #550). */
+   column, and the area painted over the text (review of PR #550).
+   The ratio is 3:2 unless a card names another (`--card-image-ratio`; an overview card takes the
+   site's `cardImage`, overview.css). */
 .campaign-card-inner:has(> .campaign-card-image) {
   gap: 0;
   padding: 0;
@@ -42,7 +44,7 @@
     position: relative;
     align-self: stretch;
     justify-self: stretch;
-    aspect-ratio: 3 / 2;
+    aspect-ratio: var(--card-image-ratio, 3 / 2);
   }
   .campaign-card-inner > .campaign-card-image:not(.card-placeholder) img {
     position: absolute;
@@ -55,7 +57,7 @@
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 3 / 2;
+  aspect-ratio: var(--card-image-ratio, 3 / 2);
   object-fit: var(--frame-fit, cover);
 }
 /* A card without an image (MY-277, CardPlaceholder.svelte): the site's logo or initial, centred
@@ -64,7 +66,7 @@
 .card-placeholder {
   display: grid;
   place-items: center;
-  aspect-ratio: 3 / 2;
+  aspect-ratio: var(--card-image-ratio, 3 / 2);
   color: var(--chrome-header-fg, var(--color-primary-fg));
   background: var(--chrome-header-bg, var(--color-primary-bg));
 }

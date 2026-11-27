@@ -9,7 +9,14 @@ import { anonymousPrincipal, systemPrincipal } from '../principal.js';
 import { MemoryUnitOfWork, TENANT } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { Theme, checkTheme, contrastRatio, focusHalo, resolveTheme } from './contrast.js';
-import { THEME_RANGES, THEME_VERSION, ThemeInput, type Palette } from './model.js';
+import {
+  CARD_IMAGES,
+  CARD_STYLES,
+  THEME_RANGES,
+  THEME_VERSION,
+  ThemeInput,
+  type Palette,
+} from './model.js';
 import { DEFAULT_THEME, THEME_PRESETS } from './presets.js';
 import { FONTS, FONT_KEYS, hasWeight } from './fonts.js';
 
@@ -18,6 +25,33 @@ const dark = DEFAULT_THEME.palettes.dark;
 const withLight = (patch: Partial<Palette>): ThemeInput => ({
   version: THEME_VERSION,
   palettes: { light: { ...light, ...patch }, dark },
+});
+
+describe('the article card choice', () => {
+  it('reads a theme without one as the surface card with a 3:2 image, and refuses a free value', () => {
+    const { cardStyle: _, cardImage: __, ...stored } = DEFAULT_THEME;
+    expect(Theme.parse(stored)).toMatchObject({ cardStyle: 'surface', cardImage: '3:2' });
+    expect(resolveTheme(ThemeInput.parse({}))).toMatchObject({
+      cardStyle: 'surface',
+      cardImage: '3:2',
+    });
+    for (const cardStyle of CARD_STYLES)
+      for (const cardImage of CARD_IMAGES)
+        expect(Theme.parse({ ...stored, cardStyle, cardImage })).toMatchObject({
+          cardStyle,
+          cardImage,
+        });
+    // A closed choice: no colour, no ratio of one's own, no CSS.
+    for (const input of [
+      { cardStyle: '#ffffff' },
+      { cardStyle: 'card' },
+      { cardStyle: '' },
+      { cardImage: '4:3' },
+      { cardImage: '16 / 9' },
+      { cardImage: 1.5 },
+    ])
+      expect(ThemeInput.safeParse(input).success, JSON.stringify(input)).toBe(false);
+  });
 });
 
 describe('contrast arithmetic', () => {

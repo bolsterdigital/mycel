@@ -105,8 +105,11 @@ describe('an overview in the render model', () => {
     expect(resolved.blocks[0]).toMatchObject({
       entries: [{ summary }, { summary: 'Een korte samenvatting.' }],
     });
-    expect(html).toContain(`<p>${excerpt.slice(0, -1)}…</p>`);
-    expect(html).toContain('<p>Een korte samenvatting.</p>');
+    // The card ends on the sentences that fit (article-card.test.ts holds the cutting rules).
+    expect(html).toContain(
+      `<p class="overview-excerpt">${Array(3).fill('Dit is een langere samenvatting.').join(' ')}</p>`
+    );
+    expect(html).toContain('<p class="overview-excerpt">Een korte samenvatting.</p>');
     expect(html).not.toContain('Wijkraadsverkiezingen');
   });
 });

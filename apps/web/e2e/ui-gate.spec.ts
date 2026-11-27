@@ -33,6 +33,7 @@ import { exerciseLanguagePanel } from './lib/site-navigation/chrome/language-pan
 import { exerciseSticky, seedSticky } from './lib/site-navigation/chrome/sticky';
 import { exerciseConversationCounts } from './lib/published/conversation-counts';
 import { exerciseOverviewCards } from './lib/blocks/overview-cards';
+import { exerciseCardStyles } from './lib/blocks/overview-card-styles';
 import {
   exerciseBylinePair,
   exerciseCardsPair,
@@ -688,6 +689,8 @@ test.describe('overview-cards', () => {
   test.use({ locale: 'nl-NL', extraHTTPHeaders: forwarded() });
   test('one link, a title that fits, and the inversion on hover and focus', async ({ page }) =>
     exerciseOverviewCards(page));
+  test('every card style of a theme paints its pair, in both palettes', async ({ page }) =>
+    exerciseCardStyles(page, `${test.info().project.name}-${Date.now().toString(36)}`));
   test('a card flies to its page and back (MY-269 PR 2)', async ({ page }) => {
     onlyA11y('the floating pairs are a script');
     await exerciseFloatingPairs(page);
