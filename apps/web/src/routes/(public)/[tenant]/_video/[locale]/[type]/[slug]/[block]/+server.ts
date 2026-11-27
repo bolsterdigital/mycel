@@ -1,9 +1,9 @@
 // A POST is the visitor's deliberate play action. The initial article carries only this
 // same-site endpoint, and the player response and tracks all carry private no-store headers.
 // With JavaScript the page posts `renew=1` and plays the JSON grant in its own `<video>`, so the
-// press on play is the activation that starts it (embed.js); without, the form opens the player
-// page below. A `t` field is the page's `?t=` moment: the MP4's `#t=` fragment starts it there
-// without script. Tracks are signed per kind (captions, chapters) and fetched by GET.
+// press on play is the activation that starts it (managed-video.js); without, the form opens the
+// player page below. A `t` field is the page's `?t=` moment: the MP4's `#t=` fragment starts it
+// there without script. Tracks are signed per kind (captions, chapters) and fetched by GET.
 import {
   anonymousPrincipal,
   contentPath,
