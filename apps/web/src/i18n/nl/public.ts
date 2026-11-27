@@ -210,6 +210,7 @@ export const publicSite: Partial<Record<UiKey, string>> = {
   'block.overview.pages': 'Meer in dit overzicht',
   'block.overview.restricted': 'Voor leden',
   'public.dossier.partOf': 'Onderdeel van het dossier',
+  'public.readMore.title': 'Lees verder',
   'block.campaign.notOpen.upcoming': 'Meedoen kan nog niet.',
   'block.campaign.notOpen.closed': 'Meedoen kan niet meer: deze campagne is gesloten.',
   'block.lightbox.enlarge': 'grotere versie',

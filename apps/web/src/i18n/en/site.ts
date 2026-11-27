@@ -413,6 +413,11 @@ export const site = {
   'admin.site.general.timeZone': 'Time zone',
   'admin.site.general.timeZone.hint':
     'The admin plans and shows times in this zone, unless someone chose their own under Preferences.',
+  'admin.site.general.readMore': 'Read more under articles',
+  'admin.site.general.readMore.hint':
+    'Up to three other articles under each article: its own section first, then the newest of the site.',
+  'admin.site.general.readMore.auto': 'Show',
+  'admin.site.general.readMore.off': 'Switch off',
   'admin.site.general.save': 'Save time zone',
   'admin.site.ai.title': 'Use by AI',
   'admin.site.ai.label': 'What may AI services do with the published content?',

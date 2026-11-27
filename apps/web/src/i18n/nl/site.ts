@@ -425,6 +425,11 @@ export const site: Partial<Record<UiKey, string>> = {
   'admin.site.general.timeZone': 'Tijdzone',
   'admin.site.general.timeZone.hint':
     'Het beheer plant en toont tijden in deze zone, tenzij iemand onder Voorkeuren een eigen zone koos.',
+  'admin.site.general.readMore': 'Lees verder onder artikelen',
+  'admin.site.general.readMore.hint':
+    'Tot drie andere artikelen onder elk artikel: eerst uit dezelfde rubriek, dan de nieuwste van de site.',
+  'admin.site.general.readMore.auto': 'Tonen',
+  'admin.site.general.readMore.off': 'Uitzetten',
   'admin.site.general.save': 'Tijdzone opslaan',
   'admin.site.ai.title': 'Gebruik door AI',
   'admin.site.ai.label': 'Wat mogen AI-diensten met de gepubliceerde inhoud?',

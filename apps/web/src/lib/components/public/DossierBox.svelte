@@ -4,7 +4,7 @@
      No JavaScript. A section per dossier, named by its title, so a screen reader lists each one. -->
 <script lang="ts">
   import { withBase } from '#lib/blocks/rich-text.js';
-  import type { RenderDossiers } from '#lib/server/public/dossier-box.js';
+  import type { RenderDossiers } from '#lib/server/public/related/dossier-box.js';
 
   let { dossiers, base }: { dossiers: RenderDossiers; base: string } = $props();
 </script>

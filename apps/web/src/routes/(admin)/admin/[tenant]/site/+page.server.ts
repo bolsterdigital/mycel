@@ -236,6 +236,7 @@ export const actions: Actions = {
         general: {
           timeZone: text(data, 'timeZone'),
           personPages: text(data, 'personPages') as 'auto' | 'off',
+          readMore: text(data, 'readMore') as 'auto' | 'off',
         },
       });
       return { saved: 'general', version: result.version };

@@ -6,8 +6,8 @@
 // box is not a block of the document: the editor switches it off with `showDossier`, never moves it.
 
 import { contentPath, type PublishedItem } from '@mycel/core';
-import { overviewWhen } from '../../blocks/resolve.js';
-import { ui } from '../../../i18n/index.js';
+import { overviewWhen } from '../../../blocks/resolve.js';
+import { ui } from '../../../../i18n/index.js';
 
 export interface RenderDossier {
   id: string;
