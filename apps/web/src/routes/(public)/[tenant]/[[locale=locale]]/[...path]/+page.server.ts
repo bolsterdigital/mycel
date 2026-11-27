@@ -152,6 +152,7 @@ export const load: PageServerLoad = async ({
     model: view.model,
     prefooter: view.prefooter,
     dossiers: view.dossiers,
+    readMore: view.readMore,
     gate: view.gate,
     intro: view.intro,
     corrections: view.corrections,

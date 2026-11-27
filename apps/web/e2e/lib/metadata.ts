@@ -59,7 +59,11 @@ export async function localeMetadata(
       hreflang: [...document.querySelectorAll('link[rel="alternate"][hreflang]')].map(
         (link) => link.getAttribute('hreflang') ?? ''
       ),
-      alts: [...document.querySelectorAll('main img')].map((img) => img.getAttribute('alt')),
+      // The document's own images. "Read more" (MY-304) lists what is published in each locale,
+      // so its cards may differ between translations of the same item by design.
+      alts: [...document.querySelectorAll('main img:not(.read-more img)')].map((img) =>
+        img.getAttribute('alt')
+      ),
     };
   });
   return { locale, title, describedShare, sharedTitle, independentImages, ...read };

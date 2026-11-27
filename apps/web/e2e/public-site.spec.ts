@@ -2111,7 +2111,8 @@ test('a zone stands above the footer, except where a page switches it off', asyn
   await exercisePrefooter(page);
 });
 
-test('a member shows its dossier box', ({ page }) => exerciseDossierBox(page));
+test('an article ends with its dossier box and read more', ({ page, request }) =>
+  exerciseDossierBox(page, request));
 
 test('public profiles share policy across HTML, bylines and discovery', async ({ page }) => {
   await exercisePublicPeople(page);

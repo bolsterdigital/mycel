@@ -34,6 +34,8 @@ import { Block, blockLocalized, projectBlock } from './blocks.js';
 import { ContentType, Slug, type ContentDocument } from './model.js';
 import { PublishedEvent, projectEvent } from './published/event.js';
 import { PublishedDossier, dossierBoxes } from './published/dossier.js';
+import { OverviewEntry } from './published/overview.js';
+import { readMore } from './published/read-more.js';
 import { EffectiveView, effectiveOf } from './header/effective.js';
 import { statusOf } from './lifecycle.js';
 import { personPageEnabled } from './people/public.js';
@@ -140,6 +142,12 @@ export const PublishedItem = z.object({
    * shows none. Only dossiers published in this locale, each with its public members.
    */
   dossiers: z.array(PublishedDossier).optional(),
+  /**
+   * "Read more" under an article (MY-304): up to three other articles as overview cards, its own
+   * section's newest first; absent on a page, on a site that switched it off and when there is
+   * nothing to show. Never an article a dossier box above already lists.
+   */
+  readMore: z.array(OverviewEntry).optional(),
 });
 export type PublishedItem = z.infer<typeof PublishedItem>;
 /** A split page header's button in one locale, its target as stored. */
@@ -208,6 +216,7 @@ export const getPublished = defineUseCase({
       : {};
     const effective = effectiveOf(doc, chosen, (await ctx.siteSettings.images()).value);
     const dossiers = await dossierBoxes(ctx, doc, item.id, chosen);
+    const more = await readMore(ctx, doc, item.id, chosen, dossiers);
     const base = {
       id: item.id,
       type: item.type,
@@ -242,6 +251,7 @@ export const getPublished = defineUseCase({
       effective,
       ...(doc.prefooter === false ? { prefooter: false as const } : {}),
       ...(dossiers.length ? { dossiers } : {}),
+      ...(more.length ? { readMore: more } : {}),
     };
     if (doc.type !== 'article') {
       const event = projectEvent(doc, chosen, (await ctx.siteSettings.general()).value.timeZone);

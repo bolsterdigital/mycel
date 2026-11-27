@@ -967,7 +967,8 @@ test.describe('blocks-registry', () => {
     });
     const path = `/probe/articles/${slug}`;
     expect((await page.goto(path))?.status()).toBe(200);
-    await expect(page.getByRole('heading', { name: 'Lees verder' })).toBeVisible();
+    // The teaser's own heading, not the "Read more" row under the article (MY-304).
+    await expect(page.locator('h2.block.heading', { hasText: 'Lees verder' })).toBeVisible();
     await expect(page.locator('.social-conversation')).toHaveCount(0);
     const teaserMarkdown = await (await page.request.get(`${path}?format=md`)).text();
     expect(teaserMarkdown).toContain('Lees verder');

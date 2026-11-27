@@ -278,7 +278,7 @@
         "packages/api/src/content-read.ts",
         "apps/web/src/lib/server/public/share-locale*",
         "apps/web/src/lib/server/public/old-address*",
-        "apps/web/src/lib/server/public/dossier-box*"
+        "apps/web/src/lib/server/public/related/**"
       ],
       "adrs": ["007", "012", "018"],
       "gates": [

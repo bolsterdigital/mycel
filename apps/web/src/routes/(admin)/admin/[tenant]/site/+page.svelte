@@ -222,6 +222,18 @@
           { value: 'off', label: t('admin.people.site.off') },
         ]}
       />
+      <Select
+        id="site-read-more"
+        name="readMore"
+        label={t('admin.site.general.readMore')}
+        locale={data.locale}
+        hint={t('admin.site.general.readMore.hint')}
+        value={value('readMore', data.general.value.readMore ?? 'auto')}
+        options={[
+          { value: 'auto', label: t('admin.site.general.readMore.auto') },
+          { value: 'off', label: t('admin.site.general.readMore.off') },
+        ]}
+      />
     </SettingsSection>
     <SettingsSection
       id="site-ai"

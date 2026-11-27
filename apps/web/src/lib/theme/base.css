@@ -224,9 +224,10 @@
     color: var(--color-surface-fg);
     background: var(--color-surface-bg);
   }
-  /* The dossier box under an item (MY-260): a rule above it parts it from the body; its member
-     list is the overview's list (overview.css), so a site keeps one list style. */
-  .dossier-box {
+  /* The dossier box under an item (MY-260) and "Read more" under an article (MY-304): a rule
+     above each parts it from the body; the box's member list is the overview's list and the
+     row's cards the overview's cards (overview.css), so a site keeps one style of each. */
+  :is(.dossier-box, .read-more) {
     clear: both;
     padding-block-start: var(--space-2);
     border-block-start: 1px solid currentColor;

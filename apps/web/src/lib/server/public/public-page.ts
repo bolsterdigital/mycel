@@ -39,7 +39,8 @@
 // validator that knows the token's age (a 304 still cannot replace the token).
 //
 // The dossier boxes (MY-260) are in the digest too: a member published or taken out, or the
-// dossier republished, changes what the box shows and so the tag.
+// dossier republished, changes what the box shows and so the tag. So is "Read more" (MY-304): a
+// newly published article in the section is a new card and a new tag.
 //
 // The pre-footer zone is part of the page: the zone the published navigation places
 // (`site.prefooter.get`), resolved like the page's own blocks, unless the item switches it off.
@@ -83,7 +84,8 @@ import { cardPlaceholder } from './chrome.js';
 import { siteTracker } from './scripts/analytics.js';
 import { sitePlacement } from './scripts/integrations.js';
 import { refuse } from '#lib/server/http/refuse.js';
-import { renderDossiers, type RenderDossiers } from './dossier-box.js';
+import { renderDossiers, type RenderDossiers } from './related/dossier-box.js';
+import { renderReadMore, type RenderReadMore } from './related/read-more.js';
 
 export interface PublicHead {
   /** The item's own address, or the editor's explicit canonical URL (`seo.canonical`). */
@@ -136,6 +138,8 @@ export interface PublicItem {
   structured: ReturnType<typeof articleData> | ReturnType<typeof eventData>;
   /** The dossier boxes under the body (MY-260), or null. */
   dossiers: RenderDossiers | null;
+  /** "Read more" under an article (MY-304), after the dossier boxes, or null. */
+  readMore: RenderReadMore | null;
   /** The zone between the content and the footer, or null. */
   prefooter: PublicZone | null;
   /** Set when the body was left out for this request; the page shows it after the teaser. */
@@ -337,6 +341,7 @@ export async function loadPublicItem(
         });
   const gate = item.gate ? gateOf(site, item, locale) : null;
   const dossiers = renderDossiers(item, locale, tenant.defaultLocale, timeZone);
+  const readMore = await renderReadMore(item, source, locale, tenant.defaultLocale, timeZone);
   const page = {
     tenant,
     item,
@@ -348,6 +353,7 @@ export async function loadPublicItem(
     head,
     structured,
     dossiers,
+    readMore,
     prefooter,
     gate,
     restricted,
@@ -379,6 +385,7 @@ export async function loadPublicItem(
         navigation,
         brand,
         dossiers,
+        readMore,
         prefooter,
         gate,
         tracker,

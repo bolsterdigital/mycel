@@ -6,7 +6,7 @@
 // which ids are refused; this proves the screens, with and without JavaScript.
 // Rejected: a spec of its own (the e2e budget) and editing the seeded member, which the overview
 // examples and their snapshots read.
-import { expect, type Page } from '@playwright/test';
+import { expect, type APIRequestContext, type Page } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
 import { systemPrincipal, useCases } from '@mycel/core';
 import { expectNoAxeViolations } from '../axe';
@@ -15,6 +15,7 @@ import { tenantId, withInvoker } from '../invoker';
 import { NARROW, layoutGate, setTextSize } from '../layout';
 import { login } from '../login';
 import { isA11y } from '../project';
+import { exerciseReadMore } from '../published/read-more';
 
 async function measure(page: Page, label: string, within: string) {
   if (!isA11y()) return;
@@ -86,8 +87,11 @@ export async function exerciseDossierPicker(page: Page) {
   await expect(page.locator('#dossiers')).toHaveCount(0);
 }
 
-/** The box under the seeded member: the dossier's title as a link, and its lead. */
-export async function exerciseDossierBox(page: Page) {
+/**
+ * The box under the seeded member: the dossier's title as a link, and its lead. Then what follows
+ * it under an article, "Read more" (MY-304), on a tenant of its own (`published/read-more.ts`).
+ */
+export async function exerciseDossierBox(page: Page, request: APIRequestContext) {
   await page.goto('/probe/articles/e2e-dossier-lid');
   const box = page.getByRole('region', { name: 'Betaalbaar wonen' });
   await expect(box).toContainText('Onderdeel van het dossier');
@@ -101,4 +105,5 @@ export async function exerciseDossierBox(page: Page) {
   await expect(page.getByRole('region', { name: 'Affordable housing' })).toContainText(
     'Part of the dossier'
   );
+  await exerciseReadMore(page, request);
 }

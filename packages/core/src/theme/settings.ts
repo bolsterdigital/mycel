@@ -118,6 +118,8 @@ export const SiteGeneral = z
   .object({
     timeZone: IanaTimeZone,
     personPages: z.enum(['auto', 'off']).optional(),
+    // "Read more" under every article (MY-304); absent is `auto`.
+    readMore: z.enum(['auto', 'off']).optional(),
     // Which machine uses the site reserves; absent is `open` (`ai-use.ts`).
     aiUse: AiUse.optional(),
   })
@@ -251,7 +253,7 @@ export const updateSiteGeneral = defineUseCase({
   name: 'site.general.update',
   kind: 'command',
   description:
-    'Update general settings at a known version; an omitted personPages or aiUse preserves its current choice.',
+    'Update general settings at a known version; an omitted personPages, readMore or aiUse preserves its current choice.',
   requires: 'content:write',
   input: z.object({ baseVersion: version, general: SiteGeneral }).strict(),
   output: GeneralState,
