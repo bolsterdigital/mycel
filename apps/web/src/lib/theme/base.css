@@ -23,6 +23,7 @@
 @import './campaign-card.css' layer(components);
 @import './overview.css' layer(components);
 @import './blocks/timeline.css' layer(components);
+@import './blocks/media-stage.css' layer(components);
 @import './site-chrome.css' layer(components);
 @import './controls/button.css' layer(components);
 

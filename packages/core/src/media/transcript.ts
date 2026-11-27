@@ -49,29 +49,65 @@ function cueGroups(input: string) {
     .filter((group) => group && !/^(?:NOTE(?:[ \t\n]|$)|(?:STYLE|REGION)(?:\n|$))/.test(group));
 }
 
+// A cue that opens with a voice span names its speaker; the rest is what they say.
+const voice = /^\s*<v(?:\.[\w-]+)*\s+([^>]+)>/;
+
 function timedCue(group: string) {
   const lines = group.split('\n');
   const index = lines[0]?.includes('-->') ? 0 : 1;
   const match = /^(\S+)\s+-->\s+(\S+)(?:\s+.*)?$/.exec(lines[index]?.trim() ?? '');
   if (!match) throw invalid();
+  const body = lines.slice(index + 1).join('\n');
+  const named = voice.exec(body);
   return {
     start: parseTime(match[1]!),
     end: parseTime(match[2]!),
-    text: plain(lines.slice(index + 1).join('\n')),
+    text: plain(body),
+    speaker: (named && plain(named[1]!)) || null,
+    spoken: named ? plain(body.slice(named[0].length)) : plain(body),
   };
 }
 
-export function transcriptText(track: string) {
+/** The cues a reader sees, in track order; a malformed or empty cue is left out. */
+function readableCues(track: string) {
   return cueGroups(track.replace(/\r\n?/g, '\n')).flatMap((group) => {
     // Browsers skip malformed legacy cues. An old track must not take its page out of service.
     try {
       const cue = timedCue(group);
-      return cue.end > cue.start && cue.text ? [cue.text] : [];
+      return cue.end > cue.start && cue.text ? [cue] : [];
     } catch (error) {
       if (error instanceof UseCaseError) return [];
       throw error;
     }
   });
+}
+
+/** One line of the readable transcript, the voice's name in its own field. */
+export interface TranscriptCue {
+  /** Seconds, to the millisecond. */
+  start: number;
+  end: number;
+  /** What is said, without the speaker's name. */
+  text: string;
+  speaker: string | null;
+}
+
+export function transcriptText(track: string) {
+  return readableCues(track).map((cue) => cue.text);
+}
+
+/**
+ * The same lines as `transcriptText`, one per cue, with their times and speaker, for a page
+ * that follows the recording (MY-305). Rejected: deriving one from the other, which would let a
+ * change to either alter what search indexes.
+ */
+export function transcriptCues(track: string): TranscriptCue[] {
+  return readableCues(track).map((cue) => ({
+    start: cue.start / 1000,
+    end: cue.end / 1000,
+    text: cue.spoken,
+    speaker: cue.speaker,
+  }));
 }
 
 export function importTranscript(source: string, durationSeconds: number | null) {
@@ -81,7 +117,13 @@ export function importTranscript(source: string, durationSeconds: number | null)
     .replace(/\r\n?/g, '\n')
     .trim();
   const timed = /^WEBVTT(?:[ \t].*)?(?:\n|$)/.test(input) || input.includes('-->');
-  const cues = timed
+  const cues: {
+    start: number;
+    end: number | null;
+    text: string;
+    speaker?: string | null;
+    spoken?: string;
+  }[] = timed
     ? cueGroups(input).map(timedCue)
     : input.split('\n').map((line) => {
         const match = /^(\S+)\s+(.+)$/.exec(line.trim());
@@ -101,7 +143,14 @@ export function importTranscript(source: string, durationSeconds: number | null)
       (i && cue.start < cues[i - 1]!.start)
     )
       throw invalid();
-    const text = cue.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const escape = (value: string) =>
+      value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // A named voice stays a voice span, so the native track and the read-along keep the speaker;
+    // the readable text and search see `Name: ` as before.
+    const text =
+      cue.speaker && cue.spoken
+        ? `<v ${escape(cue.speaker)}>${escape(cue.spoken)}`
+        : escape(cue.text);
     return timestamp(cue.start) + ' --> ' + timestamp(end) + '\n' + text;
   });
   const normalized = 'WEBVTT\n\n' + result.join('\n\n') + '\n';

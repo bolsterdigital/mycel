@@ -115,6 +115,7 @@ const fixtures: ResolveSource = {
           posterId: EXAMPLE_IDS.image,
           playable: false,
           transcript: [],
+          transcriptText: [],
         }
       : null;
   },

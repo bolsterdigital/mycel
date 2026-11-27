@@ -196,8 +196,17 @@ export async function seedManagedVideo({
   recording,
   videoSourceKey,
 }) {
+  // Three lines, one with a speaker: the read-along (MY-305) seeks between them and names who
+  // speaks. A database seeded before then gets these tracks too.
+  const publishedTracks = {
+    nl: 'WEBVTT\n\n00:00.000 --> 00:02.000\nLangs de rivier.\n\n00:02.000 --> 00:04.000\n<v Sam>Een otter zwemt.\n\n00:04.000 --> 00:05.000\n[water]\n',
+    en: 'WEBVTT\n\n00:00.000 --> 00:02.000\nAlong the river.\n\n00:02.000 --> 00:04.000\n<v Sam>An otter swims.\n\n00:04.000 --> 00:05.000\n[water]\n',
+  };
   await uow.run(admin, async ({ videos }) => {
-    if (!(await videos.get(id)))
+    const existing = await videos.get(id);
+    if (existing && JSON.stringify(existing.publishedTracks) !== JSON.stringify(publishedTracks))
+      await videos.update(id, { publishedTracks });
+    if (!existing)
       await videos.insert({
         id: id,
         posterId: posterId,
@@ -209,10 +218,7 @@ export async function seedManagedVideo({
           licence: { code: 'cc0' },
           watchUrl: 'https://example.com/river',
         },
-        publishedTracks: {
-          nl: 'WEBVTT\n\n00:00.000 --> 00:03.000\nLangs de rivier.\n',
-          en: 'WEBVTT\n\n00:00.000 --> 00:03.000\nAlong the river.\n',
-        },
+        publishedTracks,
         createdAt: new Date(),
         trashedAt: null,
       });

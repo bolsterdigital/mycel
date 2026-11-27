@@ -1,6 +1,6 @@
 // Playback reads the current published placement on every grant. A video record or a provider
 // binding alone can never open delivery. Drafts, teasers and zones cannot mint a grant.
-import { transcriptText } from './transcript.js';
+import { transcriptCues, transcriptText } from './transcript.js';
 import { z } from 'zod';
 import { allBlocks, BlockId } from '../content/blocks.js';
 import { ContentType, Slug } from '../content/model.js';
@@ -32,8 +32,11 @@ export async function videoPresentation(ctx: TransactionContext, id: string, loc
     !!upload.providerId &&
     !!upload.mp4Height &&
     video.hasSource;
+  const track = playable && locale ? (video.publishedTracks[locale] ?? '') : '';
   return {
-    transcript: playable && locale ? transcriptText(video.publishedTracks[locale] ?? '') : [],
+    // The lines with their times for the page, and the readable text search has always indexed.
+    transcript: transcriptCues(track),
+    transcriptText: transcriptText(track),
     metadata: video.metadata,
     duration: video.durationSeconds,
     posterId: video.posterId,

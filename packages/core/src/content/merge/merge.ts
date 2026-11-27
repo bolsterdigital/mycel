@@ -83,7 +83,7 @@ function merge(base: unknown, mine: unknown, theirs: unknown, path: string, out:
   // An optional block-name map still merges per locale when it was absent on the base.
   if (
     /^blocks\[id=[^\]]+\]\.name$/.test(path) ||
-    /^presentation\.overrides(?:\.(post|longread))?$/.test(path) ||
+    /^presentation\.overrides(?:\.(post|longread|media))?$/.test(path) ||
     (path === 'presentation' &&
       !base &&
       isObject(mine) &&

@@ -3,10 +3,11 @@
 export const content = {
   'article.profile.label': 'Article profile',
   'article.profile.hint':
-    'Post opens with a compact image. Longread opens with a cover, author portraits and an initial.',
+    'Post opens with a compact image. Longread opens with a cover, author portraits and an initial. Video/audio opens with the first recording and a transcript to read along.',
   'article.profile.keep': 'Keep current appearance',
   'article.profile.post': 'Post',
   'article.profile.longread': 'Longread',
+  'article.profile.media': 'Video/audio',
   'article.profile.advanced': 'Advanced display ({count} overrides)',
   'article.profile.default': 'Profile default',
   'article.profile.header': 'Header',
@@ -20,6 +21,7 @@ export const content = {
   'article.profile.hide': 'Hide',
   'article.profile.plain': 'Ordinary letter',
   'block.meta.readingTime': '{minutes} min read',
+  'block.meta.duration': '{minutes} min',
   'admin.content.field.tiers': 'Access tiers',
   'admin.content.field.tiers.hint': 'Counts only when the item is for readers of an access tier.',
   'admin.content.tiers.manage': 'Manage access tiers',

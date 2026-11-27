@@ -83,7 +83,7 @@ function syncForm(event) {
     target.name === 'heroImageId' ||
     target.name === 'headerLayout' ||
     target.name === 'articleProfile' ||
-    /^profile\.(post|longread)\.header$/.test(target.name) ||
+    /^profile\.(post|longread|media)\.header$/.test(target.name) ||
     target.name === 'featuredImageId' ||
     target.name === 'imageId'
   )

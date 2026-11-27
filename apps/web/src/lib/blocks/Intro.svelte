@@ -6,11 +6,14 @@
      script. The split header is a page's option (ADR 025, amended 2026-11-23): title, lead, an
      event's when and where and at most one button in a panel on the accent pair, the image beside
      it, stacked under the panel in a narrow container. Rejected: a CSS background image, which
-     loses alt, srcset and the LCP hint. -->
+     loses alt, srcset and the LCP hint. A media article's recording (ADR 025, amended 2026-11-27)
+     takes the image's place: title, lead, the player with its transcript, then the meta line with
+     the duration; the video's poster is the header's image. -->
 <script lang="ts">
   import { withBase } from './rich-text.js';
   import Actions from './Actions.svelte';
   import Credit from './Credit.svelte';
+  import MediaStage from './MediaStage.svelte';
   import Picture from './Picture.svelte';
   import { IMAGE_SIZES } from './sizes.js';
   import type { RenderIntro, RenderModel } from './model.js';
@@ -91,7 +94,12 @@
   {/if}
 {/snippet}
 
-{#if intro.header === 'cover' && intro.hero}
+{#if intro.recording}
+  <h1>{model.title}</h1>
+  {@render lead()}
+  <MediaStage recording={intro.recording} {model} />
+  {@render meta()}
+{:else if intro.header === 'cover' && intro.hero}
   <header class="page-cover">
     <Picture image={intro.hero} base={model.base} sizes="100vw" framed eager />
     <h1><span>{model.title}</span></h1>

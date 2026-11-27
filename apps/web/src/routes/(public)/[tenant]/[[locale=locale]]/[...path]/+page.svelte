@@ -86,6 +86,11 @@
         defer
         src="/_site/embed.js"
       ></script>{/if}
+    <!-- After embed.js: the read-along follows the player that script puts in the page. -->
+    {#if data.view === 'item' && data.intro.recording?.play}<script
+        type="module"
+        src="/_site/read-along.js"
+      ></script>{/if}
     {#if data.consent}
       <link rel="stylesheet" href="/_site/consent.css" />
       <script
@@ -159,7 +164,11 @@
     {:else}
       <Intro intro={data.intro} model={data.model} />
       {@render refused()}
-      <Blocks model={data.model} formState={form ?? null} eagerFirstImage={!data.intro.hero} />
+      <Blocks
+        model={data.model}
+        formState={form ?? null}
+        eagerFirstImage={!data.intro.hero && !data.intro.recording?.poster}
+      />
     {/if}
     {#if data.corrections}<Corrections corrections={data.corrections} />{/if}
     {#if data.gate}<ReaderGate gate={data.gate} />{/if}

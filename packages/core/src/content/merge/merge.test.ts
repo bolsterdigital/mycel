@@ -29,6 +29,16 @@ it('merges the first two distinct overrides of a profile and reports competing c
     mergeDocuments(base, settings({ header: 'standard' }), settings({ header: 'cover' }))
       .conflicts[0]?.path
   ).toBe('presentation.overrides.longread.header');
+  const media = (options: Record<string, string>) => ({
+    presentation: { profile: 'media', overrides: { media: options } },
+  });
+  expect(
+    mergeDocuments<object>(
+      { presentation: { profile: 'media' } },
+      media({ header: 'cover' }),
+      media({ readingTime: 'hide' })
+    )
+  ).toEqual({ document: media({ header: 'cover', readingTime: 'hide' }), conflicts: [] });
 });
 
 it('merges screen sizes independently but treats a single crop as one choice', () => {

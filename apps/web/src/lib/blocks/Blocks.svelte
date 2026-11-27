@@ -62,10 +62,11 @@
     eagerFirstImage
       ? model.blocks.find(
           (b) =>
-            ((b.type === 'image' || b.type === 'hero') && b.image) ||
-            ((b.type === 'video-embed' || b.type === 'video') && b.poster) ||
-            (b.type === 'people-grid' && b.people.some((p) => p.image)) ||
-            (b.type === 'overview' && b.entries.some((e) => e.image))
+            b.id !== model.lifted &&
+            (((b.type === 'image' || b.type === 'hero') && b.image) ||
+              ((b.type === 'video-embed' || b.type === 'video') && b.poster) ||
+              (b.type === 'people-grid' && b.people.some((p) => p.image)) ||
+              (b.type === 'overview' && b.entries.some((e) => e.image)))
         )?.id
       : undefined
   );
@@ -184,7 +185,9 @@
 {/snippet}
 
 {#each model.blocks as block (block.id)}
-  {#if selectable}
+  {#if block.id === model.lifted}
+    <!-- The document header renders this recording (`recording.ts`). -->
+  {:else if selectable}
     <div
       data-block-id={(block.type === 'rich-text' && block.sourceId) || block.id}
       class="preview-selectable"
