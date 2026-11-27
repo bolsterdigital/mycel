@@ -33,6 +33,7 @@ const recording: Extract<RenderBlock, { type: 'video' }> = {
   transcript: [{ start: 0, end: 2, text: 'Hallo', speaker: 'Sam' }],
   chapters: [],
   play: '/_video/nl/article/aflevering/film',
+  origin: 'https://tenant.b-cdn.net',
 };
 const model = (blocks: RenderBlock[]): RenderModel => ({
   locale: 'nl',

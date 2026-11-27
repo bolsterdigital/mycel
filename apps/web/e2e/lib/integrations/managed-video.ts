@@ -94,8 +94,11 @@ export async function exerciseManagedVideo(page: Page) {
     });
     return item.id;
   });
-  await page.goto('/probe/' + slug);
+  const opened = await page.goto('/probe/' + slug);
   expect(asked).toEqual([]);
+  // With JavaScript the recording plays in the page (MY-305): the page names the one CDN origin
+  // for media; without it the player page below carries its own policy.
+  expect(opened!.headers()['content-security-policy']).toContain(`media-src 'self' blob: ${host}`);
   expect(await (await search()).text()).toContain('href="/probe/' + slug + '"');
   await expect(page.locator('.block.video details')).toContainText('Langs de rivier.');
   const play = page.getByRole('button', { name: title });
@@ -110,8 +113,8 @@ export async function exerciseManagedVideo(page: Page) {
   const response = await started;
   expect(response.status()).toBe(200);
   expect(response.headers()['cache-control']).toContain('no-store');
-  expect(response.headers()['content-security-policy']).toContain(host);
-  const player = isA11y() ? page.frameLocator('.managed-video-frame') : page;
+  if (!isA11y()) expect(response.headers()['content-security-policy']).toContain(host);
+  const player = page;
   const video = player.locator('video');
   await expect(video).toHaveAttribute('controls', '');
   if (isA11y()) {
@@ -129,14 +132,18 @@ export async function exerciseManagedVideo(page: Page) {
     .poll(() => video.evaluate((el: HTMLVideoElement) => el.currentTime))
     .toBeGreaterThan(0.2);
   expect(asked.some((path) => path.endsWith('play_180p.mp4'))).toBe(true);
-  const track = await video.locator('track').evaluate((el: HTMLTrackElement) => el.src);
+  const track = await video
+    .locator('track[kind="captions"]')
+    .evaluate((el: HTMLTrackElement) => el.src);
   const cues = await page.request.get(track);
   expect(cues.headers()['content-type']).toContain('text/vtt');
   expect(await cues.text()).toContain('Langs de rivier.');
 
   // Advance the player and CDN to the first signature's deadline. The server issues real
   // signatures to the replacement request, so wait for a distinct signing second first.
-  const original = (await video.getAttribute('data-mp4'))!;
+  const original = isA11y()
+    ? await video.evaluate((el: HTMLVideoElement) => el.currentSrc)
+    : (await video.getAttribute('data-mp4'))!;
   cdnNow = Number(/&expires=(\d+)/.exec(original)![1]);
   await expect.poll(() => Math.floor(Date.now() / 1000)).toBeGreaterThan(cdnNow - 900);
   await video.evaluate((el: HTMLVideoElement) => el.pause());

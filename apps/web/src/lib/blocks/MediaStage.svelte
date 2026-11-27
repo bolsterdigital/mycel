@@ -10,7 +10,7 @@
      Under the player first its own controls on one row, then the chapters; the panel's title and
      search share a row, and its find buttons and "back to now" only appear when they can act.
      While it plays and the reader scrolls past it, the script docks the player in a corner with a
-     close button (`is-docked` on the stage; the frame is never moved, which would reload it).
+     close button (`is-docked` on the stage; the player is never moved, which would restart it).
      Rejected: a live region for the running text (a screen reader would talk over the recording),
      links per line (`?t=` starts at a moment only with the script; without it is a reload) and a
      chapters tab beside the read-along (the same list twice, one of them hidden). -->

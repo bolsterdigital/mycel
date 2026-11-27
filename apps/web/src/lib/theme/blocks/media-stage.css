@@ -185,7 +185,7 @@
 }
 
 /* Docked: the player leaves its place for a corner while its place keeps the height, and the
-   close button sits on top of it. The frame is not moved in the document, so it keeps playing. */
+   close button sits on top of it. The player is not moved in the document, so it keeps playing. */
 .media-stage.is-docked .video-frame::before {
   content: '';
   display: block;

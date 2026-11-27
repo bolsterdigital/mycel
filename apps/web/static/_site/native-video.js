@@ -1,25 +1,33 @@
-// Renew through the original placement POST. Replacing only the sources keeps the native
-// controls, playback position and caption selection on the same element.
-(() => {
-  const video = document.querySelector('video[data-hls]');
-  if (!video) return;
-  const unavailable = document.getElementById('unavailable');
-  const restart = document.getElementById('restart');
-  let { hls, mp4 } = video.dataset;
-  let deadline = Date.now() + Number(video.dataset.lifetime) * 1000;
-  let useHls = !!(video.canPlayType('application/vnd.apple.mpegurl') || window.Hls?.isSupported());
-  let requestedPlayback = false;
+// Playback of a granted managed video on a native `<video>` (MY-271), shared by the two places a
+// grant plays: the page itself, where `managed-video.js` asked for the grant after the reader
+// pressed play (MY-305), and the player page a form opens without JavaScript in the article.
+// Renewal goes through the same placement POST (`renew=1`); replacing only the sources keeps the
+// native controls, playback position and caption selection on the same element.
+//
+// An ES module in `static/`, under `script-src 'self'`. It sets no HTML and no style attribute.
+// Rejected: a copy of this logic in each place, which drifted once already (the inline frame).
+
+/**
+ * Plays `grant` on `video` from `start` seconds. `endpoint` is the placement POST (tracks resolve
+ * against it), `Hls` the HLS client where the browser has no native HLS, `unavailable` what to do
+ * once the placement no longer grants.
+ */
+export function play(video, { endpoint, grant, Hls = null, start = 0, resume, unavailable }) {
+  let { hls, mp4 } = grant;
+  let deadline = Date.now() + grant.lifetime * 1000;
+  let useHls = !!(video.canPlayType('application/vnd.apple.mpegurl') || Hls?.isSupported());
+  let requestedPlayback = resume;
   let renewing = false;
   let stopped = false;
   let client;
+  const at = (src) => new URL(src, new URL(endpoint, location.href)).href;
 
   function unavailableVideo() {
     stopped = true;
     client?.destroy();
     video.removeAttribute('src');
     video.load();
-    unavailable.hidden = false;
-    restart.hidden = false;
+    unavailable();
   }
 
   function setSource(position, resume) {
@@ -27,9 +35,9 @@
     client = undefined;
     previous?.destroy();
     if (useHls && !video.canPlayType('application/vnd.apple.mpegurl')) {
-      const next = new window.Hls({ enableWorker: false, autoStartLoad: false });
+      const next = new Hls({ enableWorker: false, autoStartLoad: false });
       client = next;
-      next.on(window.Hls.Events.ERROR, (_name, error) => {
+      next.on(Hls.Events.ERROR, (_name, error) => {
         if (client === next && error.fatal) failed();
       });
       next.attachMedia(video);
@@ -50,22 +58,29 @@
     if (resume) void video.play().catch(() => {});
   }
 
+  /** The grant's tracks on the element: a signed link per kind, or no element for that kind. */
+  function setTracks(next) {
+    for (const track of video.querySelectorAll('track')) {
+      const src = track.kind === 'chapters' ? next.chapters : next.track;
+      if (src) track.src = at(src);
+      else track.remove();
+    }
+  }
+
   async function renew() {
     if (renewing || stopped) return;
     renewing = true;
     try {
-      const response = await fetch(location.pathname, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         body: new URLSearchParams({ renew: '1' }),
       });
       if (!response.ok) throw new Error();
-      const grant = await response.json();
-      hls = grant.hls;
-      mp4 = grant.mp4;
-      deadline = Date.now() + grant.lifetime * 1000;
-      const track = video.querySelector('track');
-      if (track && grant.track) track.src = grant.track;
-      else if (track) track.remove();
+      const next = await response.json();
+      hls = next.hls;
+      mp4 = next.mp4;
+      deadline = Date.now() + next.lifetime * 1000;
+      setTracks(next);
       setSource(video.currentTime, requestedPlayback);
     } catch {
       unavailableVideo();
@@ -97,5 +112,23 @@
     video.addEventListener(event, () => {
       if (expired() && (requestedPlayback || event === 'seeking')) void renew();
     });
-  setSource(0, false);
-})();
+  setSource(start, resume);
+}
+
+// The player page: its one video, with the grant in its attributes and the tracks already set.
+const page = document.querySelector('video[data-hls]');
+if (page)
+  play(page, {
+    endpoint: location.pathname,
+    grant: {
+      hls: page.dataset.hls,
+      mp4: page.dataset.mp4,
+      lifetime: Number(page.dataset.lifetime),
+    },
+    Hls: window.Hls ?? null,
+    start: Number(page.dataset.start) || 0,
+    resume: false,
+    unavailable() {
+      document.getElementById('unavailable').hidden = false;
+    },
+  });

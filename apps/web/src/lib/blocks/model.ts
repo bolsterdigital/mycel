@@ -374,6 +374,10 @@ export type RenderBlock = { id: string } & (
       /** Its published chapters in this locale (MY-305), for a playable recording. */
       chapters: Chapter[];
       play: string | null;
+      /** The CDN origin playback reaches, for the page's CSP; null when there is no `play`. */
+      origin: string | null;
+      /** The page's `?t=` moment in whole seconds, on the recording on top only (MY-305). */
+      start?: number;
     }
   | {
       type: 'social-conversation';

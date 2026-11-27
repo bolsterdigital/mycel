@@ -93,6 +93,13 @@ export async function pagePlacement(
 ): Promise<PagePlacement> {
   const placement = await sitePlacement(site);
   if (placement.embeds.length === 0 && placement.tagManager === null) return NONE;
+  // A managed video plays in the page itself after its press (managed-video.js, MY-305): its CDN
+  // for the media and the HLS client's requests, `blob:` for the stream that client builds. Only
+  // blocks the render gave a `play`, which core grants only where `bunny-stream` is on.
+  const cdn = [
+    ...new Set(blocks.flatMap((b) => (b.type === 'video' && b.play && b.origin ? [b.origin] : []))),
+  ];
+  const playback = cdn.length ? { media: ['blob:', ...cdn], connect: cdn } : null;
   const decision = integrationDecision(
     publishedRequest(site, response, item, locale),
     {
@@ -101,7 +108,13 @@ export async function pagePlacement(
     },
     placement
   );
-  if (!decision.placed) return NONE;
+  if (!decision.placed)
+    return playback
+      ? {
+          ...NONE,
+          sources: { script: [], img: [], frame: [], ...playback, defaultPolicy: false },
+        }
+      : NONE;
   const { csp, tagManager } = decision;
   const t = ui(locale);
   const path = response.url.pathname;
@@ -126,6 +139,11 @@ export async function pagePlacement(
   return {
     embeds: decision.embeds,
     consent,
-    sources: { ...csp, defaultPolicy: consent !== null },
+    sources: {
+      ...csp,
+      media: playback?.media ?? [],
+      connect: [...csp.connect, ...(playback?.connect ?? [])],
+      defaultPolicy: consent !== null,
+    },
   };
 }

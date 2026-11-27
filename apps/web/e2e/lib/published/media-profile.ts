@@ -124,6 +124,18 @@ export async function exerciseMediaProfile(page: Page) {
     await expect(stage.locator('[data-read-along-search]')).toBeHidden();
     await expect(stage.locator('.read-along-seek')).toHaveCount(0);
     await expect(stage.locator('.media-chapter')).toHaveCount(0);
+    // `?t=` without a script: the form carries the moment and the player page starts there with
+    // the MP4's `#t=`; it has the chapters as a signed track beside the captions.
+    await page.goto(path('nl') + '?t=2');
+    await expect(stage.locator('input[name="t"]')).toHaveValue('2');
+    await stage.getByRole('button', { name: /Afspelen/ }).click();
+    const player = page.locator('video');
+    await expect(player).toHaveAttribute('src', /\.mp4#t=2$/);
+    const chaptersTrack = await player.locator('track[kind="chapters"]').getAttribute('src');
+    const chaptersVtt = await page.request.get(new URL(chaptersTrack!, page.url()).href);
+    expect(chaptersVtt.headers()['cache-control']).toContain('no-store');
+    expect(await chaptersVtt.text()).toContain('In het water');
+    await page.goto(path('nl'));
     await page.setViewportSize(NARROW);
     await setTextSize(page, '200%');
     await layoutGate(page, 'media header without a script at 320 and 200%', '.media-stage');
@@ -175,7 +187,12 @@ export async function exerciseMediaProfile(page: Page) {
 
   // A line seeks and plays, starting the player first; the sounding line follows the playback.
   await lines.nth(2).getByRole('button').click();
-  const video = page.frameLocator('.managed-video-frame').locator('video');
+  const video = stage.locator('video');
+  // The press's player in the page has both signed tracks; chapters are not the captions.
+  await expect(video.locator('track')).toHaveCount(2);
+  expect(
+    await video.evaluate((el: HTMLVideoElement) => [...el.textTracks].map((track) => track.kind))
+  ).toEqual(['captions', 'chapters']);
   await expect
     .poll(() => video.evaluate((el: HTMLVideoElement) => el.currentTime), { timeout: 15_000 })
     .toBeGreaterThanOrEqual(4);

@@ -237,6 +237,7 @@ export type { VideoRepository, VideoProvider, VideoProviderStatus } from './medi
 export { runVideoCreate } from './media/video-service.js';
 export {
   VideoPlacement,
+  TrackKind,
   videoPresentation,
   grantVideo,
   readVideoTrack,

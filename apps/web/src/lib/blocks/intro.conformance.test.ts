@@ -82,6 +82,7 @@ const source: ResolveSource = {
           duration: 2455,
           posterId: HERO,
           playable: true,
+          origin: 'https://tenant.b-cdn.net',
           transcript: [
             { start: 0, end: 2.5, text: '[muziek]', speaker: null },
             {
