@@ -209,6 +209,7 @@ export const publicSite: Partial<Record<UiKey, string>> = {
   'block.overview.newer': 'Toon nieuwer',
   'block.overview.pages': 'Meer in dit overzicht',
   'block.overview.restricted': 'Voor leden',
+  'block.overview.recording': 'Video',
   'public.dossier.partOf': 'Onderdeel van het dossier',
   'public.readMore.title': 'Lees verder',
   'block.campaign.notOpen.upcoming': 'Meedoen kan nog niet.',

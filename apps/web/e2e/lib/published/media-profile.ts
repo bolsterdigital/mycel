@@ -2,6 +2,8 @@
 // transcript to read along. Without a script the transcript is a list with visible times; with
 // one the lines seek, follow, search, link to a moment and switch the captions. The recording is
 // the shared fixture (three lines, one speaker) behind the fixture CDN of the managed-video flow.
+// Its card (MY-304) shows a play mark and the length: checked in "Read more" under a second
+// article of a section of its own, where the recording is the first card on any probe state.
 import { randomUUID } from 'node:crypto';
 import { EXAMPLE_IDS, systemPrincipal, useCases } from '@mycel/core';
 import { expect, test, type Page } from '@playwright/test';
@@ -21,6 +23,18 @@ async function publishMediaArticle() {
   const principal = systemPrincipal(await tenantId(), 'e2e');
   const slug = 'media-' + randomUUID().slice(0, 8);
   await withInvoker(async (invoker) => {
+    const { id: sectionId } = await invoker.run(useCases.createSection, principal, {
+      slug,
+      title: { nl: 'Programma', en: 'Programme' },
+    });
+    const publish = async (item: { id: string }, revision: { id: string }) => {
+      for (const locale of ['nl', 'en'])
+        await invoker.run(useCases.publishItem, principal, {
+          itemId: item.id,
+          revisionId: revision.id,
+          locale,
+        });
+    };
     const { item, revision } = await invoker.run(useCases.createItem, principal, {
       slug,
       document: {
@@ -30,6 +44,7 @@ async function publishMediaArticle() {
         title: { nl: 'Langs de rivier', en: 'Along the river' },
         lead: { nl: 'Een gesprek over otters.', en: 'A conversation about otters.' },
         presentation: { profile: 'media' },
+        sectionId,
         blocks: [
           { id: 'film', type: 'video', version: 1, props: { videoId: EXAMPLE_IDS.video } },
           {
@@ -46,12 +61,19 @@ async function publishMediaArticle() {
         ],
       },
     });
-    for (const locale of ['nl', 'en'])
-      await invoker.run(useCases.publishItem, principal, {
-        itemId: item.id,
-        revisionId: revision.id,
-        locale,
-      });
+    await publish(item, revision);
+    const next = await invoker.run(useCases.createItem, principal, {
+      slug: `${slug}-verder`,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: 'Na de rivier', en: 'After the river' },
+        sectionId,
+        blocks: [],
+      },
+    });
+    await publish(next.item, next.revision);
   });
   return slug;
 }
@@ -79,6 +101,18 @@ export async function exerciseMediaProfile(page: Page) {
   await expect(lines.nth(1).locator('time')).toHaveText('0:02');
   await expect(lines.nth(1).locator('.read-along-speaker')).toHaveText('Sam');
   await expect(lines.nth(1).locator('.read-along-text')).toHaveText('Een otter zwemt.');
+
+  // Its card under the next article of the programme: play mark, the word and the length.
+  await page.goto(`/probe/articles/${slug}-verder`);
+  // The first card is the section's own; the row fills up with the site's newest, which may hold
+  // the other project's episode.
+  const card = page.getByRole('region', { name: 'Lees verder' }).getByRole('listitem').first();
+  await expect(card.getByRole('heading')).toHaveText('Langs de rivier');
+  await expect(card.locator('.overview-recording')).toHaveText('Video · 1 min');
+  await expect(card.locator('.overview-recording time')).toHaveAttribute('datetime', /^PT0M\d+S$/);
+  await expect(card.locator('svg.overview-play')).toHaveAttribute('aria-hidden', 'true');
+  if (isA11y()) await expectNoAxeViolations(page, { label: 'recording card in read more' });
+  await page.goto(path('nl'));
 
   if (!isA11y()) {
     // Without a script: a readable list, nothing that needs one, at 320 px and 200% text.

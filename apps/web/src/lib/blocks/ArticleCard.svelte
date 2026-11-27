@@ -22,7 +22,11 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import type { HeadingTag } from './headings.js';
-  import type { RenderImage, CardPlaceholder as Placeholder } from './model.js';
+  import type {
+    RenderImage,
+    RenderCardRecording,
+    CardPlaceholder as Placeholder,
+  } from './model.js';
   import Picture from './Picture.svelte';
   import CardPlaceholder from './CardPlaceholder.svelte';
   let {
@@ -37,6 +41,7 @@
     summary,
     place,
     restrictedLabel,
+    recording,
     eager = false,
     metadata,
     footer,
@@ -52,6 +57,7 @@
     summary: string | null;
     place?: string | null;
     restrictedLabel?: string | null;
+    recording?: RenderCardRecording | null;
     eager?: boolean;
     metadata?: Snippet;
     footer?: Snippet;
@@ -75,6 +81,17 @@
     {:else}
       <p class="overview-date">
         <time datetime={date.iso}>{date.label}</time>
+      </p>
+    {/if}
+    {#if recording}
+      <!-- A Video/audio article (MY-304): the play mark is decoration, the word beside it says it. -->
+      <p class="overview-recording">
+        <svg class="overview-play" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M4 2.5v11l9-5.5z" />
+        </svg>
+        {recording.label}{#if recording.duration}{' · '}<time datetime={recording.duration.iso}
+            >{recording.duration.label}</time
+          >{/if}
       </p>
     {/if}
     {#if place}<p class="overview-place">{place}</p>{/if}

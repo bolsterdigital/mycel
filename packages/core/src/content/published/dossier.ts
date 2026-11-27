@@ -19,6 +19,7 @@ import type { TransactionContext } from '../../ports.js';
 import { cardDocument } from '../access/projection.js';
 import { Slug, type ContentDocument } from '../model.js';
 import { OverviewEntry, cardEntry } from './overview.js';
+import { cardRecordings } from './recording.js';
 
 /** How many other members a box lists. */
 const BOX_MEMBERS = 3;
@@ -61,13 +62,17 @@ export async function dossierBoxes(
       0,
       BOX_MEMBERS
     );
+    const recordings = await cardRecordings(
+      ctx,
+      members.map((m) => m.document)
+    );
     boxes.push({
       id,
       slug: row.slug,
       revisionId: row.revisionId,
       title: dossier.title[locale] ?? '',
       lead: dossier.lead?.[locale] ?? null,
-      members: members.map((m) => cardEntry(m, false, locale, site, timeZone)),
+      members: members.map((m) => cardEntry(m, false, locale, site, timeZone, recordings)),
     });
   }
   return boxes;

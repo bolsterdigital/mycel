@@ -80,8 +80,17 @@
 }
 .overview-date,
 .overview-place,
-.overview-access {
+.overview-access,
+.overview-recording {
   font-size: var(--step--1);
+}
+/* The play mark of a Video/audio card (MY-304) sits on the text's line, in its colour. */
+.overview-play {
+  inline-size: 0.8em;
+  block-size: 0.8em;
+  margin-inline-end: 0.25em;
+  vertical-align: -0.05em;
+  fill: currentColor;
 }
 .overview-list .overview-item {
   display: flex;

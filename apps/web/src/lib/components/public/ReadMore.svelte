@@ -36,6 +36,7 @@
           date={card.date}
           summary={card.summary}
           restrictedLabel={card.restricted ? more.restricted : null}
+          recording={card.recording}
         />
       </li>
     {/each}

@@ -9,7 +9,8 @@
 
 import { contentPath, type PublishedItem } from '@mycel/core';
 import { overviewWhen, resolveIntro, type ResolveSource } from '../../../blocks/resolve.js';
-import type { RenderImage } from '../../../blocks/model.js';
+import type { RenderCardRecording, RenderImage } from '../../../blocks/model.js';
+import { cardRecording } from '../../../blocks/recording.js';
 import { ui } from '../../../../i18n/index.js';
 
 export interface RenderReadMore {
@@ -25,6 +26,8 @@ export interface RenderReadMore {
     date: { iso: string; label: string };
     image: RenderImage | null;
     restricted: boolean;
+    /** A Video/audio article's recording (play mark and length); else null. */
+    recording: RenderCardRecording | null;
     /** Its published revision, so the digest moves when the article is republished. */
     revisionId: string;
   }[];
@@ -67,6 +70,7 @@ export async function renderReadMore(
         date: overviewWhen(entry, locale, timeZone).date,
         image: await image(entry),
         restricted: entry.restricted,
+        recording: cardRecording(entry.recording, locale),
         revisionId: entry.revisionId,
       }))
     ),
