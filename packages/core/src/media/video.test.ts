@@ -4,6 +4,7 @@ import {
   DEFAULT_INTEGRATIONS,
   grantVideo,
   Invoker,
+  videoPresentation,
   readVideoTrack,
   systemPrincipal,
   useCases,
@@ -229,5 +230,95 @@ describe('managed video', () => {
     expect(await track()).toBeNull();
     await invoker.run(useCases.unpublishItem, admin, { itemId: draft.id, locale: target.locale });
     await expectCode(invoker.run(useCases.deleteVideo, admin, { id: video.id }), 'conflict');
+  });
+
+  it('saves chapters in the draft beside the transcript and publishes them with it (MY-305)', async () => {
+    const { provider, uow, invoker, admin, input } = await fixture();
+    const video = await invoker.run(useCases.createVideo, admin, input);
+    await runVideoCreate(uow, admin, video.id);
+    vi.mocked(provider.status).mockResolvedValue({
+      state: 'complete',
+      durationSeconds: 600,
+      storageBytes: 4300,
+      mp4Height: 360,
+    });
+    await invoker.run(useCases.checkVideo, admin, { id: video.id });
+    const target = { id: video.id, locale: 'nl' };
+    const shown = async () =>
+      (await uow.run(admin, (ctx) => videoPresentation(ctx, video.id, 'nl')))!.chapters;
+    const empty = await invoker.run(useCases.getTranscript, admin, target);
+    expect(empty.chapters).toBe('');
+
+    const saved = await invoker
+      .run(useCases.saveTranscript, admin, {
+        ...target,
+        version: empty.version,
+        source: '0:00 Welkom.',
+        chapters: '0:00 Opening\n3:10 Wie is Tim\n1:02.5 te vroeg',
+      })
+      .catch((e: unknown) => e);
+    // Out of order: nothing of the save is kept, the transcript neither.
+    expect(saved).toMatchObject({ code: 'invalid_input' });
+    expect((await invoker.run(useCases.getTranscript, admin, target)).source).toBe('');
+
+    const draft = await invoker.run(useCases.saveTranscript, admin, {
+      ...target,
+      version: empty.version,
+      source: '0:00 Welkom.',
+      chapters: '\uFEFF0:00 Opening\r\n3:10 Wie is Tim\r\n9:59.5 Afsluiting',
+    });
+    expect(draft.chapters).toBe('0:00 Opening\n3:10 Wie is Tim\n9:59.500 Afsluiting');
+    expect(draft.published).toBe(false);
+    expect(await shown()).toEqual([]);
+
+    await invoker.run(useCases.publishTranscript, admin, { ...target, version: draft.version });
+    expect(await shown()).toEqual([
+      { start: 0, end: 190, title: 'Opening' },
+      { start: 190, end: 599.5, title: 'Wie is Tim' },
+      { start: 599.5, end: 600, title: 'Afsluiting' },
+    ]);
+    expect(await uow.run(admin, (ctx) => videoPresentation(ctx, video.id, 'en'))).toMatchObject({
+      chapters: [],
+    });
+
+    // A save without chapters keeps them; an edit of the chapters alone is a new draft to publish.
+    const live = await invoker.run(useCases.getTranscript, admin, target);
+    expect(live.published).toBe(true);
+    const kept = await invoker.run(useCases.saveTranscript, admin, {
+      ...target,
+      version: live.version,
+      source: '0:00 Welkom.',
+    });
+    expect(kept).toMatchObject({ chapters: draft.chapters, published: true });
+    const cleared = await invoker.run(useCases.saveTranscript, admin, {
+      ...target,
+      version: kept.version,
+      source: '0:00 Welkom.',
+      chapters: '',
+    });
+    expect(cleared).toMatchObject({ chapters: '', published: false });
+    expect(cleared.version).not.toBe(kept.version);
+    expect(await shown()).toHaveLength(3);
+    await expectCode(
+      invoker.run(useCases.saveTranscript, admin, {
+        ...target,
+        version: kept.version,
+        source: '0:00 Welkom.',
+        chapters: '1:00 Te laat',
+      }),
+      'conflict'
+    );
+    await invoker.run(useCases.publishTranscript, admin, { ...target, version: cleared.version });
+    expect(await shown()).toEqual([]);
+    // A chapter after the end of the recording is refused.
+    await expectCode(
+      invoker.run(useCases.saveTranscript, admin, {
+        ...target,
+        version: cleared.version,
+        source: '0:00 Welkom.',
+        chapters: '0:00 Opening\n10:01 Na afloop',
+      }),
+      'invalid_input'
+    );
   });
 });

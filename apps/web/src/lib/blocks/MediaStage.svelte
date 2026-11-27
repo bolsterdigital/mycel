@@ -5,8 +5,11 @@
      line a button that seeks, follows the playback, searches, links to a moment and switches the
      captions; its controls stay hidden until it runs, since none of them can work without it.
      The words for its states travel as data attributes, so the script carries no copy (ADR 007).
-     Rejected: a live region for the running text (a screen reader would talk over the recording)
-     and links per line (`?t=` starts at a moment only with the script; without it is a reload). -->
+     Chapters (MY-305 PR 2) sit under the player as a row: without JavaScript a list of start times
+     and titles, with it each becomes a button that seeks, and the one that plays is current.
+     Rejected: a live region for the running text (a screen reader would talk over the recording),
+     links per line (`?t=` starts at a moment only with the script; without it is a reload) and a
+     chapters tab beside the read-along (the same list twice, one of them hidden). -->
 <script lang="ts">
   import { ui } from '../../i18n/index.js';
   import ManagedVideo from './ManagedVideo.svelte';
@@ -36,6 +39,19 @@
         {/if}
       {/snippet}
     </ManagedVideo>
+    {#if recording.chapters.length}
+      <section class="media-chapters" aria-labelledby="{id}-chapters" data-chapters>
+        <h2 id="{id}-chapters">{t('video.chapters')}</h2>
+        <ol>
+          {#each recording.chapters as chapter, index (index)}
+            <li data-start={chapter.start}>
+              <time datetime={isoDuration(chapter.start)}>{clockTime(chapter.start)}</time>
+              <span class="media-chapter-title">{chapter.title}</span>
+            </li>
+          {/each}
+        </ol>
+      </section>
+    {/if}
     {#if recording.play}
       <div class="media-controls" data-media-controls hidden>
         {#if recording.transcript.length}

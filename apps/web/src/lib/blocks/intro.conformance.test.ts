@@ -68,7 +68,8 @@ const source: ResolveSource = {
   form: async () => null,
   media: async (id) => (id === HERO ? hero : null),
   itemPath: async () => null,
-  // A playable recording with a transcript of two voices, a sound and a line past the hour.
+  // A playable recording with a transcript of two voices, a sound and a line past the hour, and
+  // two chapters (MY-305 PR 2).
   video: async (id, locale) =>
     id === VIDEO
       ? {
@@ -97,6 +98,14 @@ const source: ResolveSource = {
             },
           ],
           transcriptText: [],
+          chapters: [
+            { start: 0, end: 190, title: locale === 'en' ? 'Opening' : 'Opening' },
+            {
+              start: 190,
+              end: 2455,
+              title: locale === 'en' ? 'On the square' : 'Op het plein',
+            },
+          ],
         }
       : null,
 };
@@ -430,6 +439,17 @@ describe('the media header (ADR 025, amended 2026-11-27)', () => {
       expect(html).toMatch(/class="media-controls" data-media-controls="" hidden/);
       expect(html).toMatch(/class="read-along-search" data-read-along-search="" hidden/);
       expect(html).not.toMatch(/\sstyle=|<style/);
+      // The chapters under the player, before its controls: a list of starts and titles that the
+      // script turns into buttons; nothing hidden, since the list reads without it.
+      expect(at(html, 'data-managed-video')).toBeLessThan(at(html, 'data-chapters'));
+      expect(at(html, 'data-chapters')).toBeLessThan(at(html, 'data-media-controls'));
+      expect(html).toContain(locale === 'nl' ? '>Hoofdstukken</h2>' : '>Chapters</h2>');
+      expect(html).toMatch(
+        new RegExp(
+          '<li data-start="190">\\s*<time datetime="PT3M10S">3:10</time>\\s*<span class="media-chapter-title">' +
+            (locale === 'nl' ? 'Op het plein' : 'On the square')
+        )
+      );
     });
 
   it('falls back to the Post header when the recording is not on the page', async () => {

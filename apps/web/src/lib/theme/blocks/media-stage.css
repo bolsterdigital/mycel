@@ -97,6 +97,64 @@
   overflow-wrap: anywhere;
 }
 
+/* Chapters: a row under the player that wraps, each one whole; with the script a button that
+   seeks, the one that plays on the primary pair. A title longer than the row wraps inside its
+   own button instead of pushing the row out. */
+.media-chapters h2 {
+  margin: 0 0 0.25rem;
+  font-size: var(--step-0);
+}
+.media-chapters ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.media-chapters li {
+  display: flex;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+.media-chapters li:not(:has(> .media-chapter)),
+.media-chapter {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.5em;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  padding: 0.35em 0.75em;
+  border: 1px solid currentColor;
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+}
+.media-chapter {
+  min-block-size: var(--tap);
+  font: inherit;
+  text-align: start;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.media-chapter:hover .media-chapter-title {
+  text-decoration: underline;
+}
+.media-chapter:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.media-chapters time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.media-chapter[aria-current='true'] {
+  border-color: var(--color-primary-bg);
+  color: var(--color-primary-fg);
+  background: var(--color-primary-bg);
+}
+
 /* Read along. */
 .read-along {
   /* The lines measure against the panel: a narrow one (or large text) puts the time above them. */
@@ -241,6 +299,10 @@
 }
 
 @media (forced-colors: active) {
+  .media-chapter[aria-current='true'] {
+    border-color: Highlight;
+    outline: 2px solid Highlight;
+  }
   .read-along-lines li[aria-current='true'] > .read-along-seek,
   .read-along-lines li[aria-current='true']:not(:has(> .read-along-seek)) {
     border-inline-start-color: Highlight;

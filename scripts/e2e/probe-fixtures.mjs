@@ -197,15 +197,24 @@ export async function seedManagedVideo({
   videoSourceKey,
 }) {
   // Three lines, one with a speaker: the read-along (MY-305) seeks between them and names who
-  // speaks. A database seeded before then gets these tracks too.
+  // speaks. Two chapters (MY-305 PR 2), the second where the otter swims. A database seeded
+  // before then gets these tracks too.
   const publishedTracks = {
     nl: 'WEBVTT\n\n00:00.000 --> 00:02.000\nLangs de rivier.\n\n00:02.000 --> 00:04.000\n<v Sam>Een otter zwemt.\n\n00:04.000 --> 00:05.000\n[water]\n',
     en: 'WEBVTT\n\n00:00.000 --> 00:02.000\nAlong the river.\n\n00:02.000 --> 00:04.000\n<v Sam>An otter swims.\n\n00:04.000 --> 00:05.000\n[water]\n',
   };
+  const publishedChapters = {
+    nl: 'WEBVTT\n\n00:00:00.000 --> 00:00:03.000\nAan de oever\n\n00:00:03.000 --> 00:00:54.000\nIn het water\n',
+    en: 'WEBVTT\n\n00:00:00.000 --> 00:00:03.000\nOn the bank\n\n00:00:03.000 --> 00:00:54.000\nIn the water\n',
+  };
   await uow.run(admin, async ({ videos }) => {
     const existing = await videos.get(id);
-    if (existing && JSON.stringify(existing.publishedTracks) !== JSON.stringify(publishedTracks))
-      await videos.update(id, { publishedTracks });
+    if (
+      existing &&
+      JSON.stringify([existing.publishedTracks, existing.publishedChapters]) !==
+        JSON.stringify([publishedTracks, publishedChapters])
+    )
+      await videos.update(id, { publishedTracks, publishedChapters });
     if (!existing)
       await videos.insert({
         id: id,
@@ -219,6 +228,7 @@ export async function seedManagedVideo({
           watchUrl: 'https://example.com/river',
         },
         publishedTracks,
+        publishedChapters,
         createdAt: new Date(),
         trashedAt: null,
       });

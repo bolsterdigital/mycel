@@ -73,6 +73,21 @@
             ></textarea>{/snippet}
         </Field>
         <Field
+          id="transcript-chapters"
+          label={t('admin.video.chapters.text')}
+          hint={t('admin.video.chapters.hint')}
+          hintInline
+          locale={data.locale}
+        >
+          {#snippet control(attrs)}<textarea
+              {...attrs}
+              name="chapters"
+              rows="6"
+              lang={transcript.language}
+              value={form?.chapters ?? transcript.chapters}
+            ></textarea>{/snippet}
+        </Field>
+        <Field
           id="transcript-file"
           name="file"
           type="file"

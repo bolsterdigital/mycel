@@ -10,7 +10,9 @@
 //     them in a status, and Enter and Shift+Enter step through them, Escape clears;
 //   - `?t=<seconds>` on the address (also `3:10` or `3m10s`) starts the player there, a same-page
 //     link with `?t=` jumps without a reload, and "share from" copies such a link;
-//   - captions in the picture, under it or off, on the player's text track, remembered per browser.
+//   - captions in the picture, under it or off, on the player's text track, remembered per browser;
+//   - chapters under the player (MY-305 PR 2) become buttons that seek, and the chapter that
+//     plays gets `aria-current="true"`, whether or not there is a transcript.
 // No single-key shortcuts (WCAG 2.1.4) and no live region for the running text.
 //
 // A plain module in `static/`, from the site's own origin under `script-src 'self'`, after
@@ -113,6 +115,9 @@ function enhance(stage) {
   const share = stage.querySelector('[data-share]');
   const shareStatus = stage.querySelector('[data-share-status]');
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
+  const chapters = [...stage.querySelectorAll('[data-chapters] li')];
+  const chapterStarts = chapters.map((chapter) => Number(chapter.dataset.start));
+  let chapter = -1;
 
   let video = null;
   let pending = null;
@@ -140,6 +145,12 @@ function enhance(stage) {
     if (now) now.hidden = current < 0;
   }
   function follow(time) {
+    const playing = lineAt(chapterStarts, time);
+    if (playing !== chapter) {
+      chapters[chapter]?.firstElementChild?.removeAttribute('aria-current');
+      chapters[playing]?.firstElementChild?.setAttribute('aria-current', 'true');
+      chapter = playing;
+    }
     const index = lineAt(starts, time);
     if (index !== current) {
       lines[current]?.removeAttribute('aria-current');
@@ -259,6 +270,14 @@ function enhance(stage) {
     button.append(...line.childNodes);
     line.append(button);
     button.addEventListener('click', () => jump(starts[index], button));
+  });
+  chapters.forEach((item, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'media-chapter';
+    button.append(...item.childNodes);
+    item.append(button);
+    button.addEventListener('click', () => jump(chapterStarts[index], button));
   });
   if (list) {
     list.removeAttribute('tabindex');
