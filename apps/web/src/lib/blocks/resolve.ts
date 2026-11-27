@@ -812,6 +812,7 @@ export async function resolveDocument(
           transcript: options.videoRoute && video?.playable ? video.transcript : [],
           chapters: options.videoRoute && video?.playable ? video.chapters : [],
           play: video?.playable && options.videoRoute ? `${options.videoRoute}/${id}` : null,
+          origin: (options.videoRoute && video?.origin) || null,
         };
       }
       case 'social-conversation': {

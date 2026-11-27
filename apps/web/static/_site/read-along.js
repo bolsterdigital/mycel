@@ -2,7 +2,7 @@
 // header is complete: the poster with its same-site play form, and the transcript as a list with
 // a visible start time per line (`MediaStage.svelte`). With it:
 //   - each line becomes a button that seeks there and plays; a player that is not loaded yet is
-//     started through its own form first (embed.js frames it), then sought once its video exists;
+//     started through its own form first (managed-video.js), then sought once its video is ready;
 //   - the line that sounds gets `aria-current="true"` and the panel follows it, until the reader
 //     scrolls the panel; then "back to now" returns to it. No smooth scrolling under reduced
 //     motion, and the page itself never scrolls;
@@ -20,13 +20,16 @@
 // No single-key shortcuts (WCAG 2.1.4) and no live region for the running text.
 //
 // A plain module in `static/`, from the site's own origin under `script-src 'self'`, after
-// embed.js in the document. It sets no HTML and no style attribute (Trusted Types and the CSP
+// managed-video.js in the document. It sets no HTML and no style attribute (Trusted Types and the CSP
 // stay as they are): text through `textContent`, state through attributes the stylesheet reads.
-// The player is a same-origin frame (`_video/...`), so its `<video>` is reachable directly; the
-// placement and the grant stay the server's. Rejected: a player of our own around the native one
+// The player is the page's own `<video>` (managed-video.js), handed over in a `managed-video`
+// event on its form once its sources are set; the placement and the grant stay the server's. Rejected: a player of our own around the native one
 // (the native controls stay) and the provider's player API (a third-party script in the page).
 
 export const CAPTION_MODES = ['showing', 'hidden', 'disabled'];
+const isCaptions = (track) => track.kind === 'captions' || track.kind === 'subtitles';
+/** The player's caption track; its chapters track (MY-305) is not one. */
+const captionTrack = (element) => [...element.textTracks].find(isCaptions) ?? null;
 const STORE = 'mycel.captions';
 
 /** A time on the recording as a reader writes it: `3:10`, `1:02:03`. */
@@ -130,7 +133,6 @@ function enhance(stage) {
 
   let video = null;
   let pending = null;
-  let connected = false;
   let current = -1;
   let following = true;
   let startAt = momentOf(location.search);
@@ -175,7 +177,7 @@ function enhance(stage) {
   }
 
   function applyCaptions() {
-    const track = video?.textTracks[0];
+    const track = video && captionTrack(video);
     for (const radio of radios) radio.checked = radio.value === mode;
     if (captionLine) captionLine.hidden = mode !== 'hidden' || !track;
     if (track && track.mode !== mode) track.mode = mode;
@@ -192,7 +194,7 @@ function enhance(stage) {
   function watchTracks(element) {
     const tracks = element.textTracks;
     const bind = (track) => {
-      if (!track || bound.has(track)) return;
+      if (!track || bound.has(track) || !isCaptions(track)) return;
       bound.add(track);
       track.addEventListener('cuechange', () => showCue(track));
     };
@@ -203,7 +205,7 @@ function enhance(stage) {
     });
     // The player's own menu can switch the captions too; follow it and remember that choice.
     tracks.addEventListener('change', () => {
-      const chosen = tracks[0]?.mode;
+      const chosen = captionTrack(element)?.mode;
       if (!chosen || chosen === mode) return;
       mode = chosen;
       try {
@@ -271,30 +273,21 @@ function enhance(stage) {
     pending = null;
     run?.(element);
   }
-  function connect() {
-    if (connected || !form) return;
-    // embed.js framed the form in its own submit listener, which runs before this one.
-    const frame = form.parentElement?.querySelector('iframe.managed-video-frame');
-    if (!frame) return;
-    connected = true;
-    frame.addEventListener('load', () => {
-      const found = frame.contentDocument?.querySelector('video');
-      if (found) attach(found);
-    });
-  }
-  form?.addEventListener('submit', connect);
+  // managed-video.js hands over the element once its sources are set: a seek before that would
+  // be lost when the source is assigned.
+  form?.addEventListener('managed-video', (event) => attach(event.detail));
   function withVideo(action) {
     if (video?.isConnected) return action(video);
     pending = action;
-    if (form && !connected) form.requestSubmit();
+    if (form && !form.hidden) form.requestSubmit();
   }
   function jump(time, focusAfter) {
     resume();
     follow(time);
     withVideo((element) => {
       seek(element, time, true);
-      // The frame takes the focus when it loads (embed.js); give it back to what the reader used.
-      if (focusAfter && document.activeElement?.tagName === 'IFRAME')
+      // The new player takes the focus (managed-video.js); give it back to what the reader used.
+      if (focusAfter && document.activeElement?.tagName === 'VIDEO')
         focusAfter.focus({ preventScroll: true });
     });
   }

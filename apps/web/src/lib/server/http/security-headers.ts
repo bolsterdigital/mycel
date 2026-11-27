@@ -101,18 +101,20 @@ export interface PageSources {
   connect: readonly string[];
   img: readonly string[];
   frame: readonly string[];
+  /** A managed video's CDN (and `blob:` for the HLS client), played in the page (MY-305). */
+  media: readonly string[];
   defaultPolicy: boolean;
 }
 
 /**
  * The policy with the page's sources added. A source list the config already has (script,
- * connect, img) keeps its values, nonce included, and gains the origins; frames get `'self'` plus
+ * connect, img, media) keeps its values, nonce included, and gains the origins; frames get `'self'` plus
  * exactly the origins, replacing any earlier `frame-src`, because without one they fall back to
  * `default-src 'self'`. Nothing to add leaves the policy as it was.
  */
 export function pageSources(policy: string, sources: PageSources): string {
   let out = policy;
-  for (const name of ['script', 'connect', 'img'] as const)
+  for (const name of ['script', 'connect', 'img', 'media'] as const)
     if (sources[name].length > 0) out = widen(out, `${name}-src`, sources[name]);
   if (sources.frame.length > 0)
     out = directive(out, 'frame-src', ["'self'", ...sources.frame].join(' '));

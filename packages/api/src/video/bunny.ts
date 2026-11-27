@@ -95,6 +95,7 @@ export function bunnyVideo(binding: Binding, request = fetch): VideoProvider {
 
   return {
     libraryId,
+    playbackOrigin: cdn,
     async create(id) {
       return bound(VideoId.parse(await api('', marker(id)))).guid;
     },

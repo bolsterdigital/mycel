@@ -37,6 +37,7 @@ import { forwardOldAddress } from '#lib/server/public/old-address.js';
 import { loadPublicItem } from '#lib/server/public/public-page.js';
 import { pageviewTag } from '#lib/server/public/scripts/analytics.js';
 import { pagePlacement } from '#lib/server/public/scripts/integrations.js';
+import { withMoment } from '#lib/blocks/recording.js';
 import { runtime } from '#lib/server/runtime.js';
 import { absoluteSiteUrl, requireSite, sitePath, siteTenant } from '#lib/server/site.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -107,7 +108,7 @@ export const load: PageServerLoad = async ({
         view: 'campaign-thanks' as const,
         title: view.model.title,
         model: { ...view.model, campaign: { ...view.model.campaign, form: null } },
-        intro: view.intro,
+        intro: withMoment(view.intro, url.search),
         message: form?.thankYou ?? '',
         share: {
           title: t('thanks.share.title'),
@@ -154,7 +155,7 @@ export const load: PageServerLoad = async ({
     dossiers: view.dossiers,
     readMore: view.readMore,
     gate: view.gate,
-    intro: view.intro,
+    intro: withMoment(view.intro, url.search),
     corrections: view.corrections,
     dropCap: view.dropCap,
     readingProgress: view.item.type === 'article',

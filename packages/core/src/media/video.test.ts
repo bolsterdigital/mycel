@@ -24,6 +24,7 @@ const cues = 'WEBVTT\n\n00:00.000 --> 00:02.000\nRiver\n';
 async function fixture() {
   const provider: VideoProvider = {
     libraryId: '123',
+    playbackOrigin: 'https://tenant.b-cdn.net',
     create: vi.fn(async () => providerId),
     find: vi.fn(async () => providerId),
     status: vi.fn(async () => ({
@@ -157,6 +158,17 @@ describe('managed video', () => {
     const { expires, signature } = opened!.track!;
     const track = () => uow.run(admin, (ctx) => readVideoTrack(ctx, target, expires, signature));
     expect(await track()).toBe(cues);
+    // Chapters (MY-305) only with published chapters, signed apart: neither signature opens the
+    // other track.
+    expect(opened!.chapters).toBeNull();
+    const chapterCues = 'WEBVTT\n\n00:00:00.000 --> 00:00:10.000\nOpening';
+    uow.store.for(TENANT).videos.get(video.id)!.publishedChapters = { en: chapterCues };
+    const chaptered = (await grant())!;
+    const read = (sig: { expires: number; signature: string }, kind: 'captions' | 'chapters') =>
+      uow.run(admin, (ctx) => readVideoTrack(ctx, target, sig.expires, sig.signature, kind));
+    expect(await read(chaptered.chapters!, 'chapters')).toBe(chapterCues);
+    expect(await read(chaptered.chapters!, 'captions')).toBeNull();
+    expect(await read(chaptered.track!, 'chapters')).toBeNull();
     const transcript = { id: video.id, locale: target.locale };
     const current = await invoker.run(useCases.getTranscript, admin, transcript);
     const draftTrack = await invoker.run(useCases.saveTranscript, admin, {

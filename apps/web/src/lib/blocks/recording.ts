@@ -9,7 +9,19 @@
 
 import type { ArticleView } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
+import { momentOf } from '../../../static/_site/read-along.js';
 import type { RenderCardRecording, RenderIntro, RenderModel } from './model.js';
+
+/**
+ * The header with the page's `?t=` moment on its recording, whole seconds within a day, so the
+ * play form carries it and the player starts there also without JavaScript (MY-305). The same
+ * forms as the read-along accepts (`190`, `3:10`, `3m10s`); anything else starts at the start.
+ */
+export function withMoment(intro: RenderIntro, search: string): RenderIntro {
+  const moment = momentOf(search);
+  if (!intro.recording?.play || moment === null || moment < 1 || moment > 86_400) return intro;
+  return { ...intro, recording: { ...intro.recording, start: Math.floor(moment) } };
+}
 
 /** A time on the recording as a reader writes it: `3:10`, `1:02:03`. */
 export function clockTime(seconds: number): string {

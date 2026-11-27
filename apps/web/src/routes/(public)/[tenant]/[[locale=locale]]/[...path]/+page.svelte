@@ -83,11 +83,12 @@
         data-domain={data.pageview.domain}
         data-url={data.pageview.url}
       ></script>{/if}
-    {#if data.embeds.length > 0 || data.model.blocks.some((block) => block.type === 'video' && block.play)}<script
-        defer
-        src="/_site/embed.js"
+    {#if data.embeds.length > 0}<script defer src="/_site/embed.js"></script>{/if}
+    {#if data.model.blocks.some((block) => block.type === 'video' && block.play)}<script
+        type="module"
+        src="/_site/managed-video.js"
       ></script>{/if}
-    <!-- After embed.js: the read-along follows the player that script puts in the page. -->
+    <!-- After managed-video.js: the read-along follows the player that script puts in the page. -->
     {#if data.view === 'item' && data.intro.recording?.play}<script
         type="module"
         src="/_site/read-along.js"

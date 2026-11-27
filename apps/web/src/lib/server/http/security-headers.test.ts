@@ -128,7 +128,7 @@ describe('applySecurityHeaders', () => {
   it('adds exactly the placed origins on a public page, never on admin', () => {
     const policy =
       "default-src 'self'; script-src 'self' 'nonce-abc'; connect-src 'self' https://a.example; frame-ancestors 'self'; trusted-types mycel-inert-html";
-    const none = { script: [], connect: [], img: [], frame: [], defaultPolicy: false };
+    const none = { script: [], connect: [], img: [], frame: [], media: [], defaultPolicy: false };
     const players = ['https://www.youtube-nocookie.com', 'https://player.vimeo.com'];
     const pub = new Headers({ 'content-security-policy': policy });
     applySecurityHeaders(pub, 'public', false, false, { ...none, frame: players });
@@ -151,6 +151,7 @@ describe('applySecurityHeaders', () => {
       connect: [gtm, 'https://a.example'],
       img: [gtm],
       frame: [],
+      media: [],
       defaultPolicy: true,
     });
     expect(tags).toContain(`script-src 'self' 'nonce-abc' ${gtm}`);
@@ -161,6 +162,13 @@ describe('applySecurityHeaders', () => {
     const admin = new Headers({ 'content-security-policy': policy });
     applySecurityHeaders(admin, 'admin', false, false, { ...none, frame: players, script: [gtm] });
     expect(admin.get('content-security-policy')).not.toMatch(/frame-src|googletagmanager/);
+    // A managed video played in the page (MY-305): its CDN for media and requests, `blob:` for
+    // the HLS client's stream; a missing media-src starts from 'self'.
+    const cdn = 'https://tenant.b-cdn.net';
+    const video = pageSources(policy, { ...none, media: ['blob:', cdn], connect: [cdn] });
+    expect(video).toContain(`media-src 'self' blob: ${cdn}`);
+    expect(video).toContain(`connect-src 'self' https://a.example ${cdn};`);
+    expect(video).not.toContain('frame-src');
   });
 
   it('adds no CSP where SvelteKit generated none', () => {

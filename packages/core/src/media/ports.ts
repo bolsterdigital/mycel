@@ -192,6 +192,8 @@ export interface VideoProviderStatus {
 
 export interface VideoProvider {
   libraryId: string;
+  /** The origin `signPlayback` addresses (`https://<pull zone>`), for a page's CSP. */
+  playbackOrigin: string;
   create(intentId: string): Promise<string>;
   find(intentId: string): Promise<string | null>;
   status(id: string, now: Date): Promise<VideoProviderStatus>;

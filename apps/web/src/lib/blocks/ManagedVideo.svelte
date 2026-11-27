@@ -1,5 +1,8 @@
 <!-- The initial document holds an image and a same-site POST. The provider is only reached after
-     publication and integration settings are checked again at playback. As a media article's
+     publication and integration settings are checked again at playback. Without JavaScript the
+     form opens the player page; with it `/_site/managed-video.js` plays the grant in this place,
+     with the words it needs as data attributes (ADR 007). A `?t=`
+     moment on the recording on top travels as a hidden `t` (MY-305). As a media article's
      recording on top (`header`, MY-305) it fills the header's stage and leaves the transcript to
      the read-along beside it; `below` sits directly under the picture. -->
 <script lang="ts">
@@ -53,7 +56,16 @@
           </div>
         {/if}
         {#if block.play}
-          <form method="POST" action={withBase(model.base, block.play)} data-managed-video>
+          <form
+            method="POST"
+            action={withBase(model.base, block.play)}
+            data-managed-video
+            data-title={block.title}
+            data-lang={model.locale}
+            data-captions={t('video.captions')}
+            data-unavailable={t('video.unavailable')}
+          >
+            {#if block.start}<input type="hidden" name="t" value={block.start} />{/if}
             <button
               type="submit"
               class="video-play managed-video-play"

@@ -1,4 +1,4 @@
-/* The player document serves as both a standalone no-script page and an inline frame. */
+/* The player page a play form opens without JavaScript in the article (MY-271). */
 body {
   margin: 1rem auto;
   padding-inline: 1rem;
@@ -14,14 +14,6 @@ video {
   inline-size: 100%;
   aspect-ratio: 16 / 9;
   background: black;
-}
-.inline {
-  margin: 0;
-  padding: 0;
-  max-inline-size: none;
-}
-.inline video {
-  max-block-size: 100vh;
 }
 a {
   display: inline-flex;
