@@ -263,7 +263,7 @@ export const getPublished = defineUseCase({
     // A reference that no longer resolves is left out rather than failing the page.
     const view = articleView(doc, chosen);
     const authors = await publishedAuthors(ctx, doc.authorIds, !!view?.portraits);
-    const section = doc.sectionId ? await ctx.sections.get(doc.sectionId) : null;
+    const section = await publicSection(ctx, doc, chosen, item.defaultLocale);
     return {
       ...base,
       presentation: { header: view?.header ?? doc.presentation?.header ?? 'standard' },
@@ -273,17 +273,7 @@ export const getPublished = defineUseCase({
         return text ? [{ date: c.date, text }] : [];
       }),
       authors,
-      section: section
-        ? {
-            slug: section.slug,
-            // A section's title is not part of the item's readiness, so it may lack this locale.
-            name:
-              section.title[chosen] ??
-              section.title[item.defaultLocale] ??
-              Object.values(section.title)[0] ??
-              section.slug,
-          }
-        : null,
+      section,
     };
   },
 });
@@ -293,6 +283,28 @@ export const getPublished = defineUseCase({
  * page without a choice projects as before. The button only beside `split` and with a label in
  * this locale; readiness requires one, so a missing label is a draft that never got here.
  */
+/**
+ * An article's section as the public sees it, name and slug, or null; a section that no longer
+ * resolves is left out. Shared with the search result's card (`published/search.ts`).
+ */
+export async function publicSection(
+  ctx: TransactionContext,
+  doc: ContentDocument,
+  locale: string,
+  fallback: string = doc.defaultLocale
+): Promise<{ slug: string; name: string } | null> {
+  const section =
+    doc.type === 'article' && doc.sectionId && (await ctx.sections.get(doc.sectionId));
+  if (!section) return null;
+  // A section's title is not part of the item's readiness, so it may lack this locale.
+  const name =
+    section.title[locale] ??
+    section.title[fallback] ??
+    Object.values(section.title)[0] ??
+    section.slug;
+  return { slug: section.slug, name };
+}
+
 function pagePresentation(doc: Extract<ContentDocument, { type: 'page' }>, locale: string) {
   const header = doc.presentation?.header;
   if (!header || header === 'standard') return null;

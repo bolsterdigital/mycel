@@ -19,6 +19,13 @@
 // nowhere. Rejected: a 400 for an overlong `q` (a pasted sentence is a visitor's mistake, not an
 // attack, and the cut is what the use case would search anyway).
 //
+// A result is the shared article card (MY-308, `ArticleCard`): the card image resolved as on an
+// author's page (decorative, the title beside it is the one link), one line of facts (the
+// section, else the kind, which a Video/audio card's play mark already says; then the date, the
+// recording and "members"), then the marked excerpt. A hit in a recording lists its moments, each
+// a link to the item at that second (`?t=`, MY-305); when only the recording carries the
+// question, the moments stand in place of the excerpt, which would show a line without its time.
+//
 // Cost (anonymous, so the route bounds it): ten results a page, at most twenty pages, at most
 // eight tokens of two or more characters (core's `queryTokens`). Each result reads its revision
 // once more, so a page is one index query plus at most ten revision reads. A visitor's response is
@@ -36,12 +43,17 @@ import {
   MAX_SEARCH_PAGE,
   MAX_SEARCH_QUERY,
   useCases,
+  type PublishedSearchResult,
 } from '@mycel/core';
+import { cardRecording, clockTime, isoDuration } from '../../blocks/recording.js';
+import { resolveIntro, runtimeSource } from '../../blocks/resolve.js';
+import { ui } from '../../../i18n/index.js';
 import { languageLinks } from '../../public/language-links.js';
 import { searchPath } from '../../public/search-path.js';
 import { refuse } from '../http/refuse.js';
 import { runtime } from '../runtime.js';
 import { sitePath, siteTenant, siteUrls, type Site } from '../site.js';
+import { cardPlaceholder } from './chrome.js';
 import { READER_COOKIE, readerOfRequest } from './reader.js';
 import { siteBrand, siteChrome, siteNavigation, siteTheme } from './theme.js';
 
@@ -65,7 +77,7 @@ export async function loadSearchPage(site: Site, locale: string, url: URL, cooki
   const q = searchQuery(url.searchParams.get('q'));
   const page = searchPage(url.searchParams.get('page'));
   if (page === null || (page > 1 && !q)) refuse(404);
-  const { invoker } = runtime();
+  const { invoker, uow } = runtime();
   const reader = anonymousPrincipal(siteTenant(site), ['content:read']);
   const personal = cookies.get(READER_COOKIE) !== undefined;
   const asker = (personal && (await readerOfRequest(cookies, site))) || reader;
@@ -86,6 +98,52 @@ export async function loadSearchPage(site: Site, locale: string, url: URL, cooki
   const pageHref = (n: number) =>
     `${action}?${new URLSearchParams({ q, ...(n > 1 ? { page: String(n) } : {}) })}`;
   const absolute = await siteUrls(site);
+  const t = ui(locale);
+  const source = runtimeSource({
+    invoker,
+    uow,
+    reader: anonymousPrincipal(siteTenant(site), ['content:read', 'media:read']),
+    defaultLocale,
+  });
+  const image = async (item: PublishedSearchResult) =>
+    item.imageId
+      ? (
+          await resolveIntro(
+            source,
+            {
+              lead: null,
+              heroImageId: item.imageId,
+              heroAlt: null,
+              heroPlacement: item.imagePlacement,
+            },
+            locale
+          )
+        ).hero
+      : null;
+  const card = async (item: PublishedSearchResult) => {
+    const href = sitePath(site, contentPath(item, locale, defaultLocale));
+    const recording = cardRecording(item.recording, locale);
+    const onlyMoments = item.foundIn === 'recording' && item.moments.length > 0;
+    return {
+      id: item.id,
+      href,
+      title: item.title,
+      // The section names an article best; the kind otherwise, unless the play mark says it.
+      label:
+        item.section?.name ??
+        (item.kind === 'media' && recording ? null : t(`public.search.kind.${item.kind}`)),
+      excerpt: onlyMoments ? [] : item.excerpt,
+      date: { iso: item.publishedAt, label: date.format(new Date(item.publishedAt)) },
+      image: await image(item),
+      recording,
+      restricted: item.restricted,
+      moments: item.moments.map((m) => ({
+        href: `${href}?t=${m.seconds}`,
+        time: { iso: isoDuration(m.seconds), label: clockTime(m.seconds) },
+        segments: m.segments,
+      })),
+    };
+  };
   const view = {
     navigationLanguages: languageLinks(
       site.tenant.locales.map((l) => ({
@@ -98,15 +156,9 @@ export async function loadSearchPage(site: Site, locale: string, url: URL, cooki
     start: (page - 1) * SEARCH_PAGE_SIZE + 1,
     action,
     locale,
-    results: result.items.map((item) => ({
-      id: item.id,
-      href: sitePath(site, contentPath(item, locale, defaultLocale)),
-      title: item.title,
-      excerpt: item.excerpt,
-      publishedAt: item.publishedAt,
-      date: date.format(new Date(item.publishedAt)),
-      restricted: item.restricted,
-    })),
+    results: await Promise.all(result.items.map(card)),
+    base: sitePath(site, ''),
+    placeholder: await cardPlaceholder(site, sitePath(site, '')),
     previous: page > 1 ? pageHref(page - 1) : null,
     next: result.next ? pageHref(result.next) : null,
     // A search page is never a canonical answer: it points at the empty form of its locale.

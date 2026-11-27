@@ -1,7 +1,12 @@
-<!-- A native GET form and an ordered list of links: usable without JavaScript, announced as a
-     search landmark, matches marked with <mark> from the use case's segments (no HTML from data). -->
+<!-- A native GET form and an ordered list of results: usable without JavaScript, announced as a
+     search landmark, matches marked with <mark> from the use case's segments (no HTML from data).
+     Each result is the shared article card (MY-308), its title an h2 under the page's h1; a hit
+     in a recording adds "In the recording": each moment one link, its time and the line said
+     there, to the item at that second. -->
 <script lang="ts">
   import { MAX_SEARCH_QUERY } from '@mycel/core';
+  import ArticleCard from '#lib/blocks/ArticleCard.svelte';
+  import type { SearchSegment } from '@mycel/core';
   import { ui } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
   let { data }: PageProps = $props();
@@ -17,6 +22,10 @@
   <meta name="description" content={t('public.search.description')} />
   <link rel="canonical" href={data.canonical} />
 </svelte:head>
+{#snippet marked(
+  segments: SearchSegment[]
+)}{#each segments as segment, i (i)}{#if segment.match}<mark>{segment.text}</mark
+      >{:else}{segment.text}{/if}{/each}{/snippet}
 <main class="page search-page">
   <h1>{title}</h1>
   <search>
@@ -39,18 +48,45 @@
   {#if data.q}
     {#if data.results.length}
       <ol class="search-results" start={data.start}>
-        {#each data.results as result (result.id)}
+        {#each data.results as result, n (result.id)}
           <li>
-            <h2><a href={result.href}>{result.title}</a></h2>
-            {#if result.restricted}<p class="search-restricted">
-                {t('block.overview.restricted')}
-              </p>{/if}
-            {#if result.excerpt.length}<p>
-                {#each result.excerpt as segment, i (i)}{#if segment.match}<mark
-                      >{segment.text}</mark
-                    >{:else}{segment.text}{/if}{/each}
-              </p>{/if}
-            <time datetime={result.publishedAt}>{result.date}</time>
+            <ArticleCard
+              title={result.title}
+              href={result.href}
+              base={data.base}
+              image={result.image}
+              sizes="(min-width: 48rem) 18rem, 100vw"
+              placeholder={data.placeholder}
+              heading="h2"
+              date={result.date}
+              summary={null}
+              restrictedLabel={result.restricted ? t('block.overview.restricted') : null}
+              recording={result.recording}
+              eager={n === 0}
+              fragment={result.excerpt}
+            >
+              {#snippet metadata()}
+                {#if result.label}<span class="overview-kind">{result.label}</span>{/if}
+                <time class="overview-date" datetime={result.date.iso}>{result.date.label}</time>
+              {/snippet}
+              {#snippet footer()}
+                {#if result.moments.length}
+                  <div class="search-moments">
+                    <p id="moments-{result.id}">{t('public.search.moments')}</p>
+                    <ul aria-labelledby="moments-{result.id}">
+                      {#each result.moments as moment (moment.href)}
+                        <li>
+                          <a href={moment.href}
+                            ><time datetime={moment.time.iso}>{moment.time.label}</time>
+                            <span>{@render marked(moment.segments)}</span></a
+                          >
+                        </li>
+                      {/each}
+                    </ul>
+                  </div>
+                {/if}
+              {/snippet}
+            </ArticleCard>
           </li>
         {/each}
       </ol>

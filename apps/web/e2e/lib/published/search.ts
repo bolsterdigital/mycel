@@ -141,10 +141,13 @@ export async function exercisePublicSearch(page: Page) {
     `/probe/articles/${slug('tekst')}`
   );
   await expect(results.nth(1).locator('mark')).toHaveText(word);
-  await expect(results.nth(1).locator('time')).toHaveAttribute('datetime', /^\d{4}-/);
-  await expect(results.nth(1).locator('.search-restricted')).toHaveCount(0);
+  // Each result is the overview's card (MY-308): its kind, date and access in one line of facts.
+  await expect(results.nth(0).locator('.overview-kind')).toHaveText('Pagina');
+  await expect(results.nth(1).locator('.overview-kind')).toHaveText('Artikel');
+  await expect(results.nth(1).locator('.overview-date')).toHaveAttribute('datetime', /^\d{4}-/);
+  await expect(results.nth(1).locator('.overview-access')).toHaveCount(0);
   await expect(results.nth(2).locator('h2 a')).toHaveText('Alleen voor leden');
-  await expect(results.nth(2).locator('.search-restricted')).toHaveText('Voor leden');
+  await expect(results.nth(2).locator('.overview-access')).toHaveText('Voor leden');
   await expect(results.nth(2).locator('p mark')).toHaveText(word);
   await expect(page.locator('main')).not.toContainText('Niet vinden');
   await expect(page.locator('main')).not.toContainText('Concepttitel');

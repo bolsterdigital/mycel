@@ -27,7 +27,8 @@ const pageDocument = <T extends Record<string, unknown>>(over: T = {} as T) => (
  * scheduled pin, `noindex`, the trash and another tenant are never found, and a newly published
  * revision replaces what the old one was found by. A restricted item is found by its title and
  * teaser, marked `restricted`, never by a word behind its boundary and never with an excerpt
- * from there (reader access in Postgres: content/reader-search.test.ts).
+ * from there (reader access in Postgres: content/reader-search.test.ts). Each result carries
+ * the same card fields on both adapters.
  */
 export async function observeSearch(
   invoker: Invoker,
@@ -75,10 +76,15 @@ export async function observeSearch(
     pageDocument({ title: { nl: 'Fietspad verborgen', en: 'Hidden' }, seo: { noindex: true } })
   );
   await publish(verborgen, 'nl');
+  const section = await invoker.run(useCases.createSection, admin, {
+    slug: 'verkeer',
+    title: { nl: 'Verkeer' },
+  });
   const leden = await create('leden', {
     type: 'article',
     defaultLocale: 'nl',
     locales: ['nl'],
+    sectionId: section.id,
     title: { nl: 'Fietspad voor leden' },
     lead: { nl: 'De wethouder schrijft alleen voor leden.' },
     access: { level: 'members' },
@@ -143,6 +149,17 @@ export async function observeSearch(
       excerpt: r.excerpt.map((x) => x.text).join(''),
     })),
     title: (await find({ q: 'dorps', locale: 'nl' })).items[0]?.title,
+    // The card fields (MY-308): kind or section, image, where the match stood, no moments
+    // without a recording; a restricted article keeps its section, which its teaser shows.
+    cards: (await find({ q: 'fietspad', locale: 'nl' })).items.map((r) => ({
+      slug: r.slug,
+      kind: r.kind,
+      section: r.section?.name ?? null,
+      imageId: r.imageId,
+      foundIn: r.foundIn,
+      moments: r.moments.length,
+      recording: r.recording ?? null,
+    })),
     firstPage: await find({ q: 'fietspad', locale: 'nl', limit: 1 }),
     secondPage: await find({ q: 'fietspad', locale: 'nl', limit: 1, page: 2 }),
   };
@@ -202,6 +219,11 @@ export const expectedSearch = {
     { text: '.', match: false },
   ],
   title: 'Het fietspad',
+  cards: [
+    { slug: 'leden', kind: 'article', section: 'Verkeer' },
+    { slug: 'route', kind: 'page', section: null },
+    { slug: 'raad', kind: 'page', section: null },
+  ].map((card) => ({ ...card, imageId: null, foundIn: 'text', moments: 0, recording: null })),
   // A word behind the boundary finds nothing for anyone who is no reader with access; the lead
   // does, with an excerpt from the lead and the mark.
   behindTheBoundary: '',

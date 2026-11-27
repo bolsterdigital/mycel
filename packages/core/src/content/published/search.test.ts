@@ -6,6 +6,7 @@ import {
   queryTokens,
   searchEntry,
   searchExcerpt,
+  searchMoments,
   searchOpens,
   searchReaderOf,
   searchTexts,
@@ -143,5 +144,28 @@ describe('search excerpt', () => {
     expect(text.startsWith('… woord')).toBe(true);
     expect(text.endsWith('woord …')).toBe(true);
     expect(excerpt.filter((s) => s.match).map((s) => s.text)).toEqual(['fietspad']);
+  });
+});
+
+describe('searchMoments (MY-308)', () => {
+  const cue = (start: number, text: string) => ({ start, end: start + 2, text, speaker: null });
+  it('takes the lines with the most tokens, at most three, in time order', () => {
+    const cues = [
+      cue(1.5, 'De Vlamingen'),
+      cue(30.9, 'Wat kunnen we leren van de Vlamingen?'),
+      cue(45, 'Niets hier.'),
+      cue(60, 'Leren van elkaar.'),
+      cue(75, 'Vlamingen leren snel.'),
+      cue(90, 'Nog meer Vlamingen.'),
+    ];
+    const moments = searchMoments(cues, queryTokens('vlamingen leren'));
+    expect(moments.map((m) => m.seconds)).toEqual([1, 30, 75]);
+    expect(moments[1]?.segments.filter((s) => s.match).map((s) => s.text)).toEqual([
+      'leren',
+      'Vlamingen',
+    ]);
+  });
+  it('has no moment for a line without a token', () => {
+    expect(searchMoments([cue(0, 'Niets.')], queryTokens('vlamingen'))).toEqual([]);
   });
 });

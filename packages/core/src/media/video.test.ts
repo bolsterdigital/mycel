@@ -208,6 +208,45 @@ describe('managed video', () => {
     expect((await search('ottersporen', systemPrincipal(otherTenant, 'other'))).items).toHaveLength(
       0
     );
+    // MY-308: only the transcript completes the match. A recording in the body gives no moment, the
+    // one in a Video/audio article's header does, with its start for `?t=` and the play mark.
+    expect((await search('ottersporen')).items[0]).toMatchObject({
+      foundIn: 'recording',
+      moments: [],
+    });
+    const watch = await invoker.run(useCases.createItem, admin, {
+      slug: 'river-watch',
+      document: {
+        type: 'article',
+        defaultLocale: 'en',
+        locales: ['en'],
+        title: { en: 'River watch' },
+        presentation: { profile: 'media' },
+        blocks: [{ id: 'watch', type: 'video', version: 1, props: { videoId: video.id } }],
+      },
+    });
+    const watchTarget = { itemId: watch.item.id, locale: target.locale };
+    await invoker.run(useCases.publishItem, admin, {
+      ...watchTarget,
+      revisionId: watch.revision.id,
+    });
+    expect((await search('ottersporen')).items.find((r) => r.slug === 'river-watch')).toMatchObject(
+      {
+        kind: 'media',
+        foundIn: 'recording',
+        recording: { seconds: 10 },
+        moments: [
+          {
+            seconds: 0,
+            segments: [
+              { text: 'Ottersporen', match: true },
+              { text: ' gevonden.', match: false },
+            ],
+          },
+        ],
+      }
+    );
+    await invoker.run(useCases.unpublishItem, admin, watchTarget);
     const published = (await grant())!.track!;
     expect(
       await uow.run(admin, (ctx) =>

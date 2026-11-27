@@ -4,7 +4,10 @@
      length, an event's place, "for members"), each a span the stylesheet separates with a dot,
      then a short excerpt. Rejected: a paragraph per fact, which made a card with three facts
      three lines taller than its neighbours, and the summary at body size, larger than the title
-     on a site whose heading font runs small. -->
+     on a site whose heading font runs small.
+     A caller with its own excerpt (the search page's fragment, MY-308) passes `fragment` in place
+     of `summary`: text segments, the matching ones marked with <mark>, in the same paragraph. A link in `footer` (a search
+     result's moments) lies above the stretched title link, overview.css. -->
 <script module lang="ts">
   const excerptLimit = 120;
   const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
@@ -62,6 +65,7 @@
     recording,
     eager = false,
     metadata,
+    fragment,
     footer,
   }: {
     title: string;
@@ -78,6 +82,7 @@
     recording?: RenderCardRecording | null;
     eager?: boolean;
     metadata?: Snippet;
+    fragment?: readonly { text: string; match: boolean }[] | undefined;
     footer?: Snippet;
   } = $props();
 </script>
@@ -114,7 +119,11 @@
       {#if place}<span class="overview-place">{place}</span>{/if}
       {#if restrictedLabel}<span class="overview-access">{restrictedLabel}</span>{/if}
     </p>
-    {#if summary}<p class="overview-excerpt">{cardExcerpt(summary)}</p>{/if}
+    {#if fragment?.length}<p class="overview-excerpt">
+        {#each fragment as segment, i (i)}{#if segment.match}<mark>{segment.text}</mark
+            >{:else}{segment.text}{/if}{/each}
+      </p>
+    {:else if summary}<p class="overview-excerpt">{cardExcerpt(summary)}</p>{/if}
     {@render footer?.()}
   </div>
 </article>
