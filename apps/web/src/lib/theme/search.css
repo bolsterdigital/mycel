@@ -1,6 +1,6 @@
 /* The site search: the field and its button share a row while both fit and wrap to two lines
-   when they do not (320 CSS px, 200% text), each whole; results read as a plain list of links
-   in the page's measure. Rejected: an icon-only submit button (a label that is never seen is a
+   when they do not (320 CSS px, 200% text), each whole; results are the overview's cards in one
+   column of the page's measure. Rejected: an icon-only submit button (a label that is never seen is a
    label a translator cannot check). Imported in layer base, beside the form controls. */
 .search-form {
   display: grid;
@@ -43,18 +43,10 @@
   padding-inline-start: 0;
   list-style: none;
 }
-.search-results h2 {
-  margin: 0;
-  font-size: var(--step-1, 1.25rem);
-  overflow-wrap: anywhere;
-}
-.search-results h2 a {
-  display: inline-block;
-  min-height: var(--tap);
-}
-.search-results p {
-  margin: 0.25rem 0;
-  overflow-wrap: anywhere;
+/* Each result is the overview's card (MY-308), measured on its own item, so it puts image and
+   text side by side once it is wide enough (campaign-card.css) and stacks them below that. */
+.search-results > li {
+  container-type: inline-size;
 }
 .search-results mark {
   color: inherit;
@@ -62,9 +54,43 @@
   font-weight: 700;
   text-decoration: underline;
 }
-.search-results time,
-.search-results .search-restricted {
-  color: var(--color-muted-fg);
+/* The moments of a recording: each a link of its own, above the card's stretched title link
+   (overview.css), the time and the line it starts as one name, at least 44 px tall. */
+.search-moments {
+  font-size: max(var(--step--1), 0.9375rem);
+}
+.search-moments p {
+  margin: 0;
+  font-weight: 600;
+}
+.search-moments ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* The time is underlined as the link's mark; the line beside it only when pointed at, so the
+   marked words stay readable. */
+.search-moments a {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 0.5em;
+  align-content: center;
+  align-items: baseline;
+  min-height: var(--tap);
+  padding-block: 0.25rem;
+  color: inherit;
+  text-decoration: none;
+  overflow-wrap: break-word;
+}
+.search-moments time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-decoration: underline;
+}
+.search-moments a:hover span {
+  text-decoration: underline;
 }
 .search-pagination {
   display: flex;

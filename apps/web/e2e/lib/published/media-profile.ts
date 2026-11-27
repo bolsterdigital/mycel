@@ -4,6 +4,8 @@
 // the shared fixture (three lines, one speaker) behind the fixture CDN of the managed-video flow.
 // Its card (MY-304) shows a play mark and the length: checked in "Read more" under a second
 // article of a section of its own, where the recording is the first card on any probe state.
+// The site search (MY-308) finds it by a word only its transcript holds, as that card with the
+// moment the word is said, linked to the recording at that second, in both locales.
 import { randomUUID } from 'node:crypto';
 import { EXAMPLE_IDS, systemPrincipal, useCases } from '@mycel/core';
 import { expect, test, type Page } from '@playwright/test';
@@ -116,6 +118,42 @@ export async function exerciseMediaProfile(page: Page) {
   await expect(card.locator('.overview-recording time')).toHaveAttribute('datetime', /^PT0M\d+S$/);
   await expect(card.locator('svg.overview-play')).toHaveAttribute('aria-hidden', 'true');
   if (isA11y()) await expectNoAxeViolations(page, { label: 'recording card in read more' });
+
+  // Site search: the section names the card, the moment stands in place of an excerpt (no other
+  // text carries the word), and in the no-JS project its link starts the player there.
+  for (const [locale, word, section] of [
+    ['nl', 'zwemt', 'Programma'],
+    ['en', 'swims', 'Programme'],
+  ] as const) {
+    await page.goto(`/probe/${locale === 'en' ? 'en/' : ''}search?q=${word}`);
+    const result = page
+      .locator('.search-results > li')
+      .filter({ has: page.locator(`h2 a[href="${path(locale)}"]`) });
+    await expect(result.locator('.overview-kind')).toHaveText(section);
+    await expect(result.locator('.overview-recording')).toHaveText('Video · 1 min');
+    await expect(result.locator('.overview-excerpt')).toHaveCount(0);
+    const moment = result.locator('.search-moments a');
+    await expect(moment).toHaveCount(1);
+    await expect(moment).toHaveAttribute('href', `${path(locale)}?t=2`);
+    await expect(moment.locator('time')).toHaveText('0:02');
+    await expect(moment.locator('mark')).toHaveText(word);
+    if (isA11y()) {
+      await expectNoAxeViolations(page, { label: `search moments ${locale}`, dark: true });
+      await page.setViewportSize(NARROW);
+      await setTextSize(page, '200%');
+      await layoutGate(page, `search moments ${locale} at 320 and 200%`, 'main');
+      await expectNoAxeViolations(page, { label: `search moments ${locale} at 320 and 200%` });
+      await page.screenshot({
+        path: test.info().outputPath(`search-moments-320-200-${locale}.png`),
+        fullPage: true,
+      });
+      await page.setViewportSize({ width: 1366, height: 900 });
+    } else {
+      await moment.click();
+      await expect(page).toHaveURL(new RegExp(`${path(locale)}\\?t=2$`));
+      await expect(stage.locator('input[name="t"]')).toHaveValue('2');
+    }
+  }
   await page.goto(path('nl'));
 
   if (!isA11y()) {

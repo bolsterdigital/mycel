@@ -23,6 +23,18 @@
 // filtered after the query (a page of ten could turn into none, and the count of hits would say
 // what words a body holds).
 //
+// A result is a card (MY-308): the image, section or kind, recording and access mark come from
+// the card projection the overview draws from (`cardDocument`, `effectiveOf`, `cardRecordings`),
+// so a restricted item shows only its teaser's fields. The title stays the item's own title, the
+// one the question matched; rejected: the featured title, which can hide the words that matched.
+// A hit in a recording (a public item whose recording plays from this site's library) gives up to
+// `MAX_SEARCH_MOMENTS` moments: the transcript lines that carry the most tokens, in time order,
+// each with its start in whole seconds for the item's `?t=`. Only the recording in the item's
+// header (`mediaRecording`, a Video/audio article) has moments, because `?t=` starts that one and
+// no other; a recording further down still finds its item, with an excerpt and no moment.
+// Rejected: a moment per recording on the page (a link that opens the page at its top would say
+// it starts at 12:34 and does not).
+//
 // Order: hits whose title carries every token first, then newest publication, then item id. A
 // page is a number, capped at `MAX_SEARCH_PAGE`: a visitor reads the first pages, and a cursor
 // over a rank that a publication can change buys nothing here.
@@ -36,17 +48,22 @@
 // erasure rewrites).
 
 import { z } from 'zod';
+import { ImagePlacement, placementFor } from '../../media/placement.js';
 import { videoPresentation } from '../../media/video-playback.js';
-import { transcriptText } from '../../media/transcript.js';
+import { transcriptText, type TranscriptCue } from '../../media/transcript.js';
 import { entitled } from '../../entitlements/guards.js';
 import { getIntegrationPlacement } from '../../integrations/service.js';
 import { Locale } from '../../i18n/locale.js';
 import { defineUseCase } from '../../registry.js';
 import { grantStands, hasAccess } from '../access/model.js';
-import { readerAccess, teaserDocument } from '../access/projection.js';
+import { cardDocument, readerAccess, teaserDocument } from '../access/projection.js';
 import { allBlocks, blockLocalized } from '../blocks.js';
+import { mediaRecording } from '../header/article-profile.js';
+import { effectiveOf } from '../header/effective.js';
 import { ContentType, Slug, type Access, type ContentDocument } from '../model.js';
+import { publicSection } from '../public.js';
 import type { PublishedHit } from '../ports.js';
+import { CardRecording, cardRecording, cardRecordings } from './recording.js';
 import '../ports.js';
 
 /** The longest question, in characters; a search box, not a document. */
@@ -57,6 +74,8 @@ export const MAX_SEARCH_TOKENS = 8;
 export const MIN_SEARCH_TOKEN = 2;
 /** The last page a visitor can ask for. */
 export const MAX_SEARCH_PAGE = 20;
+/** How many moments of its recording a result shows. */
+export const MAX_SEARCH_MOMENTS = 3;
 /** The longest token kept; longer runs of letters are cut, on both sides alike. */
 const MAX_TOKEN_LENGTH = 64;
 /** About how long an excerpt is, in characters. */
@@ -269,6 +288,38 @@ export function searchExcerpt(body: readonly string[], tokens: readonly string[]
   return segments.filter((s) => s.text);
 }
 
+export const SearchMoment = z.object({
+  /** Whole seconds from the start of the recording, for the item's `?t=`. */
+  seconds: z.number().int().nonnegative(),
+  /** The transcript line, cut around its first match like an excerpt. */
+  segments: z.array(SearchSegment),
+});
+export type SearchMoment = z.infer<typeof SearchMoment>;
+
+/**
+ * The transcript lines that carry the most tokens, at most `MAX_SEARCH_MOMENTS`, in time order;
+ * a tie goes to the earlier line. A line without any token is no moment.
+ */
+export function searchMoments(
+  cues: readonly TranscriptCue[],
+  tokens: readonly string[]
+): SearchMoment[] {
+  return cues
+    .map((cue, at) => ({
+      cue,
+      at,
+      count: tokens.filter((t) => carries(searchTokens(cue.text), [t])).length,
+    }))
+    .filter((c) => c.count > 0)
+    .sort((a, b) => b.count - a.count || a.at - b.at)
+    .slice(0, MAX_SEARCH_MOMENTS)
+    .sort((a, b) => a.at - b.at)
+    .map(({ cue }) => ({
+      seconds: Math.floor(cue.start),
+      segments: searchExcerpt([cue.text], tokens),
+    }));
+}
+
 export const PublishedSearchResult = z.object({
   id: z.string().guid(),
   type: ContentType,
@@ -283,6 +334,22 @@ export const PublishedSearchResult = z.object({
    * excerpt is from the teaser unless the asking reader has access.
    */
   restricted: z.boolean(),
+  /** What a card names when the article has no section: a page, an article, a Video/audio one. */
+  kind: z.enum(['page', 'article', 'media']),
+  /** The article's section, as its page names it; null for a page and without one. */
+  section: z.object({ slug: Slug, name: z.string() }).nullable(),
+  /** The card's image along the chain (own, hero, the site's default), from the card projection. */
+  imageId: z.string().guid().nullable(),
+  imagePlacement: ImagePlacement.optional(),
+  /** A Video/audio article's recording: the card shows a play mark and its length (MY-304). */
+  recording: CardRecording.optional(),
+  /**
+   * `text` when the item's own text carries every token; `recording` when only its transcript
+   * completes the match, and a page shows the moments in place of the excerpt.
+   */
+  foundIn: z.enum(['text', 'recording']),
+  /** Where in the header's recording the question was said, in time order; empty elsewhere. */
+  moments: z.array(SearchMoment),
 });
 export type PublishedSearchResult = z.infer<typeof PublishedSearchResult>;
 
@@ -290,7 +357,7 @@ export const findPublished = defineUseCase({
   name: 'content.published.find',
   kind: 'query',
   description:
-    'Search the published pages and articles in one locale: every word of the question must start a word of the title or text. A restricted item is found by its title and teaser, and by its whole text only for a signed-in reader with access; it is marked restricted.',
+    'Search the published pages and articles in one locale: every word of the question must start a word of the title or text. A restricted item is found by its title and teaser, and by its whole text only for a signed-in reader with access; it is marked restricted. Each result carries its card fields (kind, section, image, recording); a hit in the recording of a Video/audio article lists up to three moments with their start in seconds.',
   requires: 'content:read',
   input: z.object({
     q: z.string().max(MAX_SEARCH_QUERY),
@@ -317,12 +384,22 @@ export const findPublished = defineUseCase({
       (await getIntegrationPlacement.handler(ctx, {})).embeds.includes('bunny-stream')
         ? ctx.videoProvider.libraryId
         : null;
+    const site = (await ctx.siteSettings.images()).value;
+    // A page of results often shares a section: read each one once.
+    const sections = new Map<string, ReturnType<typeof publicSection>>();
+    const sectionOf = (doc: ContentDocument) => {
+      if (doc.type !== 'article' || !doc.sectionId) return null;
+      // Its name falls back to the item's default locale, so that is part of the key.
+      const key = `${doc.sectionId}:${doc.defaultLocale}`;
+      if (!sections.has(key)) sections.set(key, publicSection(ctx, doc, locale));
+      return sections.get(key)!;
+    };
     const hits = await ctx.content.searchPublished(
       { tokens, locale, reader: searchReaderOf(reader, now), libraryId },
       (page - 1) * limit,
       limit + 1
     );
-    const items: PublishedSearchResult[] = [];
+    const found: { item: Omit<PublishedSearchResult, 'recording'>; card: ContentDocument }[] = [];
     for (const hit of hits.slice(0, limit)) {
       // The second access decision: the revision the pointer names, read again.
       const revision = await ctx.content.revision(hit.itemId, hit.revisionId);
@@ -332,25 +409,58 @@ export const findPublished = defineUseCase({
       const open = hasAccess(reader, doc, now);
       if (!open && !matchesSearch(entry, tokens, null)) continue;
       const texts = searchTexts(open ? doc : teaserDocument(doc), locale);
+      let moments: SearchMoment[] = [];
       if (libraryId && doc.access.level === 'public') {
+        const header = mediaRecording(doc)?.id;
         for (const block of doc.blocks) {
           if (block.type !== 'video') continue;
           const video = await videoPresentation(ctx, block.props.videoId, locale);
-          if (video) texts.body.push(...video.transcriptText);
+          if (!video) continue;
+          texts.body.push(...video.transcriptText);
+          if (block.id === header) moments = searchMoments(video.transcript, tokens);
         }
         if (!carries([...entry.all, ...texts.body.flatMap(searchTokens)], tokens)) continue;
       }
-      items.push({
-        id: hit.itemId,
-        type: hit.type,
-        slug: hit.slug,
-        locale,
-        title: texts.title,
-        excerpt: searchExcerpt(texts.body, tokens),
-        publishedAt: hit.publishedAt.toISOString(),
-        restricted: doc.access.level !== 'public',
+      const card = cardDocument(doc);
+      const effective = effectiveOf(card, locale, site);
+      const imageId = effective.images.featured.mediaId;
+      const placement = placementFor(card.featuredPlacement, imageId);
+      found.push({
+        card,
+        item: {
+          ...(placement ? { imagePlacement: placement } : {}),
+          id: hit.itemId,
+          type: hit.type,
+          slug: hit.slug,
+          locale,
+          title: texts.title,
+          excerpt: searchExcerpt(texts.body, tokens),
+          publishedAt: hit.publishedAt.toISOString(),
+          restricted: doc.access.level !== 'public',
+          kind:
+            doc.type === 'page'
+              ? 'page'
+              : doc.presentation?.profile === 'media'
+                ? 'media'
+                : 'article',
+          section: await sectionOf(doc),
+          imageId,
+          foundIn: carries(open ? entry.all : (entry.teaser ?? entry.all), tokens)
+            ? 'text'
+            : 'recording',
+          moments,
+        },
       });
     }
+    // One video read per distinct recording on the page, as an overview reads them.
+    const recordings = await cardRecordings(
+      ctx,
+      found.map((f) => f.card)
+    );
+    const items = found.map(({ item, card }): PublishedSearchResult => {
+      const recording = cardRecording(card, recordings);
+      return recording ? { ...item, recording } : item;
+    });
     return { items, next: hits.length > limit && page < MAX_SEARCH_PAGE ? page + 1 : null };
   },
 });

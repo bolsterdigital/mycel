@@ -54,6 +54,13 @@
   gap: calc(0.75 * var(--space-1));
   padding: var(--overview-card-inset, min(var(--space-2), 6cqi));
 }
+/* Side by side (campaign-card.css, from 34rem) the text keeps off the image also on a card
+   without a frame (`plain`, whose inset has no sides): the other styles already have this much. */
+@container (min-width: 34rem) {
+  .overview-card.campaign-card-inner:has(> .campaign-card-image) > .campaign-card-text {
+    padding-inline-start: var(--space-2);
+  }
+}
 /* Without a frame the image area carries the corners the card would have had. */
 .overview-card > .campaign-card-image {
   overflow: clip;
@@ -149,7 +156,9 @@
     color: var(--overview-card-hover-title, inherit);
   }
 }
-.overview-card:has(a:focus-visible) {
+/* Only the title's link: a link of the card's own text (a search result's moment) shows its own
+   ring and leaves the card as it is. */
+.overview-card:has(.overview-card-title a:focus-visible) {
   --overview-card-meta: currentColor;
   --overview-card-line: transparent;
   color: var(--overview-card-hover-fg, var(--color-primary-fg));
@@ -158,17 +167,18 @@
   outline-offset: 2px;
   box-shadow: 0 0 0 2px var(--color-focus-halo);
 }
-.overview-card:has(a:focus-visible) .overview-card-title {
+.overview-card:has(.overview-card-title a:focus-visible) .overview-card-title {
   color: var(--overview-card-hover-title, inherit);
 }
 /* In forced colours the surface inversion disappears. Keep the native title-link
    outline as well as the card ring so the focused action remains identifiable. */
 @media (forced-colors: none) {
-  .overview-card:has(a:focus-visible) .overview-card-title a {
+  .overview-card:has(.overview-card-title a:focus-visible) .overview-card-title a {
     outline: none;
     box-shadow: none;
   }
 }
+.overview-kind,
 .overview-date,
 .overview-place,
 .overview-access,

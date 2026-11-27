@@ -31,7 +31,7 @@ export async function visitorSearch(
   const html = await found.text();
   expect(found.headers()['cache-control']).toBe(PUBLIC_CACHE);
   expect(found.headers()['vary']?.toLowerCase()).toContain('cookie');
-  expect(html).toMatch(/class="search-restricted"[^>]*>\s*Voor leden\s*</);
+  expect(html).toMatch(/class="overview-access"[^>]*>\s*Voor leden\s*</);
   expect(html).toContain('De lead mag iedereen lezen.');
   expect(hidden.filter((s) => html.includes(s))).toEqual([]);
   const behind = await (await request.get(searchUrl(`${title} ${body}`))).text();
@@ -56,7 +56,7 @@ export async function readerSearch(
   const results = page.locator('.search-results > li');
   if (open) {
     await expect(results).toHaveCount(1);
-    await expect(results.locator('.search-restricted')).toHaveText('Voor leden');
+    await expect(results.locator('.overview-access')).toHaveText('Voor leden');
     await expect(results.locator('mark')).toHaveText(new RegExp(`^${body}$`, 'i'));
   } else await expect(results).toHaveCount(0);
   if (!gate) return;
