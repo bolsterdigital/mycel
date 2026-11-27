@@ -157,3 +157,54 @@ export function importTranscript(source: string, durationSeconds: number | null)
   if (normalized.length > MAX_TRANSCRIPT) throw invalid();
   return normalized;
 }
+
+/** At most this many chapters per language, from at most this much typed text (MY-305). */
+export const MAX_CHAPTERS = 100;
+export const MAX_CHAPTERS_SOURCE = 20_000;
+
+/** One chapter of a recording: where it starts and ends, in seconds, and its title. */
+export interface Chapter {
+  start: number;
+  end: number;
+  title: string;
+}
+
+/**
+ * Chapters as an editor writes them, one `3:10 Title` per line (or a WebVTT chapters file), as
+ * a WebVTT chapters track: each chapter runs to the next, the last to the end of the recording.
+ * Empty text clears them. Rejected: a format of their own; the transcript's importer already
+ * checks order, times within the recording and the text, and a track is what a player reads.
+ */
+export function importChapters(source: string, durationSeconds: number | null) {
+  if (!source.trim()) return '';
+  if (source.length > MAX_CHAPTERS_SOURCE) throw invalid();
+  const track = importTranscript(source, durationSeconds);
+  if (readableCues(track).length > MAX_CHAPTERS) throw invalid();
+  return track;
+}
+
+export function chapterList(track: string): Chapter[] {
+  return readableCues(track).map((cue) => ({
+    start: cue.start / 1000,
+    end: cue.end / 1000,
+    title: cue.text,
+  }));
+}
+
+/** A start as an editor types it: `3:10`, `1:02:03`, with milliseconds only when there are any. */
+function typedTime(ms: number) {
+  const seconds = Math.floor(ms / 1000);
+  const pair = (n: number) => String(n).padStart(2, '0');
+  const hours = Math.floor(seconds / 3600);
+  const clock = hours
+    ? `${hours}:${pair(Math.floor(seconds / 60) % 60)}:${pair(seconds % 60)}`
+    : `${Math.floor(seconds / 60)}:${pair(seconds % 60)}`;
+  return ms % 1000 ? `${clock}.${String(ms % 1000).padStart(3, '0')}` : clock;
+}
+
+/** The chapters back as the lines an editor reads and edits. */
+export function chapterLines(track: string) {
+  return readableCues(track)
+    .map((cue) => `${typedTime(cue.start)} ${cue.text}`)
+    .join('\n');
+}

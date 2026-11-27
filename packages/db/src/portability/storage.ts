@@ -528,6 +528,8 @@ export const STORAGE = {
       FREE_TEXT('draft_tracks', ['media.video.delete']),
       FREE_TEXT('transcript_lexemes', ['media.video.delete']),
       FREE_TEXT('published_tracks', ['media.video.delete']),
+      FREE_TEXT('draft_chapters', ['media.video.delete']),
+      FREE_TEXT('published_chapters', ['media.video.delete']),
     ],
     retention: SITE_KEPT,
   },

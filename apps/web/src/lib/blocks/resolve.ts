@@ -810,6 +810,7 @@ export async function resolveDocument(
           licence: video ? renderLicence(video.metadata.licence, locale) : null,
           watch: video?.metadata.watchUrl ?? null,
           transcript: options.videoRoute && video?.playable ? video.transcript : [],
+          chapters: options.videoRoute && video?.playable ? video.chapters : [],
           play: video?.playable && options.videoRoute ? `${options.videoRoute}/${id}` : null,
         };
       }

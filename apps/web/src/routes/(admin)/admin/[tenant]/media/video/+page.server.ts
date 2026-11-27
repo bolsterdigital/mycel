@@ -64,6 +64,7 @@ const transcriptAction =
     const locale = text(data, 'language');
     const version = text(data, 'version');
     let source = text(data, 'source');
+    const chapters = text(data, 'chapters');
     try {
       if (publish) {
         await runtime().invoker.run(useCases.publishTranscript, principal, { id, locale, version });
@@ -79,6 +80,7 @@ const transcriptAction =
           locale,
           version,
           source,
+          chapters,
         });
       }
       return { ok: true, saved: !publish };
@@ -87,7 +89,16 @@ const transcriptAction =
         conflict: 'admin.video.transcript.conflict',
         invalid: 'admin.video.transcript.invalid',
       });
-      return fail(status, { ok: false, error: body.error, source, version, id, language: locale });
+      return fail(status, {
+        ok: false,
+        error: body.error,
+        source,
+        // A refused publish posts no chapters; the field then shows the saved ones.
+        chapters: publish ? undefined : chapters,
+        version,
+        id,
+        language: locale,
+      });
     }
   };
 

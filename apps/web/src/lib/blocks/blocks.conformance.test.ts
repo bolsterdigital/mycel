@@ -116,6 +116,7 @@ const fixtures: ResolveSource = {
           playable: false,
           transcript: [],
           transcriptText: [],
+          chapters: [],
         }
       : null;
   },

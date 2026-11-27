@@ -9,13 +9,17 @@ export const media: Partial<Record<UiKey, string>> = {
   'admin.video.transcript.hint':
     'WebVTT, SRT of één regel per begintijd, bijvoorbeeld 00:03 Langs de rivier.',
   'admin.video.transcript.file': 'Transcriptbestand importeren',
+  'admin.video.chapters.text': 'Hoofdstukken',
+  'admin.video.chapters.hint':
+    'Eén hoofdstuk per regel: het begin en de titel, zoals 3:10 Wie is Tim. Leeg laten voor geen. Ze gaan live met het transcript.',
   'admin.video.transcript.save': 'Concept opslaan',
   'admin.video.transcript.publish': 'Opgeslagen concept publiceren',
   'admin.video.transcript.live': 'Dit transcript is gepubliceerd.',
   'admin.video.transcript.saved': 'Concept opgeslagen.',
   'admin.video.transcript.conflict':
     'Het transcript is gewijzigd. Open het opnieuw voordat je verdergaat.',
-  'admin.video.transcript.invalid': 'Controleer de tijden en de tekst van elke regel.',
+  'admin.video.transcript.invalid':
+    'Controleer de tijden en de tekst van elke regel en elk hoofdstuk.',
   'admin.video.title': 'Video’s',
   'admin.video.choose': 'Kies een video',
   'admin.video.file': 'Kies een videobestand',

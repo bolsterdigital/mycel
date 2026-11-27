@@ -166,7 +166,13 @@ export interface VideoRepository {
     patch: Partial<
       Pick<
         VideoRecord,
-        'durationSeconds' | 'hasSource' | 'trashedAt' | 'draftTracks' | 'publishedTracks'
+        | 'durationSeconds'
+        | 'hasSource'
+        | 'trashedAt'
+        | 'draftTracks'
+        | 'publishedTracks'
+        | 'draftChapters'
+        | 'publishedChapters'
       >
     >
   ): Promise<void>;

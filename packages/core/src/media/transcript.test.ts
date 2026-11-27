@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { importTranscript, transcriptCues, transcriptText } from './transcript.js';
+import {
+  chapterLines,
+  chapterList,
+  importChapters,
+  importTranscript,
+  MAX_CHAPTERS,
+  transcriptCues,
+  transcriptText,
+} from './transcript.js';
 
 describe('timed transcript import', () => {
   it('keeps start times, voice names, sound descriptions and escaped text on an edit', () => {
@@ -64,5 +72,24 @@ describe('transcript cues', () => {
     expect(transcriptText(track)).toEqual(['Sam de Vries: Along & across', '[water]']);
     expect(transcriptCues(track)).toHaveLength(transcriptText(track).length);
     expect(transcriptCues('')).toEqual([]);
+  });
+});
+
+describe('chapters (MY-305)', () => {
+  it('reads one chapter per line, each to the next, the last to the end, and writes them back', () => {
+    const track = importChapters('0:00 Opening\n3:10 Wie is <Tim>?\n1:02:03 Slot', 3800);
+    expect(chapterList(track)).toEqual([
+      { start: 0, end: 190, title: 'Opening' },
+      { start: 190, end: 3723, title: 'Wie is <Tim>?' },
+      { start: 3723, end: 3800, title: 'Slot' },
+    ]);
+    expect(chapterLines(track)).toBe('0:00 Opening\n3:10 Wie is <Tim>?\n1:02:03 Slot');
+    expect(importChapters(chapterLines(track), 3800)).toBe(track);
+  });
+  it('clears on empty text and refuses more than the limit', () => {
+    expect(importChapters('  \n', 10)).toBe('');
+    expect(chapterList('')).toEqual([]);
+    const many = Array.from({ length: MAX_CHAPTERS + 1 }, (_, i) => `${i}:00 Deel ${i}`).join('\n');
+    expect(() => importChapters(many, 100_000)).toThrow('Invalid timed transcript');
   });
 });

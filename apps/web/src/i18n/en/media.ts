@@ -7,12 +7,15 @@ export const media = {
   'admin.video.transcript.hint':
     'Use WebVTT, SRT or one line per start time, for example 00:03 Along the river.',
   'admin.video.transcript.file': 'Import transcript file',
+  'admin.video.chapters.text': 'Chapters',
+  'admin.video.chapters.hint':
+    'One chapter per line: its start and its title, such as 3:10 Who is Tim. Leave empty for none. They go live with the transcript.',
   'admin.video.transcript.save': 'Save draft',
   'admin.video.transcript.publish': 'Publish saved draft',
   'admin.video.transcript.live': 'This transcript is published.',
   'admin.video.transcript.saved': 'Draft saved.',
   'admin.video.transcript.conflict': 'The transcript changed. Reopen it before continuing.',
-  'admin.video.transcript.invalid': 'Check the times and text of each cue.',
+  'admin.video.transcript.invalid': 'Check the times and text of each cue and chapter.',
   'admin.video.title': 'Videos',
   'admin.video.choose': 'Choose a video',
   'admin.video.file': 'Choose a recording',

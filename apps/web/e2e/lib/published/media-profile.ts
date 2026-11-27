@@ -101,6 +101,10 @@ export async function exerciseMediaProfile(page: Page) {
   await expect(lines.nth(1).locator('time')).toHaveText('0:02');
   await expect(lines.nth(1).locator('.read-along-speaker')).toHaveText('Sam');
   await expect(lines.nth(1).locator('.read-along-text')).toHaveText('Een otter zwemt.');
+  // Chapters under the player: a list of starts and titles that reads without a script.
+  const chapters = stage.getByRole('region', { name: 'Hoofdstukken' }).getByRole('listitem');
+  await expect(chapters).toHaveCount(2);
+  await expect(chapters.nth(1)).toHaveText(/0:03\s+In het water/);
 
   // Its card under the next article of the programme: play mark, the word and the length.
   await page.goto(`/probe/articles/${slug}-verder`);
@@ -119,6 +123,7 @@ export async function exerciseMediaProfile(page: Page) {
     await expect(stage.locator('[data-media-controls]')).toBeHidden();
     await expect(stage.locator('[data-read-along-search]')).toBeHidden();
     await expect(stage.locator('.read-along-seek')).toHaveCount(0);
+    await expect(stage.locator('.media-chapter')).toHaveCount(0);
     await page.setViewportSize(NARROW);
     await setTextSize(page, '200%');
     await layoutGate(page, 'media header without a script at 320 and 200%', '.media-stage');
@@ -174,6 +179,15 @@ export async function exerciseMediaProfile(page: Page) {
     .toBeGreaterThanOrEqual(4);
   await expect(lines.nth(2)).toHaveAttribute('aria-current', 'true');
   await expect(lines.nth(2).getByRole('button')).toBeFocused();
+  // The chapter that plays is current; a chapter button seeks to its start.
+  const chapter = (name: RegExp) =>
+    stage.getByRole('region', { name: 'Chapters' }).getByRole('button', { name });
+  await expect(chapter(/In the water/)).toHaveAttribute('aria-current', 'true');
+  await chapter(/On the bank/).click();
+  await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.currentTime)).toBeLessThan(3);
+  await video.evaluate((el: HTMLVideoElement) => el.pause());
+  await expect(chapter(/On the bank/)).toHaveAttribute('aria-current', 'true');
+  await expect(chapter(/In the water/)).not.toHaveAttribute('aria-current', 'true');
 
   // Captions under the picture: the track is hidden and its cue is printed below; remembered.
   await stage.getByRole('radio', { name: 'Below' }).check();

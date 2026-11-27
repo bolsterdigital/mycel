@@ -31,6 +31,7 @@ const recording: Extract<RenderBlock, { type: 'video' }> = {
   licence: null,
   watch: null,
   transcript: [{ start: 0, end: 2, text: 'Hallo', speaker: 'Sam' }],
+  chapters: [],
   play: '/_video/nl/article/aflevering/film',
 };
 const model = (blocks: RenderBlock[]): RenderModel => ({

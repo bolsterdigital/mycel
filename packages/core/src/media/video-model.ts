@@ -23,6 +23,9 @@ export interface VideoRecord {
   hasSource: boolean;
   draftTracks?: Partial<Record<string, string>>;
   publishedTracks: Partial<Record<string, string>>;
+  /** Chapters per locale (MY-305), a WebVTT chapters track beside the transcript of that locale. */
+  draftChapters?: Partial<Record<string, string>>;
+  publishedChapters?: Partial<Record<string, string>>;
   createdAt: Date;
   trashedAt: Date | null;
 }

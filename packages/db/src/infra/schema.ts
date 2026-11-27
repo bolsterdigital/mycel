@@ -797,6 +797,8 @@ export interface Database {
     draft_tracks: ColumnType<Record<string, string>, string | undefined, string>;
     transcript_lexemes: ColumnType<Record<string, string[]>, string | undefined, string>;
     published_tracks: ColumnType<Record<string, string>, string | undefined, string>;
+    draft_chapters: ColumnType<Record<string, string>, string | undefined, string>;
+    published_chapters: ColumnType<Record<string, string>, string | undefined, string>;
     duration_seconds: number | null;
     has_source: boolean;
     created_at: Timestamp;

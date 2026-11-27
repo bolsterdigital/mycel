@@ -229,6 +229,7 @@ export const publicSite: Partial<Record<UiKey, string>> = {
   'video.back': 'Terug naar de pagina',
   'video.unavailable': 'Deze video is momenteel niet beschikbaar.',
   'video.readAlong': 'Lees mee',
+  'video.chapters': 'Hoofdstukken',
   'video.readAlong.search': 'Zoek in de tekst',
   'video.readAlong.previous': 'Vorige',
   'video.readAlong.next': 'Volgende',

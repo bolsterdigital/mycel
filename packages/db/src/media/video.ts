@@ -27,6 +27,8 @@ function record(row: Selectable<Database['managed_videos']>): VideoRecord {
     hasSource: row.has_source,
     draftTracks: row.draft_tracks,
     publishedTracks: row.published_tracks,
+    draftChapters: row.draft_chapters,
+    publishedChapters: row.published_chapters,
     createdAt: row.created_at,
     trashedAt: row.trashed_at,
   };
@@ -74,6 +76,8 @@ export function videoRepository(db: Kysely<Database>, tenantId: string): VideoRe
           draft_tracks: JSON.stringify(video.draftTracks ?? {}),
           transcript_lexemes: indexedTracks(video.publishedTracks),
           published_tracks: JSON.stringify(video.publishedTracks),
+          draft_chapters: JSON.stringify(video.draftChapters ?? {}),
+          published_chapters: JSON.stringify(video.publishedChapters ?? {}),
           duration_seconds: video.durationSeconds,
           has_source: video.hasSource,
           created_at: video.createdAt,
@@ -89,6 +93,8 @@ export function videoRepository(db: Kysely<Database>, tenantId: string): VideoRe
           draft_tracks: JSON.stringify(patch.draftTracks),
           published_tracks: JSON.stringify(patch.publishedTracks),
           transcript_lexemes: patch.publishedTracks && indexedTracks(patch.publishedTracks),
+          draft_chapters: JSON.stringify(patch.draftChapters),
+          published_chapters: JSON.stringify(patch.publishedChapters),
           has_source: patch.hasSource,
           trashed_at: patch.trashedAt,
         })

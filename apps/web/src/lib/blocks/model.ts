@@ -25,6 +25,7 @@ import type {
   RichTextDoc,
   socialConversationLinks,
   TranscriptCue,
+  Chapter,
 } from '@mycel/core';
 
 /** UI text that does not come from the document (ADR 007), resolved for the model's locale. */
@@ -370,6 +371,8 @@ export type RenderBlock = { id: string } & (
       watch: string | null;
       /** The published transcript in this locale, line by line, for a playable recording. */
       transcript: TranscriptCue[];
+      /** Its published chapters in this locale (MY-305), for a playable recording. */
+      chapters: Chapter[];
       play: string | null;
     }
   | {
