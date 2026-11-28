@@ -287,10 +287,13 @@ function palette(p: Palette, chrome: ResolvedTheme['chrome']): string[] {
  * `checkTheme` measured, so they follow the dark palette by themselves. `surface` adds nothing,
  * so a stored theme keeps its stylesheet and its URL. `outline` stands on the page with a line;
  * `plain` has no frame, so the text loses its side inset, the image area gets the corners, and
- * pointing at it colours the title as a link instead of inverting a surface that is not there;
- * `primary` is the primary pair, inverted when pointed at, as a button is. The facts line is the
- * caption colour of the background it stands on.
- * Rejected: a class per style on the page (the markup would have to know the theme).
+ * pointing at it marks the title in the primary pair, the pair the other styles invert to,
+ * instead of inverting a surface that is not there (MY-309); `primary` is the primary pair,
+ * inverted when pointed at, as a button is. The facts line is the caption colour of the
+ * background it stands on.
+ * Rejected: a class per style on the page (the markup would have to know the theme), and the
+ * title in the link colour for `plain` (a site whose links are its text colour, as Tegenmacht's,
+ * then showed nothing at all).
  */
 const CARD_STYLE_LINES: Record<CardStyle, readonly string[]> = {
   surface: [],
@@ -308,7 +311,8 @@ const CARD_STYLE_LINES: Record<CardStyle, readonly string[]> = {
     '--overview-card-image-radius: var(--radius);',
     '--overview-card-hover-fg: var(--color-body-fg);',
     '--overview-card-hover-bg: transparent;',
-    '--overview-card-hover-title: var(--color-link);',
+    '--overview-card-mark-fg: var(--color-primary-fg);',
+    '--overview-card-mark-bg: var(--color-primary-bg);',
   ],
   primary: [
     '--overview-card-fg: var(--color-primary-fg);',
