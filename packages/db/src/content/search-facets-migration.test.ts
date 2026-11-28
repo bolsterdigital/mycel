@@ -1,10 +1,15 @@
 // Migration 0094 (MY-308 PR 2): the backfill gives every existing search row the section and
 // article profile of its published revision, the values core writes for a new row. The migrator
 // applied it once, on whatever rows existed then, so this suite publishes through the
-// repository (which writes both columns), clears them as a row from before 0094 would be, replays
-// the SQL between the `backfill:begin` and `backfill:end` markers as the owner inside a
-// transaction it rolls back, and checks the values, the other tenant's rows and that RLS is
-// forced again afterwards.
+// repository (which writes both columns) on two tenants, clears both columns as a row from
+// before 0094 would hold them, replays the backfill's `update` inside a transaction it rolls back,
+// and checks that each tenant gets its own values back.
+//
+// The update runs narrowed to the two tenants and without the block's `alter table` lines: those
+// take an exclusive lock on two tables every other suite writes, and deadlocked the parallel run.
+// The test login is a superuser (erasure-backups.test.ts requires it in CI), which forced RLS does
+// not bind, so the lines are checked as text: forced RLS lifted before the update and restored
+// after it, on both tables.
 //
 // Rejected: inserting index rows by hand (tokens and access would be a second copy of what core
 // derives, and the test would check the fixture, not the migration).
@@ -44,13 +49,22 @@ describe.skipIf(skip)('migration 0094 backfill', () => {
       platform: memoryPlatform,
     })
   );
-  let backfill = '';
+  let update = '';
 
   beforeAll(async () => {
     await migrateSchema(operatorUrl);
     const text = await readFile(MIGRATION, 'utf8');
-    backfill = text.slice(text.indexOf('-- backfill:begin'), text.indexOf('-- backfill:end'));
-    expect(backfill).toContain('update content_search');
+    const backfill = text.slice(text.indexOf('-- backfill:begin'), text.indexOf('-- backfill:end'));
+    const lines = backfill.split('\n').filter((l) => l.startsWith('alter table'));
+    expect(lines).toEqual([
+      'alter table content_search no force row level security;',
+      'alter table content_revisions no force row level security;',
+      'alter table content_search force row level security;',
+      'alter table content_revisions force row level security;',
+    ]);
+    const from = backfill.indexOf('update content_search');
+    update = backfill.slice(from, backfill.indexOf(';', from));
+    expect(update).toMatch(/r\.tenant_id = s\.tenant_id/);
   });
   afterAll(async () => {
     await owner.destroy();
@@ -105,36 +119,26 @@ describe.skipIf(skip)('migration 0094 backfill', () => {
       ).rows;
     try {
       await client.query('begin');
-      await client.query('alter table content_search no force row level security');
-      const written = await read(a.id);
-      // What the repository writes now is what the backfill must restore.
-      expect(written).toEqual(
+      const written = { a: await read(a.id), b: await read(b.id) };
+      // What the repository writes now is what the backfill must restore; a new article
+      // starts as a Post.
+      expect(written.a).toEqual(
         [
           { item_id: a.video, section_id: a.section, profile: 'media' },
           { item_id: a.post, section_id: null, profile: 'post' },
           { item_id: a.page, section_id: null, profile: null },
         ].sort((x, y) => (x.item_id < y.item_id ? -1 : 1))
       );
-      const other = await read(b.id);
+      expect(written.b.find((r) => r.item_id === b.video)?.section_id).toBe(b.section);
+      const both = [a.id, b.id];
       await client.query(
-        'update content_search set section_id = null, profile = null where tenant_id = $1',
-        [a.id]
+        'update content_search set section_id = null, profile = null where tenant_id = any($1)',
+        [both]
       );
 
-      await client.query(backfill);
+      await client.query(`${update} and s.tenant_id = any($1)`, [both]);
 
-      const { rows: forced } = await client.query<{ relname: string; forced: boolean }>(
-        `select relname, relforcerowsecurity as forced from pg_class
-          where relname in ('content_search', 'content_revisions') and relkind = 'r'
-          order by relname`
-      );
-      expect(forced).toEqual([
-        { relname: 'content_revisions', forced: true },
-        { relname: 'content_search', forced: true },
-      ]);
-      await client.query('alter table content_search no force row level security');
-      expect(await read(a.id)).toEqual(written);
-      expect(await read(b.id)).toEqual(other);
+      expect({ a: await read(a.id), b: await read(b.id) }).toEqual(written);
     } finally {
       await client.query('rollback').catch(() => undefined);
       await client.end();
