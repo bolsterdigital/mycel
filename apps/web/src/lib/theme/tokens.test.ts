@@ -345,6 +345,15 @@ describe('theme tokens', () => {
       expect(added({ ...DEFAULT_THEME, cardStyle })).toContain(
         '--overview-card-meta: var(--color-caption-fg);'
       );
+    // A card without a surface marks its title in the primary pair when pointed at (MY-309): a
+    // checked pair, not the link colour, which may be the text colour itself.
+    expect(added({ ...DEFAULT_THEME, cardStyle: 'plain' })).toEqual(
+      expect.arrayContaining([
+        '--overview-card-mark-fg: var(--color-primary-fg);',
+        '--overview-card-mark-bg: var(--color-primary-bg);',
+      ])
+    );
+    expect(added({ ...DEFAULT_THEME, cardStyle: 'plain' }).join('\n')).not.toContain('color-link');
     // The primary card inverts its own pair when pointed at, the same contrast the other way.
     expect(added({ ...DEFAULT_THEME, cardStyle: 'primary' })).toEqual(
       expect.arrayContaining([

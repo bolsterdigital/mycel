@@ -3,7 +3,9 @@
 // light and the dark palette, the shape of its image area, axe on every style at rest and in
 // focus (the facts line is the caption colour of the background it stands on, which only a
 // rendered page can measure), and the layout at 320 px with 200% text. tokens.test.ts holds the
-// lines each choice adds; this proves the stylesheet that reads them.
+// lines each choice adds; this proves the stylesheet that reads them. The palettes link in their
+// own text colour, as Tegenmacht's does: a style whose hover leant on the link colour would show
+// no change at all there (MY-309), and every style must.
 // Rejected: switching the theme of the shared `probe` tenant, which repaints every other test's
 // cards while it runs.
 import {
@@ -26,14 +28,23 @@ const rgb = (hex: string) =>
   `rgb(${[1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16)).join(', ')})`;
 const NONE = 'rgba(0, 0, 0, 0)';
 
-type Paint = { color: string; background: string; title: string };
+type Paint = { color: string; background: string; title: string; mark: string };
+
+/** The default palettes with links in the text colour, which `checkTheme` allows. */
+const SAME_LINK = Object.fromEntries(
+  (['light', 'dark'] as const).map((mode) => {
+    const p = DEFAULT_THEME.palettes[mode];
+    return [mode, { ...p, link: p.body.foreground }];
+  })
+) as Record<'light' | 'dark', Palette>;
 
 /** What each style paints at rest and when pointed at, from the palette's own pairs. */
 function expected(style: CardStyle, p: Palette): { rest: Paint; hover: Paint } {
-  const pair = (fg: string, bg: string, title = fg): Paint => ({
+  const pair = (fg: string, bg: string, mark?: Palette['primary']): Paint => ({
     color: rgb(fg),
     background: bg === NONE ? NONE : rgb(bg),
-    title: rgb(title),
+    title: rgb(mark?.foreground ?? fg),
+    mark: mark ? rgb(mark.background) : NONE,
   });
   const primary = pair(p.primary.foreground, p.primary.background);
   switch (style) {
@@ -44,7 +55,7 @@ function expected(style: CardStyle, p: Palette): { rest: Paint; hover: Paint } {
     case 'plain':
       return {
         rest: pair(p.body.foreground, NONE),
-        hover: pair(p.body.foreground, NONE, p.link),
+        hover: pair(p.body.foreground, NONE, p.primary),
       };
     case 'primary':
       return { rest: primary, hover: pair(p.primary.background, p.primary.foreground) };
@@ -103,10 +114,12 @@ export async function exerciseCardStyles(page: Page, stamp: string) {
   const paint = (): Promise<Paint> =>
     card.evaluate((c) => {
       const own = getComputedStyle(c);
+      const title = getComputedStyle(c.querySelector('.overview-card-title a')!);
       return {
         color: own.color,
         background: own.backgroundColor,
-        title: getComputedStyle(c.querySelector('.overview-card-title')!).color,
+        title: title.color,
+        mark: title.backgroundColor,
       };
     });
 
@@ -117,7 +130,7 @@ export async function exerciseCardStyles(page: Page, stamp: string) {
       const { version } = await invoker.run(useCases.getSiteTheme, principal, {});
       await invoker.run(useCases.updateSiteTheme, principal, {
         baseVersion: version,
-        theme: { ...DEFAULT_THEME, cardStyle, cardImage },
+        theme: { ...DEFAULT_THEME, palettes: SAME_LINK, cardStyle, cardImage },
       });
     });
     const label = `${cardStyle}, ${cardImage}`;
@@ -128,11 +141,15 @@ export async function exerciseCardStyles(page: Page, stamp: string) {
       // previous style's stylesheet in it.
       expect((await page.goto(`/${slug}/kaarten?style=${cardStyle}-${mode}`))?.status()).toBe(200);
       await expect(page.locator('.overview-card')).toHaveCount(2);
-      const want = expected(cardStyle, DEFAULT_THEME.palettes[mode]);
-      expect(await paint(), `${label}, ${mode}, at rest`).toEqual(want.rest);
+      const want = expected(cardStyle, SAME_LINK[mode]);
+      const rest = await paint();
+      expect(rest, `${label}, ${mode}, at rest`).toEqual(want.rest);
       const box = (await card.boundingBox())!;
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      expect(await paint(), `${label}, ${mode}, pointed at`).toEqual(want.hover);
+      const hover = await paint();
+      expect(hover, `${label}, ${mode}, pointed at`).toEqual(want.hover);
+      // Pointing at a card shows, whatever the style.
+      expect(hover, `${label}, ${mode}, pointed at differs from at rest`).not.toEqual(rest);
     }
     await page.emulateMedia({ colorScheme: 'light' });
     await page.mouse.move(0, 0);
