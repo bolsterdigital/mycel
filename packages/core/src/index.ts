@@ -87,6 +87,7 @@ export * from './content/published/share-card.js';
 export * from './content/blocks/overview.js';
 export { socialConversationLinks } from './content/blocks/social-conversation.js';
 export * from './content/published/search.js';
+export * from './content/published/search-facets.js';
 export * from './content/patterns.js';
 export * from './theme/model.js';
 export * from './theme/fonts.js';

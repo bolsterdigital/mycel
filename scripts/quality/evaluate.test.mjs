@@ -90,6 +90,52 @@ test('admin SEO is inapplicable, private noindex remains required; hidden integr
   hidden[0].identity.functionalFailures = ['missing-enabled-integration'];
   assert.equal(evaluateBatch(contract, hidden).state, 'fail');
 });
+test('the search route scores three categories at 100, not SEO, and keeps a public noindex', () => {
+  const search = {
+    url: 'https://localhost:4443/probe/search?q=buurt',
+    indexable: false,
+    publicNoindex: true,
+    provenance,
+  };
+  const publicSamples = () =>
+    samples().map((sample) => ({
+      ...sample,
+      identity: { ...sample.identity, privateCache: false },
+      report: { ...sample.report, finalDisplayedUrl: search.url },
+    }));
+  // `is-crawlable` fails by design on a noindex page: an SEO score below 1 changes nothing.
+  const crawl = publicSamples();
+  for (const sample of crawl) sample.report.categories.seo.score = 0.66;
+  assert.equal(evaluateBatch(search, crawl).state, 'pass');
+  assert.deepEqual(Object.keys(evaluateBatch(search, crawl).failedAuditIdsByCategory), [
+    'performance',
+    'accessibility',
+    'best-practices',
+  ]);
+  for (const category of ['accessibility', 'best-practices']) {
+    const low = publicSamples();
+    low[2].report.categories[category].score = 0.98;
+    const result = evaluateBatch(search, low);
+    assert.equal(result.state, 'fail');
+    assert.ok(result.reasons.includes(category));
+  }
+  const slow = publicSamples().map((sample) => {
+    sample.report.categories.performance.score = 0.98;
+    return sample;
+  });
+  assert.ok(evaluateBatch(search, slow).reasons.includes('performance'));
+  // A public cache is not the admin rule; losing noindex is a functional failure.
+  assert.ok(!evaluateBatch(search, publicSamples()).reasons.includes('admin-private-cache'));
+  const indexed = publicSamples();
+  indexed[0].identity.noindex = false;
+  assert.deepEqual(evaluateBatch(search, indexed).reasons, ['missing-noindex']);
+  // Without the public flag the same samples are an admin page and fail on the public cache.
+  assert.ok(
+    evaluateBatch({ ...search, publicNoindex: undefined }, publicSamples()).reasons.includes(
+      'admin-private-cache'
+    )
+  );
+});
 test('one cause on many routes gives one proposal with its category', () => {
   const result = evaluateCell(contract, [samples([0.99, 0.99, 0.99, 0.99, 0.99])]);
   const cells = [

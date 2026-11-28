@@ -117,6 +117,9 @@ const result = {
     },
   ],
 };
+// An admin route carries the session and keeps its reports private; a public route, indexable
+// or the `noindex` search results, is measured as a visitor and its reports are public.
+const admin = (entry) => !entry.indexable && !entry.publicNoindex;
 const save = (name, value) => writeFileSync(join(out, name), JSON.stringify(value, null, 2));
 const launch = (command, argv, env) => {
   const child = spawn(command, argv, { env, stdio: ['ignore', 'inherit', 'inherit'] });
@@ -233,8 +236,11 @@ try {
       url: origin + entry.locales[locale].path,
       locale,
       title: entry.locales[locale].title,
-      indexable: true,
-      canonicalSuffix: `${locale === 'en' ? '/en' : ''}/${entry.routeClass === 'article' ? 'articles/' : entry.routeClass === 'person' ? 'people/' : ''}${entry.slug}`,
+      // A public entry is indexable unless it says otherwise; the search results say `noindex`
+      // and point at the empty form of their locale (`publicNoindex`, identity.mjs).
+      indexable: entry.indexable !== false,
+      publicNoindex: entry.indexable === false,
+      canonicalSuffix: `${locale === 'en' ? '/en' : ''}/${entry.routeClass === 'search' ? 'search' : `${entry.routeClass === 'article' ? 'articles/' : entry.routeClass === 'person' ? 'people/' : ''}${entry.slug}`}`,
       ...entry.expected,
       article: entry.routeClass === 'article',
     }));
@@ -330,7 +336,7 @@ try {
       for (let i = 0; i < 5; i++) {
         const id = `${entry.id}-b${batch + 1}-${i + 1}`;
         const sample = { id, provenance };
-        const dir = join(out, entry.indexable ? 'public' : 'private', id);
+        const dir = join(out, admin(entry) ? 'private' : 'public', id);
         mkdirSync(dir, { recursive: true, mode: 0o700 });
         let chrome;
         try {
@@ -363,7 +369,7 @@ try {
             artifacts: [
               {
                 id: 'MycelIdentity',
-                gatherer: new IdentityGatherer(entry.indexable ? undefined : cookie),
+                gatherer: new IdentityGatherer(admin(entry) ? cookie : undefined),
               },
             ],
             audits: [IdentityAudit],
@@ -422,7 +428,7 @@ try {
           // thumbnail answered 403 and the cell failed as `failed-request`. An image without a
           // source (an empty media picker's hidden preview) makes no request, so nothing failed.
           for (const url of (facts.imageUrls ?? []).filter(Boolean)) {
-            const response = await pageRequest(url, headers, entry.indexable ? undefined : cookie);
+            const response = await pageRequest(url, headers, admin(entry) ? cookie : undefined);
             if (!response) facts.failedRequests.push(url);
           }
           sample.identity = validateIdentity(entry, facts);
@@ -460,7 +466,7 @@ try {
       id: entry.id,
       route: entry.url,
       locale,
-      state: entry.indexable ? 'published' : entry.name,
+      state: admin(entry) ? entry.name : 'published',
       profile,
       cache,
       indexable: entry.indexable,

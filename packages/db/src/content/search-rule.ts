@@ -163,6 +163,7 @@ export async function observeSearch(
     firstPage: await find({ q: 'fietspad', locale: 'nl', limit: 1 }),
     secondPage: await find({ q: 'fietspad', locale: 'nl', limit: 1, page: 2 }),
   };
+  const filters = await observeFilters(invoker, admin, clock, section.id);
   // A draft after publication changes nothing; publishing it replaces what the item is found by.
   clock.advance(1000);
   const draft = await invoker.run(useCases.updateItem, admin, {
@@ -192,10 +193,120 @@ export async function observeSearch(
       slugs: before.secondPage.items.map((r) => r.slug).join(' '),
       next: before.secondPage.next,
     },
+    filters,
     draftOnly,
     republished,
     // Restored items come back unpublished.
     restored: await slugs('weg'),
+  };
+}
+
+/**
+ * Filters, sort and counts (MY-308 PR 2) over a word of their own: kind (a Video/audio article is
+ * `media`), section and period narrow the list; each kind count ignores the kind filter and each
+ * section count the section filter; the members' article that only its body matches counts for
+ * no visitor; an unknown section is `not_found`.
+ */
+async function observeFilters(invoker: Invoker, admin: Principal, clock: Clock, verkeer: string) {
+  const sport = await invoker.run(useCases.createSection, admin, {
+    slug: 'sport',
+    title: { nl: 'Sport' },
+  });
+  const article = (over: Record<string, unknown>) => ({
+    type: 'article',
+    defaultLocale: 'nl',
+    locales: ['nl'],
+    blocks: [],
+    ...over,
+  });
+  const make = async (slug: string, document: Record<string, unknown>, firstPublishedAt?: Date) => {
+    const { item } = await invoker.run(useCases.createItem, admin, {
+      slug,
+      document: document as never,
+    });
+    await invoker.run(useCases.publishItem, admin, {
+      itemId: item.id,
+      revisionId: item.latestRevisionId,
+      locale: 'nl',
+      ...(firstPublishedAt ? { firstPublishedAt: firstPublishedAt.toISOString() } : {}),
+    });
+    clock.advance(1000);
+  };
+  // Inside the last month, outside the last week.
+  const longAgo = new Date(clock.now().getTime() - 20 * 86_400_000);
+  await make(
+    'zebra-oud',
+    article({ sectionId: verkeer, title: { nl: 'Zebrapad van toen' } }),
+    longAgo
+  );
+  await make(
+    'zebra-video',
+    article({
+      sectionId: verkeer,
+      title: { nl: 'Het zebrapad op video' },
+      presentation: { profile: 'media' },
+    })
+  );
+  await make(
+    'zebra-sport',
+    article({ sectionId: sport.id, title: { nl: 'Hardlopen' }, lead: { nl: 'Over het zebrapad.' } })
+  );
+  await make(
+    'zebra-pagina',
+    pageDocument({ locales: ['nl'], title: { nl: 'Oversteken' }, lead: { nl: 'Een zebrapad.' } })
+  );
+  await make(
+    'zebra-leden',
+    article({
+      sectionId: sport.id,
+      title: { nl: 'Besloten' },
+      lead: { nl: 'Voor steuners.' },
+      access: { level: 'members' },
+      blocks: [
+        {
+          type: 'rich-text',
+          version: 1,
+          props: {
+            content: {
+              nl: {
+                type: 'doc',
+                content: [
+                  { type: 'paragraph', content: [{ type: 'text', text: 'Een zebrapad.' }] },
+                ],
+              },
+            },
+          },
+        },
+      ],
+    })
+  );
+  type Input = Omit<z.input<typeof useCases.findPublished.input>, 'q' | 'locale'>;
+  const look = async (input: Input = {}) => {
+    const r = await invoker.run(useCases.findPublished, admin, {
+      q: 'zebrapad',
+      locale: 'nl',
+      ...input,
+    });
+    return {
+      slugs: r.items.map((i) => i.slug).join(' '),
+      total: r.total,
+      kinds: r.facets.kinds,
+      sections: r.facets.sections.map((x) => `${x.name}:${x.count}`).join(' '),
+    };
+  };
+  return {
+    all: await look(),
+    newest: await look({ sort: 'newest' }),
+    articles: await look({ kind: 'article' }),
+    media: await look({ kind: 'media' }),
+    section: await look({ section: 'verkeer' }),
+    month: await look({ period: 'month' }),
+    week: await look({ period: 'week' }),
+    none: await look({ section: 'sport', kind: 'page' }),
+    unknown: await look({ section: 'nergens' }).then(
+      () => 'found',
+      (e: { code?: string }) => e.code
+    ),
   };
 }
 
@@ -232,6 +343,57 @@ export const expectedSearch = {
   ],
   firstPage: { slugs: 'leden', next: 2 },
   secondPage: { slugs: 'route', next: 3 },
+  filters: {
+    // Title hits first (the newer one leads), then body hits, newest first; the members' article
+    // matches only in its body, so a visitor neither finds nor counts it.
+    all: {
+      slugs: 'zebra-video zebra-oud zebra-pagina zebra-sport',
+      total: 4,
+      kinds: { page: 1, article: 2, media: 1 },
+      sections: 'Sport:1 Verkeer:2',
+    },
+    newest: {
+      slugs: 'zebra-pagina zebra-sport zebra-video zebra-oud',
+      total: 4,
+      kinds: { page: 1, article: 2, media: 1 },
+      sections: 'Sport:1 Verkeer:2',
+    },
+    // The kind counts ignore the kind filter; the sections follow it.
+    articles: {
+      slugs: 'zebra-oud zebra-sport',
+      total: 2,
+      kinds: { page: 1, article: 2, media: 1 },
+      sections: 'Sport:1 Verkeer:1',
+    },
+    media: {
+      slugs: 'zebra-video',
+      total: 1,
+      kinds: { page: 1, article: 2, media: 1 },
+      sections: 'Verkeer:1',
+    },
+    // The section counts ignore the section filter; the kinds follow it.
+    section: {
+      slugs: 'zebra-video zebra-oud',
+      total: 2,
+      kinds: { page: 0, article: 1, media: 1 },
+      sections: 'Sport:1 Verkeer:2',
+    },
+    month: {
+      slugs: 'zebra-video zebra-oud zebra-pagina zebra-sport',
+      total: 4,
+      kinds: { page: 1, article: 2, media: 1 },
+      sections: 'Sport:1 Verkeer:2',
+    },
+    week: {
+      slugs: 'zebra-video zebra-pagina zebra-sport',
+      total: 3,
+      kinds: { page: 1, article: 1, media: 1 },
+      sections: 'Sport:1 Verkeer:1',
+    },
+    // Nothing under both: the chosen section is listed with zero, so the form can show it.
+    none: { slugs: '', total: 0, kinds: { page: 0, article: 1, media: 0 }, sections: 'Sport:0' },
+    unknown: 'not_found',
+  },
   draftOnly: { old: 'leden raad route', fresh: '' },
   republished: { old: 'leden route', fresh: 'raad' },
   restored: '',

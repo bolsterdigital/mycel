@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "fixtureVersion": "43a-v11",
+  "fixtureVersion": "43a-v12",
   "tenant": "probe",
   "themeProfiles": {
     "default": {
@@ -161,6 +161,28 @@
         "font": "Inter",
         "headings": [1, 2]
       }
+    },
+    "search": {
+      "routeClass": "search",
+      "indexable": false,
+      "state": "results",
+      "locales": {
+        "nl": {
+          "path": "/probe/search?q=water",
+          "title": "water"
+        },
+        "en": {
+          "path": "/probe/en/search?q=water",
+          "title": "water"
+        }
+      },
+      "expected": {
+        "status": 200,
+        "minResults": 2,
+        "minImages": 0,
+        "font": "Inter",
+        "headings": [1, 2]
+      }
     }
   },
   "share": {
@@ -256,8 +278,8 @@
       "dependency": "#11 E"
     },
     {
-      "route": "collections-and-search",
-      "dependency": "#21 / #42"
+      "route": "collections",
+      "dependency": "#21"
     },
     {
       "route": "restricted-reader",

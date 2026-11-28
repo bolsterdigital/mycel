@@ -26,6 +26,13 @@
 // a link to the item at that second (`?t=`, MY-305); when only the recording carries the
 // question, the moments stand in place of the excerpt, which would show a line without its time.
 //
+// Filters (MY-308 PR 2) are GET parameters of the same form: `kind`, `section` (a slug),
+// `period` and `sort`. An empty value is no filter, so the form can submit "all" as it is; any
+// other value the use case does not know, and a section that names none, is a 404 like a page
+// out of range. Each kind is a link that keeps the other filters, the section and period are
+// selects, the active filters are links that remove one, and every link drops `page`: a new
+// filter starts at the first page. The counts are the use case's, so this file adds none.
+//
 // Cost (anonymous, so the route bounds it): ten results a page, at most twenty pages, at most
 // eight tokens of two or more characters (core's `queryTokens`). Each result reads its revision
 // once more, so a page is one index query plus at most ten revision reads. A visitor's response is
@@ -42,12 +49,18 @@ import {
   contentPath,
   MAX_SEARCH_PAGE,
   MAX_SEARCH_QUERY,
+  SEARCH_KINDS,
+  SearchKind,
+  SearchPeriod,
+  SearchSort,
+  Slug,
+  UseCaseError,
   useCases,
   type PublishedSearchResult,
 } from '@mycel/core';
 import { cardRecording, clockTime, isoDuration } from '../../blocks/recording.js';
 import { resolveIntro, runtimeSource } from '../../blocks/resolve.js';
-import { ui } from '../../../i18n/index.js';
+import { plural, ui } from '../../../i18n/index.js';
 import { languageLinks } from '../../public/language-links.js';
 import { searchPath } from '../../public/search-path.js';
 import { refuse } from '../http/refuse.js';
@@ -73,30 +86,74 @@ export function searchPage(raw: string | null): number | null {
   return page <= MAX_SEARCH_PAGE ? page : null;
 }
 
+/** The filters of the address; null when one holds a value no visitor can choose. */
+export function searchFilters(params: URLSearchParams) {
+  const value = <T>(name: string, schema: { safeParse(v: unknown): { success: boolean } }) => {
+    const raw = params.get(name);
+    if (!raw) return { ok: true, value: undefined };
+    return schema.safeParse(raw).success
+      ? { ok: true, value: raw as T }
+      : { ok: false, value: undefined };
+  };
+  const kind = value<SearchKind>('kind', SearchKind);
+  const section = value<string>('section', Slug);
+  const period = value<SearchPeriod>('period', SearchPeriod);
+  const sort = value<SearchSort>('sort', SearchSort);
+  if (!kind.ok || !section.ok || !period.ok || !sort.ok) return null;
+  return {
+    kind: kind.value,
+    section: section.value,
+    period: period.value,
+    sort: sort.value ?? ('best' as const),
+  };
+}
+type SearchFilters = NonNullable<ReturnType<typeof searchFilters>>;
+
 export async function loadSearchPage(site: Site, locale: string, url: URL, cookies: Cookies) {
   const q = searchQuery(url.searchParams.get('q'));
   const page = searchPage(url.searchParams.get('page'));
-  if (page === null || (page > 1 && !q)) refuse(404);
+  const filters = searchFilters(url.searchParams);
+  if (page === null || !filters || (page > 1 && !q)) refuse(404);
   const { invoker, uow } = runtime();
   const reader = anonymousPrincipal(siteTenant(site), ['content:read']);
   const personal = cookies.get(READER_COOKIE) !== undefined;
   const asker = (personal && (await readerOfRequest(cookies, site))) || reader;
   const { defaultLocale } = site.tenant;
+  const empty = { kinds: { page: 0, article: 0, media: 0 }, sections: [] };
   const result = q
-    ? await invoker.run(useCases.findPublished, asker, {
-        q,
-        locale,
-        page,
-        limit: SEARCH_PAGE_SIZE,
-      })
-    : { items: [], next: null };
+    ? await invoker
+        .run(useCases.findPublished, asker, {
+          q,
+          locale,
+          page,
+          limit: SEARCH_PAGE_SIZE,
+          ...filters,
+        })
+        .catch((error: unknown) => {
+          // A section slug that names no section of this site.
+          if (error instanceof UseCaseError && error.code === 'not_found') refuse(404);
+          throw error;
+        })
+    : { items: [], next: null, total: 0, facets: empty };
   // A page past the last result is not a page, like an offset past a profile's articles.
   if (page > 1 && !result.items.length) refuse(404);
   const timeZone = (await invoker.run(useCases.getSiteGeneral, reader, {})).value.timeZone;
   const date = new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone });
   const action = sitePath(site, searchPath(locale, defaultLocale));
-  const pageHref = (n: number) =>
-    `${action}?${new URLSearchParams({ q, ...(n > 1 ? { page: String(n) } : {}) })}`;
+  // An address of this search with some filters changed; defaults and empty values left out.
+  const query = (over: Partial<SearchFilters> = {}, n = 1) => {
+    const f = { ...filters, ...over };
+    const params = new URLSearchParams({ q });
+    for (const key of ['kind', 'section', 'period'] as const) {
+      const v = f[key];
+      if (v) params.set(key, v);
+    }
+    if (f.sort !== 'best') params.set('sort', f.sort);
+    if (n > 1) params.set('page', String(n));
+    return params;
+  };
+  const href = (over: Partial<SearchFilters> = {}, n = 1) => `${action}?${query(over, n)}`;
+  const pageHref = (n: number) => href({}, n);
   const absolute = await siteUrls(site);
   const t = ui(locale);
   const source = runtimeSource({
@@ -144,14 +201,73 @@ export async function loadSearchPage(site: Site, locale: string, url: URL, cooki
       })),
     };
   };
+  const kindLabel = (k: SearchKind) => t(`public.search.filter.kind.${k}`);
+  const sectionName =
+    result.facets.sections.find((x) => x.slug === filters.section)?.name ?? filters.section;
+  const filtered = Boolean(filters.kind || filters.section || filters.period);
+  const all = SEARCH_KINDS.reduce((n, k) => n + result.facets.kinds[k], 0);
+  const filterView = {
+    filtered,
+    count: q ? plural(t, 'public.search.count', result.total, { q }) : null,
+    kinds: [
+      { value: null, label: t('public.search.filter.kind.all'), count: all },
+      ...SEARCH_KINDS.map((k) => ({
+        value: k,
+        label: kindLabel(k),
+        count: result.facets.kinds[k],
+      })),
+    ]
+      // A kind without hits is no click worth offering, unless it is the one chosen.
+      .filter((k) => k.value === null || k.count > 0 || k.value === filters.kind)
+      .map((k) => ({
+        label: `${k.label} (${k.count})`,
+        href: href({ kind: k.value ?? undefined }),
+        current: (k.value ?? undefined) === filters.kind,
+      })),
+    kind: filters.kind ?? null,
+    sections: result.facets.sections.map((x) => ({
+      value: x.slug,
+      label: `${x.name} (${x.count})`,
+      selected: x.slug === filters.section,
+    })),
+    periods: (['', ...SearchPeriod.options] as const).map((p) => ({
+      value: p,
+      label: t(`public.search.filter.period.${p || 'all'}`),
+      selected: p === (filters.period ?? ''),
+    })),
+    sorts: SearchSort.options.map((v) => ({
+      value: v,
+      label: t(`public.search.sort.${v}`),
+      selected: v === filters.sort,
+    })),
+    // Each active filter as a link to the same search without it.
+    chips: [
+      ...(filters.kind
+        ? [{ label: kindLabel(filters.kind), href: href({ kind: undefined }) }]
+        : []),
+      ...(filters.section
+        ? [{ label: sectionName ?? '', href: href({ section: undefined }) }]
+        : []),
+      ...(filters.period
+        ? [
+            {
+              label: t(`public.search.filter.period.${filters.period}`),
+              href: href({ period: undefined }),
+            },
+          ]
+        : []),
+    ],
+    clear: filtered ? href({ kind: undefined, section: undefined, period: undefined }) : null,
+  };
   const view = {
     navigationLanguages: languageLinks(
       site.tenant.locales.map((l) => ({
         hreflang: l,
-        href: `${sitePath(site, searchPath(l, defaultLocale))}${q ? `?${new URLSearchParams({ q })}` : ''}`,
+        href: `${sitePath(site, searchPath(l, defaultLocale))}${q ? `?${query()}` : ''}`,
       }))
     ),
     q,
+    ...filterView,
     page,
     start: (page - 1) * SEARCH_PAGE_SIZE + 1,
     action,

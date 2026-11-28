@@ -11,6 +11,11 @@ import {
   searchEntry,
   transcriptTokens,
 } from '../../content/published/search.js';
+import {
+  passesSearchFilter,
+  searchFacetsOf,
+  searchKind,
+} from '../../content/published/search-facets.js';
 import type {
   PublishedCardRow,
   BulkPlanRepository,
@@ -20,6 +25,7 @@ import type {
   PresenceRepository,
   PublishedEntry,
   PublishedHit,
+  SearchQuery,
 } from '../../content/ports.js';
 import { PRESENCE_READ_LIMIT } from '../../content/presence/model.js';
 import type { TransactionContext } from '../../ports.js';
@@ -61,11 +67,62 @@ function memoryTrash(
   };
 }
 
+/** Every hit of a question before filters and page, with its facet fields (`searchFacetsOf`). */
+function memorySearchRows(s: TenantStore, kept: () => ItemRecord[]) {
+  return ({ tokens, locale, reader, libraryId }: SearchQuery) =>
+    kept().flatMap((item) => {
+      const state = item.publication.find((p) => p.locale === locale && p.publishedRevisionId);
+      if (!state) return [];
+      const revision = s.revisions.get(state.publishedRevisionId!)!;
+      const entry = searchEntry(revision.document, locale);
+      if (entry?.access.level === 'public' && libraryId) {
+        for (const block of revision.document.blocks) {
+          if (block.type !== 'video') continue;
+          const video = s.videos.get(block.props.videoId);
+          const binding = s.videoUploads.get(block.props.videoId);
+          const track = video?.publishedTracks[locale];
+          if (
+            track &&
+            video?.hasSource &&
+            !video.trashedAt &&
+            binding?.libraryId === libraryId &&
+            binding.state === 'ready' &&
+            binding.providerId &&
+            binding.mp4Height
+          )
+            entry.all.push(...transcriptTokens(track));
+        }
+      }
+      const match = entry && matchesSearch(entry, tokens, reader);
+      if (!match) return [];
+      const hit: PublishedHit = {
+        itemId: item.id,
+        type: item.type,
+        slug: item.slug,
+        revisionId: revision.id,
+        publishedAt: new Date(state.publishedAt!.getTime()),
+        inTitle: match.inTitle,
+      };
+      return [
+        {
+          hit,
+          kind: searchKind(item.type, entry.profile),
+          sectionId: entry.sectionId,
+          publishedAt: hit.publishedAt,
+        },
+      ];
+    });
+}
+
 /** The public list, by core's order (`comparePublished`), over the publication pointers. */
 function memoryPublished(
   s: TenantStore,
   kept: () => ItemRecord[]
-): Pick<ContentRepository, 'listPublished' | 'searchPublished' | 'publishedCards'> {
+): Pick<
+  ContentRepository,
+  'listPublished' | 'searchPublished' | 'searchFacets' | 'publishedCards'
+> {
+  const matching = memorySearchRows(s, kept);
   return {
     async publishedCards(
       {
@@ -138,44 +195,15 @@ function memoryPublished(
         )
         .slice(offset, offset + limit);
     },
-    async searchPublished({ tokens, locale, reader, libraryId }, offset, limit) {
-      const hits: PublishedHit[] = kept().flatMap((item) => {
-        const state = item.publication.find((p) => p.locale === locale && p.publishedRevisionId);
-        if (!state) return [];
-        const revision = s.revisions.get(state.publishedRevisionId!)!;
-        const entry = searchEntry(revision.document, locale);
-        if (entry?.access.level === 'public' && libraryId) {
-          for (const block of revision.document.blocks) {
-            if (block.type !== 'video') continue;
-            const video = s.videos.get(block.props.videoId);
-            const binding = s.videoUploads.get(block.props.videoId);
-            const track = video?.publishedTracks[locale];
-            if (
-              track &&
-              video?.hasSource &&
-              !video.trashedAt &&
-              binding?.libraryId === libraryId &&
-              binding.state === 'ready' &&
-              binding.providerId &&
-              binding.mp4Height
-            )
-              entry.all.push(...transcriptTokens(track));
-          }
-        }
-        const match = entry && matchesSearch(entry, tokens, reader);
-        if (!match) return [];
-        return [
-          {
-            itemId: item.id,
-            type: item.type,
-            slug: item.slug,
-            revisionId: revision.id,
-            publishedAt: new Date(state.publishedAt!.getTime()),
-            inTitle: match.inTitle,
-          },
-        ];
-      });
-      return hits.sort(compareHits).slice(offset, offset + limit);
+    async searchPublished({ sort, ...query }, offset, limit) {
+      const hits = matching(query).filter((m) => passesSearchFilter(m, query.filter ?? {}));
+      return hits
+        .map(({ hit }) => hit)
+        .sort((a, b) => compareHits(a, b, sort))
+        .slice(offset, offset + limit);
+    },
+    async searchFacets(query) {
+      return searchFacetsOf(matching(query), query.filter ?? {});
     },
     async listPublished({ type, sectionId }, after, limit) {
       const rows: PublishedEntry[] = kept().flatMap((item) => {

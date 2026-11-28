@@ -340,6 +340,9 @@ export interface Database {
     teaser: string | null;
     access_level: 'public' | 'members' | 'tier';
     tier_ids: string[];
+    /** The revision's section and article profile, for the search facets (0094). */
+    section_id: string | null;
+    profile: string | null;
   };
   /** Old addresses of published items (0062): the slug stays held and forwards to the item. */
   content_redirects: {

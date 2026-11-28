@@ -34,7 +34,7 @@ import {
 import type { Database } from './infra/schema.js';
 import { listPublished, publishedCards } from './content/published.js';
 import { readableDocument } from './content/read-document.js';
-import { indexPublished, searchPublished } from './content/search.js';
+import { indexPublished, searchFacets, searchPublished } from './content/search.js';
 import { toIso } from './infra/dates.js';
 
 type Trx = Kysely<Database>;
@@ -488,6 +488,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
     listPublished: listPublished(trx),
     publishedCards: publishedCards(trx),
     searchPublished: searchPublished(trx),
+    searchFacets: searchFacets(trx),
     async liveReferences(ref) {
       const row = await trx
         .selectFrom('content_item_locales as l')

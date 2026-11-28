@@ -34,8 +34,12 @@ export function evaluateBatch(contract, samples) {
         structural.push(`missing-category:${key}`);
       else if (key !== 'performance' && score !== 1) failures.push(key);
     }
-    if (!contract.indexable && !sample.identity?.noindex) failures.push('admin-noindex');
-    if (!contract.indexable && !sample.identity?.privateCache) failures.push('admin-private-cache');
+    // SEO is scored only where indexing is intended. A public `noindex` page (the search
+    // results) keeps the other three at 100 and its noindex, but is public, so no private cache.
+    const admin = !contract.indexable && !contract.publicNoindex;
+    if (contract.publicNoindex && !sample.identity?.noindex) failures.push('missing-noindex');
+    if (admin && !sample.identity?.noindex) failures.push('admin-noindex');
+    if (admin && !sample.identity?.privateCache) failures.push('admin-private-cache');
   }
   const raw = samples.map((sample) =>
     Object.fromEntries(

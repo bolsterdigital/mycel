@@ -36,6 +36,7 @@ export function sourceContract({ corpus, seed, matrixSource, workflow, lock }) {
       '43a-v9',
       '43a-v10',
       '43a-v11',
+      '43a-v12',
     ].includes(manifest.fixtureVersion) ||
     manifest.schemaVersion !== 1
   )
@@ -79,6 +80,7 @@ export function expectedShards(contract, event, selection) {
       '43a-v9',
       '43a-v10',
       '43a-v11',
+      '43a-v12',
     ].includes(contract.fixtureVersion) ||
     !hash(contract.fixtureHash)
   )
@@ -347,12 +349,14 @@ export function consumeRun(run, load) {
         const adminEntry = run.contract.manifest.admin.routes.find(
           (entry) => cell.id === `${entry.name}-${shard.locale}-${shard.profile}-${shard.cache}`
         );
-        const expectedPath = publicEntry?.locales[shard.locale].path ?? adminEntry?.path;
+        // A route may declare its query (the search results, `?q=`); any other query is not it.
+        const declared = publicEntry?.locales[shard.locale].path ?? adminEntry?.path;
+        const [expectedPath, expectedQuery = ''] = declared?.split('?') ?? [];
         const route = new URL(cell.route);
         const pathParts = expectedPath?.split(/\{(?:quality-article-id|form-id|mailchimp-id)\}/);
         if (
           route.origin !== 'https://localhost:4443' ||
-          route.search ||
+          route.search !== (expectedQuery && `?${expectedQuery}`) ||
           route.hash ||
           !expectedPath ||
           (pathParts.length === 1
@@ -387,11 +391,8 @@ export function consumeRun(run, load) {
                 [
                   'accessibility',
                   'best-practices',
-                  ...(Object.keys(run.contract.manifest.public).some(
-                    (name) => cell.id === `${name}-${shard.locale}-${shard.profile}-${shard.cache}`
-                  )
-                    ? ['seo']
-                    : []),
+                  // SEO counts on public indexable pages only, as in evaluate.mjs.
+                  ...(publicEntry && publicEntry.indexable !== false ? ['seo'] : []),
                 ].some((c) => r[c] !== 1)
               ) ||
               b.raw.map((r) => r.performance).some((n) => n === null) ||

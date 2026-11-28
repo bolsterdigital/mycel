@@ -35,9 +35,14 @@
 // Rejected: a moment per recording on the page (a link that opens the page at its top would say
 // it starts at 12:34 and does not).
 //
-// Order: hits whose title carries every token first, then newest publication, then item id. A
-// page is a number, capped at `MAX_SEARCH_PAGE`: a visitor reads the first pages, and a cursor
-// over a rank that a publication can change buys nothing here.
+// Order: hits whose title carries every token first, then newest publication, then item id; the
+// `newest` sort leaves the title rank out. A page is a number, capped at `MAX_SEARCH_PAGE`: a
+// visitor reads the first pages, and a cursor over a rank that a publication can change buys
+// nothing here. Filters (kind, section, period) and the counts beside them follow the rule in
+// `search-facets.ts`; the counts come from the adapter's matching rows under the same access
+// rule as the list, so a visitor never counts a restricted item that only its body would match.
+// An unknown section is `not_found`, as an unknown page of a list is: a filter that names
+// nothing is no empty result.
 //
 // Rejected: a language configuration per locale with stemming (the memory adapter cannot
 // reproduce a Snowball stemmer, so the conformance of the two would be a promise instead of a
@@ -61,9 +66,18 @@ import { allBlocks, blockLocalized } from '../blocks.js';
 import { mediaRecording } from '../header/article-profile.js';
 import { effectiveOf } from '../header/effective.js';
 import { ContentType, Slug, type Access, type ContentDocument } from '../model.js';
-import { publicSection } from '../public.js';
+import { publicSection, sectionName } from '../public.js';
+import { notFound } from '../../errors.js';
 import type { PublishedHit } from '../ports.js';
 import { CardRecording, cardRecording, cardRecordings } from './recording.js';
+import {
+  SearchKind,
+  SearchPeriod,
+  SearchSort,
+  searchKind,
+  searchSince,
+  searchTotal,
+} from './search-facets.js';
 import '../ports.js';
 
 /** The longest question, in characters; a search box, not a document. */
@@ -143,6 +157,10 @@ export interface SearchEntry {
   /** What a visitor without access may match on; null for a public revision. */
   teaser: string[] | null;
   access: { level: Access['level']; tierIds: string[] };
+  /** The section the revision names, for the section filter; null for a page and without one. */
+  sectionId: string | null;
+  /** The article's presentation profile, for the kind filter (`searchKind`); null for a page. */
+  profile: string | null;
 }
 
 /**
@@ -170,7 +188,14 @@ export function searchEntry(doc: ContentDocument, locale: string): SearchEntry |
   if (doc.type === 'page' && doc.profile === 'zone') return null;
   const { level, tierIds = [] } = doc.access;
   const teaser = level === 'public' ? null : tokenSets(teaserDocument(doc), locale).all;
-  return { ...tokenSets(doc, locale), teaser, access: { level, tierIds: [...tierIds] } };
+  const article = doc.type === 'article' ? doc : null;
+  return {
+    ...tokenSets(doc, locale),
+    teaser,
+    access: { level, tierIds: [...tierIds] },
+    sectionId: article?.sectionId ?? null,
+    profile: article?.presentation?.profile ?? null,
+  };
 }
 
 /**
@@ -211,12 +236,13 @@ export function matchesSearch(
   return { inTitle: carries(entry.title, tokens) };
 }
 
-/** The order of hits, which both adapters apply. */
+/** The order of hits, which both adapters apply; `newest` leaves the title rank out. */
 export function compareHits(
   a: Pick<PublishedHit, 'inTitle' | 'publishedAt' | 'itemId'>,
-  b: Pick<PublishedHit, 'inTitle' | 'publishedAt' | 'itemId'>
+  b: Pick<PublishedHit, 'inTitle' | 'publishedAt' | 'itemId'>,
+  sort: SearchSort = 'best'
 ): number {
-  if (a.inTitle !== b.inTitle) return a.inTitle ? -1 : 1;
+  if (sort === 'best' && a.inTitle !== b.inTitle) return a.inTitle ? -1 : 1;
   const time = b.publishedAt.getTime() - a.publishedAt.getTime();
   if (time) return time;
   return a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0;
@@ -351,29 +377,53 @@ export const PublishedSearchResult = z.object({
   /** Where in the header's recording the question was said, in time order; empty elsewhere. */
   moments: z.array(SearchMoment),
 });
+
+export const SearchFacetCounts = z.object({
+  /** Hits per kind under every filter but the kind; their sum is the count of "all". */
+  kinds: z.object({ page: z.number().int(), article: z.number().int(), media: z.number().int() }),
+  /**
+   * Sections with hits under every filter but the section, by name; the chosen section is listed
+   * with zero when it has none, so a form can still show what was chosen.
+   */
+  sections: z.array(z.object({ slug: Slug, name: z.string(), count: z.number().int() })),
+});
+export type SearchFacetCounts = z.infer<typeof SearchFacetCounts>;
+
+const NO_FACETS: SearchFacetCounts = { kinds: { page: 0, article: 0, media: 0 }, sections: [] };
 export type PublishedSearchResult = z.infer<typeof PublishedSearchResult>;
 
 export const findPublished = defineUseCase({
   name: 'content.published.find',
   kind: 'query',
   description:
-    'Search the published pages and articles in one locale: every word of the question must start a word of the title or text. A restricted item is found by its title and teaser, and by its whole text only for a signed-in reader with access; it is marked restricted. Each result carries its card fields (kind, section, image, recording); a hit in the recording of a Video/audio article lists up to three moments with their start in seconds.',
+    'Search the published pages and articles in one locale: every word of the question must start a word of the title or text. A restricted item is found by its title and teaser, and by its whole text only for a signed-in reader with access; it is marked restricted. Each result carries its card fields (kind, section, image, recording); a hit in the recording of a Video/audio article lists up to three moments with their start in seconds. Filter by kind (page, article, media), section slug and period (week, month, year), sort by best match or newest; the answer counts the hits in total and per kind and section.',
   requires: 'content:read',
   input: z.object({
     q: z.string().max(MAX_SEARCH_QUERY),
     locale: Locale,
     page: z.number().int().min(1).max(MAX_SEARCH_PAGE).default(1),
     limit: z.number().int().min(1).max(20).default(10),
+    kind: SearchKind.optional(),
+    /** A section's slug: only articles in it. */
+    section: Slug.optional(),
+    period: SearchPeriod.optional(),
+    sort: SearchSort.default('best'),
   }),
   output: z.object({
     items: z.array(PublishedSearchResult),
     /** The next page, or null: this was the last one a visitor can ask for. */
     next: z.number().int().nullable(),
+    /** Hits under every filter; may be one more than the pages hold (see the header). */
+    total: z.number().int().nonnegative(),
+    facets: SearchFacetCounts,
   }),
-  examples: [{ input: { q: 'buurt', locale: 'nl' } }],
-  async handler(ctx, { q, locale, page, limit }) {
+  examples: [
+    { input: { q: 'buurt', locale: 'nl' } },
+    { input: { q: 'buurt', locale: 'nl', kind: 'media', period: 'month', sort: 'newest' } },
+  ],
+  async handler(ctx, { q, locale, page, limit, kind, section, period, sort }) {
     const tokens = queryTokens(q);
-    if (!tokens.length) return { items: [], next: null };
+    if (!tokens.length) return { items: [], next: null, total: 0, facets: NO_FACETS };
     // The reader of this request, read now from the session row and the live projection; null for
     // a visitor and for every other actor, an operator included (they search as a visitor here).
     const reader = await readerAccess(ctx);
@@ -394,11 +444,20 @@ export const findPublished = defineUseCase({
       if (!sections.has(key)) sections.set(key, publicSection(ctx, doc, locale));
       return sections.get(key)!;
     };
+    const chosen = section ? await ctx.sections.findBySlug(section) : null;
+    if (section && !chosen) throw notFound('section', 'that slug');
+    const filter = {
+      kind,
+      sectionId: chosen?.id,
+      since: period ? searchSince(period, now) : undefined,
+    };
+    const query = { tokens, locale, reader: searchReaderOf(reader, now), libraryId, filter };
     const hits = await ctx.content.searchPublished(
-      { tokens, locale, reader: searchReaderOf(reader, now), libraryId },
+      { ...query, sort },
       (page - 1) * limit,
       limit + 1
     );
+    const counts = await ctx.content.searchFacets(query);
     const found: { item: Omit<PublishedSearchResult, 'recording'>; card: ContentDocument }[] = [];
     for (const hit of hits.slice(0, limit)) {
       // The second access decision: the revision the pointer names, read again.
@@ -437,12 +496,7 @@ export const findPublished = defineUseCase({
           excerpt: searchExcerpt(texts.body, tokens),
           publishedAt: hit.publishedAt.toISOString(),
           restricted: doc.access.level !== 'public',
-          kind:
-            doc.type === 'page'
-              ? 'page'
-              : doc.presentation?.profile === 'media'
-                ? 'media'
-                : 'article',
+          kind: searchKind(doc.type, entry.profile),
           section: await sectionOf(doc),
           imageId,
           foundIn: carries(open ? entry.all : (entry.teaser ?? entry.all), tokens)
@@ -461,6 +515,20 @@ export const findPublished = defineUseCase({
       const recording = cardRecording(card, recordings);
       return recording ? { ...item, recording } : item;
     });
-    return { items, next: hits.length > limit && page < MAX_SEARCH_PAGE ? page + 1 : null };
+    // The facet's sections by name; one that no longer resolves is left out, as on a card.
+    const named = [];
+    for (const { sectionId, count } of counts.sections) {
+      const found = sectionId === chosen?.id ? chosen : await ctx.sections.get(sectionId);
+      if (found) named.push({ slug: found.slug, name: sectionName(found, locale), count });
+    }
+    if (chosen && !named.some((n) => n.slug === chosen.slug))
+      named.push({ slug: chosen.slug, name: sectionName(chosen, locale), count: 0 });
+    named.sort((a, b) => a.name.localeCompare(b.name, locale) || (a.slug < b.slug ? -1 : 1));
+    return {
+      items,
+      next: hits.length > limit && page < MAX_SEARCH_PAGE ? page + 1 : null,
+      total: searchTotal(counts, kind),
+      facets: { kinds: counts.kinds, sections: named },
+    };
   },
 });
