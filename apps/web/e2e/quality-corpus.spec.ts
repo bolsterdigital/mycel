@@ -32,8 +32,15 @@ import { callApi, requireApi } from './lib/api';
 // and the quality runner checks their identity itself (validateIdentity) in the demo scope. Same
 // rule as publicNames(manifest, 'default') in scripts/quality/matrix.mjs.
 // Rejected: seeding the demo content in every e2e run, which grows every list a spec counts.
+// The search results (`corpus.public.search`) are public but `noindex`: none of the content
+// page checks below apply, so they have a test of their own.
+type ContentEntry = Exclude<
+  (typeof corpus.public)[keyof typeof corpus.public],
+  typeof corpus.public.search
+>;
 const entries = Object.values(corpus.public).filter(
-  (entry) => ((entry as { set?: string }).set ?? 'default') === 'default'
+  (entry): entry is ContentEntry =>
+    entry.indexable && ((entry as { set?: string }).set ?? 'default') === 'default'
 );
 const qualityAdmin = 'quality-admin@probe.test';
 
@@ -143,6 +150,48 @@ for (const entry of entries)
       expect(failed).toEqual([]);
       expect(foreign).toEqual([]);
     });
+
+// The search results page the runner measures as a public `noindex` route (no SEO score): a
+// visitor's answer, so public and cached like content, `noindex` in head and header, its canonical
+// the empty form of its locale, populated with at least the declared number of cards, every card
+// image whole and nothing fetched from elsewhere; native semantics, and axe in both schemes.
+for (const [locale, identity] of Object.entries(corpus.public.search.locales))
+  test(`search ${locale}: noindex results with a public cache`, async ({ page }) => {
+    const { expected } = corpus.public.search;
+    const failed: string[] = [];
+    const foreign: string[] = [];
+    const origin = new URL(test.info().project.use.baseURL ?? 'http://127.0.0.1:4173').origin;
+    page.on('requestfailed', (request) => failed.push(request.url()));
+    page.on('request', (request) => {
+      if (new URL(request.url()).origin !== origin) foreign.push(request.url());
+    });
+    const response = await page.goto(identity.path, { waitUntil: 'load' });
+    expect(response?.status()).toBe(expected.status);
+    expect(response?.headers()['cache-control']).toMatch(/^public,/);
+    expect(response?.headers()['x-robots-tag']).toBe('noindex');
+    await expect(page.locator('html')).toHaveAttribute('lang', locale);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(identity.title);
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+      'href',
+      new RegExp(`${locale === 'en' ? '/en' : ''}/search$`)
+    );
+    expect(await page.locator('.search-results > li').count()).toBeGreaterThanOrEqual(
+      expected.minResults
+    );
+    await expect(page.locator('main h2')).not.toHaveCount(0);
+    const images = await page.locator('main img').all();
+    expect(images.length).toBeGreaterThanOrEqual(expected.minImages);
+    for (const img of isA11y() ? images : []) {
+      await img.scrollIntoViewIfNeeded();
+      await expect
+        .poll(() => img.evaluate((node: HTMLImageElement) => node.naturalWidth))
+        .toBeGreaterThan(0);
+    }
+    await expectNoAxeViolations(page, { label: `search ${locale}`, dark: true });
+    expect(failed).toEqual([]);
+    expect(foreign).toEqual([]);
+  });
 
 // Every locale of a page carries its own description, Open Graph tags and image alts, compared
 // across the locales so a value copied from the other language fails (lib/metadata.ts).

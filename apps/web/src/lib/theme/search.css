@@ -103,3 +103,115 @@
   min-height: var(--tap);
   min-width: var(--tap);
 }
+/* Filters (MY-308 PR 2). Below 60rem a <details> "Filters" above the results, open when a filter
+   is on; from 60rem a column beside them, always shown whatever `open` says, as the admin menu
+   does (admin.css): ::details-content is the slot a closed <details> hides. Every control is a
+   whole label at least 44 px tall: the kinds and the active filters are links that wrap as whole
+   items, the selects fill the column. Rejected: one select per facet including the kind (two
+   steps where a link is one), and a button per filter that submits the form (a link keeps the
+   address shareable without a form submit). */
+.search-layout {
+  display: grid;
+  gap: var(--space-3);
+}
+.search-filters > summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding-inline: 0.75rem;
+  border: var(--border-width, 1px) solid var(--color-rule);
+  border-radius: var(--radius);
+  font-weight: 600;
+  cursor: pointer;
+}
+.search-filters-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+  padding-block: var(--space-2) 0;
+}
+.search-filter-label,
+.search-filters-body label {
+  margin: var(--space-1) 0 0;
+  font-weight: 600;
+}
+.search-filters-body select {
+  width: 100%;
+  min-width: 0;
+  max-inline-size: 40ch;
+  font: inherit;
+  min-height: var(--tap);
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--color-muted-fg);
+  border-radius: var(--radius);
+  background: var(--color-body-bg);
+  color: var(--color-body-fg);
+}
+.search-filters-body button {
+  justify-self: start;
+  margin-block-start: var(--space-1);
+}
+.search-kinds,
+.search-chips ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.search-kinds a,
+.search-chips a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  min-width: var(--tap);
+  color: inherit;
+}
+.search-kinds a[aria-current] {
+  font-weight: 700;
+  text-decoration: none;
+}
+.search-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-2);
+  margin-block-end: var(--space-2);
+}
+.search-chips p {
+  margin: 0;
+}
+.search-chips a:not(.search-clear) {
+  padding-inline: 0.75rem;
+  border: var(--border-width, 1px) solid var(--color-rule);
+  border-radius: 999px;
+  text-decoration: none;
+}
+.search-chips a:not(.search-clear):hover {
+  text-decoration: underline;
+}
+@media (min-width: 60rem) {
+  .search-page > :is(h1, search, .search-layout) {
+    width: min(var(--wide-width), 100% - 2 * var(--gutter));
+  }
+  .search-layout {
+    grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
+    gap: var(--space-4);
+    align-items: start;
+  }
+  .search-filters > summary {
+    display: none;
+  }
+  .search-filters::details-content {
+    content-visibility: visible;
+    display: block;
+  }
+  .search-filters-body {
+    padding-block-start: 0;
+  }
+  .search-kinds {
+    flex-direction: column;
+    gap: 0;
+  }
+}

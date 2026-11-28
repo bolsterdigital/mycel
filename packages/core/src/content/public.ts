@@ -31,7 +31,7 @@ import { defineUseCase } from '../registry.js';
 import { MediaView } from '../media/model.js';
 import { AccessGate, accessProjection, readerMedia } from './access/projection.js';
 import { Block, blockLocalized, projectBlock } from './blocks.js';
-import { ContentType, Slug, type ContentDocument } from './model.js';
+import { ContentType, Slug, type ContentDocument, type Section } from './model.js';
 import { PublishedEvent, projectEvent } from './published/event.js';
 import { PublishedDossier, dossierBoxes } from './published/dossier.js';
 import { OverviewEntry } from './published/overview.js';
@@ -296,13 +296,24 @@ export async function publicSection(
   const section =
     doc.type === 'article' && doc.sectionId && (await ctx.sections.get(doc.sectionId));
   if (!section) return null;
-  // A section's title is not part of the item's readiness, so it may lack this locale.
-  const name =
+  return { slug: section.slug, name: sectionName(section, locale, fallback) };
+}
+
+/**
+ * A section's name in `locale`, else in `fallback`, else in any locale it has, else its slug: a
+ * section's title is not part of an item's readiness, so it may lack this locale.
+ */
+export function sectionName(
+  section: Pick<Section, 'slug' | 'title'>,
+  locale: string,
+  fallback?: string
+): string {
+  return (
     section.title[locale] ??
-    section.title[fallback] ??
+    (fallback ? section.title[fallback] : undefined) ??
     Object.values(section.title)[0] ??
-    section.slug;
-  return { slug: section.slug, name };
+    section.slug
+  );
 }
 
 function pagePresentation(doc: Extract<ContentDocument, { type: 'page' }>, locale: string) {

@@ -87,6 +87,53 @@ test('authenticated admin requires private noindex populated tenant state', () =
   assert.equal(validateIdentity(admin, { ...facts, siteName: 'Other tenant' }).valid, false);
 });
 
+test('search results are public, noindex and populated, with no admin or article rules', () => {
+  const search = {
+    url: 'https://localhost/probe/search?q=buurt',
+    locale: 'nl',
+    title: 'buurt',
+    indexable: false,
+    publicNoindex: true,
+    canonicalSuffix: '/search',
+    minResults: 2,
+    minImages: 1,
+    font: 'Inter',
+  };
+  const facts = {
+    ...good,
+    url: search.url,
+    title: 'Resultaten voor ‘buurt’',
+    canonical: 'https://probe.localhost/search',
+    noindex: true,
+    privateCache: false,
+    results: 3,
+    words: 40,
+    h2: false,
+    ul: false,
+  };
+  assert.deepEqual(validateIdentity(search, facts).reasons, []);
+  for (const [key, value] of Object.entries({
+    noindex: false,
+    privateCache: true,
+    canonical: 'https://probe.localhost/search?q=buurt',
+    results: 1,
+    images: 0,
+    fonts: [],
+    themeStylesheet: false,
+  }))
+    assert.equal(validateIdentity(search, { ...facts, [key]: value }).valid, false, key);
+  // Losing noindex is functional, not only identity: the evaluator fails it at once.
+  assert.deepEqual(validateIdentity(search, { ...facts, noindex: false }).functionalFailures, [
+    'missing-noindex',
+  ]);
+  // Without the public flag the same page is held to the admin rules and fails them.
+  assert.ok(
+    validateIdentity({ ...search, publicNoindex: undefined }, facts).reasons.includes(
+      'admin-private-cache'
+    )
+  );
+});
+
 test('writer uses seeded block identity and body, without requiring the document title', () => {
   const writerBlocks = [
     { id: 'prose-id', type: 'rich-text', text: 'Een gedeelde straat Bewoners bespreken bomen.' },

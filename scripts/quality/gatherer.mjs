@@ -6,6 +6,8 @@ import { Gatherer as BaseGatherer, Audit } from 'lighthouse';
 // matched nothing once the list became a table, so every list cell failed as `empty-list`;
 // gatherer.test.mjs ties this selector to the page markup so it cannot drift silently again.
 export const POPULATED_ROW = '#content-table tbody tr[id^="item-"]';
+/** One result of the site search, the populated size the search route declares (`minResults`). */
+export const SEARCH_RESULT = '.search-results > li';
 
 export class IdentityGatherer extends BaseGatherer {
   meta = { supportedModes: ['navigation'] };
@@ -27,7 +29,7 @@ export class IdentityGatherer extends BaseGatherer {
   }
   async getArtifact({ driver }) {
     return driver.executionContext.evaluate(
-      async (populatedRow) => {
+      async (populatedRow, searchResult) => {
         await document.fonts.ready;
         const main = document.querySelector('main');
         const has = (selector) => Boolean(main?.querySelector(selector));
@@ -73,6 +75,7 @@ export class IdentityGatherer extends BaseGatherer {
           siteName: document.querySelector('.admin-site-name')?.textContent?.trim(),
           authenticated: Boolean(document.querySelector('form[action*="logout"]')),
           populated: has(populatedRow),
+          results: main?.querySelectorAll(searchResult).length ?? 0,
           writer: Boolean(writer),
           writerBlocks: [...(writer?.children ?? [])].map((block) => ({
             id: block.getAttribute('data-block-id'),
@@ -84,7 +87,7 @@ export class IdentityGatherer extends BaseGatherer {
           itemText: main?.textContent.includes('De straat die ruimte maakt'),
         };
       },
-      { args: [POPULATED_ROW], useIsolation: true }
+      { args: [POPULATED_ROW, SEARCH_RESULT], useIsolation: true }
     );
   }
 }

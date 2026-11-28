@@ -44,7 +44,12 @@ export async function exercisePublicSearch(page: Page) {
   const word = `zoekproef${id}`;
   const principal = systemPrincipal(await tenantId(), 'e2e');
   const slug = (s: string) => `zoek-${s}-${id}`;
+  const sectionSlug = `zoek-${id}`;
   await withInvoker(async (invoker) => {
+    const section = await invoker.run(useCases.createSection, principal, {
+      slug: sectionSlug,
+      title: { nl: `Rubriek ${id}`, en: `Section ${id}` },
+    });
     await make(
       invoker,
       principal,
@@ -80,6 +85,7 @@ export async function exercisePublicSearch(page: Page) {
       {
         type: 'article',
         title: { nl: 'Bomen en banken', en: 'Trees' },
+        sectionId: section.id,
         blocks: [{ type: 'rich-text', version: 1, props: { content: { nl: para(body) } } }],
       },
       ['nl']
@@ -130,7 +136,7 @@ export async function exercisePublicSearch(page: Page) {
   expect(res?.headers()['x-robots-tag']).toBe('noindex');
   expect(res?.headers()['etag']).toMatch(/^"/);
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
-  await expect(page.locator('main h1')).toHaveText(`Resultaten voor ‘${word}’`);
+  await expect(page.locator('main h1')).toHaveText(`3 resultaten voor ‘${word}’`);
   const results = page.locator('.search-results > li');
   await expect(results).toHaveCount(3);
   await expect(results.nth(0).locator('h2 a')).toHaveText(`Over ${word}`);
@@ -143,7 +149,7 @@ export async function exercisePublicSearch(page: Page) {
   await expect(results.nth(1).locator('mark')).toHaveText(word);
   // Each result is the overview's card (MY-308): its kind, date and access in one line of facts.
   await expect(results.nth(0).locator('.overview-kind')).toHaveText('Pagina');
-  await expect(results.nth(1).locator('.overview-kind')).toHaveText('Artikel');
+  await expect(results.nth(1).locator('.overview-kind')).toHaveText(`Rubriek ${id}`);
   await expect(results.nth(1).locator('.overview-date')).toHaveAttribute('datetime', /^\d{4}-/);
   await expect(results.nth(1).locator('.overview-access')).toHaveCount(0);
   await expect(results.nth(2).locator('h2 a')).toHaveText('Alleen voor leden');
@@ -153,7 +159,7 @@ export async function exercisePublicSearch(page: Page) {
   await expect(page.locator('main')).not.toContainText('Concepttitel');
   // A replacement pattern in the question is shown as typed, not expanded into the title.
   await page.goto(`/probe/search?${new URLSearchParams({ q: `${word} $&` })}`);
-  await expect(page.locator('main h1')).toHaveText(`Resultaten voor ‘${word} $&’`);
+  await expect(page.locator('main h1')).toHaveText(`3 resultaten voor ‘${word} $&’`);
   expect((await page.goto(`/probe/search?q=${word}draft`))?.status()).toBe(200);
   await expect(results).toHaveCount(0);
   await expect(page.locator('.search-empty')).toHaveText(
@@ -164,7 +170,7 @@ export async function exercisePublicSearch(page: Page) {
   // (c) The English page searches the English text, in English.
   await page.goto(`/probe/en/search?q=${word}`);
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  await expect(page.locator('main h1')).toHaveText(`Results for “${word}”`);
+  await expect(page.locator('main h1')).toHaveText(`1 result for “${word}”`);
   await expect(results).toHaveCount(1);
   await expect(results.locator('h2 a')).toHaveAttribute('href', `/probe/en/${slug('titel')}`);
 
@@ -178,10 +184,103 @@ export async function exercisePublicSearch(page: Page) {
   ])
     expect((await page.request.get(path)).status(), path).toBe(404);
 
+  await exerciseFilters(page, word, sectionSlug, id, slug);
+
   if (isA11y()) {
     await page.goto(`/probe/search?q=${word}`);
     await gate(page, 'results');
   }
+}
+
+/**
+ * (e) Filters, count and sort (MY-308 PR 2), as plain links and one GET form, so in both
+ * projects: a kind link narrows and says how many, the form adds a section, a period and a sort,
+ * an active filter is a link that removes it, nothing found with filters links to the search
+ * without them, and a value no visitor can choose is a 404. In `a11y` also the gate on the
+ * filtered page, with the filters open.
+ */
+async function exerciseFilters(
+  page: Page,
+  word: string,
+  sectionSlug: string,
+  id: string,
+  slug: (s: string) => string
+) {
+  const results = page.locator('.search-results > li');
+  const titles = () => results.locator('h2 a').allTextContents();
+  const filters = page.locator('.search-filters');
+  await page.goto(`/probe/search?q=${word}`);
+  // No filter on: the filters are folded on a narrow screen, so they start closed.
+  await expect(filters).not.toHaveAttribute('open');
+  const kinds = filters.locator('.search-kinds a');
+  await expect(kinds).toHaveText(['Alles (3)', 'Pagina’s (1)', 'Artikelen (2)']);
+  await expect(kinds.first()).toHaveAttribute('aria-current', 'true');
+  await expect(filters.locator('#search-section option')).toHaveText([
+    'Alle rubrieken',
+    `Rubriek ${id} (1)`,
+  ]);
+
+  // A kind link: one click, the count in the heading, the filter as a removable link.
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await filters.getByRole('link', { name: 'Artikelen (2)' }).click();
+  await expect(page).toHaveURL(new RegExp(`[?&]kind=article(&|$)`));
+  await expect(page.locator('main h1')).toHaveText(`2 resultaten voor ‘${word}’`);
+  await expect(filters).toHaveAttribute('open');
+  expect(await titles()).toEqual(['Bomen en banken', 'Alleen voor leden']);
+  await expect(page.locator('.search-chips a')).toHaveText(['Artikelen ×', 'Wis filters']);
+
+  // The form keeps the kind and adds a period and a sort; the newest first.
+  await filters.getByLabel('Periode').selectOption('week');
+  await filters.getByLabel('Sorteren').selectOption('newest');
+  await filters.getByRole('button', { name: 'Toepassen' }).click();
+  const url = new URL(page.url());
+  expect(Object.fromEntries(url.searchParams)).toEqual({
+    q: word,
+    kind: 'article',
+    section: '',
+    period: 'week',
+    sort: 'newest',
+  });
+  expect(await titles()).toEqual(['Bomen en banken', 'Alleen voor leden']);
+  await filters.getByLabel('Rubriek').selectOption(sectionSlug);
+  await filters.getByRole('button', { name: 'Toepassen' }).click();
+  expect(await titles()).toEqual(['Bomen en banken']);
+  await expect(page.locator('.search-chips a')).toHaveText([
+    'Artikelen ×',
+    `Rubriek ${id} ×`,
+    'Afgelopen week ×',
+    'Wis filters',
+  ]);
+  if (isA11y()) await gate(page, 'filtered');
+
+  // Removing one filter keeps the others; clearing keeps the question and the sort.
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.locator('.search-chips').getByRole('link', { name: 'Artikelen', exact: true }).click();
+  await expect(page.locator('main h1')).toHaveText(`1 resultaat voor ‘${word}’`);
+  expect(new URL(page.url()).searchParams.has('kind')).toBe(false);
+  await page.locator('.search-chips').getByRole('link', { name: 'Wis filters' }).click();
+  expect(Object.fromEntries(new URL(page.url()).searchParams)).toEqual({ q: word, sort: 'newest' });
+  await expect(results).toHaveCount(3);
+  await expect(results.first().locator('h2 a')).toHaveAttribute(
+    'href',
+    `/probe/articles/${slug('tekst')}`
+  );
+
+  // Nothing of a kind: say so and link to the same question without filters.
+  await page.goto(`/probe/search?q=${word}&kind=media`);
+  await expect(results).toHaveCount(0);
+  await expect(page.locator('.search-empty')).toContainText('Niets gevonden met deze filters.');
+  await page.locator('.search-empty').getByRole('link', { name: 'Zoek zonder filters' }).click();
+  await expect(results).toHaveCount(3);
+
+  for (const query of [
+    'kind=video',
+    'period=day',
+    'sort=oldest',
+    'section=Nope',
+    'section=nergens',
+  ])
+    expect((await page.request.get(`/probe/search?q=${word}&${query}`)).status(), query).toBe(404);
 }
 
 /** axe in both schemes, then the layout gate at 320 CSS px in every supported text size. */

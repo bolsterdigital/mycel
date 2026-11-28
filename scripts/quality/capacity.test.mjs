@@ -49,6 +49,7 @@ test('route selection rejects missing, duplicate and cross-scope routes', () => 
   const entries = [
     { name: 'campaign', indexable: true },
     { name: 'native-editor', indexable: false },
+    { name: 'search', indexable: false, publicNoindex: true },
   ];
   assert.deepEqual(selectRoutes(entries, 'admin', 'native-editor'), [entries[1]]);
   assert.deepEqual(selectRoutes(entries, 'default', ''), entries);
@@ -57,6 +58,7 @@ test('route selection rejects missing, duplicate and cross-scope routes', () => 
     'native-editor,missing',
     'native-editor,native-editor',
     'campaign',
+    'search',
   ])
     assert.throws(() => selectRoutes(entries, 'admin', routes));
 });

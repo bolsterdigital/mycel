@@ -6,6 +6,7 @@
 import type { PersonGroup } from './people/model.js';
 import type { AccessTier } from './access/model.js';
 import type { SearchReader } from './published/search.js';
+import type { SearchFacets, SearchFilter, SearchSort } from './published/search-facets.js';
 
 import type { BulkPlan, BulkPhase, BulkResult } from './bulk/model.js';
 import type { PresenceEntry } from './presence/model.js';
@@ -175,6 +176,15 @@ export interface PublishedHit {
   inTitle: boolean;
 }
 
+/** A question to the search index: tokens, locale, who asks, the bound library and the filters. */
+export interface SearchQuery {
+  tokens: readonly string[];
+  locale: string;
+  reader: SearchReader | null;
+  libraryId?: string | null;
+  filter?: SearchFilter;
+}
+
 /** An item in the trash, with the moment it went there (ADR 030). */
 export interface TrashedItem {
   item: ItemRecord;
@@ -262,15 +272,16 @@ export interface ContentRepository {
    * later draft and an unpublished locale never do.
    */
   searchPublished(
-    query: {
-      tokens: readonly string[];
-      locale: string;
-      reader: SearchReader | null;
-      libraryId?: string | null;
-    },
+    query: SearchQuery & { sort?: SearchSort },
     offset: number,
     limit: number
   ): Promise<PublishedHit[]>;
+  /**
+   * The counts beside the hits of `searchPublished` for the same query (`searchFacetsOf`): every
+   * row that query matches before its page, grouped by kind under every filter but the kind and
+   * by section under every filter but the section.
+   */
+  searchFacets(query: SearchQuery): Promise<SearchFacets>;
   /** The item if it is in the trash, locked for the rest of the transaction; else null. */
   lockTrashed(itemId: string): Promise<ItemRecord | null>;
   /** Moves a locked item to the trash and stamps `updatedAt`; its address becomes free. */

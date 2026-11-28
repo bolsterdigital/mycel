@@ -43,9 +43,12 @@ export function publicNames(manifest, scope) {
     .map(([name]) => name);
 }
 // The runner and evidence validator must select the same named routes; a typo cannot
-// silently become an empty successful shard, or select a public page for an admin shard.
+// silently become an empty successful shard, or select a public page for an admin shard; a
+// public `noindex` page (the search results) is public too.
 export function selectRoutes(entries, scope, route) {
-  const eligible = entries.filter((entry) => scope !== 'admin' || !entry.indexable);
+  const eligible = entries.filter(
+    (entry) => scope !== 'admin' || (!entry.indexable && !entry.publicNoindex)
+  );
   if (!route) return eligible;
   const names = route.split(',');
   if (

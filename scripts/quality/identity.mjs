@@ -1,6 +1,9 @@
 // Validate the measured document, not a separate successful health request. The browser adapter
 // supplies facts from the same navigation as Lighthouse; a 200 alone proves neither identity nor
 // complete resources. Rejected: trusting a high score from a login, redirect or empty page.
+// Three route kinds: a public indexable page (`indexable`), a public `noindex` page with a public
+// cache (`publicNoindex`, the search results), and otherwise a private admin page. A contract that
+// declares neither public kind gets the admin rules, so a forgotten flag is the strict case.
 const normalize = (text) => text.replace(/\s+/gu, ' ').trim();
 const proseText = (node) =>
   node.text ?? (node.content ?? []).map(proseText).filter(Boolean).join(' ');
@@ -23,13 +26,24 @@ export function validateIdentity(expected, facts) {
   if (facts.locale !== expected.locale) reasons.push('locale');
   if (!facts.csp) reasons.push('missing-production-csp');
   if (!facts.title?.includes(expected.title)) reasons.push('title');
-  if (expected.indexable) {
-    if (facts.noindex) reasons.push('unexpected-noindex');
-    if (!facts.canonical?.endsWith(expected.canonicalSuffix)) reasons.push('canonical');
-    if (facts.words < (expected.minWords ?? 1)) reasons.push('empty-content');
+  // A public page, indexable or not, is the visitor's page: its media, font and theme load.
+  if (expected.indexable || expected.publicNoindex) {
     if (facts.images < expected.minImages || facts.brokenImages) reasons.push('images');
     if (!facts.fonts?.includes(expected.font)) reasons.push('font');
     if (!facts.themeStylesheet) reasons.push('theme');
+  }
+  if (expected.publicNoindex) {
+    // A search results page: no content of its own, so it says noindex and points at the empty
+    // form, yet a visitor's answer is public and cached like content. Its proof of identity is
+    // the declared number of results, not words or a form.
+    if (!facts.noindex) reasons.push('missing-noindex');
+    if (facts.privateCache) reasons.push('unexpected-private-cache');
+    if (!facts.canonical?.endsWith(expected.canonicalSuffix)) reasons.push('canonical');
+    if (!(facts.results >= expected.minResults)) reasons.push('empty-results');
+  } else if (expected.indexable) {
+    if (facts.noindex) reasons.push('unexpected-noindex');
+    if (!facts.canonical?.endsWith(expected.canonicalSuffix)) reasons.push('canonical');
+    if (facts.words < (expected.minWords ?? 1)) reasons.push('empty-content');
     if (typeof expected.form === 'boolean' && facts.form !== expected.form) reasons.push('form');
     if (typeof expected.hero === 'boolean' && facts.hero !== expected.hero) reasons.push('hero');
     if (expected.minProseBlocks && !(facts.proseBlocks >= expected.minProseBlocks))
@@ -64,7 +78,13 @@ export function validateIdentity(expected, facts) {
     noindex: facts.noindex,
     privateCache: facts.privateCache,
     functionalFailures: reasons.filter((reason) =>
-      ['admin-noindex', 'admin-private-cache', 'foreign-request', 'page-error'].includes(reason)
+      [
+        'admin-noindex',
+        'admin-private-cache',
+        'missing-noindex',
+        'foreign-request',
+        'page-error',
+      ].includes(reason)
     ),
   };
 }
