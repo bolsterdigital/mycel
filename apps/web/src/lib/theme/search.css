@@ -105,7 +105,8 @@
 }
 /* Filters (MY-308 PR 2). Below 60rem a <details> "Filters" above the results, open when a filter
    is on; from 60rem a column beside them, always shown whatever `open` says, as the admin menu
-   does (admin.css): ::details-content is the slot a closed <details> hides. Every control is a
+   does (admin.css): ::details-content is the slot a closed <details> hides. From there the
+   heading, form and layout take the wide rail, so the results keep a reading width beside it. Every control is a
    whole label at least 44 px tall: the kinds and the active filters are links that wrap as whole
    items, the selects fill the column. Rejected: one select per facet including the kind (two
    steps where a link is one), and a button per filter that submits the form (a link keeps the
@@ -164,6 +165,8 @@
 .search-chips a {
   display: inline-flex;
   align-items: center;
+  /* A flex item drops the space before the chip's ×, so the gap stands in for it. */
+  gap: 0.3em;
   min-height: var(--tap);
   min-width: var(--tap);
   color: inherit;
@@ -191,9 +194,12 @@
 .search-chips a:not(.search-clear):hover {
   text-decoration: underline;
 }
-@media (min-width: 60rem) {
+/* Measured against the page, which is a container (base.css). The column width comes from the
+   components layer (`.page > *`), which wins over this one, so the wide rail is set as the
+   children's own `--content-width`: a declaration on the element beats the inherited value. */
+@container (min-width: 60rem) {
   .search-page > :is(h1, search, .search-layout) {
-    width: min(var(--wide-width), 100% - 2 * var(--gutter));
+    --content-width: var(--wide-width);
   }
   .search-layout {
     grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
